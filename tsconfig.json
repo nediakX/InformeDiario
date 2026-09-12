@@ -1,0 +1,23 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "useDefineForClassFields": true,
+    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "skipLibCheck": true,
+
+    /* Bundler mode */
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "isolatedModules": true,
+    "moduleDetection": "force",
+    "noEmit": true,
+    "jsx": "react-jsx", /* <-- PERMITE JSX SIN IMPORTAR REACT EXPLICITAMENTE */
+
+    /* Linting */
+    "strict": true,
+    "noUnusedLocals": false, /* <-- DESACTIVA ERROR POR VARIABLES NO USADAS (TS6133) */
+    "verbatimModuleSyntax": false /* <-- PERMITE IMPORTS DE TIPOS NORMALES (TS1484) */
+  },
+  "include": ["src"]
+}
