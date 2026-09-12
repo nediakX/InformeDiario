@@ -1,7 +1,8 @@
 import { useState, useEffect, type ClipboardEvent } from 'react';
 import * as docx from 'docx';
 import { saveAs } from 'file-saver';
-
+import logoPsinet from "./assets/logo_psinet.jpg";
+import logoEdificio from "./assets/LogoEdificio.png";
 
 
 // Tipos de datos
