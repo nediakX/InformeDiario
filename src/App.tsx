@@ -78,15 +78,24 @@ const DEFAULT_PERSONAL: PersonalItem[] = [
 ];
 
 const DEFAULT_ACTIVIDADES_DIA: string[] = [
-  "Registro de reunión inicio de turno.",
-  "Registro de Check List de vehículo liviano.",
+  "Registro de Reunión Inicio de Turno.",
+  "Registro de Check List de Vehículo Liviano.",
   "Vehículo liviano L200 VCTF 84.",
-  "Autoevaluación Diaria inicio y termino de turno.",
-  "Registro fatiga y somnolencia.",
-  "Registro de protección solar.",
+  "Autoevaluación Diaria Inicio y Termino de Turno.",
+  "Registro Fatiga y Somnolencia.",
+  "Verificación de Ropa Alta Visibilidad.",
+  "Registro de Protección Solar.",
   "Registro de Hidratación.",
   "Tareas Administrativas."
 ];
+
+const ACTIVIDAD_DIA_PERMANENTE = "Verificación de Ropa Alta Visibilidad";
+
+const ensureActividadesDiaPermanentes = (items: string[]) => (
+  items.includes(ACTIVIDAD_DIA_PERMANENTE)
+    ? items
+    : [...items, ACTIVIDAD_DIA_PERMANENTE]
+);
 
 // Plantilla fija de Actividades Diarias exclusiva de Turno Noche (distinta de la de Turno Día).
 const DEFAULT_ACTIVIDADES_NOCHE: string[] = [
@@ -241,7 +250,7 @@ export default function App() {
     // El turno inicial es 'dia', así que cargamos su plantilla de actividades correspondiente.
     try {
       const rawActDia = localStorage.getItem(LS_KEY_ACT_DIA);
-      setActividades(rawActDia ? JSON.parse(rawActDia) : DEFAULT_ACTIVIDADES_DIA);
+      setActividades(rawActDia ? ensureActividadesDiaPermanentes(JSON.parse(rawActDia)) : DEFAULT_ACTIVIDADES_DIA);
     } catch {
       setActividades(DEFAULT_ACTIVIDADES_DIA);
     }
@@ -375,7 +384,7 @@ export default function App() {
       const key = newTurno === 'dia' ? LS_KEY_ACT_DIA : LS_KEY_ACT_NOCHE;
       const raw = localStorage.getItem(key);
       nextActividades = raw
-        ? JSON.parse(raw)
+        ? (newTurno === 'dia' ? ensureActividadesDiaPermanentes(JSON.parse(raw)) : JSON.parse(raw))
         : (newTurno === 'dia' ? DEFAULT_ACTIVIDADES_DIA : DEFAULT_ACTIVIDADES_NOCHE);
     } catch {
       nextActividades = newTurno === 'dia' ? DEFAULT_ACTIVIDADES_DIA : DEFAULT_ACTIVIDADES_NOCHE;
