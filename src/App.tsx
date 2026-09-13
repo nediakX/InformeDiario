@@ -26,6 +26,38 @@ type ScannerTarget =
   | { type: 'vertivCarro'; index: number }
   | { type: 'vertivItem'; index: number };
 
+type CvMat = {
+  rows: number;
+  cols: number;
+  data32S: Int32Array;
+  delete: () => void;
+};
+
+type CvApi = {
+  Mat: new () => CvMat;
+  MatVector: new () => { size: () => number; get: (index: number) => CvMat; delete: () => void };
+  Size: new (width: number, height: number) => unknown;
+  Scalar: new (...values: number[]) => unknown;
+  CV_32FC2: number;
+  COLOR_RGBA2GRAY: number;
+  RETR_LIST: number;
+  CHAIN_APPROX_SIMPLE: number;
+  INTER_LINEAR: number;
+  BORDER_CONSTANT: number;
+  imread: (source: HTMLCanvasElement) => CvMat;
+  cvtColor: (...args: unknown[]) => void;
+  GaussianBlur: (...args: unknown[]) => void;
+  Canny: (...args: unknown[]) => void;
+  findContours: (...args: unknown[]) => void;
+  arcLength: (contour: CvMat, closed: boolean) => number;
+  approxPolyDP: (...args: unknown[]) => void;
+  contourArea: (contour: CvMat) => number;
+  matFromArray: (...args: unknown[]) => CvMat;
+  getPerspectiveTransform: (...args: unknown[]) => CvMat;
+  warpPerspective: (...args: unknown[]) => void;
+  imshow: (canvas: HTMLCanvasElement, image: CvMat) => void;
+};
+
 const DEFAULT_PERSONAL: PersonalItem[] = [
   { nombre: "Max Diaz", cargo: "Supervisor" },
   { nombre: "Patricio Santana", cargo: "Supervisor" },
@@ -549,7 +581,7 @@ export default function App() {
       sourceCanvas.getContext('2d')?.drawImage(image, 0, 0);
 
       const cvModule = await import('@techstark/opencv-js');
-      const cv = (cvModule as unknown as { default?: Record<string, any> }).default ?? cvModule;
+      const cv = ((cvModule as unknown as { default?: CvApi }).default ?? cvModule) as unknown as CvApi;
       if (!cv.Mat || !cv.imread) return sourceDataUrl;
 
       const source = cv.imread(sourceCanvas);
@@ -563,7 +595,7 @@ export default function App() {
       cv.Canny(blurred, edges, 75, 200);
       cv.findContours(edges, contours, hierarchy, cv.RETR_LIST, cv.CHAIN_APPROX_SIMPLE);
 
-      let best: any = null;
+      let best: CvMat | null = null;
       let bestArea = 0;
       for (let index = 0; index < contours.size(); index += 1) {
         const contour = contours.get(index);
