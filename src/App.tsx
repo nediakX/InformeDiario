@@ -604,7 +604,7 @@ export default function App() {
       const {
         Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell,
         Header, ImageRun, WidthType, BorderStyle, AlignmentType,
-        HeadingLevel, VerticalAlign,
+        HeadingLevel, VerticalAlign, TableLayoutType,
       } = docx;
 
       const cellBorders = (color?: string) => {
@@ -629,6 +629,8 @@ export default function App() {
         children: [
           new Table({
             width: { size: 100, type: WidthType.PERCENTAGE },
+            layout: TableLayoutType.FIXED,
+            columnWidths: [2059, 4493, 2808],
             borders: cellBorders("000000"),
             rows: [
               new TableRow({
@@ -734,6 +736,8 @@ export default function App() {
 
       const coverTable = new Table({
         width: { size: 100, type: WidthType.PERCENTAGE },
+        layout: TableLayoutType.FIXED,
+        columnWidths: [4680, 4680],
         borders: noBorders(),
         rows: [
           new TableRow({
@@ -830,6 +834,8 @@ export default function App() {
           new Paragraph({ text: "", pageBreakBefore: true }),
           new Table({
             width: { size: 100, type: WidthType.PERCENTAGE },
+            layout: TableLayoutType.FIXED,
+            columnWidths: [9360],
             rows: [
               new TableRow({
                 cantSplit: false,
@@ -861,6 +867,8 @@ export default function App() {
         }),
         new Table({
           width: { size: 100, type: WidthType.PERCENTAGE },
+          layout: TableLayoutType.FIXED,
+          columnWidths: [4680, 4680],
           rows: carroTableRows,
         }),
         ...itemPages,
@@ -893,9 +901,16 @@ export default function App() {
           })],
         });
 
+        const evidenceColumnWidth = Math.floor(9360 / usablePhotos.length);
+
         return [
           new Paragraph({ text: "", pageBreakBefore: true }),
-          new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, rows: [new TableRow({ children: cells }), captionRow] }),
+          new Table({
+            width: { size: 100, type: WidthType.PERCENTAGE },
+            layout: TableLayoutType.FIXED,
+            columnWidths: usablePhotos.map(() => evidenceColumnWidth),
+            rows: [new TableRow({ children: cells }), captionRow],
+          }),
         ];
       });
 
