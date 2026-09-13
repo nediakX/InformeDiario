@@ -953,13 +953,15 @@ export default function App() {
 
       const coverTable = new Table({
         width: { size: 100, type: WidthType.PERCENTAGE },
+        layout: TableLayoutType.FIXED,
+        columnWidths: [4680, 4680],
         borders: noBorders(),
         rows: [
           new TableRow({
             children: [
-              new TableCell({ width: { size: 50, type: WidthType.PERCENTAGE }, borders: noBorders(), children: coverLeftChildren }),
+              new TableCell({ width: { size: 4680, type: WidthType.DXA }, borders: noBorders(), children: coverLeftChildren }),
               new TableCell({
-                width: { size: 50, type: WidthType.PERCENTAGE },
+                width: { size: 4680, type: WidthType.DXA },
                 borders: { top: { style: BorderStyle.NONE }, bottom: { style: BorderStyle.NONE }, right: { style: BorderStyle.NONE }, left: { style: BorderStyle.SINGLE, size: 18, color: ORANGE } },
                 margins: { left: 300, top: 100, bottom: 100 },
                 children: [
