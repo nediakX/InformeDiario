@@ -125,8 +125,8 @@ const EVIDENCIAS_EXCLUIDAS_DIA = new Set([
 ]);
 
 const CREADO_POR_OPTIONS: { nombre: string; cargo: string }[] = [
-  { nombre: "Max Diaz Cornejo.", cargo: "Supervisor" },
-  { nombre: "Patricio Santana.", cargo: "Supervisor" },
+  { nombre: "Max Diaz Cornejo.", cargo: "Supervisor de Operaciones" },
+  { nombre: "Patricio Santana.", cargo: "Supervisor de Operaciones" },
   { nombre: "Nicolas Bahamondes.", cargo: "Tecnico Lider" },
 ];
 
@@ -1496,8 +1496,8 @@ export default function App() {
           <div className="flex flex-wrap gap-2.5 mt-2.5">
             <select value={selectedPersonalSugerido} onChange={e => setSelectedPersonalSugerido(e.target.value)} className="flex-1 min-w-[220px] p-2 border border-[#DCE1E6] rounded-md text-sm">
               <option value="">-- Seleccionar integrante del equipo --</option>
-              <option value="Max Diaz.|Supervisor">Max Diaz - Supervisor</option>
-              <option value="Patricio Santana.|Supervisor">Patricio Santana - Supervisor</option>
+              <option value="Max Diaz.|Supervisor de Operaciones">Max Diaz - Supervisor de Operaciones</option>
+              <option value="Patricio Santana.|Supervisor de Operaciones">Patricio Santana - Supervisor de Operaciones  </option>
               <option value="Carlos Moll.|Técnico Eléctrico.">Carlos Moll. - Técnico Eléctrico.</option>
               <option value="Williams Barraza.|Técnico Telecomunicaciones.">Williams Barraza. - Técnico Telecomunicaciones.</option>
               <option value="José Escobar.|Técnico Telecomunicaciones.">José Escobar - Técnico Telecomunicaciones.</option>
