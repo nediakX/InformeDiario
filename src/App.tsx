@@ -986,10 +986,10 @@ export default function App() {
               new Paragraph({ text: "" }),
               new Paragraph({ heading: HeadingLevel.HEADING_1, children: [new TextRun({ text: "Actividades Diarias.", color: BLUE, size: 26, font: "Arial", bold: true })] }),
               ...actividades.filter(a => a.trim()).map(a => new Paragraph({ text: a, bullet: { level: 0 } })),
-              ...vertivBlock,
               new Paragraph({ text: "" }),
               new Paragraph({ heading: HeadingLevel.HEADING_1, children: [new TextRun({ text: "Observaciones.", color: BLUE, size: 26, font: "Arial", bold: true })] }),
               ...observaciones.filter(o => o.trim()).map(o => new Paragraph({ text: o, bullet: { level: 0 } })),
+              ...vertivBlock,
               ...evidenceContent,
               ...finalPageContent,
             ],
@@ -1346,7 +1346,7 @@ export default function App() {
           disabled={isGenerating}
           className="w-full bg-[#0E4660] text-white py-3.5 px-6 font-bold text-base rounded-lg shadow-sm hover:bg-[#0a3549] disabled:bg-[#9fb3bd] disabled:cursor-not-allowed transition-colors"
         >
-          {isGenerating ? "Generando Word Exacto..." : "Generar documento Word Exacto"}
+          {isGenerating ? "Generando Word Exacto..." : "Generar documento Word"}
         </button>
 
         <p className="text-center text-gray-500 text-xs mt-4">
