@@ -989,8 +989,8 @@ export default function App() {
               new Paragraph({ text: "" }),
               new Paragraph({ heading: HeadingLevel.HEADING_1, children: [new TextRun({ text: "Observaciones.", color: BLUE, size: 26, font: "Arial", bold: true })] }),
               ...observaciones.filter(o => o.trim()).map(o => new Paragraph({ text: o, bullet: { level: 0 } })),
-              ...vertivBlock,
               ...evidenceContent,
+              ...vertivBlock,
               ...finalPageContent,
             ],
           },
@@ -998,7 +998,9 @@ export default function App() {
       });
 
       const blob = await Packer.toBlob(doc);
-      const filename = `Reporte_Actividades_Turno${turno === "dia" ? "Dia" : "Noche"}_${fecha}.docx`;
+      const [year, month, day] = fecha.split("-");
+      const fechaArchivo = `${day}-${month}-${year}`;
+      const filename = `Reporte_Actividades_Turno${turno === "dia" ? "Dia" : "Noche"}_${fechaArchivo}.docx`;
       saveAs(blob, filename);
 
       showToast(`Documento generado exitosamente: ${filename}`);
