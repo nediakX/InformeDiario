@@ -1501,12 +1501,11 @@ export default function App() {
                   <input
                     type="text"
                     value={block.title}
-                    readOnly={block.isFixed}
                     onChange={e => {
                       const val = e.target.value;
                       setEvidenceBlocks(prev => prev.map((b, i) => i === bi ? { ...b, title: val } : b));
                     }}
-                    className={`flex-1 font-bold text-sm p-1.5 border border-[#DCE1E6] rounded text-[#0E4660] ${block.isFixed ? 'bg-gray-50 cursor-default' : ''}`}
+                    className="flex-1 font-bold text-sm p-1.5 border border-[#DCE1E6] rounded text-[#0E4660]"
                   />
                   {!block.isActivity && !block.isFixed ? (
                     <button onClick={() => setEvidenceBlocks(evidenceBlocks.filter((_, i) => i !== bi))} className="bg-red-50 text-red-700 px-2 py-1 rounded text-xs hover:bg-red-100">
