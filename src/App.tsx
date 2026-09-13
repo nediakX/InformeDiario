@@ -922,12 +922,6 @@ export default function App() {
         }),
         new Paragraph({ children: [new TextRun({ text: INDICADORES_INTRO, font: "Arial" })] }),
         ...INDICADORES_BULLETS.map(b => new Paragraph({ text: b, bullet: { level: 0 } })),
-        new Paragraph({ text: "" }),
-        new Paragraph({
-          heading: HeadingLevel.HEADING_1,
-          children: [new TextRun({ text: "Observaciones:", color: BLUE, size: 26, font: "Arial", bold: true })],
-        }),
-        new Paragraph({ children: [new TextRun({ text: OBS_FINAL_INTRO, font: "Arial" })] }),
         ...OBS_FINAL_BULLETS.map(b => new Paragraph({ text: b, bullet: { level: 0 } })),
       ] : [];
 
