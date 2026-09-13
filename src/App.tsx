@@ -1229,10 +1229,6 @@ export default function App() {
                     )}
                     <img src={vertivCarroPhotos[i] || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='75'%3E%3Crect width='100%25' height='100%25' fill='%23eee'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%23aaa' font-size='9'%3ESin foto%3C/text%3E%3C/svg%3E"} alt={title} className="w-[92px] h-[70px] object-cover rounded mx-auto mb-1 bg-gray-100" />
                     <input type="file" accept="image/png,image/jpeg" onChange={e => e.target.files?.[0] && assignVertivCarroPhoto(e.target.files[0], i)} className="text-[9px] w-full" />
-                    <label className="mt-1 block cursor-pointer rounded bg-[#E8F1FB] px-1 py-1 text-[9px] font-bold text-[#0E4660] hover:bg-[#d5e7f8]">
-                      Escanear documento
-                      <input type="file" accept="image/*" capture="environment" onChange={e => e.target.files?.[0] && assignVertivCarroPhoto(e.target.files[0], i)} className="hidden" />
-                    </label>
                   </div>
                   <span className="text-sm font-bold text-[#0E4660]">{title}</span>
                 </div>
@@ -1255,10 +1251,6 @@ export default function App() {
                     )}
                     <img src={vertivItemPhotos[i] || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='75'%3E%3Crect width='100%25' height='100%25' fill='%23eee'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%23aaa' font-size='9'%3ESin foto%3C/text%3E%3C/svg%3E"} alt={item} className="w-[92px] h-[70px] object-cover rounded mx-auto mb-1 bg-gray-100" />
                     <input type="file" accept="image/png,image/jpeg" onChange={e => e.target.files?.[0] && assignVertivItemPhoto(e.target.files[0], i)} className="text-[9px] w-full" />
-                    <label className="mt-1 block cursor-pointer rounded bg-[#E8F1FB] px-1 py-1 text-[9px] font-bold text-[#0E4660] hover:bg-[#d5e7f8]">
-                      Escanear documento
-                      <input type="file" accept="image/*" capture="environment" onChange={e => e.target.files?.[0] && assignVertivItemPhoto(e.target.files[0], i)} className="hidden" />
-                    </label>
                   </div>
                   <span className="text-sm text-[#333]">{VERTIV_ITEM_FORM_LABELS[i]}</span>
                 </div>
@@ -1354,10 +1346,6 @@ export default function App() {
                       )}
                       <img src={src || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='130' height='98'%3E%3Crect width='100%25' height='100%25' fill='%23eee'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%23aaa' font-size='10'%3EArrastra o pega%3C/text%3E%3C/svg%3E"} alt="Evidencia" className="w-[120px] h-[90px] object-cover rounded mx-auto mb-1 bg-gray-100" />
                       <input type="file" accept="image/png,image/jpeg" onChange={e => e.target.files?.[0] && assignFileToSlot(e.target.files[0], bi, pi)} className="text-[10px] w-full" />
-                      <label className="mt-1 block cursor-pointer rounded bg-[#E8F1FB] px-1 py-1 text-[10px] font-bold text-[#0E4660] hover:bg-[#d5e7f8]">
-                        Escanear documento
-                        <input type="file" accept="image/*" capture="environment" onChange={e => e.target.files?.[0] && assignFileToSlot(e.target.files[0], bi, pi)} className="hidden" />
-                      </label>
                     </div>
                   ))}
                   <button onClick={() => handleAddPhotoSlot(bi)} className="bg-[#E8F1FB] text-[#0E4660] px-2.5 py-1.5 rounded text-xs font-bold hover:bg-[#d5e7f8]">
