@@ -962,23 +962,23 @@ export default function App() {
 
       coverLeftChildren.push(
         new Paragraph({ text: "" }),
-        new Paragraph({ alignment: AlignmentType.RIGHT, children: [new TextRun({ text: "REPORTE DIARIO", size: 66, font: "Arial", bold: true, color: "000000" })] }),
-        new Paragraph({ alignment: AlignmentType.RIGHT, children: [new TextRun({ text: turno === "dia" ? "TURNO DIA" : "TURNO NOCHE", size: 66, font: "Arial", bold: true, color: "000000" })] }),
+        new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "REPORTE DIARIO", size: 66, font: "Arial", bold: true, color: "000000" })] }),
+        new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: turno === "dia" ? "TURNO DIA" : "TURNO NOCHE", size: 66, font: "Arial", bold: true, color: "000000" })] }),
         new Paragraph({ text: "" }),
-        new Paragraph({ alignment: AlignmentType.RIGHT, children: [new TextRun({ text: "De Actividades", bold: true, size: 40, font: "Arial" })] })
+        new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "De Actividades", bold: true, size: 40, font: "Arial" })] })
       );
 
       const coverTable = new Table({
         width: { size: 100, type: WidthType.PERCENTAGE },
         layout: TableLayoutType.FIXED,
-        columnWidths: [5200, 4160],
+        columnWidths: [7000, 2360],
         borders: noBorders(),
         rows: [
           new TableRow({
             children: [
-              new TableCell({ width: { size: 5200, type: WidthType.DXA }, borders: noBorders(), children: coverLeftChildren }),
+              new TableCell({ width: { size: 7000, type: WidthType.DXA }, borders: noBorders(), children: coverLeftChildren }),
               new TableCell({
-                width: { size: 4160, type: WidthType.DXA },
+                width: { size: 2360, type: WidthType.DXA },
                 borders: { top: { style: BorderStyle.NONE }, bottom: { style: BorderStyle.NONE }, right: { style: BorderStyle.NONE }, left: { style: BorderStyle.SINGLE, size: 18, color: ORANGE } },
                 margins: { left: 300, top: 100, bottom: 100 },
                 children: [
