@@ -736,8 +736,6 @@ export default function App() {
 
       const coverTable = new Table({
         width: { size: 100, type: WidthType.PERCENTAGE },
-        layout: TableLayoutType.FIXED,
-        columnWidths: [4680, 4680],
         borders: noBorders(),
         rows: [
           new TableRow({
@@ -933,6 +931,29 @@ export default function App() {
         ...OBS_FINAL_BULLETS.map(b => new Paragraph({ text: b, bullet: { level: 0 } })),
       ] : [];
 
+      const personalTable = new Table({
+        width: { size: 100, type: WidthType.PERCENTAGE },
+        layout: TableLayoutType.FIXED,
+        columnWidths: [3900, 5460],
+        borders: noBorders(),
+        rows: personal
+          .filter(p => p.nombre.trim())
+          .map(p => new TableRow({
+            children: [
+              new TableCell({
+                width: { size: 3900, type: WidthType.DXA },
+                borders: noBorders(),
+                children: [new Paragraph({ text: p.nombre, bullet: { level: 0 } })],
+              }),
+              new TableCell({
+                width: { size: 5460, type: WidthType.DXA },
+                borders: noBorders(),
+                children: [new Paragraph({ text: p.cargo })],
+              }),
+            ],
+          })),
+      });
+
       const doc = new Document({
         styles: { default: { document: { run: { font: "Arial", size: 21 } } } },
         sections: [
@@ -948,7 +969,7 @@ export default function App() {
               new Paragraph({ children: [new TextRun({ text: descripcionParrafo, font: "Arial" })] }),
               new Paragraph({ text: "" }),
               new Paragraph({ heading: HeadingLevel.HEADING_1, children: [new TextRun({ text: `Personal en Turno ${letraTurno}`, color: BLUE, size: 26, font: "Arial", bold: true })] }),
-              ...personal.filter(p => p.nombre.trim()).map(p => new Paragraph({ text: `${p.nombre}\t${p.cargo}`, bullet: { level: 0 } })),
+              personalTable,
               new Paragraph({ text: "" }),
               new Paragraph({ heading: HeadingLevel.HEADING_1, children: [new TextRun({ text: "Actividades Diarias.", color: BLUE, size: 26, font: "Arial", bold: true })] }),
               ...actividades.filter(a => a.trim()).map(a => new Paragraph({ text: a, bullet: { level: 0 } })),
