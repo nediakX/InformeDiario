@@ -440,11 +440,12 @@ export default function App() {
   const assignFileToSlot = (file: File, blockIndex: number, photoIndex: number) => {
     if (!file || !file.type.startsWith("image/")) return;
     const reader = new FileReader();
-    reader.onload = () => {
+    reader.onload = async () => {
+      const scannedImage = await scanDocumentPerspective(reader.result as string);
       setEvidenceBlocks(prev => prev.map((b, bi) => {
         if (bi !== blockIndex) return b;
         const newPhotos = [...b.photos];
-        newPhotos[photoIndex] = reader.result as string;
+        newPhotos[photoIndex] = scannedImage;
         return { ...b, photos: newPhotos };
       }));
     };
@@ -472,10 +473,11 @@ export default function App() {
   const assignVertivCarroPhoto = (file: File, idx: number) => {
     if (!file || !file.type.startsWith("image/")) return;
     const reader = new FileReader();
-    reader.onload = () => {
+    reader.onload = async () => {
+      const scannedImage = await scanDocumentPerspective(reader.result as string);
       setVertivCarroPhotos(prev => {
         const updated = [...prev];
-        updated[idx] = reader.result as string;
+        updated[idx] = scannedImage;
         return updated;
       });
     };
@@ -503,10 +505,11 @@ export default function App() {
   const assignVertivItemPhoto = (file: File, idx: number) => {
     if (!file || !file.type.startsWith("image/")) return;
     const reader = new FileReader();
-    reader.onload = () => {
+    reader.onload = async () => {
+      const scannedImage = await scanDocumentPerspective(reader.result as string);
       setVertivItemPhotos(prev => {
         const updated = [...prev];
-        updated[idx] = reader.result as string;
+        updated[idx] = scannedImage;
         return updated;
       });
     };
@@ -954,14 +957,14 @@ export default function App() {
       const coverTable = new Table({
         width: { size: 100, type: WidthType.PERCENTAGE },
         layout: TableLayoutType.FIXED,
-        columnWidths: [4680, 4680],
+        columnWidths: [5200, 4160],
         borders: noBorders(),
         rows: [
           new TableRow({
             children: [
-              new TableCell({ width: { size: 4680, type: WidthType.DXA }, borders: noBorders(), children: coverLeftChildren }),
+              new TableCell({ width: { size: 5200, type: WidthType.DXA }, borders: noBorders(), children: coverLeftChildren }),
               new TableCell({
-                width: { size: 4680, type: WidthType.DXA },
+                width: { size: 4160, type: WidthType.DXA },
                 borders: { top: { style: BorderStyle.NONE }, bottom: { style: BorderStyle.NONE }, right: { style: BorderStyle.NONE }, left: { style: BorderStyle.SINGLE, size: 18, color: ORANGE } },
                 margins: { left: 300, top: 100, bottom: 100 },
                 children: [
