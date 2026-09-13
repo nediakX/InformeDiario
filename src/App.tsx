@@ -1384,9 +1384,11 @@ export default function App() {
               <option value="">-- Seleccionar actividad extra sugerida --</option>
               <option value="Reunión de tronadura">Reunión de tronadura</option>
               <option value="Test de alcohol y drogas">Test de alcohol y drogas</option>
-              <option value="Reunión de inicio de tfds">Reunión de inicio de tfds</option>
+              <option value="Reunión de inicio de TDFS">Reunión de inicio de TDFS</option>
               <option value="Movimiento de carro">Movimiento de carro</option>
               <option value="Mantenimiento">Mantenimiento</option>
+              <option value="Reunion de cierre TDFS">Reunion de cierre TDFS</option>
+              <option value="Checklist de de carros LTE">Checklist de de carros LTE</option>
             </select>
             <button onClick={() => {
               if (selectedActividadSugerida) {
