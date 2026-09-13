@@ -174,6 +174,7 @@ const ORANGE = "ED7D31";
 const LS_KEY_PERSONAL = "psinet_personal_v6";
 const LS_KEY_ACT_DIA = "psinet_actividades_dia_v6";
 const LS_KEY_ACT_NOCHE = "psinet_actividades_noche_v6";
+const LS_KEY_DRAFT = "psinet_informe_borrador_v1";
 const MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
 
 const formatFechaEvidencia = (iso: string) => {
@@ -237,6 +238,8 @@ export default function App() {
   const scannerVideoRef = useRef<HTMLVideoElement>(null);
   const scannerCanvasRef = useRef<HTMLCanvasElement>(null);
   const scannerStreamRef = useRef<MediaStream | null>(null);
+  const [draftPromptOpen, setDraftPromptOpen] = useState(false);
+  const draftDecisionMadeRef = useRef(false);
 
   // Carga inicial y conversión de imágenes por defecto
   useEffect(() => {
@@ -279,7 +282,111 @@ export default function App() {
     };
 
     initImages();
+    if (localStorage.getItem(LS_KEY_DRAFT)) setDraftPromptOpen(true);
   }, []);
+
+  const continueDraft = () => {
+    try {
+      const rawDraft = localStorage.getItem(LS_KEY_DRAFT);
+      if (!rawDraft) return startNewReport();
+      const draft = JSON.parse(rawDraft);
+      if (draft.turno === 'dia' || draft.turno === 'noche') setTurno(draft.turno);
+      if (typeof draft.fecha === 'string') setFecha(draft.fecha);
+      if (typeof draft.faena === 'string') setFaena(draft.faena);
+      if (typeof draft.letraTurno === 'string') setLetraTurno(draft.letraTurno);
+      if (typeof draft.contrato === 'string') setContrato(draft.contrato);
+      if (typeof draft.version === 'string') setVersion(draft.version);
+      if (typeof draft.servicio === 'string') setServicio(draft.servicio);
+      if (typeof draft.creadoNombre === 'string') setCreadoNombre(draft.creadoNombre);
+      if (typeof draft.creadoCargo === 'string') setCreadoCargo(draft.creadoCargo);
+      if (typeof draft.revisadoText === 'string') setRevisadoText(draft.revisadoText);
+      if (typeof draft.autorizadoNombre === 'string') setAutorizadoNombre(draft.autorizadoNombre);
+      if (typeof draft.autorizadoCargo === 'string') setAutorizadoCargo(draft.autorizadoCargo);
+      if (Array.isArray(draft.personal)) setPersonal(draft.personal);
+      if (Array.isArray(draft.actividades)) setActividades(draft.actividades);
+      if (Array.isArray(draft.observaciones)) setObservaciones(draft.observaciones);
+      if (Array.isArray(draft.evidenceBlocks)) setEvidenceBlocks(draft.evidenceBlocks);
+      if (Array.isArray(draft.vertivCarroPhotos)) setVertivCarroPhotos(draft.vertivCarroPhotos);
+      if (Array.isArray(draft.vertivItemPhotos)) setVertivItemPhotos(draft.vertivItemPhotos);
+    } catch (error) {
+      console.error("No se pudo restaurar el borrador:", error);
+    }
+    draftDecisionMadeRef.current = true;
+    setDraftPromptOpen(false);
+  };
+
+  function startNewReport() {
+    localStorage.removeItem(LS_KEY_DRAFT);
+    setTurno('dia');
+    setFecha(new Date().toISOString().split('T')[0]);
+    setFaena('Minera Rajo Inca');
+    setLetraTurno('A');
+    setContrato('4600027858');
+    setVersion('1.1');
+    setServicio('SERVICIO DE IMPLEMENTACIÓN Y CONTINUIDAD OPERACIONAL DE RED INALAMBRICA LTE-DSAL');
+    setCreadoNombre('Max Diaz Cornejo');
+    setCreadoCargo('Supervisor');
+    setRevisadoText('Juan Morata\nJuan Saavedra');
+    setAutorizadoNombre('Cesar Orellana');
+    setAutorizadoCargo('ADC');
+    setPersonal(DEFAULT_PERSONAL);
+    setActividades(DEFAULT_ACTIVIDADES_DIA);
+    setObservaciones([]);
+    setEvidenceBlocks([]);
+    setVertivCarroPhotos(VERTIV_CARROS_FLAT.map(() => null));
+    setVertivItemPhotos(VERTIV_ITEMS.map(() => null));
+    draftDecisionMadeRef.current = true;
+    setDraftPromptOpen(false);
+  }
+
+  useEffect(() => {
+    if (!draftDecisionMadeRef.current || !personal.length || !actividades.length) return;
+
+    try {
+      localStorage.setItem(LS_KEY_DRAFT, JSON.stringify({
+        turno,
+        fecha,
+        faena,
+        letraTurno,
+        contrato,
+        version,
+        servicio,
+        creadoNombre,
+        creadoCargo,
+        revisadoText,
+        autorizadoNombre,
+        autorizadoCargo,
+        personal,
+        actividades,
+        observaciones,
+        evidenceBlocks,
+        vertivCarroPhotos,
+        vertivItemPhotos,
+        savedAt: new Date().toISOString(),
+      }));
+    } catch (error) {
+      console.error("No se pudo guardar el borrador:", error);
+    }
+  }, [
+    turno,
+    fecha,
+    faena,
+    letraTurno,
+    contrato,
+    version,
+    servicio,
+    creadoNombre,
+    creadoCargo,
+    revisadoText,
+    autorizadoNombre,
+    autorizadoCargo,
+    personal,
+    actividades,
+    observaciones,
+    evidenceBlocks,
+    vertivCarroPhotos,
+    vertivItemPhotos,
+  ]);
 
   // En turno Noche la evidencia fotográfica usa una plantilla fija independiente.
   useEffect(() => {
@@ -484,12 +591,13 @@ export default function App() {
     } : b));
   };
 
-  const handleClearPhoto = (blockIndex: number, photoIndex: number) => {
-    setEvidenceBlocks(prev => prev.map((b, bi) => {
-      if (bi !== blockIndex) return b;
-      const newPhotos = [...b.photos];
-      newPhotos[photoIndex] = null;
-      return { ...b, photos: newPhotos };
+  const handleRemovePhotoSlot = (blockIndex: number, photoIndex: number) => {
+    setEvidenceBlocks(prev => prev.flatMap((block, bi) => {
+      if (bi !== blockIndex) return [block];
+      if (block.photos.length <= 1) return [];
+
+      const photos = block.photos.filter((_, pi) => pi !== photoIndex);
+      return [{ ...block, photoCount: photos.length, photos }];
     }));
   };
 
@@ -1576,22 +1684,24 @@ export default function App() {
                       className={`w-[130px] text-center text-[11px] text-gray-500 relative border-2 border-dashed rounded-md p-1 bg-white cursor-pointer ${selectedEvidenceSlot?.blockIndex === bi && selectedEvidenceSlot.photoIndex === pi ? 'border-[#0E4660] ring-2 ring-[#0E4660]/20' : 'border-gray-300'}`}
                       title="Haz clic aquí y luego pega una imagen con Ctrl+V"
                     >
-                      {src && (
-                        <button onClick={() => handleClearPhoto(bi, pi)} className="absolute top-0.5 right-0.5 bg-red-600 text-white rounded-full w-4 h-4 text-[10px] leading-3">
-                          ×
-                        </button>
-                      )}
+                      <button
+                        type="button"
+                        onClick={e => {
+                          e.stopPropagation();
+                          handleRemovePhotoSlot(bi, pi);
+                        }}
+                        title="Eliminar esta casilla de foto"
+                        aria-label="Eliminar esta casilla de foto"
+                        className="absolute top-0.5 right-0.5 bg-red-600 text-white rounded-full w-5 h-5 flex items-center justify-center hover:bg-red-700"
+                      >
+                        <Trash2 size={12} />
+                      </button>
                       <img src={src || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='130' height='98'%3E%3Crect width='100%25' height='100%25' fill='%23eee'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%23aaa' font-size='10'%3EArrastra o pega%3C/text%3E%3C/svg%3E"} alt="Evidencia" className="w-[120px] h-[90px] object-cover rounded mx-auto mb-1 bg-gray-100" />
                       <button type="button" onClick={() => openDocumentScanner({ type: 'evidence', blockIndex: bi, photoIndex: pi })} className="w-full bg-[#0E4660] text-white rounded px-1.5 py-1 mb-1 text-[10px] font-bold">Escanear documento</button>
                       <span className="block text-[10px] text-gray-500">Galería o archivos:</span>
                       <input type="file" accept="image/*" capture="environment" onChange={e => e.target.files?.[0] && assignFileToSlot(e.target.files[0], bi, pi)} className="text-[10px] w-full" />
                     </div>
                   ))}
-                  {!block.isFixed && (
-                    <button type="button" onClick={() => setEvidenceBlocks(evidenceBlocks.filter((_, i) => i !== bi))} title="Eliminar bloque completo" aria-label="Eliminar bloque completo" className="bg-red-50 text-red-700 p-1.5 rounded hover:bg-red-100">
-                      <Trash2 size={16} />
-                    </button>
-                  )}
                   <button type="button" onClick={() => handleAddPhotoSlot(bi)} className="bg-[#E8F1FB] text-[#0E4660] px-2.5 py-1.5 rounded text-xs font-bold hover:bg-[#d5e7f8]">
                     + Foto
                   </button>
@@ -1622,6 +1732,25 @@ export default function App() {
       <div className="fixed bottom-1 left-1/2 -translate-x-1/2 text-[#F4F6F8] text-[10px] italic cursor-text whitespace-nowrap z-10 select-text">
         creado con amor &lt;3
       </div>
+
+      {draftPromptOpen && (
+        <div className="fixed inset-0 z-50 bg-black/50 p-4 flex items-center justify-center">
+          <div className="w-full max-w-md bg-white rounded-xl p-6 shadow-xl space-y-4">
+            <h2 className="text-lg font-bold text-[#0E4660]">Borrador encontrado</h2>
+            <p className="text-sm text-gray-600">
+              Encontramos contenido guardado de una sesión anterior. ¿Quieres continuar con ese borrador o comenzar un informe nuevo?
+            </p>
+            <div className="flex flex-col sm:flex-row gap-2">
+              <button type="button" onClick={continueDraft} className="flex-1 bg-[#0E4660] text-white rounded-md px-3 py-2 text-sm font-bold hover:bg-[#0a3549]">
+                Continuar borrador
+              </button>
+              <button type="button" onClick={startNewReport} className="flex-1 border border-[#DCE1E6] text-[#333] rounded-md px-3 py-2 text-sm font-bold hover:bg-gray-50">
+                Empezar de nuevo
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {scannerTarget && (
         <div className="fixed inset-0 z-50 bg-black/90 p-4 flex items-center justify-center">
