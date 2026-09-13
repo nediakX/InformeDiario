@@ -1252,6 +1252,9 @@ export default function App() {
         if (usablePhotos.length === 0) return [];
 
         const colWidth = Math.floor(100 / usablePhotos.length);
+        const isMantenimiento = block.title.startsWith("Registro de mantenimiento de GG.");
+        const imageWidth = isMantenimiento ? 614 : 307;
+        const imageHeight = isMantenimiento ? 246 : 456;
         const cells = usablePhotos.map(dataUrl => {
           const bytes = dataUrlToUint8Array(dataUrl);
           const type = dataUrl.startsWith("data:image/png") ? "png" : "jpg";
@@ -1261,7 +1264,7 @@ export default function App() {
             margins: { top: 100, bottom: 100, left: 100, right: 100 },
             children: [new Paragraph({
               alignment: AlignmentType.CENTER,
-              children: [new ImageRun({ data: bytes, transformation: { width: 307, height: 456 }, type })],
+              children: [new ImageRun({ data: bytes, transformation: { width: imageWidth, height: imageHeight }, type })],
             })],
           });
         });
