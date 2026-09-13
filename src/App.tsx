@@ -40,7 +40,10 @@ type CvApi = {
   Scalar: new (...values: number[]) => unknown;
   CV_32FC2: number;
   COLOR_RGBA2GRAY: number;
+  THRESH_BINARY: number;
+  THRESH_OTSU: number;
   RETR_LIST: number;
+  RETR_EXTERNAL: number;
   CHAIN_APPROX_SIMPLE: number;
   INTER_LINEAR: number;
   BORDER_CONSTANT: number;
@@ -49,6 +52,7 @@ type CvApi = {
   GaussianBlur: (...args: unknown[]) => void;
   Canny: (...args: unknown[]) => void;
   findContours: (...args: unknown[]) => void;
+  threshold: (...args: unknown[]) => void;
   arcLength: (contour: CvMat, closed: boolean) => number;
   approxPolyDP: (...args: unknown[]) => void;
   contourArea: (contour: CvMat) => number;
@@ -592,36 +596,46 @@ export default function App() {
       const gray = new cv.Mat();
       const blurred = new cv.Mat();
       const edges = new cv.Mat();
+      const thresholded = new cv.Mat();
       const contours = new cv.MatVector();
       const hierarchy = new cv.Mat();
       cv.cvtColor(source, gray, cv.COLOR_RGBA2GRAY);
       cv.GaussianBlur(gray, blurred, new cv.Size(5, 5), 0);
       cv.Canny(blurred, edges, 75, 200);
-      cv.findContours(edges, contours, hierarchy, cv.RETR_LIST, cv.CHAIN_APPROX_SIMPLE);
-
       let best: CvMat | null = null;
       let bestArea = 0;
-      for (let index = 0; index < contours.size(); index += 1) {
-        const contour = contours.get(index);
-        const perimeter = cv.arcLength(contour, true);
-        const approximation = new cv.Mat();
-        cv.approxPolyDP(contour, approximation, 0.02 * perimeter, true);
-        const area = Math.abs(cv.contourArea(approximation));
-        if (approximation.rows === 4 && area > bestArea && area > source.cols * source.rows * 0.2) {
-          best = approximation;
-          bestArea = area;
-        } else {
-          approximation.delete();
+      const inspectContours = (image: CvMat, mode: number) => {
+        cv.findContours(image, contours, hierarchy, mode, cv.CHAIN_APPROX_SIMPLE);
+        for (let index = 0; index < contours.size(); index += 1) {
+          const contour = contours.get(index);
+          const perimeter = cv.arcLength(contour, true);
+          const approximation = new cv.Mat();
+          cv.approxPolyDP(contour, approximation, 0.02 * perimeter, true);
+          const area = Math.abs(cv.contourArea(approximation));
+          if (approximation.rows === 4 && area > bestArea && area > source.cols * source.rows * 0.08) {
+            best?.delete();
+            best = approximation;
+            bestArea = area;
+          } else {
+            approximation.delete();
+          }
+          contour.delete();
         }
-        contour.delete();
+      };
+
+      inspectContours(edges, cv.RETR_LIST);
+      if (!best) {
+        cv.threshold(gray, thresholded, 0, 255, cv.THRESH_BINARY + cv.THRESH_OTSU);
+        inspectContours(thresholded, cv.RETR_EXTERNAL);
       }
 
       if (!best) {
-        source.delete(); gray.delete(); blurred.delete(); edges.delete(); contours.delete(); hierarchy.delete();
+        source.delete(); gray.delete(); blurred.delete(); edges.delete(); thresholded.delete(); contours.delete(); hierarchy.delete();
         return sourceDataUrl;
       }
 
-      const points = Array.from(best.data32S) as number[];
+      const selectedContour = best as CvMat;
+      const points = Array.from(selectedContour.data32S) as number[];
       const corners: { x: number; y: number }[] = [
         { x: points[0], y: points[1] },
         { x: points[2], y: points[3] },
@@ -642,7 +656,7 @@ export default function App() {
       cv.imshow(sourceCanvas, warped);
       const result = sourceCanvas.toDataURL('image/jpeg', 0.92);
 
-      best.delete(); source.delete(); gray.delete(); blurred.delete(); edges.delete(); contours.delete(); hierarchy.delete();
+      selectedContour.delete(); source.delete(); gray.delete(); blurred.delete(); edges.delete(); thresholded.delete(); contours.delete(); hierarchy.delete();
       destination.delete(); sourcePoints.delete(); transform.delete(); warped.delete();
       return result;
     } catch {
@@ -1420,6 +1434,7 @@ export default function App() {
                     )}
                     <img src={vertivCarroPhotos[i] || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='75'%3E%3Crect width='100%25' height='100%25' fill='%23eee'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%23aaa' font-size='9'%3ESin foto%3C/text%3E%3C/svg%3E"} alt={title} className="w-[92px] h-[70px] object-cover rounded mx-auto mb-1 bg-gray-100" />
                     <button type="button" onClick={() => openDocumentScanner({ type: 'vertivCarro', index: i })} className="w-full bg-[#0E4660] text-white rounded px-1 py-1 mb-1 text-[9px] font-bold">Escanear documento</button>
+                    <span className="block text-[9px] text-gray-500">Galería o archivos:</span>
                     <input type="file" accept="image/*" capture="environment" onChange={e => e.target.files?.[0] && assignVertivCarroPhoto(e.target.files[0], i)} className="text-[9px] w-full" />
                   </div>
                   <span className="text-sm font-bold text-[#0E4660]">{title}</span>
@@ -1443,6 +1458,7 @@ export default function App() {
                     )}
                     <img src={vertivItemPhotos[i] || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='75'%3E%3Crect width='100%25' height='100%25' fill='%23eee'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%23aaa' font-size='9'%3ESin foto%3C/text%3E%3C/svg%3E"} alt={item} className="w-[92px] h-[70px] object-cover rounded mx-auto mb-1 bg-gray-100" />
                     <button type="button" onClick={() => openDocumentScanner({ type: 'vertivItem', index: i })} className="w-full bg-[#0E4660] text-white rounded px-1 py-1 mb-1 text-[9px] font-bold">Escanear documento</button>
+                    <span className="block text-[9px] text-gray-500">Galería o archivos:</span>
                     <input type="file" accept="image/*" capture="environment" onChange={e => e.target.files?.[0] && assignVertivItemPhoto(e.target.files[0], i)} className="text-[9px] w-full" />
                   </div>
                   <span className="text-sm text-[#333]">{item}</span>
@@ -1538,6 +1554,7 @@ export default function App() {
                       )}
                       <img src={src || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='130' height='98'%3E%3Crect width='100%25' height='100%25' fill='%23eee'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%23aaa' font-size='10'%3EArrastra o pega%3C/text%3E%3C/svg%3E"} alt="Evidencia" className="w-[120px] h-[90px] object-cover rounded mx-auto mb-1 bg-gray-100" />
                       <button type="button" onClick={() => openDocumentScanner({ type: 'evidence', blockIndex: bi, photoIndex: pi })} className="w-full bg-[#0E4660] text-white rounded px-1.5 py-1 mb-1 text-[10px] font-bold">Escanear documento</button>
+                      <span className="block text-[10px] text-gray-500">Galería o archivos:</span>
                       <input type="file" accept="image/*" capture="environment" onChange={e => e.target.files?.[0] && assignFileToSlot(e.target.files[0], bi, pi)} className="text-[10px] w-full" />
                     </div>
                   ))}
