@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, type ClipboardEvent } from 'react';
 import * as docx from 'docx';
 import { saveAs } from 'file-saver';
+import { ChevronDown, ChevronUp } from 'lucide-react';
 import logoPsinet from "./assets/logo_psinet.jpg";
 import logoEdificio from "./assets/LogoEdificio.png";
 
@@ -426,6 +427,16 @@ export default function App() {
 
   const handleRemoveActividad = (index: number) => {
     const updated = actividades.filter((_, i) => i !== index);
+    setActividades(updated);
+    persistActividades(updated);
+  };
+
+  const handleMoveActividad = (index: number, direction: -1 | 1) => {
+    const targetIndex = index + direction;
+    if (targetIndex < 0 || targetIndex >= actividades.length) return;
+
+    const updated = [...actividades];
+    [updated[index], updated[targetIndex]] = [updated[targetIndex], updated[index]];
     setActividades(updated);
     persistActividades(updated);
   };
@@ -1368,11 +1379,17 @@ export default function App() {
             <tbody>
               {actividades.map((act, i) => (
                 <tr key={i} className="border-b border-gray-100">
-                  <td className="w-[90%] p-1">
+                  <td className="w-[82%] p-1">
                     <input type="text" value={act} onChange={e => handleUpdateActividad(i, e.target.value)} className="w-full p-1.5 border border-[#DCE1E6] rounded" />
                   </td>
-                  <td className="w-[10%] p-1 text-right">
-                    <button onClick={() => handleRemoveActividad(i)} className="bg-red-50 text-red-700 px-2 py-1 rounded text-xs hover:bg-red-100">Quitar</button>
+                  <td className="w-[18%] p-1 text-right whitespace-nowrap">
+                    <button type="button" onClick={() => handleMoveActividad(i, -1)} disabled={i === 0} title="Subir actividad" aria-label="Subir actividad" className="p-1.5 mr-1 rounded text-[#0E4660] hover:bg-[#E8F1FB] disabled:opacity-30 disabled:cursor-not-allowed">
+                      <ChevronUp size={16} />
+                    </button>
+                    <button type="button" onClick={() => handleMoveActividad(i, 1)} disabled={i === actividades.length - 1} title="Bajar actividad" aria-label="Bajar actividad" className="p-1.5 mr-1 rounded text-[#0E4660] hover:bg-[#E8F1FB] disabled:opacity-30 disabled:cursor-not-allowed">
+                      <ChevronDown size={16} />
+                    </button>
+                    <button type="button" onClick={() => handleRemoveActividad(i)} className="bg-red-50 text-red-700 px-2 py-1 rounded text-xs hover:bg-red-100">Quitar</button>
                   </td>
                 </tr>
               ))}
@@ -1389,6 +1406,9 @@ export default function App() {
               <option value="Mantenimiento">Mantenimiento</option>
               <option value="Reunion de cierre TDFS">Reunion de cierre TDFS</option>
               <option value="Checklist de de carros LTE">Checklist de de carros LTE</option>
+              <option value="Orden y Limpieza de Bodega">Orden y Limpieza de Bodega</option>
+              
+
             </select>
             <button onClick={() => {
               if (selectedActividadSugerida) {
