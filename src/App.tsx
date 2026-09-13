@@ -581,7 +581,8 @@ export default function App() {
       sourceCanvas.getContext('2d')?.drawImage(image, 0, 0);
 
       const cvModule = await import('@techstark/opencv-js');
-      const cv = ((cvModule as unknown as { default?: CvApi }).default ?? cvModule) as unknown as CvApi;
+      const exportedOpenCv = (cvModule as unknown as { default?: unknown }).default ?? cvModule;
+      const cv = await (exportedOpenCv as Promise<CvApi>);
       if (!cv.Mat || !cv.imread) return sourceDataUrl;
 
       const source = cv.imread(sourceCanvas);
