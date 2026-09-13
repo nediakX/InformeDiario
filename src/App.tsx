@@ -243,7 +243,7 @@ export default function App() {
           };
 
       if (turno === 'noche') {
-        return DEFAULT_EVIDENCIAS_NOCHE.map((title, index) => {
+        const fixedBlocks = DEFAULT_EVIDENCIAS_NOCHE.map((title, index) => {
           const existing = prevBlocks.find(block => block.isFixed && block.title === title);
           return existing ?? {
             id: `evidence_noche_${index}`,
@@ -254,6 +254,25 @@ export default function App() {
             isFixed: true,
           };
         });
+
+        const extraActivityBlocks = actividades
+          .map((actText, index) => ({ actText, index }))
+          .filter(({ actText }) => actText.trim() && !DEFAULT_ACTIVIDADES_NOCHE.includes(actText))
+          .map(({ actText, index }) => {
+            const existing = prevBlocks.find(block => block.isActivity && block.actIndex === index);
+            return existing
+              ? { ...existing, title: actText, actIndex: index }
+              : {
+                  id: `act_noche_${Date.now()}__${index}`,
+                  title: actText,
+                  photoCount: 1,
+                  photos: [null],
+                  isActivity: true,
+                  actIndex: index,
+                };
+          });
+
+        return [...fixedBlocks, ...extraActivityBlocks];
       }
 
       const newBlocks: EvidenceBlock[] = [];
@@ -1287,7 +1306,7 @@ export default function App() {
                   ) : block.isActivity ? (
                     <span className="text-[11px] text-gray-400">(Vinc. a Actividad {(block.actIndex ?? 0) + 1})</span>
                   ) : (
-                    <span className="text-[11px] text-gray-400">(Fijo Turno Noche)</span>
+                    <span className="text-[11px] text-gray-400">(fijo turno dia)</span>
                   )}
                 </div>
 
