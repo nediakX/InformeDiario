@@ -282,7 +282,18 @@ export default function App() {
     };
 
     initImages();
-    setDraftPromptOpen(true);
+    try {
+      const rawDraft = localStorage.getItem(LS_KEY_DRAFT);
+      const draft = rawDraft ? JSON.parse(rawDraft) : null;
+      const hasEvidenceImages = Boolean(
+        draft?.evidenceBlocks?.some((block: EvidenceBlock) => block.photos?.some(Boolean))
+        || draft?.vertivCarroPhotos?.some(Boolean)
+        || draft?.vertivItemPhotos?.some(Boolean)
+      );
+      if (hasEvidenceImages) setDraftPromptOpen(true);
+    } catch (error) {
+      console.error("No se pudo comprobar el contenido del borrador:", error);
+    }
   }, []);
 
   const continueDraft = () => {
