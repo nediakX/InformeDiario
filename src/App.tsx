@@ -291,9 +291,14 @@ export default function App() {
         || draft?.vertivCarroPhotos?.some(Boolean)
         || draft?.vertivItemPhotos?.some(Boolean)
       );
-      if (hasEvidenceImages) setDraftPromptOpen(true);
+      if (hasEvidenceImages) {
+        setDraftPromptOpen(true);
+      } else {
+        draftDecisionMadeRef.current = true;
+      }
     } catch (error) {
       console.error("No se pudo comprobar el contenido del borrador:", error);
+      draftDecisionMadeRef.current = true;
     }
   }, []);
 
