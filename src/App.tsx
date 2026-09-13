@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, type ClipboardEvent } from 'react';
 import * as docx from 'docx';
 import { saveAs } from 'file-saver';
-import { ChevronDown, ChevronUp } from 'lucide-react';
+import { ChevronDown, ChevronUp, Trash2 } from 'lucide-react';
 import logoPsinet from "./assets/logo_psinet.jpg";
 import logoEdificio from "./assets/LogoEdificio.png";
 
@@ -64,17 +64,17 @@ type CvApi = {
 };
 
 const DEFAULT_PERSONAL: PersonalItem[] = [
-  { nombre: "Max Diaz", cargo: "Supervisor" },
-  { nombre: "Patricio Santana", cargo: "Supervisor" },
+  { nombre: "Max Diaz.", cargo: "Supervisor" },
+  { nombre: "Patricio Santana.", cargo: "Supervisor" },
   { nombre: "Carlos Moll.", cargo: "Técnico Eléctrico." },
   { nombre: "Williams Barraza.", cargo: "Técnico Telecomunicaciones." },
-  { nombre: "José Escobar", cargo: "Técnico Telecomunicaciones." },
-  { nombre: "Kevin Guerrero", cargo: "Técnico Telecomunicaciones." },
-  { nombre: "Vanesa Aguilar", cargo: "Técnico Telecomunicaciones." },
-  { nombre: "Nicolas Bahamondes", cargo: "Lider Tecnico" },
-  { nombre: "Juan Morata", cargo: "Ingeniero Especialista" },
-  { nombre: "Ricardo Riquelme", cargo: "Electromecanico" },
-  { nombre: "Claudia Droguett", cargo: "Experta HSE" }
+  { nombre: "José Escobar.", cargo: "Técnico Telecomunicaciones." },
+  { nombre: "Kevin Guerrero.", cargo: "Técnico Telecomunicaciones." },
+  { nombre: "Vanesa Aguilar.", cargo: "Técnico Telecomunicaciones." },
+  { nombre: "Nicolas Bahamondes.", cargo: "Lider Tecnico" },
+  { nombre: "Juan Morata.", cargo: "Ingeniero Especialista" },
+  { nombre: "Ricardo Riquelme.", cargo: "Electromecanico" },
+  { nombre: "Claudia Droguett.", cargo: "Experta SSO" }
 ];
 
 const DEFAULT_ACTIVIDADES_DIA: string[] = [
@@ -124,9 +124,9 @@ const EVIDENCIAS_EXCLUIDAS_DIA = new Set([
 ]);
 
 const CREADO_POR_OPTIONS: { nombre: string; cargo: string }[] = [
-  { nombre: "Max Diaz Cornejo", cargo: "Supervisor" },
-  { nombre: "Patricio Santana", cargo: "Supervisor" },
-  { nombre: "Nicolas Bahamondes", cargo: "Tecnico Lider" },
+  { nombre: "Max Diaz Cornejo.", cargo: "Supervisor" },
+  { nombre: "Patricio Santana.", cargo: "Supervisor" },
+  { nombre: "Nicolas Bahamondes.", cargo: "Tecnico Lider" },
 ];
 
 // Bloque fijo que solo aplica cuando el turno es de NOCHE.
@@ -1349,13 +1349,15 @@ export default function App() {
           <div className="flex flex-wrap gap-2.5 mt-2.5">
             <select value={selectedPersonalSugerido} onChange={e => setSelectedPersonalSugerido(e.target.value)} className="flex-1 min-w-[220px] p-2 border border-[#DCE1E6] rounded-md text-sm">
               <option value="">-- Seleccionar integrante del equipo --</option>
-              <option value="Max Diaz|Supervisor">Max Diaz - Supervisor</option>
-              <option value="Patricio Santana|Supervisor">Patricio Santana - Supervisor</option>
+              <option value="Max Diaz.|Supervisor">Max Diaz - Supervisor</option>
+              <option value="Patricio Santana.|Supervisor">Patricio Santana - Supervisor</option>
               <option value="Carlos Moll.|Técnico Eléctrico.">Carlos Moll. - Técnico Eléctrico.</option>
               <option value="Williams Barraza.|Técnico Telecomunicaciones.">Williams Barraza. - Técnico Telecomunicaciones.</option>
-              <option value="José Escobar|Técnico Telecomunicaciones.">José Escobar - Técnico Telecomunicaciones.</option>
-              <option value="Kevin Guerrero|Técnico Telecomunicaciones.">Kevin Guerrero - Técnico Telecomunicaciones.</option>
-              <option value="Vanesa Aguilar|Técnico Telecomunicaciones.">Vanesa Aguilar - Técnico Telecomunicaciones.</option>
+              <option value="José Escobar.|Técnico Telecomunicaciones.">José Escobar - Técnico Telecomunicaciones.</option>
+              <option value="Nicolas Bahamondes.|Técnico Lider.">Nicolas Bahamondes - Técnico Lider.</option>
+              <option value="Kevin Guerrero.|Técnico Telecomunicaciones.">Kevin Guerrero - Técnico Telecomunicaciones.</option>
+              <option value="Vanesa Aguilar.|Técnico Telecomunicaciones.">Vanesa Aguilar - Técnico Telecomunicaciones.</option>
+              <option value="Claudia Droguett.|Experta SSO.">Claudia Droguett - Experta SSO.</option>
             </select>
             <button onClick={() => {
               if (selectedPersonalSugerido) {
@@ -1557,11 +1559,7 @@ export default function App() {
                     }}
                     className="flex-1 font-bold text-sm p-1.5 border border-[#DCE1E6] rounded text-[#0E4660]"
                   />
-                  {!block.isActivity && !block.isFixed ? (
-                    <button onClick={() => setEvidenceBlocks(evidenceBlocks.filter((_, i) => i !== bi))} className="bg-red-50 text-red-700 px-2 py-1 rounded text-xs hover:bg-red-100">
-                      Quitar bloque
-                    </button>
-                  ) : block.isActivity ? (
+                  {block.isActivity ? (
                     <span className="text-[11px] text-gray-400">
                       ({turno === 'dia' ? 'fijo turno día' : `Vinc. a Actividad ${(block.actIndex ?? 0) + 1}`})
                     </span>
@@ -1589,7 +1587,12 @@ export default function App() {
                       <input type="file" accept="image/*" capture="environment" onChange={e => e.target.files?.[0] && assignFileToSlot(e.target.files[0], bi, pi)} className="text-[10px] w-full" />
                     </div>
                   ))}
-                  <button onClick={() => handleAddPhotoSlot(bi)} className="bg-[#E8F1FB] text-[#0E4660] px-2.5 py-1.5 rounded text-xs font-bold hover:bg-[#d5e7f8]">
+                  {!block.isFixed && (
+                    <button type="button" onClick={() => setEvidenceBlocks(evidenceBlocks.filter((_, i) => i !== bi))} title="Eliminar bloque completo" aria-label="Eliminar bloque completo" className="bg-red-50 text-red-700 p-1.5 rounded hover:bg-red-100">
+                      <Trash2 size={16} />
+                    </button>
+                  )}
+                  <button type="button" onClick={() => handleAddPhotoSlot(bi)} className="bg-[#E8F1FB] text-[#0E4660] px-2.5 py-1.5 rounded text-xs font-bold hover:bg-[#d5e7f8]">
                     + Foto
                   </button>
                 </div>
