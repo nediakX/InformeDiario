@@ -1585,8 +1585,8 @@ export default function App() {
         </p>
       </main>
 
-      <div className="fixed bottom-1 left-1/2 -translate-x-1/2 text-white/70 text-[10px] italic cursor-text whitespace-nowrap z-10 select-text">
-        perkin ql deja de robar el codigo, por lo menos dame credito - NediakX
+      <div className="fixed bottom-1 left-1/2 -translate-x-1/2 text-[#F4F6F8] text-[10px] italic cursor-text whitespace-nowrap z-10 select-text">
+        creado con amor &lt;3
       </div>
 
       {scannerTarget && (
