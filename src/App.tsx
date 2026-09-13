@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef, type ClipboardEvent } from 'react';
 import * as docx from 'docx';
 import { saveAs } from 'file-saver';
-import { ChevronDown, ChevronUp, Trash2 } from 'lucide-react';
+import { ChevronDown, ChevronUp, Trash2, ClipboardList, Users, ListChecks, BatteryCharging, MessageSquare, Camera, Loader2 } from 'lucide-react';
+import './App.css';
 import logoPsinet from "./assets/logo_psinet.jpg";
 import logoEdificio from "./assets/LogoEdificio.png";
 
@@ -1377,21 +1378,38 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-[#F4F6F8] text-[#222] font-sans pb-20" onPaste={handlePaste}>
+    <div className="min-h-screen text-[#222] font-sans pb-20" onPaste={handlePaste}>
       {/* Header */}
-      <header className="bg-[#111] text-white py-3.5 px-5 flex items-center gap-3.5">
-        <div className="font-extrabold text-2xl tracking-wide">
-          PSI<span className="text-[#FFC72C]">Net</span>
+      <header className="site-header">
+        <div className="site-header__inner">
+          <div className="flex items-center gap-4 py-3 px-5 flex-1 min-w-0">
+            <div className="site-header__plate">
+              <img src={logoPsinet} alt="PSINet" />
+            </div>
+            <div className="min-w-0">
+              <div className="site-header__title font-display font-bold text-xl leading-tight truncate">
+                Reporte diario de actividades
+              </div>
+              <div className="site-header__meta text-xs truncate">
+                Faena / turno · personal · evidencia fotográfica
+              </div>
+            </div>
+          </div>
+          <div className="site-header__photo">
+            <img src={logoEdificio} alt="" aria-hidden="true" />
+          </div>
         </div>
-        <div className="text-xs text-gray-400">Generador de Reporte Diario de Actividades Dinámico</div>
+        <div className="site-header__rule" />
       </header>
 
       {/* Main Container */}
       <main className="max-w-[900px] mx-auto p-5 space-y-4">
         {/* Section 1: Datos Generales */}
-        <details open className="bg-white border border-[#DCE1E6] rounded-xl p-5 shadow-sm">
-          <summary className="text-base font-bold text-[#0E4660] border-b-2 border-[#FFC72C] pb-1.5 mb-3.5 cursor-pointer select-none">
+        <details open className="panel p-5">
+          <summary className="panel__summary font-display font-bold text-lg">
+            <ClipboardList size={18} className="panel__summary-icon" strokeWidth={2.2} />
             1. Datos generales
+            <ChevronDown size={16} className="panel__summary-chevron" />
           </summary>
           <div className="space-y-3">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -1445,9 +1463,11 @@ export default function App() {
         </details>
 
         {/* Section 2: Personal en Turno */}
-        <details open className="bg-white border border-[#DCE1E6] rounded-xl p-5 shadow-sm">
-          <summary className="text-base font-bold text-[#0E4660] border-b-2 border-[#FFC72C] pb-1.5 mb-3.5 cursor-pointer select-none">
+        <details open className="panel p-5">
+          <summary className="panel__summary font-display font-bold text-lg">
+            <Users size={18} className="panel__summary-icon" strokeWidth={2.2} />
             2. Personal en Turno
+            <ChevronDown size={16} className="panel__summary-chevron" />
           </summary>
           
           <table className="w-full border-collapse mb-3 text-sm">
@@ -1487,13 +1507,13 @@ export default function App() {
                 handleAddPersonal(n, c);
                 setSelectedPersonalSugerido('');
               }
-            }} className="bg-[#E8F1FB] text-[#0E4660] px-3 py-1.5 rounded-md text-xs font-bold hover:bg-[#d5e7f8]">
+            }} className="btn-outline text-[#0E4660] px-3 py-1.5 rounded-md text-xs font-bold hover:bg-[#d5e7f8]">
               + Insertar persona
             </button>
           </div>
 
           <div className="flex flex-wrap gap-2 mt-2">
-            <button onClick={() => handleAddPersonal()} className="bg-[#E8F1FB] text-[#0E4660] px-3 py-1.5 rounded-md text-xs font-bold hover:bg-[#d5e7f8]">
+            <button onClick={() => handleAddPersonal()} className="btn-outline text-[#0E4660] px-3 py-1.5 rounded-md text-xs font-bold hover:bg-[#d5e7f8]">
               + Agregar persona en blanco
             </button>
             <button onClick={resetPersonal} className="bg-[#FFF3CD] text-[#856404] px-3 py-1.5 rounded-md text-xs font-bold border border-[#FFEEBA] hover:bg-[#ffe8a1]">
@@ -1503,9 +1523,11 @@ export default function App() {
         </details>
 
         {/* Section 3: Actividades Diarias */}
-        <details open className="bg-white border border-[#DCE1E6] rounded-xl p-5 shadow-sm">
-          <summary className="text-base font-bold text-[#0E4660] border-b-2 border-[#FFC72C] pb-1.5 mb-3.5 cursor-pointer select-none">
+        <details open className="panel p-5">
+          <summary className="panel__summary font-display font-bold text-lg">
+            <ListChecks size={18} className="panel__summary-icon" strokeWidth={2.2} />
             3. Actividades Diarias
+            <ChevronDown size={16} className="panel__summary-chevron" />
           </summary>
 
           <table className="w-full border-collapse mb-3 text-sm">
@@ -1548,13 +1570,13 @@ export default function App() {
                 handleAddActividad(selectedActividadSugerida);
                 setSelectedActividadSugerida('');
               }
-            }} className="bg-[#E8F1FB] text-[#0E4660] px-3 py-1.5 rounded-md text-xs font-bold hover:bg-[#d5e7f8]">
+            }} className="btn-outline text-[#0E4660] px-3 py-1.5 rounded-md text-xs font-bold hover:bg-[#d5e7f8]">
               + Insertar sugerida
             </button>
           </div>
 
           <div className="flex flex-wrap gap-2 mt-2">
-            <button onClick={() => handleAddActividad('')} className="bg-[#E8F1FB] text-[#0E4660] px-3 py-1.5 rounded-md text-xs font-bold hover:bg-[#d5e7f8]">
+            <button onClick={() => handleAddActividad('')} className="btn-outline text-[#0E4660] px-3 py-1.5 rounded-md text-xs font-bold hover:bg-[#d5e7f8]">
               + Agregar actividad en blanco
             </button>
             <button onClick={resetActividades} className="bg-[#FFF3CD] text-[#856404] px-3 py-1.5 rounded-md text-xs font-bold border border-[#FFEEBA] hover:bg-[#ffe8a1]">
@@ -1565,9 +1587,11 @@ export default function App() {
 
         {/* Section 3b: Bloque fijo Vertiv (solo Turno Noche) */}
         {turno === 'noche' && (
-          <details open className="bg-white border border-[#DCE1E6] rounded-xl p-5 shadow-sm">
-            <summary className="text-base font-bold text-[#0E4660] border-b-2 border-[#FFC72C] pb-1.5 mb-3.5 cursor-pointer select-none">
+          <details open className="panel p-5">
+            <summary className="panel__summary font-display font-bold text-lg">
+              <BatteryCharging size={18} className="panel__summary-icon" strokeWidth={2.2} />
               Verificación Gestión Vertiv (fijo — solo Turno Noche)
+              <ChevronDown size={16} className="panel__summary-chevron" />
             </summary>
             <p className="text-xs text-gray-500 mb-3">
               Los títulos de este bloque son fijos y no editables. Solo debes cargar la captura/foto de evidencia de cada Carro y de cada ítem de monitoreo; se incluirán automáticamente en el documento con el mismo formato de la plantilla (imagen + leyenda). Solo aparece en <strong>Turno Noche</strong>.
@@ -1579,7 +1603,7 @@ export default function App() {
                 <div key={i} className="border border-dashed border-[#DCE1E6] rounded-lg p-2 bg-[#fafbfc] flex items-center gap-2.5">
                   <div
                     onClick={() => handleSelectVertivSlot('carro', i)}
-                    className={`w-[100px] text-center text-[10px] text-gray-500 relative border-2 border-dashed rounded-md p-1 bg-white flex-shrink-0 cursor-pointer ${selectedVertivSlot?.type === 'carro' && selectedVertivSlot.index === i ? 'border-[#0E4660] ring-2 ring-[#0E4660]/20' : 'border-gray-300'}`}
+                    className={`photo-slot w-[100px] text-center text-[10px] text-gray-500 relative border-2 border-dashed rounded-md p-1 bg-white flex-shrink-0 cursor-pointer ${selectedVertivSlot?.type === 'carro' && selectedVertivSlot.index === i ? 'border-[#0E4660] ring-2 ring-[#0E4660]/20' : 'border-gray-300'}`}
                     title="Haz clic aquí y luego pega una imagen con Ctrl+V"
                   >
                     {vertivCarroPhotos[i] && (
@@ -1603,7 +1627,7 @@ export default function App() {
                 <div key={i} className="border border-dashed border-[#DCE1E6] rounded-lg p-2 bg-[#fafbfc] flex items-center gap-2.5">
                   <div
                     onClick={() => handleSelectVertivSlot('item', i)}
-                    className={`w-[100px] text-center text-[10px] text-gray-500 relative border-2 border-dashed rounded-md p-1 bg-white flex-shrink-0 cursor-pointer ${selectedVertivSlot?.type === 'item' && selectedVertivSlot.index === i ? 'border-[#0E4660] ring-2 ring-[#0E4660]/20' : 'border-gray-300'}`}
+                    className={`photo-slot w-[100px] text-center text-[10px] text-gray-500 relative border-2 border-dashed rounded-md p-1 bg-white flex-shrink-0 cursor-pointer ${selectedVertivSlot?.type === 'item' && selectedVertivSlot.index === i ? 'border-[#0E4660] ring-2 ring-[#0E4660]/20' : 'border-gray-300'}`}
                     title="Haz clic aquí y luego pega una imagen con Ctrl+V"
                   >
                     {vertivItemPhotos[i] && (
@@ -1628,9 +1652,11 @@ export default function App() {
         )}
 
         {/* Section 4: Observaciones */}
-        <details open className="bg-white border border-[#DCE1E6] rounded-xl p-5 shadow-sm">
-          <summary className="text-base font-bold text-[#0E4660] border-b-2 border-[#FFC72C] pb-1.5 mb-3.5 cursor-pointer select-none">
+        <details open className="panel p-5">
+          <summary className="panel__summary font-display font-bold text-lg">
+            <MessageSquare size={18} className="panel__summary-icon" strokeWidth={2.2} />
             4. Observaciones
+            <ChevronDown size={16} className="panel__summary-chevron" />
           </summary>
           <table className="w-full border-collapse mb-3 text-sm">
             <tbody>
@@ -1650,16 +1676,18 @@ export default function App() {
               ))}
             </tbody>
           </table>
-          <button onClick={() => setObservaciones([...observaciones, ''])} className="bg-[#E8F1FB] text-[#0E4660] px-3 py-1.5 rounded-md text-xs font-bold hover:bg-[#d5e7f8]">
+          <button onClick={() => setObservaciones([...observaciones, ''])} className="btn-outline text-[#0E4660] px-3 py-1.5 rounded-md text-xs font-bold hover:bg-[#d5e7f8]">
             + Agregar observación
           </button>
           <p className="text-xs text-gray-500 mt-2">Si no hay observaciones, deja la lista vacía.</p>
         </details>
 
         {/* Section 5: Evidencia Fotográfica */}
-        <details open className="bg-white border border-[#DCE1E6] rounded-xl p-5 shadow-sm">
-          <summary className="text-base font-bold text-[#0E4660] border-b-2 border-[#FFC72C] pb-1.5 mb-3.5 cursor-pointer select-none">
+        <details open className="panel p-5">
+          <summary className="panel__summary font-display font-bold text-lg">
+            <Camera size={18} className="panel__summary-icon" strokeWidth={2.2} />
             5. Evidencia fotográfica
+            <ChevronDown size={16} className="panel__summary-chevron" />
           </summary>
           <p className="text-xs text-gray-500 mb-3">
             {turno === 'noche'
@@ -1696,7 +1724,7 @@ export default function App() {
                     <div
                       key={pi}
                       onClick={() => handleSelectEvidenceSlot(bi, pi)}
-                      className={`w-[180px] min-w-[180px] text-center text-[11px] text-gray-500 relative border-2 border-dashed rounded-md p-1 bg-white cursor-pointer ${selectedEvidenceSlot?.blockIndex === bi && selectedEvidenceSlot.photoIndex === pi ? 'border-[#0E4660] ring-2 ring-[#0E4660]/20' : 'border-gray-300'}`}
+                      className={`photo-slot w-[180px] min-w-[180px] text-center text-[11px] text-gray-500 relative border-2 border-dashed rounded-md p-1 bg-white cursor-pointer ${selectedEvidenceSlot?.blockIndex === bi && selectedEvidenceSlot.photoIndex === pi ? 'border-[#0E4660] ring-2 ring-[#0E4660]/20' : 'border-gray-300'}`}
                       title="Haz clic aquí y luego pega una imagen con Ctrl+V"
                     >
                       <button
@@ -1717,7 +1745,7 @@ export default function App() {
                       <input type="file" accept="image/*" onChange={e => e.target.files?.[0] && assignFileToSlot(e.target.files[0], bi, pi)} className="text-[10px] w-full min-w-[168px]" />
                     </div>
                     ))}
-                    <button type="button" onClick={() => handleAddPhotoSlot(bi)} className="bg-[#E8F1FB] text-[#0E4660] px-2.5 py-1.5 rounded text-xs font-bold hover:bg-[#d5e7f8]">
+                    <button type="button" onClick={() => handleAddPhotoSlot(bi)} className="btn-outline text-[#0E4660] px-2.5 py-1.5 rounded text-xs font-bold hover:bg-[#d5e7f8]">
                       + Foto
                     </button>
                   </div>
@@ -1726,19 +1754,26 @@ export default function App() {
             ))}
           </div>
 
-          <button onClick={handleAddGenericBlock} className="mt-3 bg-[#E8F1FB] text-[#0E4660] px-3 py-1.5 rounded-md text-xs font-bold hover:bg-[#d5e7f8]">
+          <button onClick={handleAddGenericBlock} className="mt-3 btn-outline text-[#0E4660] px-3 py-1.5 rounded-md text-xs font-bold hover:bg-[#d5e7f8]">
             + Agregar bloque extra de evidencia
           </button>
         </details>
 
         {/* Action Button */}
-        <button
-          onClick={generarDocumento}
-          disabled={isGenerating}
-          className="w-full bg-[#0E4660] text-white py-3.5 px-6 font-bold text-base rounded-lg shadow-sm hover:bg-[#0a3549] disabled:bg-[#9fb3bd] disabled:cursor-not-allowed transition-colors"
-        >
-          {isGenerating ? "Generando Word Exacto..." : "Generar documento Word"}
-        </button>
+        <div className="action-zone">
+          <button
+            onClick={generarDocumento}
+            disabled={isGenerating}
+            className="btn-primary-field w-full text-white py-3.5 px-6 font-bold text-base rounded-md disabled:!bg-[#9fb3bd] disabled:cursor-not-allowed flex items-center justify-center gap-2"
+          >
+            {isGenerating ? (
+              <>
+                <Loader2 size={18} className="animate-spin" />
+                Generando Word Exacto...
+              </>
+            ) : "Generar documento Word"}
+          </button>
+        </div>
 
         <p className="text-center text-gray-500 text-xs mt-4">
           El archivo .docx mantendrá fielmente el formato, proporciones, imágenes y portada original de PSINet.
@@ -1751,7 +1786,7 @@ export default function App() {
 
       {draftPromptOpen && (
         <div className="fixed inset-0 z-50 bg-black/50 p-4 flex items-center justify-center">
-          <div className="w-full max-w-md bg-white rounded-xl p-6 shadow-xl space-y-4">
+          <div className="modal-anim w-full max-w-md bg-white rounded-xl p-6 shadow-xl space-y-4">
             <h2 className="text-lg font-bold text-[#0E4660]">Borrador encontrado</h2>
             <p className="text-sm text-gray-600">
               Encontramos contenido guardado de una sesión anterior. ¿Quieres continuar con ese borrador o comenzar un informe nuevo?
@@ -1770,7 +1805,7 @@ export default function App() {
 
       {scannerTarget && (
         <div className="fixed inset-0 z-50 bg-black/90 p-4 flex items-center justify-center">
-          <div className="w-full max-w-lg bg-white rounded-xl p-4 space-y-3">
+          <div className="modal-anim w-full max-w-lg bg-white rounded-xl p-4 space-y-3">
             <div className="flex items-center justify-between gap-3">
               <h2 className="text-base font-bold text-[#0E4660]">Escanear documento</h2>
               <button type="button" onClick={closeDocumentScanner} className="text-gray-500 text-xl leading-none" aria-label="Cerrar escáner">×</button>
@@ -1798,7 +1833,7 @@ export default function App() {
 
       {/* Toast Notification */}
       {toastMessage && (
-        <div className={`fixed bottom-5 left-1/2 -translate-x-1/2 ${toastMessage.isError ? 'bg-red-800' : 'bg-[#0E4660]'} text-white py-3 px-5 rounded-lg text-sm shadow-lg z-50`}>
+        <div className={`toast-anim fixed bottom-5 left-1/2 -translate-x-1/2 ${toastMessage.isError ? 'bg-red-800' : 'bg-[#0E4660]'} text-white py-3 px-5 rounded-lg text-sm shadow-lg z-50`}>
           {toastMessage.text}
         </div>
       )}
