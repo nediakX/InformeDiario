@@ -1,4 +1,4 @@
-import { useState, useEffect, type ClipboardEvent } from 'react';
+import { useState, useEffect, useRef, type ClipboardEvent } from 'react';
 import * as docx from 'docx';
 import { saveAs } from 'file-saver';
 import logoPsinet from "./assets/logo_psinet.jpg";
@@ -20,6 +20,11 @@ interface EvidenceBlock {
   isFixed?: boolean;
   actIndex?: number;
 }
+
+type ScannerTarget =
+  | { type: 'evidence'; blockIndex: number; photoIndex: number }
+  | { type: 'vertivCarro'; index: number }
+  | { type: 'vertivItem'; index: number };
 
 const DEFAULT_PERSONAL: PersonalItem[] = [
   { nombre: "Max Diaz", cargo: "Supervisor" },
@@ -95,23 +100,13 @@ const VERTIV_CARROS: [string, string][] = [
 const VERTIV_CARROS_FLAT: string[] = VERTIV_CARROS.flat();
 
 const VERTIV_ITEMS: string[] = [
-  "Estado de Vertiv ICMP.",
-  "E-Nodos B ICMP Response Time.",
+  "Estado de Vertiv ICMP (administración remota)",
+  "E-Nodos B ICMP Response Time (Latencia).",
   "Voltaje del sistema LTE.",
   "Voltaje de los bancos de baterías.",
   "Monitoreo de la Corriente sistema LTE Dsal.",
   "Monitoreo de la descarga total de los bancos de baterías.",
   "Monitoreo del status de las temperaturas en los gabinetes batería.",
-];
-
-const VERTIV_ITEM_FORM_LABELS: string[] = [
-  "Estado de Vertiv ICMP. (Status plantas energía Vertiv)",
-  "E-Nodos B ICMP Response Time (Status Red LTE).",
-  "Voltaje del sistema LTE. (System Voltage)",
-  "Voltaje de los bancos de baterías. (Battery Voltage)",
-  "Monitoreo de la Corriente sistema LTE Dsal. (System Current)",
-  "Monitoreo de la descarga total de los bancos de baterías. (Total Battery Current)",
-  "Monitoreo del status de las temperaturas en los gabinetes batería. (Temperature)",
 ];
 
 // Texto fijo de cierre (última hoja). También solo para turno NOCHE.
@@ -123,9 +118,6 @@ const INDICADORES_BULLETS: string[] = [
   "Se efectuó monitoreo general de energía asociado a la continuidad operacional, incluyendo revisión de gestión de planta rectificadora Vertiv, voltaje del sistema LTE, voltaje de bancos de baterías, corriente del sistema, descarga total de bancos y condición térmica de gabinetes de baterías.",
   "Se mantuvo control operacional complementario mediante registro de alcotest, control de fatiga y somnolencia, confección de ART y ejecución de difusiones preventivas, reforzando las condiciones de seguridad y cumplimiento operativo del turno.",
 ];
-
-const OBS_FINAL_INTRO =
-  "No se realiza reportabilidad al sitio 5 debido a que se encuentra replegado, por lo que queda fuera del ciclo de verificación operacional del turno.";
 
 const OBS_FINAL_BULLETS: string[] = [
   "Se mantiene monitoreo general sobre E-Nodo B, sistema de energía y gestión Vertiv, dando continuidad al seguimiento de los parámetros operacionales del sistema LTE.",
@@ -193,6 +185,12 @@ export default function App() {
   const [genericCounter, setGenericCounter] = useState<number>(0);
   const [selectedEvidenceSlot, setSelectedEvidenceSlot] = useState<{ blockIndex: number; photoIndex: number } | null>(null);
   const [selectedVertivSlot, setSelectedVertivSlot] = useState<{ type: 'carro' | 'item'; index: number } | null>(null);
+  const [scannerTarget, setScannerTarget] = useState<ScannerTarget | null>(null);
+  const [scannerPreview, setScannerPreview] = useState<string | null>(null);
+  const [scannerMessage, setScannerMessage] = useState('Apunta al documento completo y captura la imagen.');
+  const scannerVideoRef = useRef<HTMLVideoElement>(null);
+  const scannerCanvasRef = useRef<HTMLCanvasElement>(null);
+  const scannerStreamRef = useRef<MediaStream | null>(null);
 
   // Carga inicial y conversión de imágenes por defecto
   useEffect(() => {
@@ -489,6 +487,162 @@ export default function App() {
       updated[idx] = null;
       return updated;
     });
+  };
+
+  const stopScannerCamera = () => {
+    scannerStreamRef.current?.getTracks().forEach(track => track.stop());
+    scannerStreamRef.current = null;
+  };
+
+  useEffect(() => {
+    if (!scannerTarget) {
+      stopScannerCamera();
+      return;
+    }
+
+    let cancelled = false;
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setScannerMessage('Este navegador no permite usar la cámara.');
+      return;
+    }
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } }, audio: false })
+      .then(stream => {
+        if (cancelled) {
+          stream.getTracks().forEach(track => track.stop());
+          return;
+        }
+        scannerStreamRef.current = stream;
+        if (scannerVideoRef.current) {
+          scannerVideoRef.current.srcObject = stream;
+          void scannerVideoRef.current.play();
+        }
+      })
+      .catch(() => setScannerMessage('No se pudo abrir la cámara. Revisa los permisos del navegador.'));
+
+    return () => {
+      cancelled = true;
+      stopScannerCamera();
+    };
+  }, [scannerTarget]);
+
+  const openDocumentScanner = (target: ScannerTarget) => {
+    setScannerTarget(target);
+    setScannerPreview(null);
+    setScannerMessage('Apunta al documento completo y captura la imagen.');
+  };
+
+  const closeDocumentScanner = () => {
+    stopScannerCamera();
+    setScannerTarget(null);
+    setScannerPreview(null);
+  };
+
+  const scanDocumentPerspective = async (sourceDataUrl: string) => {
+    try {
+      const image = new Image();
+      image.src = sourceDataUrl;
+      await image.decode();
+
+      const sourceCanvas = document.createElement('canvas');
+      sourceCanvas.width = image.naturalWidth;
+      sourceCanvas.height = image.naturalHeight;
+      sourceCanvas.getContext('2d')?.drawImage(image, 0, 0);
+
+      const cvModule = await import('@techstark/opencv-js');
+      const cv = (cvModule as unknown as { default?: Record<string, any> }).default ?? cvModule;
+      if (!cv.Mat || !cv.imread) return sourceDataUrl;
+
+      const source = cv.imread(sourceCanvas);
+      const gray = new cv.Mat();
+      const blurred = new cv.Mat();
+      const edges = new cv.Mat();
+      const contours = new cv.MatVector();
+      const hierarchy = new cv.Mat();
+      cv.cvtColor(source, gray, cv.COLOR_RGBA2GRAY);
+      cv.GaussianBlur(gray, blurred, new cv.Size(5, 5), 0);
+      cv.Canny(blurred, edges, 75, 200);
+      cv.findContours(edges, contours, hierarchy, cv.RETR_LIST, cv.CHAIN_APPROX_SIMPLE);
+
+      let best: any = null;
+      let bestArea = 0;
+      for (let index = 0; index < contours.size(); index += 1) {
+        const contour = contours.get(index);
+        const perimeter = cv.arcLength(contour, true);
+        const approximation = new cv.Mat();
+        cv.approxPolyDP(contour, approximation, 0.02 * perimeter, true);
+        const area = Math.abs(cv.contourArea(approximation));
+        if (approximation.rows === 4 && area > bestArea && area > source.cols * source.rows * 0.2) {
+          best = approximation;
+          bestArea = area;
+        } else {
+          approximation.delete();
+        }
+        contour.delete();
+      }
+
+      if (!best) {
+        source.delete(); gray.delete(); blurred.delete(); edges.delete(); contours.delete(); hierarchy.delete();
+        return sourceDataUrl;
+      }
+
+      const points = Array.from(best.data32S) as number[];
+      const corners: { x: number; y: number }[] = [
+        { x: points[0], y: points[1] },
+        { x: points[2], y: points[3] },
+        { x: points[4], y: points[5] },
+        { x: points[6], y: points[7] },
+      ];
+      const topLeft = corners.reduce((a, b) => a.x + a.y < b.x + b.y ? a : b);
+      const bottomRight = corners.reduce((a, b) => a.x + a.y > b.x + b.y ? a : b);
+      const topRight = corners.reduce((a, b) => a.x - a.y > b.x - b.y ? a : b);
+      const bottomLeft = corners.reduce((a, b) => a.x - a.y < b.x - b.y ? a : b);
+      const width = Math.max(Math.hypot(bottomRight.x - bottomLeft.x, bottomRight.y - bottomLeft.y), Math.hypot(topRight.x - topLeft.x, topRight.y - topLeft.y));
+      const height = Math.max(Math.hypot(topRight.x - bottomRight.x, topRight.y - bottomRight.y), Math.hypot(topLeft.x - bottomLeft.x, topLeft.y - bottomLeft.y));
+      const destination = cv.matFromArray(4, 1, cv.CV_32FC2, [0, 0, width, 0, width, height, 0, height]);
+      const sourcePoints = cv.matFromArray(4, 1, cv.CV_32FC2, [topLeft.x, topLeft.y, topRight.x, topRight.y, bottomRight.x, bottomRight.y, bottomLeft.x, bottomLeft.y]);
+      const transform = cv.getPerspectiveTransform(sourcePoints, destination);
+      const warped = new cv.Mat();
+      cv.warpPerspective(source, warped, transform, new cv.Size(width, height));
+      cv.imshow(sourceCanvas, warped);
+      const result = sourceCanvas.toDataURL('image/jpeg', 0.92);
+
+      best.delete(); source.delete(); gray.delete(); blurred.delete(); edges.delete(); contours.delete(); hierarchy.delete();
+      destination.delete(); sourcePoints.delete(); transform.delete(); warped.delete();
+      return result;
+    } catch {
+      return sourceDataUrl;
+    }
+  };
+
+  const captureDocument = async () => {
+    const video = scannerVideoRef.current;
+    const canvas = scannerCanvasRef.current;
+    if (!video || !canvas || !video.videoWidth || !video.videoHeight) return;
+
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    canvas.getContext('2d')?.drawImage(video, 0, 0, canvas.width, canvas.height);
+    setScannerMessage('Detectando bordes y corrigiendo perspectiva...');
+    const scannedImage = await scanDocumentPerspective(canvas.toDataURL('image/jpeg', 0.92));
+    setScannerPreview(scannedImage);
+    setScannerMessage('Revisa la captura. Puedes confirmarla o tomar otra.');
+  };
+
+  const confirmScannedDocument = () => {
+    if (!scannerTarget || !scannerPreview) return;
+    if (scannerTarget.type === 'evidence') {
+      setEvidenceBlocks(prev => prev.map((block, blockIndex) => {
+        if (blockIndex !== scannerTarget.blockIndex) return block;
+        const photos = [...block.photos];
+        photos[scannerTarget.photoIndex] = scannerPreview;
+        return { ...block, photos };
+      }));
+    } else if (scannerTarget.type === 'vertivCarro') {
+      setVertivCarroPhotos(prev => prev.map((photo, index) => index === scannerTarget.index ? scannerPreview : photo));
+    } else {
+      setVertivItemPhotos(prev => prev.map((photo, index) => index === scannerTarget.index ? scannerPreview : photo));
+    }
+    closeDocumentScanner();
   };
 
   const handleAddGenericBlock = () => {
@@ -956,9 +1110,8 @@ export default function App() {
         new Paragraph({ text: "" }),
         new Paragraph({
           heading: HeadingLevel.HEADING_1,
-          children: [new TextRun({ text: "REPORTABILIDAD GG.", color: BLUE, size: 26, font: "Arial", bold: true })],
+          children: [new TextRun({ text: "OBSERVACIONES", color: BLUE, size: 26, font: "Arial", bold: true })],
         }),
-        new Paragraph({ children: [new TextRun({ text: OBS_FINAL_INTRO, font: "Arial" })] }),
       ] : [];
 
       const personalTable = new Table({
@@ -1228,7 +1381,8 @@ export default function App() {
                       </button>
                     )}
                     <img src={vertivCarroPhotos[i] || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='75'%3E%3Crect width='100%25' height='100%25' fill='%23eee'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%23aaa' font-size='9'%3ESin foto%3C/text%3E%3C/svg%3E"} alt={title} className="w-[92px] h-[70px] object-cover rounded mx-auto mb-1 bg-gray-100" />
-                    <input type="file" accept="image/png,image/jpeg" onChange={e => e.target.files?.[0] && assignVertivCarroPhoto(e.target.files[0], i)} className="text-[9px] w-full" />
+                    <button type="button" onClick={() => openDocumentScanner({ type: 'vertivCarro', index: i })} className="w-full bg-[#0E4660] text-white rounded px-1 py-1 mb-1 text-[9px] font-bold">Escanear documento</button>
+                    <input type="file" accept="image/*" capture="environment" onChange={e => e.target.files?.[0] && assignVertivCarroPhoto(e.target.files[0], i)} className="text-[9px] w-full" />
                   </div>
                   <span className="text-sm font-bold text-[#0E4660]">{title}</span>
                 </div>
@@ -1250,9 +1404,10 @@ export default function App() {
                       </button>
                     )}
                     <img src={vertivItemPhotos[i] || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='75'%3E%3Crect width='100%25' height='100%25' fill='%23eee'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%23aaa' font-size='9'%3ESin foto%3C/text%3E%3C/svg%3E"} alt={item} className="w-[92px] h-[70px] object-cover rounded mx-auto mb-1 bg-gray-100" />
-                    <input type="file" accept="image/png,image/jpeg" onChange={e => e.target.files?.[0] && assignVertivItemPhoto(e.target.files[0], i)} className="text-[9px] w-full" />
+                    <button type="button" onClick={() => openDocumentScanner({ type: 'vertivItem', index: i })} className="w-full bg-[#0E4660] text-white rounded px-1 py-1 mb-1 text-[9px] font-bold">Escanear documento</button>
+                    <input type="file" accept="image/*" capture="environment" onChange={e => e.target.files?.[0] && assignVertivItemPhoto(e.target.files[0], i)} className="text-[9px] w-full" />
                   </div>
-                  <span className="text-sm text-[#333]">{VERTIV_ITEM_FORM_LABELS[i]}</span>
+                  <span className="text-sm text-[#333]">{item}</span>
                 </div>
               ))}
             </div>
@@ -1301,7 +1456,7 @@ export default function App() {
             {turno === 'noche'
               ? <><strong>Bloques fijos de Turno Noche.</strong> Esta plantilla incluye siempre las evidencias nocturnas, incluida REPORTABILIDAD GG.<br /></>
               : <><strong>Bloques de Turno Día.</strong> Se sincronizan dinámicamente con la sección de Actividades y no incluyen los bloques exclusivos de Noche.<br /></>}
-            Soporta <strong>Ctrl + V</strong> para pegar imágenes. Si un bloque no tiene fotos, se omitirá en el documento generado.
+            En Android y iPhone puedes usar la cámara del dispositivo para fotografiar o escanear el documento, o seleccionar una imagen de la galería. También soporta <strong>Ctrl + V</strong> en computador. Si un bloque no tiene fotos, se omitirá en el documento generado.
           </p>
 
           <div className="space-y-3">
@@ -1345,7 +1500,8 @@ export default function App() {
                         </button>
                       )}
                       <img src={src || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='130' height='98'%3E%3Crect width='100%25' height='100%25' fill='%23eee'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%23aaa' font-size='10'%3EArrastra o pega%3C/text%3E%3C/svg%3E"} alt="Evidencia" className="w-[120px] h-[90px] object-cover rounded mx-auto mb-1 bg-gray-100" />
-                      <input type="file" accept="image/png,image/jpeg" onChange={e => e.target.files?.[0] && assignFileToSlot(e.target.files[0], bi, pi)} className="text-[10px] w-full" />
+                      <button type="button" onClick={() => openDocumentScanner({ type: 'evidence', blockIndex: bi, photoIndex: pi })} className="w-full bg-[#0E4660] text-white rounded px-1.5 py-1 mb-1 text-[10px] font-bold">Escanear documento</button>
+                      <input type="file" accept="image/*" capture="environment" onChange={e => e.target.files?.[0] && assignFileToSlot(e.target.files[0], bi, pi)} className="text-[10px] w-full" />
                     </div>
                   ))}
                   <button onClick={() => handleAddPhotoSlot(bi)} className="bg-[#E8F1FB] text-[#0E4660] px-2.5 py-1.5 rounded text-xs font-bold hover:bg-[#d5e7f8]">
@@ -1378,6 +1534,34 @@ export default function App() {
       <div className="fixed bottom-1 left-1/2 -translate-x-1/2 text-white/70 text-[10px] italic cursor-text whitespace-nowrap z-10 select-text">
         perkin ql deja de robar el codigo, por lo menos dame credito - NediakX
       </div>
+
+      {scannerTarget && (
+        <div className="fixed inset-0 z-50 bg-black/90 p-4 flex items-center justify-center">
+          <div className="w-full max-w-lg bg-white rounded-xl p-4 space-y-3">
+            <div className="flex items-center justify-between gap-3">
+              <h2 className="text-base font-bold text-[#0E4660]">Escanear documento</h2>
+              <button type="button" onClick={closeDocumentScanner} className="text-gray-500 text-xl leading-none" aria-label="Cerrar escáner">×</button>
+            </div>
+            <p className="text-xs text-gray-600">{scannerMessage}</p>
+            {scannerPreview ? (
+              <img src={scannerPreview} alt="Vista previa del documento escaneado" className="w-full max-h-[55vh] object-contain rounded border border-gray-200 bg-gray-100" />
+            ) : (
+              <video ref={scannerVideoRef} autoPlay muted playsInline className="w-full max-h-[55vh] object-contain rounded bg-black" />
+            )}
+            <canvas ref={scannerCanvasRef} className="hidden" />
+            <div className="flex gap-2">
+              {scannerPreview ? (
+                <>
+                  <button type="button" onClick={() => setScannerPreview(null)} className="flex-1 border border-[#DCE1E6] rounded-md px-3 py-2 text-sm">Tomar otra</button>
+                  <button type="button" onClick={confirmScannedDocument} className="flex-1 bg-[#0E4660] text-white rounded-md px-3 py-2 text-sm font-bold">Usar documento</button>
+                </>
+              ) : (
+                <button type="button" onClick={() => void captureDocument()} className="w-full bg-[#0E4660] text-white rounded-md px-3 py-2 text-sm font-bold">Capturar y escanear</button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Toast Notification */}
       {toastMessage && (
