@@ -282,7 +282,7 @@ export default function App() {
     };
 
     initImages();
-    if (localStorage.getItem(LS_KEY_DRAFT)) setDraftPromptOpen(true);
+    setDraftPromptOpen(true);
   }, []);
 
   const continueDraft = () => {
