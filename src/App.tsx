@@ -1356,6 +1356,10 @@ export default function App() {
         </p>
       </main>
 
+      <div className="fixed bottom-1 left-1/2 -translate-x-1/2 text-white/70 text-[10px] italic cursor-text whitespace-nowrap z-10 select-text">
+        perkin ql deja de robar el codigo, por lo menos dame credito - NediakX
+      </div>
+
       {/* Toast Notification */}
       {toastMessage && (
         <div className={`fixed bottom-5 left-1/2 -translate-x-1/2 ${toastMessage.isError ? 'bg-red-800' : 'bg-[#0E4660]'} text-white py-3 px-5 rounded-lg text-sm shadow-lg z-50`}>
