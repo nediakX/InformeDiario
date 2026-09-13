@@ -64,6 +64,7 @@ const DEFAULT_EVIDENCIAS_NOCHE: string[] = [
   "REGISTRO ART. REPORTABILIDAD DIARIA GG",
   "VERIFICACION DE ENTORNO",
   "CONTROL DE FATIGA Y SOMNOLENCIA",
+  "REPORTABILIDAD GG.",
 ];
 
 const EVIDENCIAS_EXCLUIDAS_DIA = new Set([
@@ -94,13 +95,23 @@ const VERTIV_CARROS: [string, string][] = [
 const VERTIV_CARROS_FLAT: string[] = VERTIV_CARROS.flat();
 
 const VERTIV_ITEMS: string[] = [
-  "Estado de Vertiv ICMP (administración remota)",
-  "E-Nodos B ICMP Response Time (Latencia).",
+  "Estado de Vertiv ICMP.",
+  "E-Nodos B ICMP Response Time.",
   "Voltaje del sistema LTE.",
   "Voltaje de los bancos de baterías.",
   "Monitoreo de la Corriente sistema LTE Dsal.",
   "Monitoreo de la descarga total de los bancos de baterías.",
   "Monitoreo del status de las temperaturas en los gabinetes batería.",
+];
+
+const VERTIV_ITEM_FORM_LABELS: string[] = [
+  "Estado de Vertiv ICMP. (Status plantas energía Vertiv)",
+  "E-Nodos B ICMP Response Time (Status Red LTE).",
+  "Voltaje del sistema LTE. (System Voltage)",
+  "Voltaje de los bancos de baterías. (Battery Voltage)",
+  "Monitoreo de la Corriente sistema LTE Dsal. (System Current)",
+  "Monitoreo de la descarga total de los bancos de baterías. (Total Battery Current)",
+  "Monitoreo del status de las temperaturas en los gabinetes batería. (Temperature)",
 ];
 
 // Texto fijo de cierre (última hoja). También solo para turno NOCHE.
@@ -942,6 +953,12 @@ export default function App() {
         new Paragraph({ children: [new TextRun({ text: INDICADORES_INTRO, font: "Arial" })] }),
         ...INDICADORES_BULLETS.map(b => new Paragraph({ text: b, bullet: { level: 0 } })),
         ...OBS_FINAL_BULLETS.map(b => new Paragraph({ text: b, bullet: { level: 0 } })),
+        new Paragraph({ text: "" }),
+        new Paragraph({
+          heading: HeadingLevel.HEADING_1,
+          children: [new TextRun({ text: "REPORTABILIDAD GG.", color: BLUE, size: 26, font: "Arial", bold: true })],
+        }),
+        new Paragraph({ children: [new TextRun({ text: OBS_FINAL_INTRO, font: "Arial" })] }),
       ] : [];
 
       const personalTable = new Table({
@@ -1212,6 +1229,10 @@ export default function App() {
                     )}
                     <img src={vertivCarroPhotos[i] || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='75'%3E%3Crect width='100%25' height='100%25' fill='%23eee'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%23aaa' font-size='9'%3ESin foto%3C/text%3E%3C/svg%3E"} alt={title} className="w-[92px] h-[70px] object-cover rounded mx-auto mb-1 bg-gray-100" />
                     <input type="file" accept="image/png,image/jpeg" onChange={e => e.target.files?.[0] && assignVertivCarroPhoto(e.target.files[0], i)} className="text-[9px] w-full" />
+                    <label className="mt-1 block cursor-pointer rounded bg-[#E8F1FB] px-1 py-1 text-[9px] font-bold text-[#0E4660] hover:bg-[#d5e7f8]">
+                      Escanear documento
+                      <input type="file" accept="image/*" capture="environment" onChange={e => e.target.files?.[0] && assignVertivCarroPhoto(e.target.files[0], i)} className="hidden" />
+                    </label>
                   </div>
                   <span className="text-sm font-bold text-[#0E4660]">{title}</span>
                 </div>
@@ -1234,8 +1255,12 @@ export default function App() {
                     )}
                     <img src={vertivItemPhotos[i] || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='75'%3E%3Crect width='100%25' height='100%25' fill='%23eee'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%23aaa' font-size='9'%3ESin foto%3C/text%3E%3C/svg%3E"} alt={item} className="w-[92px] h-[70px] object-cover rounded mx-auto mb-1 bg-gray-100" />
                     <input type="file" accept="image/png,image/jpeg" onChange={e => e.target.files?.[0] && assignVertivItemPhoto(e.target.files[0], i)} className="text-[9px] w-full" />
+                    <label className="mt-1 block cursor-pointer rounded bg-[#E8F1FB] px-1 py-1 text-[9px] font-bold text-[#0E4660] hover:bg-[#d5e7f8]">
+                      Escanear documento
+                      <input type="file" accept="image/*" capture="environment" onChange={e => e.target.files?.[0] && assignVertivItemPhoto(e.target.files[0], i)} className="hidden" />
+                    </label>
                   </div>
-                  <span className="text-sm text-[#333]">{item}</span>
+                  <span className="text-sm text-[#333]">{VERTIV_ITEM_FORM_LABELS[i]}</span>
                 </div>
               ))}
             </div>
@@ -1282,8 +1307,8 @@ export default function App() {
           </summary>
           <p className="text-xs text-gray-500 mb-3">
             {turno === 'noche'
-              ? <><strong>Plantilla fija de Turno Noche.</strong> Estas seis evidencias se mantienen siempre en este turno.<br /></>
-              : <><strong>Sincronizado dinámicamente con la sección de Actividades.</strong><br /></>}
+              ? <><strong>Bloques fijos de Turno Noche.</strong> Esta plantilla incluye siempre las evidencias nocturnas, incluida REPORTABILIDAD GG.<br /></>
+              : <><strong>Bloques de Turno Día.</strong> Se sincronizan dinámicamente con la sección de Actividades y no incluyen los bloques exclusivos de Noche.<br /></>}
             Soporta <strong>Ctrl + V</strong> para pegar imágenes. Si un bloque no tiene fotos, se omitirá en el documento generado.
           </p>
 
@@ -1306,9 +1331,11 @@ export default function App() {
                       Quitar bloque
                     </button>
                   ) : block.isActivity ? (
-                    <span className="text-[11px] text-gray-400">(Vinc. a Actividad {(block.actIndex ?? 0) + 1})</span>
+                    <span className="text-[11px] text-gray-400">
+                      ({turno === 'dia' ? 'fijo turno día' : `Vinc. a Actividad ${(block.actIndex ?? 0) + 1}`})
+                    </span>
                   ) : (
-                    <span className="text-[11px] text-gray-400">(fijo turno dia)</span>
+                    <span className="text-[11px] text-gray-400">(fijo turno {turno === 'noche' ? 'noche' : 'día'})</span>
                   )}
                 </div>
 
@@ -1327,6 +1354,10 @@ export default function App() {
                       )}
                       <img src={src || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='130' height='98'%3E%3Crect width='100%25' height='100%25' fill='%23eee'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%23aaa' font-size='10'%3EArrastra o pega%3C/text%3E%3C/svg%3E"} alt="Evidencia" className="w-[120px] h-[90px] object-cover rounded mx-auto mb-1 bg-gray-100" />
                       <input type="file" accept="image/png,image/jpeg" onChange={e => e.target.files?.[0] && assignFileToSlot(e.target.files[0], bi, pi)} className="text-[10px] w-full" />
+                      <label className="mt-1 block cursor-pointer rounded bg-[#E8F1FB] px-1 py-1 text-[10px] font-bold text-[#0E4660] hover:bg-[#d5e7f8]">
+                        Escanear documento
+                        <input type="file" accept="image/*" capture="environment" onChange={e => e.target.files?.[0] && assignFileToSlot(e.target.files[0], bi, pi)} className="hidden" />
+                      </label>
                     </div>
                   ))}
                   <button onClick={() => handleAddPhotoSlot(bi)} className="bg-[#E8F1FB] text-[#0E4660] px-2.5 py-1.5 rounded text-xs font-bold hover:bg-[#d5e7f8]">
