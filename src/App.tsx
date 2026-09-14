@@ -124,6 +124,16 @@ const EVIDENCIAS_EXCLUIDAS_DIA = new Set([
   "Vehículo liviano L200 VCTF 84.",
 ]);
 
+const EVIDENCIAS_CON_TAMANO_FOTOGRAFICO_SOLICITADO = new Set([
+  "registro de protección solar.",
+  "registro de hidratación.",
+  "verificación de ropa alta visibilidad.",
+  "verificación de ropa alta visibilidad",
+  "registro de inspección de ropa de alta visibilidad.",
+  "inspección de ropa de alta visibilidad.",
+  "autoevaluación diaria inicio y termino de turno.",
+]);
+
 const CREADO_POR_OPTIONS: { nombre: string; cargo: string }[] = [
   { nombre: "Max Diaz Cornejo.", cargo: "Supervisor de Operaciones" },
   { nombre: "Patricio Santana.", cargo: "Supervisor de Operaciones" },
@@ -232,6 +242,7 @@ export default function App() {
   const [selectedActividadSugerida, setSelectedActividadSugerida] = useState<string>('');
   const [genericCounter, setGenericCounter] = useState<number>(0);
   const [selectedEvidenceSlot, setSelectedEvidenceSlot] = useState<{ blockIndex: number; photoIndex: number } | null>(null);
+  const selectedEvidenceSlotRef = useRef<{ blockIndex: number; photoIndex: number } | null>(null);
   const [selectedVertivSlot, setSelectedVertivSlot] = useState<{ type: 'carro' | 'item'; index: number } | null>(null);
   const [scannerTarget, setScannerTarget] = useState<ScannerTarget | null>(null);
   const [scannerPreview, setScannerPreview] = useState<string | null>(null);
@@ -589,11 +600,11 @@ export default function App() {
     if (!file || !file.type.startsWith("image/")) return;
     const reader = new FileReader();
     reader.onload = async () => {
-      const scannedImage = await scanDocumentPerspective(reader.result as string);
+      const sourceImage = reader.result as string;
       setEvidenceBlocks(prev => prev.map((b, bi) => {
         if (bi !== blockIndex) return b;
         const newPhotos = [...b.photos];
-        newPhotos[photoIndex] = scannedImage;
+        newPhotos[photoIndex] = sourceImage;
         return { ...b, photos: newPhotos };
       }));
     };
@@ -642,14 +653,125 @@ export default function App() {
   };
 
   const handleSelectEvidenceSlot = (blockIndex: number, photoIndex: number) => {
-    setSelectedEvidenceSlot({ blockIndex, photoIndex });
+    const slot = { blockIndex, photoIndex };
+    selectedEvidenceSlotRef.current = slot;
+    setSelectedEvidenceSlot(slot);
     setSelectedVertivSlot(null);
   };
 
+  const clearSelectedEvidenceSlot = () => {
+    selectedEvidenceSlotRef.current = null;
+    setSelectedEvidenceSlot(null);
+  };
+
   const handleSelectVertivSlot = (type: 'carro' | 'item', index: number) => {
+    selectedEvidenceSlotRef.current = null;
     setSelectedVertivSlot({ type, index });
     setSelectedEvidenceSlot(null);
   };
+
+  const assignEvidenceFromClipboard = (file: File, slot: { blockIndex: number; photoIndex: number }) => {
+    assignFileToSlot(file, slot.blockIndex, slot.photoIndex);
+  };
+
+  const handlePaste = (e: { clipboardData: DataTransfer | null; preventDefault: () => void }) => {
+    const activeTag = document.activeElement ? document.activeElement.tagName.toLowerCase() : '';
+    const activeEvidenceSlot = selectedEvidenceSlotRef.current;
+    if (!activeEvidenceSlot && !selectedVertivSlot && (activeTag === 'input' || activeTag === 'textarea')) return;
+
+    const items = e.clipboardData?.items;
+    if (!items) return;
+
+    const imageFiles: File[] = [];
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].type.indexOf("image") !== -1) {
+        const file = items[i].getAsFile();
+        if (file) imageFiles.push(file);
+      }
+    }
+
+    if (imageFiles.length === 0) return;
+    e.preventDefault();
+
+    let imgIdx = 0;
+    const updatedBlocks = [...evidenceBlocks];
+
+    const assignEvidenceFrom = (startBlockIndex = 0, startPhotoIndex = 0) => {
+      for (let bi = startBlockIndex; bi < updatedBlocks.length && imgIdx < imageFiles.length; bi++) {
+        const firstPhotoIndex = bi === startBlockIndex ? startPhotoIndex : 0;
+        for (let pi = firstPhotoIndex; pi < updatedBlocks[bi].photoCount && imgIdx < imageFiles.length; pi++) {
+          if (!updatedBlocks[bi].photos[pi]) {
+            assignFileToSlot(imageFiles[imgIdx], bi, pi);
+            imgIdx++;
+          }
+        }
+      }
+    };
+
+    const assignVertivFrom = (type: 'carro' | 'item', index: number) => {
+      if (type === 'carro') {
+        for (let pi = index; pi < vertivCarroPhotos.length && imgIdx < imageFiles.length; pi++) {
+          if (!vertivCarroPhotos[pi]) {
+            assignVertivCarroPhoto(imageFiles[imgIdx], pi);
+            imgIdx++;
+          }
+        }
+        for (let pi = 0; pi < vertivItemPhotos.length && imgIdx < imageFiles.length; pi++) {
+          if (!vertivItemPhotos[pi]) {
+            assignVertivItemPhoto(imageFiles[imgIdx], pi);
+            imgIdx++;
+          }
+        }
+      } else {
+        for (let pi = index; pi < vertivItemPhotos.length && imgIdx < imageFiles.length; pi++) {
+          if (!vertivItemPhotos[pi]) {
+            assignVertivItemPhoto(imageFiles[imgIdx], pi);
+            imgIdx++;
+          }
+        }
+      }
+    };
+
+    if (activeEvidenceSlot) {
+      assignEvidenceFromClipboard(imageFiles[imgIdx], activeEvidenceSlot);
+      imgIdx++;
+      assignEvidenceFrom(activeEvidenceSlot.blockIndex, activeEvidenceSlot.photoIndex + 1);
+      clearSelectedEvidenceSlot();
+    } else if (selectedVertivSlot) {
+      const { type, index } = selectedVertivSlot;
+      assignVertivFrom(type, index);
+
+      if (type === 'carro') {
+        setSelectedVertivSlot(
+          index + 1 < vertivCarroPhotos.length
+            ? { type: 'carro', index: index + 1 }
+            : { type: 'item', index: 0 }
+        );
+      } else if (index + 1 < vertivItemPhotos.length) {
+        setSelectedVertivSlot({ type: 'item', index: index + 1 });
+      } else {
+        setSelectedVertivSlot(null);
+      }
+    } else {
+      assignEvidenceFrom();
+      if (turno === 'noche' && imgIdx < imageFiles.length) {
+        assignVertivFrom('carro', 0);
+      }
+    }
+
+    if (imgIdx < imageFiles.length) {
+      showToast("Imagen pegada desde el portapapeles.");
+    }
+  };
+
+  useEffect(() => {
+    const handleDocumentPaste = (event: globalThis.ClipboardEvent) => {
+      handlePaste(event);
+    };
+
+    document.addEventListener('paste', handleDocumentPaste);
+    return () => document.removeEventListener('paste', handleDocumentPaste);
+  });
 
   const assignVertivItemPhoto = (file: File, idx: number) => {
     if (!file || !file.type.startsWith("image/")) return;
@@ -855,100 +977,6 @@ export default function App() {
     ]);
   };
 
-  // Pegado Global
-  const handlePaste = (e: ClipboardEvent<HTMLDivElement>) => {
-    const activeTag = document.activeElement ? document.activeElement.tagName.toLowerCase() : '';
-    if (!selectedEvidenceSlot && !selectedVertivSlot && (activeTag === 'input' || activeTag === 'textarea')) return;
-
-    const items = e.clipboardData?.items;
-    if (!items) return;
-
-    const imageFiles: File[] = [];
-    for (let i = 0; i < items.length; i++) {
-      if (items[i].type.indexOf("image") !== -1) {
-        const file = items[i].getAsFile();
-        if (file) imageFiles.push(file);
-      }
-    }
-
-    if (imageFiles.length === 0) return;
-
-    let imgIdx = 0;
-    const updatedBlocks = [...evidenceBlocks];
-
-    const assignEvidenceFrom = (startBlockIndex = 0, startPhotoIndex = 0) => {
-      for (let bi = startBlockIndex; bi < updatedBlocks.length && imgIdx < imageFiles.length; bi++) {
-        const firstPhotoIndex = bi === startBlockIndex ? startPhotoIndex : 0;
-        for (let pi = firstPhotoIndex; pi < updatedBlocks[bi].photoCount && imgIdx < imageFiles.length; pi++) {
-          if (!updatedBlocks[bi].photos[pi]) {
-            assignFileToSlot(imageFiles[imgIdx], bi, pi);
-            imgIdx++;
-          }
-        }
-      }
-    };
-
-    const assignVertivFrom = (type: 'carro' | 'item', index: number) => {
-      if (type === 'carro') {
-        for (let pi = index; pi < vertivCarroPhotos.length && imgIdx < imageFiles.length; pi++) {
-          if (!vertivCarroPhotos[pi]) {
-            assignVertivCarroPhoto(imageFiles[imgIdx], pi);
-            imgIdx++;
-          }
-        }
-        for (let pi = 0; pi < vertivItemPhotos.length && imgIdx < imageFiles.length; pi++) {
-          if (!vertivItemPhotos[pi]) {
-            assignVertivItemPhoto(imageFiles[imgIdx], pi);
-            imgIdx++;
-          }
-        }
-      } else {
-        for (let pi = index; pi < vertivItemPhotos.length && imgIdx < imageFiles.length; pi++) {
-          if (!vertivItemPhotos[pi]) {
-            assignVertivItemPhoto(imageFiles[imgIdx], pi);
-            imgIdx++;
-          }
-        }
-      }
-    };
-
-    if (selectedEvidenceSlot) {
-      const { blockIndex, photoIndex } = selectedEvidenceSlot;
-      if (updatedBlocks[blockIndex]?.photos[photoIndex] !== undefined) {
-        assignFileToSlot(imageFiles[imgIdx], blockIndex, photoIndex);
-        imgIdx++;
-        assignEvidenceFrom(blockIndex, photoIndex + 1);
-      } else {
-        assignEvidenceFrom();
-      }
-      setSelectedEvidenceSlot(null);
-    } else if (selectedVertivSlot) {
-      const { type, index } = selectedVertivSlot;
-      assignVertivFrom(type, index);
-
-      if (type === 'carro') {
-        setSelectedVertivSlot(
-          index + 1 < vertivCarroPhotos.length
-            ? { type: 'carro', index: index + 1 }
-            : { type: 'item', index: 0 }
-        );
-      } else if (index + 1 < vertivItemPhotos.length) {
-        setSelectedVertivSlot({ type: 'item', index: index + 1 });
-      } else {
-        setSelectedVertivSlot(null);
-      }
-    } else {
-      assignEvidenceFrom();
-      if (turno === 'noche' && imgIdx < imageFiles.length) {
-        assignVertivFrom('carro', 0);
-      }
-    }
-
-    if (imgIdx < imageFiles.length) {
-      showToast("Imagen pegada desde el portapapeles.");
-    }
-  };
-
   // Funciones de formato
   const formatFechaLarga = (iso: string) => {
     if (!iso) return "—";
@@ -968,6 +996,39 @@ export default function App() {
     const bytes = new Uint8Array(binary.length);
     for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
     return bytes;
+  };
+
+  const orientEvidencePhoto = (dataUrl: string, rotation: -90 | 90 | 180): Promise<string> => {
+
+    return new Promise(resolve => {
+      const image = new Image();
+      image.onload = () => {
+        const canvas = document.createElement('canvas');
+        const isPortrait = (rotation === -90 || rotation === 90) && image.naturalWidth < image.naturalHeight;
+        canvas.width = isPortrait ? image.naturalHeight : image.naturalWidth;
+        canvas.height = isPortrait ? image.naturalWidth : image.naturalHeight;
+        const context = canvas.getContext('2d');
+        if (!context) {
+          resolve(dataUrl);
+          return;
+        }
+
+        if (rotation === 180) {
+          context.translate(canvas.width / 2, canvas.height / 2);
+          context.rotate(Math.PI);
+          context.drawImage(image, -image.naturalWidth / 2, -image.naturalHeight / 2);
+        } else if (isPortrait) {
+          context.translate(canvas.width / 2, canvas.height / 2);
+          context.rotate(rotation === -90 ? -Math.PI / 2 : Math.PI / 2);
+          context.drawImage(image, -image.naturalWidth / 2, -image.naturalHeight / 2);
+        } else {
+          context.drawImage(image, 0, 0);
+        }
+        resolve(canvas.toDataURL('image/png'));
+      };
+      image.onerror = () => resolve(dataUrl);
+      image.src = dataUrl;
+    });
   };
 
   // Generador Word en React
@@ -1127,7 +1188,7 @@ export default function App() {
                 borders: { top: { style: BorderStyle.NONE }, bottom: { style: BorderStyle.NONE }, right: { style: BorderStyle.NONE }, left: { style: BorderStyle.SINGLE, size: 18, color: ORANGE } },
                 margins: { left: 300, top: 100, bottom: 100 },
                 children: [
-                  new Paragraph({ children: [new TextRun({ text: formatFechaPortada(fecha), size: 24, font: "Arial", color: "000000" })] }),
+                  new Paragraph({ children: [new TextRun({ text: formatFechaPortada(fecha), size: 40, font: "Arial", color: "000000" })] }),
                   new Paragraph({ children: [new TextRun({ text: "_______________________", size: 12, color: "CCCCCC" })] }),
                   new Paragraph({ text: "" }),
                   new Paragraph({ children: [new TextRun({ text: "Creado por:", size: 24, font: "Arial", color: "333333" })] }),
@@ -1253,15 +1314,19 @@ export default function App() {
         ...itemPages,
       ] : [];
 
-      const evidenceContent = evidenceBlocks.flatMap(block => {
+      const evidenceContent = (await Promise.all(evidenceBlocks.map(async block => {
         const usablePhotos = block.photos.filter((p): p is string => Boolean(p));
         if (usablePhotos.length === 0) return [];
 
         const colWidth = Math.floor(100 / usablePhotos.length);
         const isMantenimiento = block.title.startsWith("Registro de mantenimiento de GG.");
-        const imageWidth = isMantenimiento ? 614 : 307;
-        const imageHeight = isMantenimiento ? 246 : 456;
-        const cells = usablePhotos.map(dataUrl => {
+        const hasRequestedPhotoSize = EVIDENCIAS_CON_TAMANO_FOTOGRAFICO_SOLICITADO.has(block.title.trim().toLocaleLowerCase());
+        const imageWidth = isMantenimiento ? 614 : hasRequestedPhotoSize ? 618 : 307;
+        const imageHeight = isMantenimiento ? 246 : hasRequestedPhotoSize ? 432 : 456;
+        const orientedPhotos = hasRequestedPhotoSize
+          ? await Promise.all(usablePhotos.map(dataUrl => orientEvidencePhoto(dataUrl, -90)))
+          : usablePhotos;
+        const cells = orientedPhotos.map(dataUrl => {
           const bytes = dataUrlToUint8Array(dataUrl);
           const type = dataUrl.startsWith("data:image/png") ? "png" : "jpg";
           return new TableCell({
@@ -1294,7 +1359,7 @@ export default function App() {
             rows: [new TableRow({ children: cells }), captionRow],
           }),
         ];
-      });
+      }))).flat();
 
       // Última hoja: "Indicadores Técnicos Relevantes" + "Observaciones" de cierre.
       // Igual que el bloque Vertiv, es texto fijo y solo aplica en turno NOCHE.
@@ -1383,7 +1448,7 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen text-[#222] font-sans pb-20" onPaste={handlePaste}>
+    <div className="min-h-screen text-[#222] font-sans pb-20">
       {/* Header */}
       <header className="site-header">
         <div className="site-header__inner">
