@@ -65,14 +65,14 @@ type CvApi = {
 };
 
 const DEFAULT_PERSONAL: PersonalItem[] = [
-  { nombre: "Max Diaz.", cargo: "Supervisor" },
-  { nombre: "Patricio Santana.", cargo: "Supervisor" },
+  { nombre: "Max Diaz.", cargo: "Supervisor de Operaciones" },
+  { nombre: "Patricio Santana.", cargo: "Supervisor de Operaciones" },
   { nombre: "Carlos Moll.", cargo: "Técnico Eléctrico." },
   { nombre: "Williams Barraza.", cargo: "Técnico Telecomunicaciones." },
   { nombre: "José Escobar.", cargo: "Técnico Telecomunicaciones." },
   { nombre: "Kevin Guerrero.", cargo: "Técnico Telecomunicaciones." },
   { nombre: "Vanesa Aguilar.", cargo: "Técnico Telecomunicaciones." },
-  { nombre: "Nicolas Bahamondes.", cargo: "Lider Tecnico" },
+  { nombre: "Nicolas Bahamondes.", cargo: "Líder Técnico" },
   { nombre: "Juan Morata.", cargo: "Ingeniero Especialista" },
   { nombre: "Ricardo Riquelme.", cargo: "Electromecanico" },
   { nombre: "Claudia Droguett.", cargo: "Experta SSO" }
