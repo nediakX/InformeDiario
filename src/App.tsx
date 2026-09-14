@@ -83,6 +83,7 @@ const DEFAULT_ACTIVIDADES_DIA: string[] = [
   "Registro de Check List de Vehículo Liviano.",
   "Vehículo liviano L200 VCTF 84.",
   "Autoevaluación Diaria Inicio y Termino de Turno.",
+  "Registro ART Conducción Vehículo Liviano.",
   "Registro Fatiga y Somnolencia.",
   "Verificación de Ropa Alta Visibilidad.",
   "Registro de Protección Solar.",
@@ -91,12 +92,17 @@ const DEFAULT_ACTIVIDADES_DIA: string[] = [
 ];
 
 const ACTIVIDAD_DIA_PERMANENTE = "Verificación de Ropa Alta Visibilidad";
+const ACTIVIDAD_ART_VEHICULO_LIVIANO = "Registro ART Conducción Vehículo Liviano.";
 
-const ensureActividadesDiaPermanentes = (items: string[]) => (
-  items.includes(ACTIVIDAD_DIA_PERMANENTE)
-    ? items
-    : [...items, ACTIVIDAD_DIA_PERMANENTE]
-);
+const ensureActividadesDiaPermanentes = (items: string[]) => {
+  const updated = [...items];
+  if (!updated.includes(ACTIVIDAD_ART_VEHICULO_LIVIANO)) {
+    const fatigueIndex = updated.indexOf("Registro Fatiga y Somnolencia.");
+    updated.splice(fatigueIndex >= 0 ? fatigueIndex : updated.length, 0, ACTIVIDAD_ART_VEHICULO_LIVIANO);
+  }
+  if (!updated.includes(ACTIVIDAD_DIA_PERMANENTE)) updated.push(ACTIVIDAD_DIA_PERMANENTE);
+  return updated;
+};
 
 // Plantilla fija de Actividades Diarias exclusiva de Turno Noche (distinta de la de Turno Día).
 const DEFAULT_ACTIVIDADES_NOCHE: string[] = [
