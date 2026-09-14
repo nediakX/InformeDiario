@@ -13,6 +13,7 @@
     "@techstark/opencv-js": "^5.0.0-release.1",
     "docx": "^9.7.1",
     "file-saver": "^2.0.5",
+    "jszip": "^3.10.2",
     "lucide-react": "^1.45.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8"

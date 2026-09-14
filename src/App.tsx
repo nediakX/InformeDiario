@@ -1321,8 +1321,27 @@ export default function App() {
         const colWidth = Math.floor(100 / usablePhotos.length);
         const isMantenimiento = block.title.startsWith("Registro de mantenimiento de GG.");
         const hasRequestedPhotoSize = EVIDENCIAS_CON_TAMANO_FOTOGRAFICO_SOLICITADO.has(block.title.trim().toLocaleLowerCase());
-        const imageWidth = isMantenimiento ? 614 : hasRequestedPhotoSize ? 618 : 307;
-        const imageHeight = isMantenimiento ? 246 : hasRequestedPhotoSize ? 432 : 456;
+        const normalizedTitle = block.title.trim().toLocaleLowerCase();
+        const isNightSelfEvaluation = turno === 'noche' && normalizedTitle === "autoevaluación diaria y charla inicio de turno.";
+        const isNightReportability = turno === 'noche' && normalizedTitle === "reportabilidad gg.";
+        const imageWidth = isMantenimiento
+          ? 614
+          : isNightSelfEvaluation
+            ? 206
+            : isNightReportability
+              ? 623
+              : hasRequestedPhotoSize
+                ? 618
+                : 307;
+        const imageHeight = isMantenimiento
+          ? 246
+          : isNightSelfEvaluation
+            ? 306
+            : isNightReportability
+              ? 167
+              : hasRequestedPhotoSize
+                ? 432
+                : 456;
         const orientedPhotos = hasRequestedPhotoSize
           ? await Promise.all(usablePhotos.map(dataUrl => orientEvidencePhoto(dataUrl, -90)))
           : usablePhotos;
