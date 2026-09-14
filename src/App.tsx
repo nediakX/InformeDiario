@@ -1486,7 +1486,7 @@ export default function App() {
                 Reporte diario de actividades
               </div>
               <div className="site-header__meta text-xs truncate">
-                Faena / turno · personal · evidencia fotográfica
+                DSAL / Turno A · 2026
               </div>
             </div>
           </div>
