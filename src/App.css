@@ -1,5 +1,5 @@
-@import "tailwindcss";
 @import url('https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;700;800&display=swap');
+@import "tailwindcss";
 
 /* ==========================================================================
    PSINet — Panel de terreno (minería + telecomunicaciones)
@@ -73,6 +73,50 @@
   100% { background-color: transparent; }
 }
 
+@keyframes seasonalDecorationIn {
+  from { opacity: 0; }
+  to { opacity: 0.9; }
+}
+
+.seasonal-decoration {
+  position: sticky;
+  top: 0;
+  width: 100%;
+  height: clamp(140px, 18vw, 230px);
+  margin-top: -38px;
+  margin-bottom: -118px;
+  overflow: visible;
+  pointer-events: none;
+  z-index: 2;
+  animation: seasonalDecorationIn 0.45s ease-out both;
+}
+
+.seasonal-decoration img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  filter: drop-shadow(0 3px 4px rgba(20, 24, 28, 0.18));
+}
+
+.seasonal-decoration__message {
+  position: absolute;
+  left: 50%;
+  bottom: 8px;
+  transform: translateX(-50%);
+  margin: 0;
+  padding: 3px 14px;
+  color: var(--ink);
+  background: rgba(255, 255, 255, 0.86);
+  border: 1px solid rgba(20, 24, 28, 0.12);
+  border-radius: 999px;
+  box-shadow: 0 2px 6px rgba(20, 24, 28, 0.12);
+  font-family: "Big Shoulders Display", -apple-system, sans-serif;
+  font-size: clamp(0.85rem, 1.8vw, 1.25rem);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
 /* ---------------------------------------------------------------------- */
 /* Encabezado — placa de identificación sobre chasis oscuro               */
 /* ---------------------------------------------------------------------- */
@@ -96,6 +140,7 @@
   display: flex;
   align-items: stretch;
   gap: 0;
+  min-height: clamp(150px, 14vw, 190px);
 }
 
 .site-header__plate {
@@ -303,6 +348,22 @@ textarea:focus {
 
 @media (max-width: 767px) {
   .site-header__photo { display: none; }
+
+  .seasonal-decoration {
+    top: 0;
+    height: clamp(105px, 32vw, 155px);
+    margin-top: -28px;
+    margin-bottom: -78px;
+  }
+
+  .site-header__inner {
+    min-height: 105px;
+  }
+
+  .seasonal-decoration__message {
+    bottom: 4px;
+    padding: 2px 9px;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

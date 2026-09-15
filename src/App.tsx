@@ -5,6 +5,9 @@ import { ChevronDown, ChevronUp, Trash2, ClipboardList, Users, ListChecks, Batte
 import './App.css';
 import logoPsinet from "./assets/logo_psinet.jpg";
 import logoEdificio from "./assets/LogoEdificio.png";
+import decoracionSeptiembre from "./assets/18sep.png";
+import decoracionOctubre from "./assets/31oct.png";
+import decoracionDiciembre from "./assets/25dec.png";
 
 
 // Tipos de datos
@@ -193,6 +196,12 @@ const LS_KEY_ACT_DIA = "psinet_actividades_dia_v6";
 const LS_KEY_ACT_NOCHE = "psinet_actividades_noche_v6";
 const LS_KEY_DRAFT = "psinet_informe_borrador_v1";
 const MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
+
+const DECORACIONES_MENSUALES: Record<number, { source: string; label: string; message: string }> = {
+  9: { source: decoracionSeptiembre, label: "Decoración de Fiestas Patrias", message: "¡Feliz 18 de septiembre!" },
+  10: { source: decoracionOctubre, label: "Decoración de Halloween", message: "¡Feliz Halloween!" },
+  12: { source: decoracionDiciembre, label: "Decoración navideña", message: "¡Feliz Navidad!" },
+};
 
 const formatFechaEvidencia = (iso: string) => {
   if (!iso) return "";
@@ -1490,6 +1499,9 @@ export default function App() {
     }
   };
 
+  const mesDeFecha = fecha ? Number(fecha.split("-")[1]) : 0;
+  const decoracionMensual = DECORACIONES_MENSUALES[mesDeFecha];
+
   return (
     <div className="min-h-screen text-[#222] font-sans pb-20">
       {/* Header */}
@@ -1514,6 +1526,12 @@ export default function App() {
         </div>
         <div className="site-header__rule" />
       </header>
+
+      {decoracionMensual && (
+        <div className="seasonal-decoration" aria-label={decoracionMensual.message}>
+          <img src={decoracionMensual.source} alt={decoracionMensual.label} />
+        </div>
+      )}
 
       {/* Main Container */}
       <main className="max-w-[900px] mx-auto p-5 space-y-4">
