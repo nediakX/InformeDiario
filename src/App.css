@@ -80,11 +80,11 @@
 
 .seasonal-decoration {
   position: sticky;
-  top: 0;
+  top: -55px;
   width: 100%;
   height: clamp(140px, 18vw, 230px);
   margin-top: -38px;
-  margin-bottom: -118px;
+  margin-bottom: -140px;
   overflow: visible;
   pointer-events: none;
   z-index: 2;
@@ -350,10 +350,10 @@ textarea:focus {
   .site-header__photo { display: none; }
 
   .seasonal-decoration {
-    top: 0;
+    top: -38px;
     height: clamp(105px, 32vw, 155px);
     margin-top: -28px;
-    margin-bottom: -78px;
+    margin-bottom: -92px;
   }
 
   .site-header__inner {
