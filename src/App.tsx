@@ -257,6 +257,7 @@ export default function App() {
   const scannerCanvasRef = useRef<HTMLCanvasElement>(null);
   const scannerStreamRef = useRef<MediaStream | null>(null);
   const [draftPromptOpen, setDraftPromptOpen] = useState(false);
+  const [photoRemovalRequest, setPhotoRemovalRequest] = useState<{ blockIndex: number; photoIndex: number } | null>(null);
   const draftDecisionMadeRef = useRef(false);
 
   // Carga inicial y conversión de imágenes por defecto
@@ -455,7 +456,8 @@ export default function App() {
           .map((actText, index) => ({ actText, index }))
           .filter(({ actText }) => actText.trim() && !DEFAULT_ACTIVIDADES_NOCHE.includes(actText))
           .map(({ actText, index }) => {
-            const existing = prevBlocks.find(block => block.isActivity && block.actIndex === index);
+            const existing = prevBlocks.find(block => block.isActivity && block.title === actText)
+              ?? prevBlocks.find(block => block.isActivity && block.actIndex === index);
             return existing
               ? { ...existing, title: actText, actIndex: index }
               : {
@@ -474,7 +476,8 @@ export default function App() {
       const newBlocks: EvidenceBlock[] = [];
       actividades.forEach((actText, idx) => {
         if (EVIDENCIAS_EXCLUIDAS_DIA.has(actText)) return;
-        const existing = prevBlocks.find(b => b.actIndex === idx || (b.isActivity && b.title === actText));
+        const existing = prevBlocks.find(b => b.isActivity && b.title === actText)
+          ?? prevBlocks.find(b => b.isActivity && b.actIndex === idx);
         if (existing) {
           newBlocks.push({ ...existing, title: actText, actIndex: idx });
         } else {
@@ -628,11 +631,26 @@ export default function App() {
   const handleRemovePhotoSlot = (blockIndex: number, photoIndex: number) => {
     setEvidenceBlocks(prev => prev.flatMap((block, bi) => {
       if (bi !== blockIndex) return [block];
-      if (block.photos.length <= 1) return [];
 
       const photos = block.photos.filter((_, pi) => pi !== photoIndex);
+      if (photos.length === 0) return [];
       return [{ ...block, photoCount: photos.length, photos }];
     }));
+  };
+
+  const requestRemovePhotoSlot = (blockIndex: number, photoIndex: number) => {
+    const block = evidenceBlocks[blockIndex];
+    if (block?.photos.length === 1) {
+      setPhotoRemovalRequest({ blockIndex, photoIndex });
+      return;
+    }
+    handleRemovePhotoSlot(blockIndex, photoIndex);
+  };
+
+  const confirmRemovePhotoSlot = () => {
+    if (!photoRemovalRequest) return;
+    handleRemovePhotoSlot(photoRemovalRequest.blockIndex, photoRemovalRequest.photoIndex);
+    setPhotoRemovalRequest(null);
   };
 
   // Handlers de fotos para el bloque fijo Vertiv: una foto por Carro y una por ítem de monitoreo.
@@ -1826,7 +1844,7 @@ export default function App() {
                         type="button"
                         onClick={e => {
                           e.stopPropagation();
-                          handleRemovePhotoSlot(bi, pi);
+                          requestRemovePhotoSlot(bi, pi);
                         }}
                         title="Eliminar esta casilla de foto"
                         aria-label="Eliminar esta casilla de foto"
@@ -1892,6 +1910,25 @@ export default function App() {
               </button>
               <button type="button" onClick={startNewReport} className="flex-1 border border-[#DCE1E6] text-[#333] rounded-md px-3 py-2 text-sm font-bold hover:bg-gray-50">
                 Empezar de nuevo
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {photoRemovalRequest && (
+        <div className="fixed inset-0 z-50 bg-black/50 p-4 flex items-center justify-center" role="dialog" aria-modal="true" aria-labelledby="photo-removal-title">
+          <div className="modal-anim w-full max-w-md bg-white rounded-xl p-6 shadow-xl space-y-4">
+            <h2 id="photo-removal-title" className="text-lg font-bold text-[#0E4660]">Eliminar bloque completo</h2>
+            <p className="text-sm text-gray-600">
+              Este bloque solo tiene una casilla. Si la eliminas, también se borrará el bloque completo y no solo la imagen.
+            </p>
+            <div className="flex justify-end gap-2">
+              <button type="button" onClick={() => setPhotoRemovalRequest(null)} className="border border-[#DCE1E6] text-[#333] rounded-md px-3 py-2 text-sm font-bold hover:bg-gray-50">
+                Cancelar
+              </button>
+              <button type="button" onClick={confirmRemovePhotoSlot} className="bg-red-700 text-white rounded-md px-3 py-2 text-sm font-bold hover:bg-red-800">
+                Eliminar bloque
               </button>
             </div>
           </div>
