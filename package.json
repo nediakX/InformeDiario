@@ -10,7 +10,8 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.117.0",
+    "@supabase/ssr": "^0.12.7",
+    "@supabase/supabase-js": "^2.117.1",
     "@techstark/opencv-js": "^5.0.0-release.1",
     "docx": "^9.7.1",
     "file-saver": "^2.0.5",
