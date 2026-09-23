@@ -1,13 +1,17 @@
-import { useState, useEffect, useRef, type ClipboardEvent } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import * as docx from 'docx';
 import { saveAs } from 'file-saver';
-import { ChevronDown, ChevronUp, Trash2, ClipboardList, Users, ListChecks, BatteryCharging, MessageSquare, Camera, Loader2 } from 'lucide-react';
+import { ChevronDown, ChevronUp, Trash2, ClipboardList, Users, ListChecks, BatteryCharging, MessageSquare, Camera, Loader2, ArrowLeft, Plus } from 'lucide-react';
 import './App.css';
 import logoPsinet from "./assets/logo_psinet.jpg";
 import logoEdificio from "./assets/LogoEdificio.png";
 import decoracionSeptiembre from "./assets/18sep.png";
 import decoracionOctubre from "./assets/31oct.png";
 import decoracionDiciembre from "./assets/25dec.png";
+import Dashboard from './Dashboard';
+import Borradores from './Borradores';
+import InformeCierre from './InformeCierre';
+import { type BorradorEntry, fetchBorradores, subscribeBorradores, upsertBorrador, deleteBorrador, resolveImageBytes, VERTIV_TITLE, VERTIV_CARROS, VERTIV_CARROS_FLAT, VERTIV_ITEMS } from './types';
 
 
 // Tipos de datos
@@ -151,29 +155,9 @@ const CREADO_POR_OPTIONS: { nombre: string; cargo: string }[] = [
 
 // Bloque fijo que solo aplica cuando el turno es de NOCHE.
 // Va SIEMPRE junto (no es editable por el usuario) y se omite por completo en turno DÍA.
-const VERTIV_TITLE = "Verificación de la Gestión en Planta Rectificadora Vertiv";
+// (VERTIV_TITLE, VERTIV_CARROS, VERTIV_CARROS_FLAT y VERTIV_ITEMS viven en types.ts,
+// compartidos con el Informe de Cierre.)
 
-const VERTIV_CARROS: [string, string][] = [
-  ["Carro LTE CMF 01", "Carro LTE CMF 02"],
-  ["Carro LTE CMM 03", "Carro LTE CMF 04"],
-  ["Carro LTE CMM 05", "Carro LTE CMM 06"],
-  ["Carro LTE CMM 07", "Carro LTE CMF 08"],
-  ["Carro LTE CMF 09", "Carro LTE CMM 10"],
-  ["Carro LTE CMF 11", "Carro MMOO 01"],
-];
-
-// Versión plana de los 12 carros (mismo orden), usada para indexar sus fotos individuales.
-const VERTIV_CARROS_FLAT: string[] = VERTIV_CARROS.flat();
-
-const VERTIV_ITEMS: string[] = [
-  "Estado de Vertiv ICMP (administración remota)",
-  "E-Nodos B ICMP Response Time (Latencia).",
-  "Voltaje del sistema LTE.",
-  "Voltaje de los bancos de baterías.",
-  "Monitoreo de la Corriente sistema LTE Dsal.",
-  "Monitoreo de la descarga total de los bancos de baterías.",
-  "Monitoreo del status de las temperaturas en los gabinetes batería.",
-];
 
 // Texto fijo de cierre (última hoja). También solo para turno NOCHE.
 const INDICADORES_INTRO =
@@ -268,6 +252,17 @@ export default function App() {
   const [draftPromptOpen, setDraftPromptOpen] = useState(false);
   const [photoRemovalRequest, setPhotoRemovalRequest] = useState<{ blockIndex: number; photoIndex: number } | null>(null);
   const draftDecisionMadeRef = useRef(false);
+
+  // Navegación del panel: menú principal, generador diario, borradores guardados e informe de cierre semanal.
+  const [view, setView] = useState<'dashboard' | 'diario' | 'borradores' | 'cierre'>('dashboard');
+  const [borradores, setBorradores] = useState<BorradorEntry[]>([]);
+  const [currentDraftId, setCurrentDraftId] = useState<string>(() => crypto.randomUUID());
+
+  // Carga los borradores compartidos desde la nube y se suscribe a cambios de otros dispositivos.
+  useEffect(() => {
+    void fetchBorradores().then(setBorradores);
+    return subscribeBorradores(setBorradores);
+  }, []);
 
   // Carga inicial y conversión de imágenes por defecto
   useEffect(() => {
@@ -431,6 +426,115 @@ export default function App() {
     vertivCarroPhotos,
     vertivItemPhotos,
   ]);
+
+  // Guarda/actualiza el borrador actual en la nube (compartido con todos los dispositivos), con un pequeño debounce.
+  const syncTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (!draftDecisionMadeRef.current || !personal.length || !actividades.length) return;
+
+    const entry: BorradorEntry = {
+      id: currentDraftId,
+      turno,
+      fecha,
+      faena,
+      letraTurno,
+      contrato,
+      version,
+      servicio,
+      creadoNombre,
+      creadoCargo,
+      revisadoText,
+      autorizadoNombre,
+      autorizadoCargo,
+      personal,
+      actividades,
+      observaciones,
+      evidenceBlocks,
+      vertivCarroPhotos,
+      vertivItemPhotos,
+      savedAt: new Date().toISOString(),
+    };
+
+    if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current);
+    syncTimeoutRef.current = setTimeout(() => {
+      upsertBorrador(entry)
+        .then(saved => setBorradores(prev => {
+          const idx = prev.findIndex(b => b.id === saved.id);
+          if (idx >= 0) { const next = [...prev]; next[idx] = saved; return next; }
+          return [...prev, saved];
+        }))
+        .catch(error => {
+          console.error("No se pudo sincronizar el borrador con la nube:", error);
+          showToast("No se pudo sincronizar con la nube. Revisa tu conexión.", true);
+        });
+    }, 800);
+
+    return () => {
+      if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current);
+    };
+  }, [
+    currentDraftId,
+    turno,
+    fecha,
+    faena,
+    letraTurno,
+    contrato,
+    version,
+    servicio,
+    creadoNombre,
+    creadoCargo,
+    revisadoText,
+    autorizadoNombre,
+    autorizadoCargo,
+    personal,
+    actividades,
+    observaciones,
+    evidenceBlocks,
+    vertivCarroPhotos,
+    vertivItemPhotos,
+  ]);
+
+  // Navegación: entra a "Generar Informe Diario" comenzando desde cero, con un nuevo borrador.
+  const goToNewInforme = () => {
+    startNewReport();
+    setCurrentDraftId(crypto.randomUUID());
+    setView('diario');
+  };
+
+  // Navegación: abre un borrador existente (de otro día) para revisarlo o continuarlo.
+  const openBorradorEntry = (entrySeleccionada: BorradorEntry) => {
+    setTurno(entrySeleccionada.turno);
+    setFecha(entrySeleccionada.fecha);
+    setFaena(entrySeleccionada.faena);
+    setLetraTurno(entrySeleccionada.letraTurno);
+    setContrato(entrySeleccionada.contrato);
+    setVersion(entrySeleccionada.version);
+    setServicio(entrySeleccionada.servicio);
+    setCreadoNombre(entrySeleccionada.creadoNombre);
+    setCreadoCargo(entrySeleccionada.creadoCargo);
+    setRevisadoText(entrySeleccionada.revisadoText);
+    setAutorizadoNombre(entrySeleccionada.autorizadoNombre);
+    setAutorizadoCargo(entrySeleccionada.autorizadoCargo);
+    setPersonal(entrySeleccionada.personal);
+    setActividades(entrySeleccionada.actividades);
+    setObservaciones(entrySeleccionada.observaciones);
+    setEvidenceBlocks(entrySeleccionada.evidenceBlocks as EvidenceBlock[]);
+    setVertivCarroPhotos(entrySeleccionada.vertivCarroPhotos);
+    setVertivItemPhotos(entrySeleccionada.vertivItemPhotos);
+    setCurrentDraftId(entrySeleccionada.id);
+    draftDecisionMadeRef.current = true;
+    setDraftPromptOpen(false);
+    setView('diario');
+  };
+
+  const handleDeleteBorrador = (id: string) => {
+    setBorradores(prev => prev.filter(b => b.id !== id));
+    deleteBorrador(id).catch(error => {
+      console.error("No se pudo eliminar el borrador en la nube:", error);
+      showToast("No se pudo eliminar el borrador en la nube.", true);
+    });
+  };
+
 
   // En turno Noche la evidencia fotográfica usa una plantilla fija independiente.
   useEffect(() => {
@@ -1035,6 +1139,7 @@ export default function App() {
 
     return new Promise(resolve => {
       const image = new Image();
+      image.crossOrigin = "anonymous";
       image.onload = () => {
         const canvas = document.createElement('canvas');
         const isPortrait = (rotation === -90 || rotation === 90) && image.naturalWidth < image.naturalHeight;
@@ -1250,17 +1355,16 @@ export default function App() {
       // Formato igual a la plantilla de referencia:
       //  - Los 12 Carros van de a pares en una tabla continua: fila con las 2 imágenes, fila con las 2 leyendas.
       //  - Cada ítem de monitoreo va en su propia hoja: una imagen grande y, debajo, su leyenda en azul y negrita.
-      const buildEvidenceImgParagraph = (photo: string | null, width: number, height: number) => {
+      const buildEvidenceImgParagraph = async (photo: string | null, width: number, height: number) => {
         if (!photo) {
           return new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "(Sin evidencia cargada)", italics: true, color: "999999", size: 18, font: "Arial" })] });
         }
-        const bytes = dataUrlToUint8Array(photo);
-        const type = photo.startsWith("data:image/png") ? "png" : "jpg";
+        const { bytes, type } = await resolveImageBytes(photo);
         return new Paragraph({ alignment: AlignmentType.CENTER, children: [new ImageRun({ data: bytes, transformation: { width, height }, type })] });
       };
 
       const carroTableRows: docx.TableRow[] = [];
-      VERTIV_CARROS.forEach(([leftTitle, rightTitle], pairIdx) => {
+      for (const [pairIdx, [leftTitle, rightTitle]] of VERTIV_CARROS.entries()) {
         const leftPhoto = vertivCarroPhotos[pairIdx * 2] ?? null;
         const rightPhoto = vertivCarroPhotos[pairIdx * 2 + 1] ?? null;
 
@@ -1271,13 +1375,13 @@ export default function App() {
               width: { size: 50, type: WidthType.PERCENTAGE },
               borders: cellBorders(),
               margins: { top: 100, bottom: 100, left: 100, right: 100 },
-              children: [buildEvidenceImgParagraph(leftPhoto, 280, 190)],
+              children: [await buildEvidenceImgParagraph(leftPhoto, 280, 190)],
             }),
             new TableCell({
               width: { size: 50, type: WidthType.PERCENTAGE },
               borders: cellBorders(),
               margins: { top: 100, bottom: 100, left: 100, right: 100 },
-              children: [buildEvidenceImgParagraph(rightPhoto, 280, 190)],
+              children: [await buildEvidenceImgParagraph(rightPhoto, 280, 190)],
             }),
           ],
         }));
@@ -1299,11 +1403,12 @@ export default function App() {
             }),
           ],
         }));
-      });
+      }
 
-      const itemPages: (docx.Paragraph | docx.Table)[] = VERTIV_ITEMS.flatMap((item, idx) => {
+      const itemPages: (docx.Paragraph | docx.Table)[] = [];
+      for (const [idx, item] of VERTIV_ITEMS.entries()) {
         const photo = vertivItemPhotos[idx] ?? null;
-        return [
+        itemPages.push(
           new Paragraph({ text: "", pageBreakBefore: true }),
           new Table({
             width: { size: 100, type: WidthType.PERCENTAGE },
@@ -1315,7 +1420,7 @@ export default function App() {
                 children: [new TableCell({
                   borders: cellBorders(),
                   margins: { top: 120, bottom: 120, left: 120, right: 120 },
-                  children: [buildEvidenceImgParagraph(photo, 560, 330)],
+                  children: [await buildEvidenceImgParagraph(photo, 560, 330)],
                 })],
               }),
               new TableRow({
@@ -1328,8 +1433,8 @@ export default function App() {
               }),
             ],
           }),
-        ];
-      });
+        );
+      }
 
       const vertivBlock: (docx.Paragraph | docx.Table)[] = turno === 'noche' ? [
         new Paragraph({ text: "", pageBreakBefore: true }),
@@ -1378,9 +1483,8 @@ export default function App() {
         const orientedPhotos = hasRequestedPhotoSize
           ? await Promise.all(usablePhotos.map(dataUrl => orientEvidencePhoto(dataUrl, -90)))
           : usablePhotos;
-        const cells = orientedPhotos.map(dataUrl => {
-          const bytes = dataUrlToUint8Array(dataUrl);
-          const type = dataUrl.startsWith("data:image/png") ? "png" : "jpg";
+        const cells = await Promise.all(orientedPhotos.map(async dataUrl => {
+          const { bytes, type } = await resolveImageBytes(dataUrl);
           return new TableCell({
             width: { size: colWidth, type: WidthType.PERCENTAGE },
             borders: cellBorders(),
@@ -1390,7 +1494,7 @@ export default function App() {
               children: [new ImageRun({ data: bytes, transformation: { width: imageWidth, height: imageHeight }, type })],
             })],
           });
-        });
+        }));
 
         const captionRow = new TableRow({
           children: [new TableCell({
@@ -1502,6 +1606,34 @@ export default function App() {
   const mesDeFecha = fecha ? Number(fecha.split("-")[1]) : 0;
   const decoracionMensual = DECORACIONES_MENSUALES[mesDeFecha];
 
+  if (view === 'dashboard') {
+    return (
+      <Dashboard
+        borradorCount={borradores.length}
+        onNavigate={next => {
+          if (next === 'diario') goToNewInforme();
+          else setView(next);
+        }}
+      />
+    );
+  }
+
+  if (view === 'borradores') {
+    return (
+      <Borradores
+        borradores={borradores}
+        onOpen={openBorradorEntry}
+        onDelete={handleDeleteBorrador}
+        onBack={() => setView('dashboard')}
+        onNew={goToNewInforme}
+      />
+    );
+  }
+
+  if (view === 'cierre') {
+    return <InformeCierre onBack={() => setView('dashboard')} />;
+  }
+
   return (
     <div className="min-h-screen text-[#222] font-sans pb-20">
       {/* Header */}
@@ -1535,6 +1667,15 @@ export default function App() {
 
       {/* Main Container */}
       <main className="max-w-[900px] mx-auto p-5 space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <button type="button" onClick={() => setView('dashboard')} className="btn-outline text-[#0E4660] px-3 py-1.5 rounded-md text-xs font-bold hover:bg-[#d5e7f8] flex items-center gap-1.5">
+            <ArrowLeft size={14} /> Volver al menú
+          </button>
+          <button type="button" onClick={goToNewInforme} className="bg-[#0E4660] text-white px-3 py-1.5 rounded-md text-xs font-bold hover:bg-[#0a3549] flex items-center gap-1.5">
+            <Plus size={14} /> Nuevo informe
+          </button>
+        </div>
+
         {/* Section 1: Datos Generales */}
         <details open className="panel p-5">
           <summary className="panel__summary font-display font-bold text-lg">

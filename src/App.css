@@ -242,6 +242,65 @@ details[open] > .panel__summary .panel__summary-chevron {
 }
 
 /* ---------------------------------------------------------------------- */
+/* Dashboard — tarjetas de acceso a las funciones principales              */
+/* ---------------------------------------------------------------------- */
+.dashboard-card {
+  display: flex;
+  flex-direction: column;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 22px;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+  min-height: 220px;
+}
+
+.dashboard-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 10px 24px rgba(20, 24, 28, 0.1);
+  border-color: var(--brand-blue);
+}
+
+.dashboard-card:active {
+  transform: translateY(-1px) scale(0.99);
+}
+
+.dashboard-card__icon {
+  width: 52px;
+  height: 52px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.dashboard-card__cta {
+  margin-top: 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 700;
+  font-size: 0.85rem;
+  color: var(--brand-blue);
+}
+
+.dashboard-card__badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  align-self: flex-start;
+  margin-top: 10px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: #FFF3CD;
+  color: #856404;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+/* ---------------------------------------------------------------------- */
 /* Botones                                                                  */
 /* ---------------------------------------------------------------------- */
 .btn-outline {
