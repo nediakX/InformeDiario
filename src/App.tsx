@@ -80,10 +80,25 @@ const DEFAULT_PERSONAL: PersonalItem[] = [
   { nombre: "Kevin Guerrero.", cargo: "Técnico Telecomunicaciones." },
   { nombre: "Vanesa Aguilar.", cargo: "Técnico Telecomunicaciones." },
   { nombre: "Nicolas Bahamondes.", cargo: "Líder Técnico" },
-  { nombre: "Juan Morata.", cargo: "Ingeniero Especialista" },
   { nombre: "Ricardo Riquelme.", cargo: "Electromecanico" },
   { nombre: "Claudia Droguett.", cargo: "Experta SSO" }
 ];
+
+const DEFAULT_PERSONAL_B: PersonalItem[] = [
+  { nombre: "Marcelo Artal Gahona", cargo: "Técnico Telecomunicaciones" },
+  { nombre: "Alberto Vital Arancibia Madariaga", cargo: "Técnico Eléctrico" },
+  { nombre: "Fernando Contreras Cortes", cargo: "Técnico Telecomunicaciones" },
+  { nombre: "Maximiliano Bahamondez", cargo: "Técnico Telecomunicaciones" },
+  { nombre: "Luis Humberto Fernández Ortega", cargo: "Supervisor de Operaciones" },
+  { nombre: "Omar Jesús Gutiérrez Tapia", cargo: "Experto SSO" },
+  { nombre: "Francisco Jara Carvajal", cargo: "Técnico Telecomunicaciones" },
+  { nombre: "Ricardo Morales Hurtado", cargo: "Técnico Telecomunicaciones" },
+  { nombre: "Claudio Abdón Orrego Rojas", cargo: "Técnico Telecomunicaciones" },
+  { nombre: "Camilo Andrés Pailapan Hormazabal", cargo: "Supervisor de Operaciones" }
+];
+
+const getDefaultPersonal = (letra: string): PersonalItem[] =>
+  letra === 'B' ? DEFAULT_PERSONAL_B : DEFAULT_PERSONAL;
 
 const DEFAULT_ACTIVIDADES_DIA: string[] = [
   "Registro de Reunión Inicio de Turno.",
@@ -153,6 +168,21 @@ const CREADO_POR_OPTIONS: { nombre: string; cargo: string }[] = [
   { nombre: "Nicolas Bahamondes.", cargo: "Tecnico Lider" },
 ];
 
+const CREADO_POR_OPTIONS_B: { nombre: string; cargo: string }[] = [
+  { nombre: "Luis Humberto Fernández Ortega", cargo: "Supervisor de Operaciones" },
+  { nombre: "Camilo Andrés Pailapan Hormazabal", cargo: "Supervisor de Operaciones" },
+];
+
+const CREADO_POR_ALL = [...CREADO_POR_OPTIONS, ...CREADO_POR_OPTIONS_B];
+
+// Integrantes sugeridos que no pertenecen a la dotación de un turno específico.
+const PERSONAL_SUGERIDO_OTROS: PersonalItem[] = [
+  { nombre: "Juan Saavedra.", cargo: "Jefe de Turno." },
+  { nombre: "German Votter.", cargo: "Gerente de Operaciones." },
+  { nombre: "Javiera Lira.", cargo: "Directora Legal." },
+  { nombre: "Carolina Klenner.", cargo: "Gerenta de Personas." },
+];
+
 // Bloque fijo que solo aplica cuando el turno es de NOCHE.
 // Va SIEMPRE junto (no es editable por el usuario) y se omite por completo en turno DÍA.
 // (VERTIV_TITLE, VERTIV_CARROS, VERTIV_CARROS_FLAT y VERTIV_ITEMS viven en types.ts,
@@ -175,7 +205,9 @@ const OBS_FINAL_BULLETS: string[] = [
 
 const BLUE = "156082";
 const ORANGE = "ED7D31";
-const LS_KEY_PERSONAL = "psinet_personal_v6";
+const LS_KEY_PERSONAL = "psinet_personal_v6"; // Turno A (clave original, se mantiene)
+const LS_KEY_PERSONAL_B = "psinet_personal_b_v1"; // Turno B
+const lsKeyPersonal = (letra: string) => (letra === 'B' ? LS_KEY_PERSONAL_B : LS_KEY_PERSONAL);
 const LS_KEY_ACT_DIA = "psinet_actividades_dia_v6";
 const LS_KEY_ACT_NOCHE = "psinet_actividades_noche_v6";
 const LS_KEY_DRAFT = "psinet_informe_borrador_v1";
@@ -626,7 +658,7 @@ export default function App() {
 
   const persistPersonal = (newPersonal: PersonalItem[]) => {
     try {
-      localStorage.setItem(LS_KEY_PERSONAL, JSON.stringify(newPersonal));
+      localStorage.setItem(lsKeyPersonal(letraTurno), JSON.stringify(newPersonal));
     } catch (e) { console.error(e); }
   };
 
@@ -659,6 +691,22 @@ export default function App() {
     setTurno(newTurno);
   };
 
+  // Cambia entre Turno A y Turno B: carga la lista de personal guardada de ese turno
+  // (o la lista por defecto si aún no se ha editado). Las ediciones ya se guardan al instante por letra.
+  const handleLetraTurnoChange = (nuevaLetra: string) => {
+    if (nuevaLetra === letraTurno) return;
+
+    let nextPersonal: PersonalItem[];
+    try {
+      const raw = localStorage.getItem(lsKeyPersonal(nuevaLetra));
+      nextPersonal = raw ? JSON.parse(raw) : getDefaultPersonal(nuevaLetra);
+    } catch {
+      nextPersonal = getDefaultPersonal(nuevaLetra);
+    }
+    setPersonal(nextPersonal);
+    setLetraTurno(nuevaLetra);
+  };
+
   // Handlers para Personal
   const handleAddPersonal = (nombre = '', cargo = '') => {
     const updated = [...personal, { nombre, cargo }];
@@ -679,9 +727,10 @@ export default function App() {
   };
 
   const resetPersonal = () => {
-    if (window.confirm("¿Deseas restaurar la lista de personal por defecto?")) {
-      setPersonal(DEFAULT_PERSONAL);
-      persistPersonal(DEFAULT_PERSONAL);
+    if (window.confirm(`¿Deseas restaurar la lista de personal por defecto del Turno ${letraTurno}?`)) {
+      const defaults = getDefaultPersonal(letraTurno);
+      setPersonal(defaults);
+      persistPersonal(defaults);
       showToast("Lista de personal restaurada.");
     }
   };
@@ -1656,7 +1705,7 @@ export default function App() {
                 Reporte diario de actividades
               </div>
               <div className="site-header__meta text-xs truncate">
-                DSAL / Turno A · 2026
+                DSAL / Turno {letraTurno} · 2026
               </div>
             </div>
           </div>
@@ -1721,7 +1770,7 @@ export default function App() {
                 <select
                   value={creadoNombre}
                   onChange={e => {
-                    const selected = CREADO_POR_OPTIONS.find(option => option.nombre === e.target.value);
+                    const selected = CREADO_POR_ALL.find(option => option.nombre === e.target.value);
                     if (selected) {
                       setCreadoNombre(selected.nombre);
                       setCreadoCargo(selected.cargo);
@@ -1729,7 +1778,7 @@ export default function App() {
                   }}
                   className="w-full p-2 border border-[#DCE1E6] rounded-md text-sm"
                 >
-                  {CREADO_POR_OPTIONS.map(option => (
+                  {CREADO_POR_ALL.map(option => (
                     <option key={option.nombre} value={option.nombre}>{option.nombre}</option>
                   ))}
                 </select>
@@ -1749,7 +1798,18 @@ export default function App() {
             2. Personal en Turno
             <ChevronDown size={16} className="panel__summary-chevron" />
           </summary>
-          
+
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mb-3 p-2 rounded-md bg-[#E8F1FB] border border-[#cfe1f5]">
+            <span className="text-xs text-[#0E4660] font-bold">Personal predeterminado:</span>
+            <label className="text-sm flex items-center gap-1.5 cursor-pointer">
+              <input type="radio" name="letraTurno" checked={letraTurno === 'A'} onChange={() => handleLetraTurnoChange('A')} /> Turno A
+            </label>
+            <label className="text-sm flex items-center gap-1.5 cursor-pointer">
+              <input type="radio" name="letraTurno" checked={letraTurno === 'B'} onChange={() => handleLetraTurnoChange('B')} /> Turno B
+            </label>
+            <span className="text-[11px] text-gray-500">Mostrando {personal.length} personas del Turno {letraTurno}</span>
+          </div>
+
           <table className="w-full border-collapse mb-3 text-sm">
             <tbody>
               {personal.map((p, i) => (
@@ -1771,20 +1831,16 @@ export default function App() {
           <div className="flex flex-wrap gap-2.5 mt-2.5">
             <select value={selectedPersonalSugerido} onChange={e => setSelectedPersonalSugerido(e.target.value)} className="flex-1 min-w-[220px] p-2 border border-[#DCE1E6] rounded-md text-sm">
               <option value="">-- Seleccionar integrante del equipo --</option>
-              <option value="Max Diaz.|Supervisor de Operaciones">Max Diaz - Supervisor de Operaciones</option>
-              <option value="Patricio Santana.|Supervisor de Operaciones">Patricio Santana - Supervisor de Operaciones  </option>
-              <option value="Carlos Moll.|Técnico Eléctrico.">Carlos Moll. - Técnico Eléctrico.</option>
-              <option value="Williams Barraza.|Técnico Telecomunicaciones.">Williams Barraza. - Técnico Telecomunicaciones.</option>
-              <option value="Juan Saavedra.|Jefe de Turno.">Juan Saavedra. - Jefe de Turno.</option>
-              <option value="German Votter.|Gerente de Operaciones.">German Votter. - Gerente de Operaciones.</option>
-              <option value="Williams Barraza.|Técnico Telecomunicaciones.">Williams Barraza. - Técnico Telecomunicaciones.</option>
-              <option value="Javiera Lira.|Directora Legal.">Javiera Lira. - Directora Legal.</option>
-              <option value="Carolina Klenner.|Gerenta de Personas.">Carolina Klenner. - Gerenta de Personas.</option>
-              <option value="José Escobar.|Técnico Telecomunicaciones.">José Escobar - Técnico Telecomunicaciones.</option>
-              <option value="Nicolas Bahamondes.|Técnico Lider.">Nicolas Bahamondes - Técnico Lider.</option>
-              <option value="Kevin Guerrero.|Técnico Telecomunicaciones.">Kevin Guerrero - Técnico Telecomunicaciones.</option>
-              <option value="Vanesa Aguilar.|Técnico Telecomunicaciones.">Vanesa Aguilar - Técnico Telecomunicaciones.</option>
-              <option value="Claudia Droguett.|Experta SSO.">Claudia Droguett - Experta SSO.</option>
+              <optgroup label={`Turno ${letraTurno}`}>
+                {getDefaultPersonal(letraTurno).map(p => (
+                  <option key={p.nombre} value={`${p.nombre}|${p.cargo}`}>{p.nombre} - {p.cargo}</option>
+                ))}
+              </optgroup>
+              <optgroup label="Otros">
+                {PERSONAL_SUGERIDO_OTROS.map(p => (
+                  <option key={p.nombre} value={`${p.nombre}|${p.cargo}`}>{p.nombre} - {p.cargo}</option>
+                ))}
+              </optgroup>
             </select>
             <button onClick={() => {
               if (selectedPersonalSugerido) {
