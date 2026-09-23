@@ -379,7 +379,11 @@ export default function App() {
   }
 
   useEffect(() => {
-    if (!draftDecisionMadeRef.current || !personal.length || !actividades.length) return;
+    // Solo autoguardamos mientras el usuario está efectivamente en la pantalla
+    // de "Generar Informe Diario"; si no, esto se dispara con datos por defecto
+    // apenas se abre la app (aunque el usuario esté en el Dashboard) y termina
+    // creando un borrador nuevo en cada recarga.
+    if (view !== 'diario' || !draftDecisionMadeRef.current || !personal.length || !actividades.length) return;
 
     try {
       localStorage.setItem(LS_KEY_DRAFT, JSON.stringify({
@@ -425,12 +429,15 @@ export default function App() {
     evidenceBlocks,
     vertivCarroPhotos,
     vertivItemPhotos,
+    view,
   ]);
 
   // Guarda/actualiza el borrador actual en la nube (compartido con todos los dispositivos), con un pequeño debounce.
+  // Igual que arriba: solo mientras el usuario está en la pantalla de Informe Diario,
+  // para no crear/subir un borrador nuevo apenas se abre la app.
   const syncTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
-    if (!draftDecisionMadeRef.current || !personal.length || !actividades.length) return;
+    if (view !== 'diario' || !draftDecisionMadeRef.current || !personal.length || !actividades.length) return;
 
     const entry: BorradorEntry = {
       id: currentDraftId,
@@ -492,6 +499,7 @@ export default function App() {
     evidenceBlocks,
     vertivCarroPhotos,
     vertivItemPhotos,
+    view,
   ]);
 
   // Navegación: entra a "Generar Informe Diario" comenzando desde cero, con un nuevo borrador.
