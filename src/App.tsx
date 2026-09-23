@@ -1775,6 +1775,11 @@ export default function App() {
               <option value="Patricio Santana.|Supervisor de Operaciones">Patricio Santana - Supervisor de Operaciones  </option>
               <option value="Carlos Moll.|Técnico Eléctrico.">Carlos Moll. - Técnico Eléctrico.</option>
               <option value="Williams Barraza.|Técnico Telecomunicaciones.">Williams Barraza. - Técnico Telecomunicaciones.</option>
+              <option value="Juan Saavedra.|Jefe de Turno.">Juan Saavedra. - Jefe de Turno.</option>
+              <option value="German Votter.|Gerente de Operaciones.">German Votter. - Gerente de Operaciones.</option>
+              <option value="Williams Barraza.|Técnico Telecomunicaciones.">Williams Barraza. - Técnico Telecomunicaciones.</option>
+              <option value="Javiera Lira.|Directora Legal.">Javiera Lira. - Directora Legal.</option>
+              <option value="Carolina Klenner.|Gerenta de Personas.">Carolina Klenner. - Gerenta de Personas.</option>
               <option value="José Escobar.|Técnico Telecomunicaciones.">José Escobar - Técnico Telecomunicaciones.</option>
               <option value="Nicolas Bahamondes.|Técnico Lider.">Nicolas Bahamondes - Técnico Lider.</option>
               <option value="Kevin Guerrero.|Técnico Telecomunicaciones.">Kevin Guerrero - Técnico Telecomunicaciones.</option>
