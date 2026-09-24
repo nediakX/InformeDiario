@@ -3,7 +3,7 @@ import * as docx from 'docx';
 import { saveAs } from 'file-saver';
 import {
   ArrowLeft, Loader2, FileStack, CalendarRange, ImagePlus, Trash2, CircleCheckBig, Circle,
-  Plus, ListTodo, Car, Wrench, MessageSquareText,
+  Plus, ListTodo, Car, Wrench,
 } from 'lucide-react';
 import logoPsinet from "./assets/logo_psinet.jpg";
 import logoEdificio from "./assets/LogoEdificio.png";
@@ -18,9 +18,6 @@ import {
   formatFechaPunto,
   BLUE,
   ORANGE,
-  VERTIV_TITLE,
-  VERTIV_CARROS,
-  VERTIV_ITEMS,
 } from './types';
 
 interface InformeCierreProps {
@@ -40,25 +37,13 @@ interface CamionetaEntry {
   despues: string | null;
 }
 
-interface ReportabilidadRow {
-  id: string;
-  sitio: string;
-  equipo: string;
-  ultimoMtto: string;
-  fechaUltimoMtto: string;
-  proximoMtto: string;
-  fechaProximoMtto: string;
-  horasRegistradas: string;
-  horasRestantes: string;
-  horasDesdeUltimo: string;
-}
-
 const DEFAULT_SECCIONES_IMAGENES: SeccionImagenes[] = [
   { id: 'sec-radios', title: 'Radios de comunicación y Juego de Llaves correspondiente a sitios.', photos: [null, null, null] },
   { id: 'sec-bodega', title: 'Bodega', photos: [null, null, null, null] },
 ];
 
-const DEFAULT_COMENTARIOS: string[] = [
+// Comentarios adicionales: van siempre al final del informe de cierre (ya no se editan en el formulario).
+const COMENTARIOS_FINALES: string[] = [
   'ESTIMADOS QUE TENGAN UN BUEN TURNO ¡ÉXITO!',
   'EXTREMAR LAS MEDIDAS DE SEGURIDAD.',
 ];
@@ -68,6 +53,14 @@ const CREADO_POR_OPTIONS: { nombre: string; cargo: string }[] = [
   { nombre: "Patricio Santana.", cargo: "Supervisor de Operaciones" },
   { nombre: "Nicolas Bahamondes.", cargo: "Tecnico Lider" },
 ];
+
+// Supervisores del Turno B (mismos que en el Informe Diario).
+const CREADO_POR_OPTIONS_B: { nombre: string; cargo: string }[] = [
+  { nombre: "Luis Humberto Fernández Ortega", cargo: "Supervisor de Operaciones" },
+  { nombre: "Camilo Andrés Pailapan Hormazabal", cargo: "Supervisor de Operaciones" },
+];
+
+const CREADO_POR_ALL = [...CREADO_POR_OPTIONS, ...CREADO_POR_OPTIONS_B];
 
 const fileToDataUrl = (file: File): Promise<string> => new Promise((resolve, reject) => {
   const reader = new FileReader();
@@ -82,20 +75,21 @@ export default function InformeCierre({ onBack }: InformeCierreProps) {
   const [borradores, setBorradores] = useState<BorradorEntry[]>([]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const preseleccionadoRef = useRef(false);
-  const [faena, setFaena] = useState('Minera Rajo Inca');
-  const [letraTurno, setLetraTurno] = useState('A');
-  const [contrato, setContrato] = useState('4600027858');
-  const [version, setVersion] = useState('1');
   const [creadoNombre, setCreadoNombre] = useState(CREADO_POR_OPTIONS[0].nombre);
   const [creadoCargo, setCreadoCargo] = useState(CREADO_POR_OPTIONS[0].cargo);
-  const [revisadoText, setRevisadoText] = useState('Juan Saavedra\nJuan Morata');
-  const [autorizadoNombre, setAutorizadoNombre] = useState('Cesar Orellana');
-  const [autorizadoCargo, setAutorizadoCargo] = useState('ADC');
-  const [actividadesPendientes, setActividadesPendientes] = useState<string[]>([]);
+
+  // Datos fijos del cierre (ya no se editan en el formulario).
+  const faena = 'Minera Rajo Inca';
+  const contrato = '4600027858';
+  const version = '1';
+  const revisadoText = 'Juan Saavedra\nJuan Morata';
+  const autorizadoNombre = 'Cesar Orellana';
+  const autorizadoCargo = 'ADC';
+  // La letra de turno sigue al supervisor elegido en "Creado por".
+  const letraTurno = CREADO_POR_OPTIONS_B.some(o => o.nombre === creadoNombre) ? 'B' : 'A';
+  const [actividadesPendientes, setActividadesPendientes] = useState<string[]>(['']);
   const [seccionesImagenes, setSeccionesImagenes] = useState<SeccionImagenes[]>(DEFAULT_SECCIONES_IMAGENES);
   const [camionetas, setCamionetas] = useState<CamionetaEntry[]>([{ id: uid(), placa: '', antes: null, despues: null }]);
-  const [reportabilidad, setReportabilidad] = useState<ReportabilidadRow[]>([]);
-  const [comentariosFinales, setComentariosFinales] = useState<string[]>(DEFAULT_COMENTARIOS);
   const [selectedPhotoSlot, setSelectedPhotoSlot] = useState<{ type: 'seccion' | 'camionetaAntes' | 'camionetaDespues'; id: string; photoIndex?: number } | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [toastMessage, setToastMessage] = useState<{ text: string; isError?: boolean } | null>(null);
@@ -154,6 +148,21 @@ export default function InformeCierre({ onBack }: InformeCierreProps) {
     return { inicio, fin };
   }, [diasSeleccionados]);
 
+  // Evidencia fotográfica para Reportabilidad GG: la foto del "Registro de mantenimiento de GG."
+  // del último día incluido. Si ese día no tiene foto, se usa la del día anterior más cercano que sí la tenga.
+  const fotoReportabilidad = useMemo(() => {
+    for (let i = diasSeleccionados.length - 1; i >= 0; i--) {
+      const dia = diasSeleccionados[i];
+      const block = dia.evidenceBlocks.find(b => {
+        const t = b.title.trim().toLowerCase();
+        return t.startsWith('registro de mantenimiento de gg.') || t === 'reportabilidad gg.';
+      });
+      const photo = block?.photos.find((p): p is string => Boolean(p));
+      if (photo) return { src: photo, fecha: dia.fecha, esUltimoDia: i === diasSeleccionados.length - 1 };
+    }
+    return null;
+  }, [diasSeleccionados]);
+
   const turnoLabel = useMemo(() => {
     const noches = diasSeleccionados.filter(d => d.turno === 'noche').length;
     return noches > diasSeleccionados.length / 2 ? 'Noche' : 'Dia';
@@ -176,10 +185,6 @@ export default function InformeCierre({ onBack }: InformeCierreProps) {
   const addPendiente = () => setActividadesPendientes(prev => [...prev, '']);
   const updatePendiente = (i: number, value: string) => setActividadesPendientes(prev => prev.map((v, idx) => idx === i ? value : v));
   const removePendiente = (i: number) => setActividadesPendientes(prev => prev.filter((_, idx) => idx !== i));
-
-  const addComentario = () => setComentariosFinales(prev => [...prev, '']);
-  const updateComentario = (i: number, value: string) => setComentariosFinales(prev => prev.map((v, idx) => idx === i ? value : v));
-  const removeComentario = (i: number) => setComentariosFinales(prev => prev.filter((_, idx) => idx !== i));
 
   const addSeccionImagenes = () => setSeccionesImagenes(prev => [...prev, { id: uid(), title: '', photos: [null] }]);
   const removeSeccionImagenes = (id: string) => setSeccionesImagenes(prev => prev.filter(s => s.id !== id));
@@ -208,13 +213,6 @@ export default function InformeCierre({ onBack }: InformeCierreProps) {
       showToast("No se pudo cargar la imagen.", true);
     }
   };
-
-  const addReportabilidadRow = () => setReportabilidad(prev => [...prev, {
-    id: uid(), sitio: '', equipo: '', ultimoMtto: '', fechaUltimoMtto: '', proximoMtto: '', fechaProximoMtto: '', horasRegistradas: '', horasRestantes: '', horasDesdeUltimo: '',
-  }]);
-  const removeReportabilidadRow = (id: string) => setReportabilidad(prev => prev.filter(r => r.id !== id));
-  const updateReportabilidadCell = (id: string, field: keyof ReportabilidadRow, value: string) =>
-    setReportabilidad(prev => prev.map(r => r.id === id ? { ...r, [field]: value } : r));
 
   useEffect(() => {
     const handleDocumentPaste = (event: Event) => {
@@ -281,16 +279,6 @@ export default function InformeCierre({ onBack }: InformeCierreProps) {
         }
         const bytes = dataUrlToUint8Array(photo);
         const type = photo.startsWith("data:image/png") ? "png" : "jpg";
-        return new Paragraph({ alignment: AlignmentType.CENTER, children: [new ImageRun({ data: bytes, transformation: { width, height }, type })] });
-      };
-
-      // Igual que buildEvidenceImgParagraph, pero resuelve tanto dataURL locales como
-      // fotos ya subidas a Supabase Storage (fetch funciona para ambos esquemas).
-      const buildRemoteEvidenceImgParagraph = async (photo: string | null, width: number, height: number) => {
-        if (!photo) {
-          return new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "(Sin evidencia cargada)", italics: true, color: "999999", size: 18, font: "Arial" })] });
-        }
-        const { bytes, type } = await resolveImageBytes(photo);
         return new Paragraph({ alignment: AlignmentType.CENTER, children: [new ImageRun({ data: bytes, transformation: { width, height }, type })] });
       };
 
@@ -409,7 +397,7 @@ export default function InformeCierre({ onBack }: InformeCierreProps) {
       let seccionNum = 1;
 
       const seccion1: (docx.Paragraph | docx.Table)[] = [
-        new Paragraph({ heading: HeadingLevel.HEADING_1, children: [new TextRun({ text: `${seccionNum++}) Descripción de actividades realizas en el turno`, color: BLUE, size: 26, font: "Arial", bold: true })] }),
+        new Paragraph({ heading: HeadingLevel.HEADING_1, pageBreakBefore: true, children: [new TextRun({ text: `${seccionNum++}) Descripción de actividades realizas en el turno`, color: BLUE, size: 26, font: "Arial", bold: true })] }),
         new Paragraph({ children: [new TextRun({ text: descripcionParrafo, font: "Arial" })] }),
         new Paragraph({ text: "" }),
         new Paragraph({ children: [new TextRun({ text: `Personal de turno ${letraTurno} - ${turnoLabel}.`, color: BLUE, size: 24, font: "Arial", bold: true })] }),
@@ -434,91 +422,19 @@ export default function InformeCierre({ onBack }: InformeCierreProps) {
           ...dia.observaciones.filter(o => o.trim()).map(o => new Paragraph({ text: o, bullet: { level: 0 } })),
         );
 
-        // Evidencia fotográfica cargada en el informe diario de este día (incluye noche).
-        for (const block of dia.evidenceBlocks) {
-          const usablePhotos = block.photos.filter((p): p is string => Boolean(p));
-          if (usablePhotos.length === 0) continue;
-          const colWidth = Math.floor(9360 / usablePhotos.length);
-          const cells = await Promise.all(usablePhotos.map(async photo => {
-            const { bytes, type } = await resolveImageBytes(photo);
-            return new TableCell({
-              width: { size: colWidth, type: WidthType.DXA },
-              borders: cellBorders(),
-              margins: { top: 100, bottom: 100, left: 100, right: 100 },
-              children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new ImageRun({ data: bytes, transformation: { width: 260, height: 195 }, type })] })],
-            });
-          }));
-          const captionRow = new TableRow({
-            children: [new TableCell({
-              columnSpan: usablePhotos.length,
-              borders: cellBorders(),
-              children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: block.title, bold: true, size: 20, font: "Arial" })] })],
-            })],
-          });
-          seccion2.push(
-            new Paragraph({ text: "" }),
-            new Table({
-              width: { size: 100, type: WidthType.PERCENTAGE },
-              layout: TableLayoutType.FIXED,
-              columnWidths: usablePhotos.map(() => colWidth),
-              rows: [new TableRow({ children: cells }), captionRow],
-            }),
-          );
-        }
-
-        // Bloque fijo Vertiv: solo se agrega en los días de Turno Noche.
-        if (dia.turno === 'noche') {
-          const carroRows: docx.TableRow[] = [];
-          for (const [pairIdx, [leftTitle, rightTitle]] of VERTIV_CARROS.entries()) {
-            const leftPhoto = dia.vertivCarroPhotos[pairIdx * 2] ?? null;
-            const rightPhoto = dia.vertivCarroPhotos[pairIdx * 2 + 1] ?? null;
-            carroRows.push(new TableRow({
-              cantSplit: false,
-              children: [
-                new TableCell({ width: { size: 50, type: WidthType.PERCENTAGE }, borders: cellBorders(), margins: { top: 100, bottom: 100, left: 100, right: 100 }, children: [await buildRemoteEvidenceImgParagraph(leftPhoto, 280, 190)] }),
-                new TableCell({ width: { size: 50, type: WidthType.PERCENTAGE }, borders: cellBorders(), margins: { top: 100, bottom: 100, left: 100, right: 100 }, children: [await buildRemoteEvidenceImgParagraph(rightPhoto, 280, 190)] }),
-              ],
-            }));
-            carroRows.push(new TableRow({
-              cantSplit: false,
-              children: [
-                new TableCell({ width: { size: 50, type: WidthType.PERCENTAGE }, borders: cellBorders(), margins: { top: 60, bottom: 60, left: 80, right: 80 }, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: leftTitle, bold: true, size: 22, font: "Arial" })] })] }),
-                new TableCell({ width: { size: 50, type: WidthType.PERCENTAGE }, borders: cellBorders(), margins: { top: 60, bottom: 60, left: 80, right: 80 }, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: rightTitle, bold: true, size: 22, font: "Arial" })] })] }),
-              ],
-            }));
-          }
-
-          seccion2.push(
-            new Paragraph({ text: "", pageBreakBefore: true }),
-            new Paragraph({ heading: HeadingLevel.HEADING_2, children: [new TextRun({ text: `${VERTIV_TITLE} — ${formatFechaLarga(dia.fecha)}`, color: BLUE, size: 24, font: "Arial", bold: true })] }),
-            new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, layout: TableLayoutType.FIXED, columnWidths: [4680, 4680], rows: carroRows }),
-          );
-
-          for (const [itemIdx, item] of VERTIV_ITEMS.entries()) {
-            const photo = dia.vertivItemPhotos[itemIdx] ?? null;
-            seccion2.push(
-              new Paragraph({ text: "", pageBreakBefore: true }),
-              new Table({
-                width: { size: 100, type: WidthType.PERCENTAGE },
-                layout: TableLayoutType.FIXED,
-                columnWidths: [9360],
-                rows: [
-                  new TableRow({ cantSplit: false, children: [new TableCell({ borders: cellBorders(), margins: { top: 120, bottom: 120, left: 120, right: 120 }, children: [await buildRemoteEvidenceImgParagraph(photo, 560, 330)] })] }),
-                  new TableRow({ cantSplit: false, children: [new TableCell({ borders: cellBorders(), margins: { top: 100, bottom: 100, left: 120, right: 120 }, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: item, bold: true, size: 26, color: BLUE, font: "Arial" })] })] })] }),
-                ],
-              }),
-            );
-          }
-        }
+        // El cierre solo lista las actividades y observaciones de cada día; la evidencia
+        // fotográfica de los informes diarios (y el bloque Vertiv) no se incluye aquí.
       }
 
 
       const pendientesFiltradas = actividadesPendientes.filter(a => a.trim());
-      const seccion3: docx.Paragraph[] = pendientesFiltradas.length ? [
+      const seccion3: docx.Paragraph[] = [
         new Paragraph({ text: "", pageBreakBefore: true }),
-        new Paragraph({ heading: HeadingLevel.HEADING_1, children: [new TextRun({ text: `${seccionNum++}) Actividades pendientes.`, color: BLUE, size: 26, font: "Arial", bold: true })] }),
-        ...pendientesFiltradas.map(a => new Paragraph({ text: a, bullet: { level: 0 } })),
-      ] : [];
+        new Paragraph({ heading: HeadingLevel.HEADING_1, children: [new TextRun({ text: `${seccionNum++}) Actividades Pendientes.`, color: BLUE, size: 26, font: "Arial", bold: true })] }),
+        ...(pendientesFiltradas.length
+          ? pendientesFiltradas.map(a => new Paragraph({ text: a, bullet: { level: 0 } }))
+          : [new Paragraph({ children: [new TextRun({ text: "Sin actividades pendientes.", italics: true, color: "999999", font: "Arial" })] })]),
+      ];
 
       const seccionesImg: (docx.Paragraph | docx.Table)[] = seccionesImagenes.flatMap(seccion => {
         const usablePhotos = seccion.photos.filter((p): p is string => Boolean(p));
@@ -582,29 +498,22 @@ export default function InformeCierre({ onBack }: InformeCierreProps) {
         ]),
       ] : [];
 
-      const filasReportabilidad = reportabilidad.filter(r => r.sitio.trim() || r.equipo.trim());
-      const seccionReportabilidad: (docx.Paragraph | docx.Table)[] = filasReportabilidad.length ? [
+      const reportabilidadImg: docx.Paragraph[] = [];
+      if (fotoReportabilidad) {
+        const { bytes, type } = await resolveImageBytes(fotoReportabilidad.src);
+        reportabilidadImg.push(new Paragraph({ alignment: AlignmentType.CENTER, children: [new ImageRun({ data: bytes, transformation: { width: 614, height: 246 }, type })] }));
+      }
+      const fechaReportabilidad = fotoReportabilidad ? formatFechaLarga(fotoReportabilidad.fecha) : fechaEncabezado;
+
+      const seccionReportabilidad: (docx.Paragraph | docx.Table)[] = fotoReportabilidad ? [
         new Paragraph({ text: "", pageBreakBefore: true }),
-        new Table({
-          width: { size: 100, type: WidthType.PERCENTAGE },
-          layout: TableLayoutType.FIXED,
-          rows: [
-            new TableRow({
-              children: ["Sitio", "Nombre del Equipo", "Último Mtto. (hrs)", "Fecha Último Mtto.", "Próximo Mtto. (hrs)", "Fecha Estimada Próx. Mtto.", "Horas Registradas", "Horas Restantes", "Horas desde Último Mtto."]
-                .map(text => new TableCell({ borders: cellBorders(), margins: { top: 60, bottom: 60, left: 60, right: 60 }, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text, bold: true, size: 15, font: "Arial" })] })] })),
-            }),
-            ...filasReportabilidad.map(r => new TableRow({
-              children: [r.sitio, r.equipo, r.ultimoMtto, r.fechaUltimoMtto, r.proximoMtto, r.fechaProximoMtto, r.horasRegistradas, r.horasRestantes, r.horasDesdeUltimo]
-                .map(text => new TableCell({ borders: cellBorders(), margins: { top: 60, bottom: 60, left: 60, right: 60 }, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text, size: 15, font: "Arial" })] })] })),
-            })),
-          ],
-        }),
+        ...reportabilidadImg,
         new Paragraph({ text: "" }),
-        new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: `Reportabilidad de GG fecha ${fechaEncabezado}.`, bold: true, font: "Arial" })] }),
+        new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: `Reportabilidad de GG fecha ${fechaReportabilidad}.`, bold: true, font: "Arial" })] }),
         new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "REPORTABILIDAD GG", bold: true, color: BLUE, size: 26, font: "Arial" })] }),
       ] : [];
 
-      const comentariosFiltrados = comentariosFinales.filter(c => c.trim());
+      const comentariosFiltrados = COMENTARIOS_FINALES.filter(c => c.trim());
       const seccionComentarios: docx.Paragraph[] = comentariosFiltrados.length ? [
         new Paragraph({ text: "" }),
         new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "Comentarios Adicionales.", color: BLUE, size: 24, font: "Arial", bold: true })] }),
@@ -679,52 +588,27 @@ export default function InformeCierre({ onBack }: InformeCierreProps) {
             <FileStack size={18} className="panel__summary-icon" strokeWidth={2.2} />
             1. Datos generales del cierre
           </summary>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs text-[#6B6B6B] font-bold mb-1">Faena</label>
-              <input type="text" value={faena} onChange={e => setFaena(e.target.value)} className="w-full p-2 border border-[#DCE1E6] rounded-md text-sm" />
-            </div>
-            <div>
-              <label className="block text-xs text-[#6B6B6B] font-bold mb-1">Letra de turno</label>
-              <input type="text" value={letraTurno} onChange={e => setLetraTurno(e.target.value)} className="w-full p-2 border border-[#DCE1E6] rounded-md text-sm" />
-            </div>
-            <div>
-              <label className="block text-xs text-[#6B6B6B] font-bold mb-1">N° Contrato</label>
-              <input type="text" value={contrato} onChange={e => setContrato(e.target.value)} className="w-full p-2 border border-[#DCE1E6] rounded-md text-sm" />
-            </div>
-            <div>
-              <label className="block text-xs text-[#6B6B6B] font-bold mb-1">Versión</label>
-              <input type="text" value={version} onChange={e => setVersion(e.target.value)} className="w-full p-2 border border-[#DCE1E6] rounded-md text-sm" />
-            </div>
-            <div>
-              <label className="block text-xs text-[#6B6B6B] font-bold mb-1">Creado por</label>
-              <select
-                value={creadoNombre}
-                onChange={e => {
-                  const selected = CREADO_POR_OPTIONS.find(option => option.nombre === e.target.value);
-                  if (selected) { setCreadoNombre(selected.nombre); setCreadoCargo(selected.cargo); }
-                }}
-                className="w-full p-2 border border-[#DCE1E6] rounded-md text-sm"
-              >
+          <div>
+            <label className="block text-xs text-[#6B6B6B] font-bold mb-1">Creado por</label>
+            <select
+              value={creadoNombre}
+              onChange={e => {
+                const selected = CREADO_POR_ALL.find(option => option.nombre === e.target.value);
+                if (selected) { setCreadoNombre(selected.nombre); setCreadoCargo(selected.cargo); }
+              }}
+              className="w-full p-2 border border-[#DCE1E6] rounded-md text-sm"
+            >
+              <optgroup label="Turno A">
                 {CREADO_POR_OPTIONS.map(option => (
                   <option key={option.nombre} value={option.nombre}>{option.nombre}</option>
                 ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs text-[#6B6B6B] font-bold mb-1">Revisado por (uno por línea)</label>
-              <textarea value={revisadoText} onChange={e => setRevisadoText(e.target.value)} rows={2} className="w-full p-2 border border-[#DCE1E6] rounded-md text-sm" />
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <label className="block text-xs text-[#6B6B6B] font-bold mb-1">Autorizado por</label>
-                <input type="text" value={autorizadoNombre} onChange={e => setAutorizadoNombre(e.target.value)} className="w-full p-2 border border-[#DCE1E6] rounded-md text-sm" />
-              </div>
-              <div>
-                <label className="block text-xs text-[#6B6B6B] font-bold mb-1">Cargo</label>
-                <input type="text" value={autorizadoCargo} onChange={e => setAutorizadoCargo(e.target.value)} className="w-full p-2 border border-[#DCE1E6] rounded-md text-sm" />
-              </div>
-            </div>
+              </optgroup>
+              <optgroup label="Turno B">
+                {CREADO_POR_OPTIONS_B.map(option => (
+                  <option key={option.nombre} value={option.nombre}>{option.nombre}</option>
+                ))}
+              </optgroup>
+            </select>
           </div>
         </details>
 
@@ -767,11 +651,11 @@ export default function InformeCierre({ onBack }: InformeCierreProps) {
             <ListTodo size={18} className="panel__summary-icon" strokeWidth={2.2} />
             3. Actividades pendientes
           </summary>
-          <p className="text-xs text-gray-500 mb-3">Tareas que quedan pendientes para el siguiente turno.</p>
+          <p className="text-xs text-gray-500 mb-3">Tareas que quedan pendientes para el siguiente turno. Se exportan en la sección "Actividades Pendientes", justo después de las actividades diarias. Presiona Enter para agregar otra.</p>
           <div className="space-y-2">
             {actividadesPendientes.map((a, i) => (
               <div key={i} className="flex gap-2">
-                <input type="text" value={a} onChange={e => updatePendiente(i, e.target.value)} className="flex-1 p-2 border border-[#DCE1E6] rounded-md text-sm" placeholder="Ej: Verificar movimiento de carro LTE_11" />
+                <input type="text" value={a} onChange={e => updatePendiente(i, e.target.value)} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addPendiente(); } }} className="flex-1 p-2 border border-[#DCE1E6] rounded-md text-sm" placeholder="Ej: Verificar movimiento de carro LTE_11" />
                 <button type="button" onClick={() => removePendiente(i)} className="bg-red-50 text-red-700 p-2 rounded-md hover:bg-red-100"><Trash2 size={15} /></button>
               </div>
             ))}
@@ -856,51 +740,25 @@ export default function InformeCierre({ onBack }: InformeCierreProps) {
         <details className="panel p-5">
           <summary className="panel__summary font-display font-bold text-lg">
             <Wrench size={18} className="panel__summary-icon" strokeWidth={2.2} />
-            6. Reportabilidad GG (opcional)
+            6. Reportabilidad GG
           </summary>
-          <p className="text-xs text-gray-500 mb-3">Tabla de mantenimiento de generadores por sitio. Déjala vacía si no aplica esta semana.</p>
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse text-xs min-w-[900px]">
-              <thead>
-                <tr className="bg-gray-50">
-                  {["Sitio", "Equipo", "Últ. Mtto (hrs)", "Fecha Últ. Mtto", "Próx. Mtto (hrs)", "Fecha Próx. Mtto", "Hrs. Registradas", "Hrs. Restantes", "Hrs. desde Últ.", ""].map(h => (
-                    <th key={h} className="p-1 text-left font-bold text-[#6B6B6B]">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {reportabilidad.map(r => (
-                  <tr key={r.id} className="border-b border-gray-100">
-                    {(['sitio', 'equipo', 'ultimoMtto', 'fechaUltimoMtto', 'proximoMtto', 'fechaProximoMtto', 'horasRegistradas', 'horasRestantes', 'horasDesdeUltimo'] as const).map(field => (
-                      <td key={field} className="p-1">
-                        <input type="text" value={r[field]} onChange={e => updateReportabilidadCell(r.id, field, e.target.value)} className="w-full p-1 border border-[#DCE1E6] rounded text-xs" />
-                      </td>
-                    ))}
-                    <td className="p-1">
-                      <button type="button" onClick={() => removeReportabilidadRow(r.id)} className="bg-red-50 text-red-700 p-1.5 rounded hover:bg-red-100"><Trash2 size={13} /></button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <button type="button" onClick={addReportabilidadRow} className="btn-outline text-[#0E4660] px-3 py-1.5 rounded-md text-xs font-bold hover:bg-[#d5e7f8] mt-3 flex items-center gap-1"><Plus size={13} /> Agregar fila</button>
-        </details>
-
-        <details open className="panel p-5">
-          <summary className="panel__summary font-display font-bold text-lg">
-            <MessageSquareText size={18} className="panel__summary-icon" strokeWidth={2.2} />
-            7. Comentarios adicionales
-          </summary>
-          <div className="space-y-2">
-            {comentariosFinales.map((c, i) => (
-              <div key={i} className="flex gap-2">
-                <input type="text" value={c} onChange={e => updateComentario(i, e.target.value)} className="flex-1 p-2 border border-[#DCE1E6] rounded-md text-sm" />
-                <button type="button" onClick={() => removeComentario(i)} className="bg-red-50 text-red-700 p-2 rounded-md hover:bg-red-100"><Trash2 size={15} /></button>
+          <p className="text-xs text-gray-500 mb-3">Solo lleva la evidencia fotográfica del último día.</p>
+          <div className="mb-3 p-3 border border-dashed border-[#DCE1E6] rounded-lg bg-[#fafbfc]">
+            <p className="text-xs font-bold text-[#6B6B6B] mb-2">Evidencia fotográfica (automática)</p>
+            {fotoReportabilidad ? (
+              <div className="flex items-center gap-3">
+                <img src={fotoReportabilidad.src} alt="Evidencia Reportabilidad GG" className="w-[140px] h-[70px] object-cover rounded border border-[#DCE1E6] bg-gray-100" />
+                <p className="text-xs text-gray-500">
+                  Se toma del Registro de mantenimiento de GG del informe del {formatFechaLarga(fotoReportabilidad.fecha)}.
+                  {!fotoReportabilidad.esUltimoDia && ' El último día seleccionado no tiene esa foto, por eso se usa la del día anterior más cercano.'}
+                </p>
               </div>
-            ))}
+            ) : (
+              <p className="text-[11px] text-[#856404] bg-[#FFF3CD] border border-[#FFEEBA] rounded-md px-2 py-1">
+                Ninguno de los días seleccionados tiene foto en "Registro de mantenimiento de GG.". Cárgala en el informe diario del último día y aparecerá aquí.
+              </p>
+            )}
           </div>
-          <button type="button" onClick={addComentario} className="btn-outline text-[#0E4660] px-3 py-1.5 rounded-md text-xs font-bold hover:bg-[#d5e7f8] mt-2 flex items-center gap-1"><Plus size={13} /> Agregar comentario</button>
         </details>
 
         <div className="action-zone">

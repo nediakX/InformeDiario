@@ -181,6 +181,8 @@ const PERSONAL_SUGERIDO_OTROS: PersonalItem[] = [
   { nombre: "German Votter.", cargo: "Gerente de Operaciones." },
   { nombre: "Javiera Lira.", cargo: "Directora Legal." },
   { nombre: "Carolina Klenner.", cargo: "Gerenta de Personas." },
+  { nombre: "Juan Morata.", cargo: "Ingeniero Especialista." },
+
 ];
 
 // Bloque fijo que solo aplica cuando el turno es de NOCHE.
