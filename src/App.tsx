@@ -11,7 +11,11 @@ import decoracionDiciembre from "./assets/25dec.png";
 import Dashboard from './Dashboard';
 import Borradores from './Borradores';
 import InformeCierre from './InformeCierre';
-import { type BorradorEntry, fetchBorradores, subscribeBorradores, upsertBorrador, deleteBorrador, resolveImageBytes, VERTIV_TITLE, VERTIV_CARROS, VERTIV_CARROS_FLAT, VERTIV_ITEMS } from './types';
+import {
+  type BorradorEntry, fetchBorradores, subscribeBorradores, upsertBorrador, deleteBorrador, resolveImageBytes,
+  VERTIV_TITLE, VERTIV_CARROS, VERTIV_CARROS_FLAT, VERTIV_ITEMS,
+  hoyLocalISO, cicloDeFecha, letraDeFecha, TURNOS_AUTOMATICOS, idBorradorAutomatico, savedAtSemilla, sembrarBorradores, esBorradorPendiente,
+} from './types';
 
 
 // Tipos de datos
@@ -213,6 +217,82 @@ const lsKeyPersonal = (letra: string) => (letra === 'B' ? LS_KEY_PERSONAL_B : LS
 const LS_KEY_ACT_DIA = "psinet_actividades_dia_v6";
 const LS_KEY_ACT_NOCHE = "psinet_actividades_noche_v6";
 const LS_KEY_DRAFT = "psinet_informe_borrador_v1";
+const LS_KEY_AUTO_CICLO = "psinet_auto_ciclo_v1";
+
+// Personal y actividades "vigentes" de cada turno (lo guardado en este dispositivo o, si no hay, los valores por defecto).
+const getPersonalGuardado = (letra: string): PersonalItem[] => {
+  try {
+    const raw = localStorage.getItem(lsKeyPersonal(letra));
+    return raw ? JSON.parse(raw) : getDefaultPersonal(letra);
+  } catch {
+    return getDefaultPersonal(letra);
+  }
+};
+
+const getActividadesGuardadas = (turno: 'dia' | 'noche'): string[] => {
+  try {
+    const raw = localStorage.getItem(turno === 'dia' ? LS_KEY_ACT_DIA : LS_KEY_ACT_NOCHE);
+    if (turno === 'dia') return raw ? ensureActividadesDiaPermanentes(JSON.parse(raw)) : DEFAULT_ACTIVIDADES_DIA;
+    return raw ? JSON.parse(raw) : DEFAULT_ACTIVIDADES_NOCHE;
+  } catch {
+    return turno === 'dia' ? DEFAULT_ACTIVIDADES_DIA : DEFAULT_ACTIVIDADES_NOCHE;
+  }
+};
+
+const getCreadorPorDefecto = (letra: string) =>
+  letra === 'B' ? CREADO_POR_OPTIONS_B[0] : { nombre: 'Max Diaz Cornejo', cargo: 'Supervisor' };
+
+// Borrador "vacío" que se crea solo para cada día del turno. Al abrirlo, el Informe Diario arma
+// las evidencias fotográficas a partir de las actividades, igual que en un informe nuevo.
+const crearBorradorAutomatico = (fecha: string, letra: 'A' | 'B', turno: 'dia' | 'noche'): BorradorEntry => {
+  const creador = getCreadorPorDefecto(letra);
+  return {
+    id: idBorradorAutomatico(fecha, letra, turno),
+    turno,
+    fecha,
+    faena: 'Minera Rajo Inca',
+    letraTurno: letra,
+    contrato: '4600027858',
+    version: '1.1',
+    servicio: 'SERVICIO DE IMPLEMENTACIÓN Y CONTINUIDAD OPERACIONAL DE RED INALAMBRICA LTE-DSAL',
+    creadoNombre: creador.nombre,
+    creadoCargo: creador.cargo,
+    revisadoText: 'Juan Morata\nJuan Saavedra',
+    autorizadoNombre: 'Cesar Orellana',
+    autorizadoCargo: 'ADC',
+    personal: getPersonalGuardado(letra),
+    actividades: getActividadesGuardadas(turno),
+    observaciones: [],
+    evidenceBlocks: [],
+    vertivCarroPhotos: VERTIV_CARROS_FLAT.map(() => null),
+    vertivItemPhotos: VERTIV_ITEMS.map(() => null),
+    savedAt: savedAtSemilla(fecha),
+  };
+};
+
+// Toma el ciclo de turnos de hoy (los 7 días del Turno A + los 7 días del Turno B) y crea en la nube
+// los borradores que aún no existan. Corre una vez por ciclo en cada dispositivo (así, si alguien
+// elimina uno a propósito, no reaparece) y nunca pisa un borrador ya creado.
+const sembrarInformesDelCiclo = async (): Promise<boolean> => {
+  const ciclo = cicloDeFecha(hoyLocalISO());
+  const marcaKey = `${LS_KEY_AUTO_CICLO}_${ciclo.A.inicio}_${TURNOS_AUTOMATICOS.join('-')}`;
+  if (localStorage.getItem(marcaKey)) return false;
+
+  const existentes = await fetchBorradores();
+  const claves = new Set(existentes.map(e => `${e.fecha}|${e.letraTurno}|${e.turno}`));
+  const nuevos: BorradorEntry[] = [];
+  [ciclo.A, ciclo.B].forEach(semana => {
+    semana.dias.forEach(fecha => {
+      TURNOS_AUTOMATICOS.forEach(turno => {
+        if (!claves.has(`${fecha}|${semana.letra}|${turno}`)) nuevos.push(crearBorradorAutomatico(fecha, semana.letra, turno));
+      });
+    });
+  });
+
+  await sembrarBorradores(nuevos);
+  localStorage.setItem(marcaKey, '1');
+  return nuevos.length > 0;
+};
 const MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
 
 const DECORACIONES_MENSUALES: Record<number, { source: string; label: string; message: string }> = {
@@ -242,7 +322,7 @@ const urlToBase64 = async (url: string): Promise<string> => {
 export default function App() {
   // Estados de datos generales
   const [turno, setTurno] = useState<'dia' | 'noche'>('dia');
-  const [fecha, setFecha] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [fecha, setFecha] = useState<string>(hoyLocalISO());
   const [faena, setFaena] = useState<string>('Minera Rajo Inca');
   const [letraTurno, setLetraTurno] = useState<string>('A');
   const [contrato, setContrato] = useState<string>('4600027858');
@@ -296,6 +376,13 @@ export default function App() {
   useEffect(() => {
     void fetchBorradores().then(setBorradores);
     return subscribeBorradores(setBorradores);
+  }, []);
+
+  // Crea automáticamente los informes que le corresponde hacer a cada turno (7 días del A + 7 días del B).
+  useEffect(() => {
+    sembrarInformesDelCiclo()
+      .then(huboNuevos => { if (huboNuevos) void fetchBorradores().then(setBorradores); })
+      .catch(error => console.error("No se pudieron generar los informes automáticos del turno:", error));
   }, []);
 
   // Carga inicial y conversión de imágenes por defecto
@@ -390,19 +477,23 @@ export default function App() {
 
   function startNewReport() {
     localStorage.removeItem(LS_KEY_DRAFT);
+    // El informe nuevo parte con el turno (A o B) que corresponde hoy según el calendario 7x7.
+    const hoy = hoyLocalISO();
+    const letraHoy = letraDeFecha(hoy);
+    const creador = getCreadorPorDefecto(letraHoy);
     setTurno('dia');
-    setFecha(new Date().toISOString().split('T')[0]);
+    setFecha(hoy);
     setFaena('Minera Rajo Inca');
-    setLetraTurno('A');
+    setLetraTurno(letraHoy);
     setContrato('4600027858');
     setVersion('1.1');
     setServicio('SERVICIO DE IMPLEMENTACIÓN Y CONTINUIDAD OPERACIONAL DE RED INALAMBRICA LTE-DSAL');
-    setCreadoNombre('Max Diaz Cornejo');
-    setCreadoCargo('Supervisor');
+    setCreadoNombre(creador.nombre);
+    setCreadoCargo(creador.cargo);
     setRevisadoText('Juan Morata\nJuan Saavedra');
     setAutorizadoNombre('Cesar Orellana');
     setAutorizadoCargo('ADC');
-    setPersonal(DEFAULT_PERSONAL);
+    setPersonal(getPersonalGuardado(letraHoy));
     setActividades(DEFAULT_ACTIVIDADES_DIA);
     setObservaciones([]);
     setEvidenceBlocks([]);
@@ -567,6 +658,18 @@ export default function App() {
     draftDecisionMadeRef.current = true;
     setDraftPromptOpen(false);
     setView('diario');
+  };
+
+  // "Generar Informe Diario": si ya existe el informe de hoy para el turno que corresponde (creado
+  // automáticamente o a mano), lo abre; si no, parte uno nuevo.
+  const goToInformeDeHoy = () => {
+    const hoy = hoyLocalISO();
+    const letraHoy = letraDeFecha(hoy);
+    const deHoy = borradores
+      .filter(b => b.fecha === hoy && b.letraTurno === letraHoy)
+      .sort((a, b) => (a.turno === b.turno ? 0 : a.turno === 'dia' ? -1 : 1));
+    if (deHoy.length) openBorradorEntry(deHoy[0]);
+    else goToNewInforme();
   };
 
   const handleDeleteBorrador = (id: string) => {
@@ -1668,9 +1771,9 @@ export default function App() {
   if (view === 'dashboard') {
     return (
       <Dashboard
-        borradorCount={borradores.length}
+        borradorCount={borradores.filter(b => !esBorradorPendiente(b)).length}
         onNavigate={next => {
-          if (next === 'diario') goToNewInforme();
+          if (next === 'diario') goToInformeDeHoy();
           else setView(next);
         }}
       />

@@ -1,6 +1,7 @@
 import { FileText, FileStack, FolderOpen, ArrowRight, CalendarDays } from 'lucide-react';
 import logoPsinet from "./assets/logo_psinet.jpg";
 import logoEdificio from "./assets/LogoEdificio.png";
+import { hoyLocalISO, semanaDeFecha, formatDiaMes, DIAS_POR_TURNO } from './types';
 
 interface DashboardProps {
   onNavigate: (view: 'diario' | 'borradores' | 'cierre') => void;
@@ -8,6 +9,11 @@ interface DashboardProps {
 }
 
 export default function Dashboard({ onNavigate, borradorCount }: DashboardProps) {
+  // Turno que corresponde hoy según el calendario 7x7 (A o B) y en qué día de su semana va.
+  const hoy = hoyLocalISO();
+  const semanaHoy = semanaDeFecha(hoy);
+  const diaDelTurno = semanaHoy.dias.indexOf(hoy) + 1;
+
   return (
     <div className="min-h-screen text-[#222] font-sans pb-20">
       <header className="site-header">
@@ -36,6 +42,10 @@ export default function Dashboard({ onNavigate, borradorCount }: DashboardProps)
         <div>
           <h1 className="font-display font-bold text-2xl text-[#0E4660]">¿Qué necesitas hacer hoy?</h1>
           <p className="text-sm text-gray-500 mt-1">Selecciona una opción para continuar.</p>
+          <span className="inline-flex items-center gap-1.5 mt-3 text-xs font-bold px-3 py-1.5 rounded-full bg-[#FFF3CD] text-[#856404]">
+            <CalendarDays size={14} />
+            Hoy corresponde Turno {semanaHoy.letra} · día {diaDelTurno} de {DIAS_POR_TURNO} ({formatDiaMes(semanaHoy.inicio)} – {formatDiaMes(semanaHoy.fin)})
+          </span>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
@@ -49,7 +59,7 @@ export default function Dashboard({ onNavigate, borradorCount }: DashboardProps)
             </div>
             <h2 className="font-display font-bold text-lg text-[#0E4660] mt-4">Generar Informe Diario</h2>
             <p className="text-sm text-gray-500 mt-1.5 flex-1">
-              Crea el reporte de actividades del turno de hoy: personal, actividades, evidencia fotográfica y firmas.
+              Abre el informe de hoy (ya viene creado según el calendario del turno): personal, actividades, evidencia fotográfica y firmas.
             </p>
             <span className="dashboard-card__cta">
               Comenzar <ArrowRight size={15} className="transition-transform group-hover:translate-x-1" />

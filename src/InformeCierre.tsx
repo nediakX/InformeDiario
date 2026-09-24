@@ -13,6 +13,8 @@ import {
   subscribeBorradores,
   dataUrlToUint8Array,
   resolveImageBytes,
+  esBorradorPendiente,
+  semanaDeFecha,
   urlToBase64,
   formatFechaLarga,
   formatFechaPunto,
@@ -102,13 +104,19 @@ export default function InformeCierre({ onBack }: InformeCierreProps) {
     return subscribeBorradores(setBorradores);
   }, []);
 
-  // Preselecciona automáticamente los últimos 7 días de Turno Día disponibles, solo la primera vez que llegan datos.
+  // Preselecciona automáticamente los días de la semana de turno más reciente (solo la primera vez que llegan datos).
   // El Informe de Cierre es exclusivo de Turno Día; los informes de Turno Noche tienen su propio cierre.
+  // Los borradores automáticos que nadie ha abierto todavía ("pendientes") no cuentan.
   useEffect(() => {
-    if (preseleccionadoRef.current || borradores.length === 0) return;
+    if (preseleccionadoRef.current) return;
+    const iniciados = borradores
+      .filter(b => b.turno === 'dia' && !esBorradorPendiente(b))
+      .sort((a, b) => a.fecha.localeCompare(b.fecha));
+    if (iniciados.length === 0) return;
     preseleccionadoRef.current = true;
-    const ordenados = borradores.filter(b => b.turno === 'dia').sort((a, b) => a.fecha.localeCompare(b.fecha));
-    setSelectedIds(ordenados.slice(-META_DIAS).map(b => b.id));
+    const semana = semanaDeFecha(iniciados[iniciados.length - 1].fecha);
+    const deLaSemana = iniciados.filter(b => b.fecha >= semana.inicio && b.fecha <= semana.fin);
+    setSelectedIds((deLaSemana.length ? deLaSemana : iniciados).slice(-META_DIAS).map(b => b.id));
   }, [borradores]);
 
   useEffect(() => {
@@ -121,7 +129,7 @@ export default function InformeCierre({ onBack }: InformeCierreProps) {
 
   // El Informe de Cierre solo consolida Turno Día; Turno Noche queda fuera de esta selección.
   const ordenadosPorFecha = useMemo(
-    () => borradores.filter(b => b.turno === 'dia').sort((a, b) => a.fecha.localeCompare(b.fecha)),
+    () => borradores.filter(b => b.turno === 'dia' && !esBorradorPendiente(b)).sort((a, b) => a.fecha.localeCompare(b.fecha)),
     [borradores]
   );
 
