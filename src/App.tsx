@@ -299,7 +299,7 @@ const urlToBase64 = async (url: string): Promise<string> => {
 export default function App() {
   // Estados de datos generales
   const [turno, setTurno] = useState<'dia' | 'noche'>('dia');
-  const [fecha, setFecha] = useState<string>(hoyLocalISO());
+  const [fecha, setFecha] = useState<string>(() => hoyLocalISO());
   const [faena, setFaena] = useState<string>('Minera Rajo Inca');
   const [letraTurno, setLetraTurno] = useState<string>('A');
   const [contrato, setContrato] = useState<string>('4600027858');
@@ -386,10 +386,22 @@ export default function App() {
     return [...guardados, ...virtuales];
   }, [borradores, hoy]);
 
-  // Informes de esta semana de turno, hasta hoy, que todavía no están finalizados (para el aviso del Panel).
+  // Informes de hoy (Día y Noche) del turno de trabajo (A o B) que corresponde; sirven para "Continuar" en el Panel.
+  // No se asume Día o Noche según la hora: cada persona elige con cuál trabajar.
+  const informesHoy = useMemo(() => {
+    const letraHoy = letraDeFecha(hoy);
+    return TURNOS_AUTOMATICOS
+      .map(t => borradoresVisibles.find(b => b.fecha === hoy && b.letraTurno === letraHoy && b.turno === t))
+      .filter((b): b is BorradorEntry => Boolean(b));
+  }, [borradoresVisibles, hoy]);
+
+  // Informes de esta semana de turno que ya les toca (hasta hoy, Día y Noche) y todavía no están finalizados (aviso del Panel).
   const informesPorCompletar = useMemo(() => {
     const semana = semanaDeFecha(hoy);
-    return borradoresVisibles.filter(b => b.fecha >= semana.inicio && b.fecha <= hoy && estadoBorrador(b) !== 'finalizado').length;
+    return borradoresVisibles.filter(b => {
+      const yaLeToca = b.fecha <= hoy;
+      return b.fecha >= semana.inicio && yaLeToca && estadoBorrador(b) !== 'finalizado';
+    }).length;
   }, [borradoresVisibles, hoy]);
 
   // Carga inicial y conversión de imágenes por defecto
@@ -482,14 +494,16 @@ export default function App() {
     setDraftPromptOpen(false);
   };
 
-  function startNewReport() {
+  function startNewReport(turnoElegido?: 'dia' | 'noche') {
     localStorage.removeItem(LS_KEY_DRAFT);
-    // El informe nuevo parte con el turno (A o B) que corresponde hoy según el calendario 7x7.
-    const hoy = hoyLocalISO();
-    const letraHoy = letraDeFecha(hoy);
+    // El informe nuevo parte con la fecha de hoy y el turno de trabajo (A o B) que corresponde según el calendario 7x7.
+    // Día o Noche no se deduce de la hora: si la persona lo eligió (Panel / Borradores) se usa ese; si no, se mantiene el turno que ya tenía seleccionado.
+    const fechaTurno = hoyLocalISO();
+    const turnoInicial: 'dia' | 'noche' = turnoElegido ?? turno;
+    const letraHoy = letraDeFecha(fechaTurno);
     const creador = getCreadorPorDefecto(letraHoy);
-    setTurno('dia');
-    setFecha(hoy);
+    setTurno(turnoInicial);
+    setFecha(fechaTurno);
     setFaena('Minera Rajo Inca');
     setLetraTurno(letraHoy);
     setContrato('4600027858');
@@ -501,7 +515,7 @@ export default function App() {
     setAutorizadoNombre('Cesar Orellana');
     setAutorizadoCargo('ADC');
     setPersonal(getPersonalGuardado(letraHoy));
-    setActividades(DEFAULT_ACTIVIDADES_DIA);
+    setActividades(getActividadesGuardadas(turnoInicial));
     setObservaciones([]);
     setEvidenceBlocks([]);
     setVertivCarroPhotos(VERTIV_CARROS_FLAT.map(() => null));
@@ -658,8 +672,8 @@ export default function App() {
   ]);
 
   // Navegación: entra a "Generar Informe Diario" comenzando desde cero, con un nuevo borrador.
-  const goToNewInforme = () => {
-    startNewReport();
+  const goToNewInforme = (turnoElegido?: 'dia' | 'noche') => {
+    startNewReport(turnoElegido);
     setCurrentDraftId(crypto.randomUUID());
     setView('diario');
   };
@@ -694,17 +708,6 @@ export default function App() {
     draftDecisionMadeRef.current = true;
     setDraftPromptOpen(false);
     setView('diario');
-  };
-
-  // "Generar Informe Diario": si ya existe el informe de hoy para el turno que corresponde (creado
-  // automáticamente o a mano), lo abre; si no, parte uno nuevo.
-  const goToInformeDeHoy = () => {
-    const letraHoy = letraDeFecha(hoy);
-    const deHoy = borradoresVisibles
-      .filter(b => b.fecha === hoy && b.letraTurno === letraHoy)
-      .sort((a, b) => (a.turno === b.turno ? 0 : a.turno === 'dia' ? -1 : 1));
-    if (deHoy.length) openBorradorEntry(deHoy[0]);
-    else goToNewInforme();
   };
 
   const handleDeleteBorrador = (id: string) => {
@@ -1854,10 +1857,10 @@ export default function App() {
       <Dashboard
         borradorCount={borradores.filter(b => !esSemillaSinEditar(b)).length}
         pendientesCount={informesPorCompletar}
-        onNavigate={next => {
-          if (next === 'diario') goToInformeDeHoy();
-          else setView(next);
-        }}
+        informesHoy={informesHoy}
+        onAbrirInforme={openBorradorEntry}
+        onNuevoInforme={goToNewInforme}
+        onNavigate={setView}
       />
     );
   }
@@ -1917,7 +1920,7 @@ export default function App() {
           <button type="button" onClick={volverABorradores} className="btn-outline text-[#0E4660] px-3 py-1.5 rounded-md text-xs font-bold hover:bg-[#d5e7f8] flex items-center gap-1.5">
             <ArrowLeft size={14} /> Volver a borradores
           </button>
-          <button type="button" onClick={goToNewInforme} className="bg-[#0E4660] text-white px-3 py-1.5 rounded-md text-xs font-bold hover:bg-[#0a3549] flex items-center gap-1.5">
+          <button type="button" onClick={() => goToNewInforme()} className="bg-[#0E4660] text-white px-3 py-1.5 rounded-md text-xs font-bold hover:bg-[#0a3549] flex items-center gap-1.5">
             <Plus size={14} /> Nuevo informe
           </button>
         </div>
@@ -2325,7 +2328,7 @@ export default function App() {
               <button type="button" onClick={continueDraft} className="flex-1 bg-[#0E4660] text-white rounded-md px-3 py-2 text-sm font-bold hover:bg-[#0a3549]">
                 Continuar borrador
               </button>
-              <button type="button" onClick={startNewReport} className="flex-1 border border-[#DCE1E6] text-[#333] rounded-md px-3 py-2 text-sm font-bold hover:bg-gray-50">
+              <button type="button" onClick={() => startNewReport()} className="flex-1 border border-[#DCE1E6] text-[#333] rounded-md px-3 py-2 text-sm font-bold hover:bg-gray-50">
                 Empezar de nuevo
               </button>
             </div>

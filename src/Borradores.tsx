@@ -22,7 +22,8 @@ interface BorradoresProps {
   onOpen: (entry: BorradorEntry) => void;
   onDelete: (id: string) => void;
   onBack: () => void;
-  onNew: () => void;
+  /** Crea un informe nuevo con el turno (Día o Noche) que elija la persona. */
+  onNew: (turno: 'dia' | 'noche') => void;
   /** Descarga el Word de un informe finalizado. */
   onDownload: (entry: BorradorEntry) => void;
   descargandoId: string | null;
@@ -33,6 +34,7 @@ const rangoSemana = (s: SemanaTurno) => `${formatDiaMes(s.inicio)} – ${formatD
 
 export default function Borradores({ borradores, onOpen, onDelete, onBack, onNew, onDownload, descargandoId }: BorradoresProps) {
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [nuevoOpen, setNuevoOpen] = useState(false);
   const [tab, setTab] = useState<'dia' | 'noche'>('dia');
 
   // Calendario 7x7: solo se muestran los 7 días del turno que está trabajando hoy (A o B).
@@ -156,7 +158,7 @@ export default function Borradores({ borradores, onOpen, onDelete, onBack, onNew
           <button type="button" onClick={onBack} className="btn-outline text-[#0E4660] px-3 py-1.5 rounded-md text-xs font-bold hover:bg-[#d5e7f8] flex items-center gap-1.5">
             <ArrowLeft size={14} /> Volver al menú
           </button>
-          <button type="button" onClick={onNew} className="bg-[#0E4660] text-white px-3 py-1.5 rounded-md text-xs font-bold hover:bg-[#0a3549] flex items-center gap-1.5">
+          <button type="button" onClick={() => setNuevoOpen(true)} className="bg-[#0E4660] text-white px-3 py-1.5 rounded-md text-xs font-bold hover:bg-[#0a3549] flex items-center gap-1.5">
             <Plus size={14} /> Nuevo informe diario
           </button>
         </div>
@@ -242,6 +244,36 @@ export default function Borradores({ borradores, onOpen, onDelete, onBack, onNew
           </details>
         )}
       </main>
+
+      {nuevoOpen && (
+        <div className="fixed inset-0 z-50 bg-black/50 p-4 flex items-center justify-center" onClick={() => setNuevoOpen(false)}>
+          <div className="modal-anim w-full max-w-md bg-white rounded-xl p-6 shadow-xl space-y-4" onClick={event => event.stopPropagation()}>
+            <h2 className="text-lg font-bold text-[#0E4660]">Nuevo informe diario</h2>
+            <p className="text-sm text-gray-600">Parte en blanco con la fecha de hoy. ¿De qué turno?</p>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => { setNuevoOpen(false); onNew('dia'); }}
+                className="flex items-center justify-center gap-2 px-3 py-2.5 rounded-md text-sm font-bold border border-[#DCE1E6] text-[#0E4660] hover:bg-[#f0f6fb]"
+              >
+                <Sun size={15} /> Turno Día
+              </button>
+              <button
+                type="button"
+                onClick={() => { setNuevoOpen(false); onNew('noche'); }}
+                className="flex items-center justify-center gap-2 px-3 py-2.5 rounded-md text-sm font-bold bg-[#0E4660] text-white hover:bg-[#0a3549]"
+              >
+                <Moon size={15} /> Turno Noche
+              </button>
+            </div>
+            <div className="flex justify-end">
+              <button type="button" onClick={() => setNuevoOpen(false)} className="border border-[#DCE1E6] text-[#333] rounded-md px-3 py-2 text-sm font-bold hover:bg-gray-50">
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {confirmDeleteId && (
         <div className="fixed inset-0 z-50 bg-black/50 p-4 flex items-center justify-center">

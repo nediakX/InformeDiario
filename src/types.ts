@@ -293,6 +293,19 @@ export const hoyLocalISO = () => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 };
 
+/**
+ * Turno de trabajo que está en curso ahora: Día 08:00-20:00 o Noche 20:00-08:00.
+ * `fecha` es el día en que empezó el turno: entre las 00:00 y las 08:00 la noche en curso
+ * empezó el día anterior, así que su informe pertenece a esa fecha.
+ */
+export const turnoEnCurso = (ahora: Date = new Date()): { fecha: string; turno: 'dia' | 'noche' } => {
+  const hoy = `${ahora.getFullYear()}-${String(ahora.getMonth() + 1).padStart(2, "0")}-${String(ahora.getDate()).padStart(2, "0")}`;
+  const hora = ahora.getHours();
+  if (hora >= 8 && hora < 20) return { fecha: hoy, turno: 'dia' };
+  if (hora >= 20) return { fecha: hoy, turno: 'noche' };
+  return { fecha: sumarDias(hoy, -1), turno: 'noche' };
+};
+
 const crearSemana = (letra: 'A' | 'B', inicio: string): SemanaTurno => ({
   letra,
   inicio,
