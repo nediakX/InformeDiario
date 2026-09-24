@@ -346,6 +346,8 @@ export default function App() {
 
   // Navegación del panel: menú principal, generador diario, borradores guardados e informe de cierre semanal.
   const [view, setView] = useState<'dashboard' | 'diario' | 'borradores' | 'cierre'>('dashboard');
+  // Pestaña (Día / Noche) que muestra la lista de Borradores; al volver desde un informe se deja la del turno de ese informe.
+  const [borradoresTab, setBorradoresTab] = useState<'dia' | 'noche'>('dia');
   const [borradores, setBorradores] = useState<BorradorEntry[]>([]);
   const [currentDraftId, setCurrentDraftId] = useState<string>(() => crypto.randomUUID());
   const [descargandoId, setDescargandoId] = useState<string | null>(null);
@@ -681,6 +683,7 @@ export default function App() {
   // Volver desde el Informe Diario: guarda lo pendiente y regresa a la lista de Borradores.
   const volverABorradores = () => {
     flushSyncRef.current?.();
+    setBorradoresTab(turno);
     setView('borradores');
   };
 
@@ -811,27 +814,6 @@ export default function App() {
       const key = forTurno === 'dia' ? LS_KEY_ACT_DIA : LS_KEY_ACT_NOCHE;
       localStorage.setItem(key, JSON.stringify(newActividades));
     } catch (e) { console.error(e); }
-  };
-
-  // Cambia de turno guardando la plantilla de actividades actual y cargando la del nuevo turno.
-  // Día y Noche mantienen listas de Actividades Diarias independientes y permanentes.
-  const handleTurnoChange = (newTurno: 'dia' | 'noche') => {
-    if (newTurno === turno) return;
-    persistActividades(actividades, turno);
-
-    let nextActividades: string[];
-    try {
-      const key = newTurno === 'dia' ? LS_KEY_ACT_DIA : LS_KEY_ACT_NOCHE;
-      const raw = localStorage.getItem(key);
-      nextActividades = raw
-        ? (newTurno === 'dia' ? ensureActividadesDiaPermanentes(JSON.parse(raw)) : JSON.parse(raw))
-        : (newTurno === 'dia' ? DEFAULT_ACTIVIDADES_DIA : DEFAULT_ACTIVIDADES_NOCHE);
-    } catch {
-      nextActividades = newTurno === 'dia' ? DEFAULT_ACTIVIDADES_DIA : DEFAULT_ACTIVIDADES_NOCHE;
-    }
-
-    setActividades(nextActividades);
-    setTurno(newTurno);
   };
 
   // Cambia entre Turno A y Turno B: carga la lista de personal guardada de ese turno
@@ -1868,6 +1850,8 @@ export default function App() {
   if (view === 'borradores') {
     return (
       <Borradores
+        tab={borradoresTab}
+        onTabChange={setBorradoresTab}
         borradores={borradoresVisibles}
         onOpen={openBorradorEntry}
         onDelete={handleDeleteBorrador}
@@ -1936,14 +1920,10 @@ export default function App() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs text-[#6B6B6B] font-bold mb-1">Tipo de turno</label>
-                <div className="flex gap-4 items-center mt-2">
-                  <label className="text-sm flex items-center gap-1.5 cursor-pointer">
-                    <input type="radio" name="turno" checked={turno === 'dia'} onChange={() => handleTurnoChange('dia')} /> Turno Día
-                  </label>
-                  <label className="text-sm flex items-center gap-1.5 cursor-pointer">
-                    <input type="radio" name="turno" checked={turno === 'noche'} onChange={() => handleTurnoChange('noche')} /> Turno Noche
-                  </label>
-                </div>
+                {/* El turno (Día o Noche) se elige al crear o abrir el informe desde el Panel o Borradores; aquí solo se muestra. */}
+                <p className="inline-block text-sm font-bold text-[#0E4660] bg-[#F4F6F8] border border-[#DCE1E6] rounded-md px-3 py-1.5 mt-1">
+                  {turno === 'noche' ? 'Turno Noche' : 'Turno Día'}
+                </p>
                 {turno === 'noche' && (
                   <p className="text-[11px] text-[#0E4660] bg-[#E8F1FB] border border-[#cfe1f5] rounded-md px-2 py-1 mt-2">
                     Turno Noche: la plantilla de "Actividades Diarias" cambia a la lista fija de noche, y se agregará automáticamente el bloque "Verificación de la Gestión en Planta Rectificadora Vertiv" junto con la hoja final de Indicadores Técnicos / Observaciones.

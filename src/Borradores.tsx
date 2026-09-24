@@ -19,6 +19,9 @@ import {
 
 interface BorradoresProps {
   borradores: BorradorEntry[];
+  /** Pestaña activa (Día / Noche); la controla App para poder volver a la del informe que se estaba editando. */
+  tab: 'dia' | 'noche';
+  onTabChange: (tab: 'dia' | 'noche') => void;
   onOpen: (entry: BorradorEntry) => void;
   onDelete: (id: string) => void;
   onBack: () => void;
@@ -32,10 +35,9 @@ interface BorradoresProps {
 const porFechaAsc = (a: BorradorEntry, b: BorradorEntry) => a.fecha.localeCompare(b.fecha);
 const rangoSemana = (s: SemanaTurno) => `${formatDiaMes(s.inicio)} – ${formatDiaMes(s.fin)}`;
 
-export default function Borradores({ borradores, onOpen, onDelete, onBack, onNew, onDownload, descargandoId }: BorradoresProps) {
+export default function Borradores({ borradores, tab, onTabChange, onOpen, onDelete, onBack, onNew, onDownload, descargandoId }: BorradoresProps) {
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [nuevoOpen, setNuevoOpen] = useState(false);
-  const [tab, setTab] = useState<'dia' | 'noche'>('dia');
 
   // Calendario 7x7: solo se muestran los 7 días del turno que está trabajando hoy (A o B).
   // Cuando empieza la semana del otro turno, aquí aparecen sus 7 días y la semana anterior pasa a "Semanas anteriores".
@@ -193,7 +195,7 @@ export default function Borradores({ borradores, onOpen, onDelete, onBack, onNew
                 type="button"
                 role="tab"
                 aria-selected={activo}
-                onClick={() => setTab(t.key)}
+                onClick={() => onTabChange(t.key)}
                 className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-bold border transition-colors ${
                   activo
                     ? 'bg-[#0E4660] text-white border-[#0E4660]'
