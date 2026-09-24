@@ -168,16 +168,17 @@ export default function InformeCierre({ onBack }: InformeCierreProps) {
     return noches > diasSeleccionados.length / 2 ? 'Noche' : 'Dia';
   }, [diasSeleccionados]);
 
-  const personalSemana = useMemo(() => {
+  // Solo el personal del último día incluido en el cierre (diasSeleccionados está ordenado por fecha).
+  const personalUltimoDia = useMemo(() => {
+    const ultimo = diasSeleccionados[diasSeleccionados.length - 1];
+    if (!ultimo) return [];
     const vistos = new Set<string>();
     const lista: { nombre: string; cargo: string }[] = [];
-    diasSeleccionados.forEach(dia => {
-      dia.personal.forEach(p => {
-        const nombre = p.nombre.trim();
-        if (!nombre || vistos.has(nombre)) return;
-        vistos.add(nombre);
-        lista.push({ nombre, cargo: p.cargo });
-      });
+    ultimo.personal.forEach(p => {
+      const nombre = p.nombre.trim();
+      if (!nombre || vistos.has(nombre)) return;
+      vistos.add(nombre);
+      lista.push({ nombre, cargo: p.cargo });
     });
     return lista;
   }, [diasSeleccionados]);
@@ -386,7 +387,7 @@ export default function InformeCierre({ onBack }: InformeCierreProps) {
         layout: TableLayoutType.FIXED,
         columnWidths: [3900, 5460],
         borders: noBorders(),
-        rows: personalSemana.map(p => new TableRow({
+        rows: personalUltimoDia.map(p => new TableRow({
           children: [
             new TableCell({ width: { size: 3900, type: WidthType.DXA }, borders: noBorders(), children: [new Paragraph({ text: p.nombre, bullet: { level: 0 } })] }),
             new TableCell({ width: { size: 5460, type: WidthType.DXA }, borders: noBorders(), children: [new Paragraph({ text: p.cargo })] }),
@@ -402,7 +403,9 @@ export default function InformeCierre({ onBack }: InformeCierreProps) {
         new Paragraph({ text: "" }),
         new Paragraph({ children: [new TextRun({ text: `Personal de turno ${letraTurno} - ${turnoLabel}.`, color: BLUE, size: 24, font: "Arial", bold: true })] }),
         new Paragraph({ text: "" }),
-        personalTable,
+        ...(personalUltimoDia.length
+          ? [personalTable]
+          : [new Paragraph({ children: [new TextRun({ text: "(Sin personal registrado en el último día)", italics: true, color: "999999", font: "Arial" })] })]),
       ];
 
       const seccion2: (docx.Paragraph | docx.Table)[] = [
@@ -524,8 +527,9 @@ export default function InformeCierre({ onBack }: InformeCierreProps) {
         styles: { default: { document: { run: { font: "Arial", size: 21 } } } },
         sections: [
           {
-            properties: { page: { size: { width: 12240, height: 15840 } } },
-            headers: { default: header },
+            // titlePage: la primera página (portada) usa un encabezado vacío; el resto usa el encabezado normal.
+            properties: { titlePage: true, page: { size: { width: 12240, height: 15840 } } },
+            headers: { default: header, first: new Header({ children: [new Paragraph({ text: "" })] }) },
             children: [
               coverTable,
               ...seccion1,

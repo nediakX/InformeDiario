@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ArrowLeft, Trash2, FolderOpen, CalendarDays, Users, Camera, Plus, Cloud } from 'lucide-react';
+import { ArrowLeft, Trash2, FolderOpen, CalendarDays, Users, Camera, Plus, Cloud, Sun, Moon } from 'lucide-react';
 import logoPsinet from "./assets/logo_psinet.jpg";
 import logoEdificio from "./assets/LogoEdificio.png";
 import { type BorradorEntry, formatFechaLarga } from './types';
@@ -19,8 +19,40 @@ const countFotos = (entry: BorradorEntry) =>
 
 export default function Borradores({ borradores, onOpen, onDelete, onBack, onNew }: BorradoresProps) {
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
-  const ordenados = [...borradores].sort((a, b) => b.fecha.localeCompare(a.fecha));
   const meta = 7;
+  const porFechaDesc = (lista: BorradorEntry[]) => [...lista].sort((a, b) => b.fecha.localeCompare(a.fecha));
+  const borradoresDia = porFechaDesc(borradores.filter(b => b.turno === 'dia'));
+  const borradoresNoche = porFechaDesc(borradores.filter(b => b.turno === 'noche'));
+
+  const grupos = [
+    { key: 'dia', titulo: 'Turno Día', icono: <Sun size={18} className="text-[#F5B300]" />, lista: borradoresDia, barra: 'bg-[#F5B300]' },
+    { key: 'noche', titulo: 'Turno Noche', icono: <Moon size={18} className="text-[#0E4660]" />, lista: borradoresNoche, barra: 'bg-[#0E4660]' },
+  ] as const;
+
+  const renderEntry = (entry: BorradorEntry) => (
+    <div key={entry.id} className="panel p-4 flex flex-col sm:flex-row sm:items-center gap-3">
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="font-display font-bold text-base text-[#0E4660]">{formatFechaLarga(entry.fecha)}</span>
+          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${entry.turno === 'noche' ? 'bg-[#0E4660] text-white' : 'bg-[#FFF3CD] text-[#856404]'}`}>
+            Turno {entry.letraTurno} · {entry.turno === 'noche' ? 'Noche' : 'Día'}
+          </span>
+        </div>
+        <div className="flex items-center gap-4 mt-1.5 text-xs text-gray-500">
+          <span className="flex items-center gap-1"><Users size={12} /> {entry.personal.filter(p => p.nombre.trim()).length} personas</span>
+          <span className="flex items-center gap-1"><Camera size={12} /> {countFotos(entry)} fotos</span>
+        </div>
+      </div>
+      <div className="flex items-center gap-2 flex-shrink-0">
+        <button type="button" onClick={() => onOpen(entry)} className="bg-[#0E4660] text-white px-3 py-1.5 rounded-md text-xs font-bold hover:bg-[#0a3549]">
+          Abrir
+        </button>
+        <button type="button" onClick={() => setConfirmDeleteId(entry.id)} className="bg-red-50 text-red-700 p-2 rounded-md hover:bg-red-100" aria-label="Eliminar borrador" title="Eliminar borrador">
+          <Trash2 size={15} />
+        </button>
+      </div>
+    </div>
+  );
 
   return (
     <div className="min-h-screen text-[#222] font-sans pb-20">
@@ -61,51 +93,45 @@ export default function Borradores({ borradores, onOpen, onDelete, onBack, onNew
             <CalendarDays size={18} className="text-[#0E4660]" />
             <h2 className="font-display font-bold text-lg text-[#0E4660]">Progreso de la semana</h2>
           </div>
-          <p className="text-sm text-gray-500">
-            {borradores.length >= meta
-              ? `Tienes ${borradores.length} borradores guardados. Ya cuentas con los ${meta} días de la semana para generar el Informe de Cierre.`
-              : `Tienes ${borradores.length} de ${meta} borradores guardados. Aquí aparecerá automáticamente cada informe diario que generes.`}
-          </p>
-          <div className="w-full h-2 bg-gray-100 rounded-full mt-3 overflow-hidden">
-            <div
-              className="h-full bg-[#F5B300] transition-all"
-              style={{ width: `${Math.min(100, (borradores.length / meta) * 100)}%` }}
-            />
+          <div className="space-y-3 mt-2">
+            {grupos.map(g => (
+              <div key={g.key}>
+                <div className="flex items-center justify-between text-sm text-gray-500">
+                  <span className="flex items-center gap-1.5 font-bold text-[#0E4660]">{g.icono} {g.titulo}</span>
+                  <span>
+                    {g.lista.length >= meta
+                      ? `${g.lista.length} guardados · ya tienes los ${meta} días`
+                      : `${g.lista.length} de ${meta} guardados`}
+                  </span>
+                </div>
+                <div className="w-full h-2 bg-gray-100 rounded-full mt-1.5 overflow-hidden">
+                  <div className={`h-full ${g.barra} transition-all`} style={{ width: `${Math.min(100, (g.lista.length / meta) * 100)}%` }} />
+                </div>
+              </div>
+            ))}
           </div>
         </div>
 
-        {ordenados.length === 0 ? (
+        {borradores.length === 0 ? (
           <div className="panel p-8 text-center text-gray-500">
             <FolderOpen size={32} className="mx-auto mb-2 text-gray-300" />
             <p className="text-sm">Aún no hay borradores guardados. Genera un Informe Diario para que aparezca aquí.</p>
           </div>
         ) : (
-          <div className="space-y-3">
-            {ordenados.map(entry => (
-              <div key={entry.id} className="panel p-4 flex flex-col sm:flex-row sm:items-center gap-3">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-display font-bold text-base text-[#0E4660]">{formatFechaLarga(entry.fecha)}</span>
-                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${entry.turno === 'noche' ? 'bg-[#0E4660] text-white' : 'bg-[#FFF3CD] text-[#856404]'}`}>
-                      Turno {entry.letraTurno} · {entry.turno === 'noche' ? 'Noche' : 'Día'}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-4 mt-1.5 text-xs text-gray-500">
-                    <span className="flex items-center gap-1"><Users size={12} /> {entry.personal.filter(p => p.nombre.trim()).length} personas</span>
-                    <span className="flex items-center gap-1"><Camera size={12} /> {countFotos(entry)} fotos</span>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2 flex-shrink-0">
-                  <button type="button" onClick={() => onOpen(entry)} className="bg-[#0E4660] text-white px-3 py-1.5 rounded-md text-xs font-bold hover:bg-[#0a3549]">
-                    Abrir
-                  </button>
-                  <button type="button" onClick={() => setConfirmDeleteId(entry.id)} className="bg-red-50 text-red-700 p-2 rounded-md hover:bg-red-100" aria-label="Eliminar borrador" title="Eliminar borrador">
-                    <Trash2 size={15} />
-                  </button>
-                </div>
+          grupos.map(g => (
+            <section key={g.key} className="space-y-3">
+              <div className="flex items-center gap-2 pt-2 border-b border-[#DCE1E6] pb-1.5">
+                {g.icono}
+                <h2 className="font-display font-bold text-lg text-[#0E4660]">{g.titulo}</h2>
+                <span className="text-xs text-gray-500">({g.lista.length})</span>
               </div>
-            ))}
-          </div>
+              {g.lista.length === 0 ? (
+                <p className="text-sm text-gray-500 px-1">No hay borradores de {g.titulo} guardados.</p>
+              ) : (
+                g.lista.map(renderEntry)
+              )}
+            </section>
+          ))
         )}
       </main>
 
