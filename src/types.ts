@@ -268,9 +268,8 @@ export const formatFechaPunto = (iso: string) => {
 export const TURNO_ANCLA_A = "2026-09-23";
 export const DIAS_POR_TURNO = 7;
 
-// Qué informes se crean solos por cada día del turno. Agrega 'noche' para que también se
-// generen los informes de Turno Noche (ej.: ['dia', 'noche']).
-export const TURNOS_AUTOMATICOS: ('dia' | 'noche')[] = ['dia'];
+// Qué informes aparecen (como borrador por completar) por cada día del turno.
+export const TURNOS_AUTOMATICOS: ('dia' | 'noche')[] = ['dia', 'noche'];
 
 export interface SemanaTurno {
   letra: 'A' | 'B';
@@ -354,18 +353,37 @@ export function uuidDeterministico(seed: string): string {
 export const idBorradorAutomatico = (fecha: string, letra: string, turno: 'dia' | 'noche') =>
   uuidDeterministico(`psinet-auto|${fecha}|${letra}|${turno}`);
 
-/** Los borradores automáticos nacen con esta marca de guardado; en cuanto alguien los abre o edita, el autoguardado la reemplaza. */
+/** Marca de guardado de los borradores "vacíos" que se mostraban antes de tener fotos; sirve para reconocerlos y limpiarlos. */
 export const savedAtSemilla = (fecha: string) => `${fecha}T00:00:00.000Z`;
 
-/** true = borrador creado automáticamente que todavía nadie ha abierto ni editado. */
-export const esBorradorPendiente = (entry: BorradorEntry) =>
+/** true = borrador vacío autogenerado que nadie ha editado (no es un informe real guardado por una persona). */
+export const esSemillaSinEditar = (entry: BorradorEntry) =>
   new Date(entry.savedAt).getTime() === new Date(savedAtSemilla(entry.fecha)).getTime();
 
-/** Inserta los borradores automáticos que falten. Nunca pisa uno existente (ON CONFLICT DO NOTHING). */
-export async function sembrarBorradores(entries: BorradorEntry[]): Promise<void> {
-  if (!entries.length) return;
-  const { error } = await supabase
-    .from(BORRADORES_TABLE)
-    .upsert(entries.map(entryToRow), { onConflict: "id", ignoreDuplicates: true });
+/** Fotos del informe: total de espacios y cuántos están llenos. Vertiv (12 carros + 7 ítems) solo cuenta en Turno Noche. */
+export const contarFotos = (entry: BorradorEntry) => {
+  const bloques = entry.evidenceBlocks;
+  let total = bloques.reduce((n, b) => n + b.photos.length, 0);
+  let llenas = bloques.reduce((n, b) => n + b.photos.filter(Boolean).length, 0);
+  if (entry.turno === 'noche') {
+    total += entry.vertivCarroPhotos.length + entry.vertivItemPhotos.length;
+    llenas += entry.vertivCarroPhotos.filter(Boolean).length + entry.vertivItemPhotos.filter(Boolean).length;
+  }
+  return { total, llenas };
+};
+
+export type EstadoBorrador = 'pendiente' | 'iniciado' | 'finalizado';
+
+/** Pendiente: sin fotos. Iniciado: al menos una foto. Finalizado: todas las fotos cargadas. */
+export const estadoBorrador = (entry: BorradorEntry): EstadoBorrador => {
+  const { total, llenas } = contarFotos(entry);
+  if (llenas === 0) return 'pendiente';
+  return llenas >= total ? 'finalizado' : 'iniciado';
+};
+
+/** Elimina varios borradores de la nube de una sola vez. */
+export async function deleteBorradores(ids: string[]): Promise<void> {
+  if (!ids.length) return;
+  const { error } = await supabase.from(BORRADORES_TABLE).delete().in("id", ids);
   if (error) throw error;
 }

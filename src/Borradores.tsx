@@ -1,12 +1,14 @@
 import { useState } from 'react';
-import { ArrowLeft, Trash2, FolderOpen, CalendarDays, Users, Camera, Plus, Cloud, Sun, Moon, History } from 'lucide-react';
+import { ArrowLeft, Trash2, FolderOpen, CalendarDays, Users, Camera, Plus, Cloud, Sun, Moon, History, Download, Loader2 } from 'lucide-react';
 import logoPsinet from "./assets/logo_psinet.jpg";
 import logoEdificio from "./assets/LogoEdificio.png";
 import {
   type BorradorEntry,
   type SemanaTurno,
   DIAS_POR_TURNO,
-  esBorradorPendiente,
+  contarFotos,
+  esSemillaSinEditar,
+  estadoBorrador,
   formatDiaMes,
   formatFechaLarga,
   hoyLocalISO,
@@ -21,17 +23,15 @@ interface BorradoresProps {
   onDelete: (id: string) => void;
   onBack: () => void;
   onNew: () => void;
+  /** Descarga el Word de un informe finalizado. */
+  onDownload: (entry: BorradorEntry) => void;
+  descargandoId: string | null;
 }
-
-const countFotos = (entry: BorradorEntry) =>
-  entry.evidenceBlocks.reduce((total, block) => total + block.photos.filter(Boolean).length, 0)
-  + entry.vertivCarroPhotos.filter(Boolean).length
-  + entry.vertivItemPhotos.filter(Boolean).length;
 
 const porFechaAsc = (a: BorradorEntry, b: BorradorEntry) => a.fecha.localeCompare(b.fecha);
 const rangoSemana = (s: SemanaTurno) => `${formatDiaMes(s.inicio)} – ${formatDiaMes(s.fin)}`;
 
-export default function Borradores({ borradores, onOpen, onDelete, onBack, onNew }: BorradoresProps) {
+export default function Borradores({ borradores, onOpen, onDelete, onBack, onNew, onDownload, descargandoId }: BorradoresProps) {
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [tab, setTab] = useState<'dia' | 'noche'>('dia');
 
@@ -43,8 +43,9 @@ export default function Borradores({ borradores, onOpen, onDelete, onBack, onNew
 
   const delTurnoActual = (turno: 'dia' | 'noche') =>
     borradores.filter(b => b.turno === turno && b.fecha >= semana.inicio && b.fecha <= semana.fin);
-  const iniciados = new Set(delTurnoActual(tab).filter(b => !esBorradorPendiente(b)).map(b => b.fecha)).size;
   const lista = delTurnoActual(tab).sort(porFechaAsc);
+  const finalizados = lista.filter(b => estadoBorrador(b) === 'finalizado').length;
+  const enCurso = lista.filter(b => estadoBorrador(b) === 'iniciado').length;
 
   // Semanas ya terminadas: siguen guardadas en la base de datos y se muestran agrupadas, de la más reciente a la más antigua.
   const mapaAnteriores = new Map<string, { semana: SemanaTurno; entries: BorradorEntry[] }>();
@@ -67,9 +68,19 @@ export default function Borradores({ borradores, onOpen, onDelete, onBack, onNew
     <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#F5B300] text-white">En turno</span>
   );
 
+  const ESTADOS = {
+    pendiente: { etiqueta: 'Pendiente', clase: 'bg-gray-100 text-gray-500', boton: 'Comenzar' },
+    iniciado: { etiqueta: 'Iniciado', clase: 'bg-[#FFF3CD] text-[#856404]', boton: 'Continuar' },
+    finalizado: { etiqueta: 'Finalizado', clase: 'bg-green-100 text-green-700', boton: 'Abrir' },
+  } as const;
+
   const renderEntry = (entry: BorradorEntry) => {
-    const pendiente = esBorradorPendiente(entry);
+    const estado = ESTADOS[estadoBorrador(entry)];
+    const fotos = contarFotos(entry);
+    const soloEnPantalla = esSemillaSinEditar(entry); // aún no existe en Supabase: no hay nada que eliminar
     const esHoy = entry.fecha === hoy;
+    const finalizado = estadoBorrador(entry) === 'finalizado';
+    const descargando = descargandoId === entry.id;
     return (
       <div key={entry.id} className={`panel p-4 flex flex-col sm:flex-row sm:items-center gap-3 ${esHoy ? 'ring-2 ring-[#F5B300]' : ''}`}>
         <div className="flex-1 min-w-0">
@@ -81,22 +92,36 @@ export default function Borradores({ borradores, onOpen, onDelete, onBack, onNew
               Turno {entry.letraTurno} · {entry.turno === 'noche' ? 'Noche' : 'Día'}
             </span>
             {esHoy && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#F5B300] text-white">Hoy</span>}
-            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${pendiente ? 'bg-gray-100 text-gray-500' : 'bg-green-100 text-green-700'}`}>
-              {pendiente ? 'Pendiente' : 'Iniciado'}
-            </span>
+            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${estado.clase}`}>{estado.etiqueta}</span>
           </div>
           <div className="flex items-center gap-4 mt-1.5 text-xs text-gray-500">
             <span className="flex items-center gap-1"><Users size={12} /> {entry.personal.filter(p => p.nombre.trim()).length} personas</span>
-            <span className="flex items-center gap-1"><Camera size={12} /> {countFotos(entry)} fotos</span>
+            <span className="flex items-center gap-1">
+              <Camera size={12} /> {fotos.total > 0 ? `${fotos.llenas} de ${fotos.total} fotos` : `${fotos.llenas} fotos`}
+            </span>
           </div>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
+          {finalizado && (
+            <button
+              type="button"
+              onClick={() => onDownload(entry)}
+              disabled={descargandoId !== null}
+              className="bg-green-600 text-white px-3 py-1.5 rounded-md text-xs font-bold hover:bg-green-700 disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-1.5"
+              title="Descargar el informe en Word"
+            >
+              {descargando ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
+              {descargando ? 'Generando…' : 'Descargar'}
+            </button>
+          )}
           <button type="button" onClick={() => onOpen(entry)} className="bg-[#0E4660] text-white px-3 py-1.5 rounded-md text-xs font-bold hover:bg-[#0a3549]">
-            {pendiente ? 'Comenzar' : 'Abrir'}
+            {estado.boton}
           </button>
-          <button type="button" onClick={() => setConfirmDeleteId(entry.id)} className="bg-red-50 text-red-700 p-2 rounded-md hover:bg-red-100" aria-label="Eliminar borrador" title="Eliminar borrador">
-            <Trash2 size={15} />
-          </button>
+          {!soloEnPantalla && (
+            <button type="button" onClick={() => setConfirmDeleteId(entry.id)} className="bg-red-50 text-red-700 p-2 rounded-md hover:bg-red-100" aria-label="Eliminar borrador" title="Eliminar borrador">
+              <Trash2 size={15} />
+            </button>
+          )}
         </div>
       </div>
     );
@@ -143,22 +168,17 @@ export default function Borradores({ borradores, onOpen, onDelete, onBack, onNew
             {chipEnTurno}
           </div>
           <p className="text-xs text-gray-500">
-            Los informes de los 7 días del turno se crean solos según el calendario 7x7. El {formatDiaMes(proxima.inicio)} empieza
-            el Turno {proxima.letra} y aquí aparecerán sus 7 días; esta semana pasará a "Semanas anteriores" y queda guardada en la base de datos.
+            Aquí aparecen los 7 días del turno según el calendario 7x7. Cada informe queda <b>Pendiente</b> hasta que adjuntas su primera foto:
+            entonces se guarda en Supabase como <b>Iniciado</b>, y pasa a <b>Finalizado</b> cuando están todas las fotos. El {formatDiaMes(proxima.inicio)} empieza
+            el Turno {proxima.letra} y aquí aparecerán sus 7 días; esta semana pasará a "Semanas anteriores".
           </p>
           <div className="flex items-center justify-between gap-2 text-sm text-gray-500 mt-3">
             <span className="font-bold text-[#0E4660]">{tituloTab}</span>
-            <span>
-              {iniciados >= DIAS_POR_TURNO
-                ? `Los ${DIAS_POR_TURNO} días iniciados`
-                : `${iniciados} de ${DIAS_POR_TURNO} días iniciados`}
-            </span>
+            <span>{finalizados} finalizado{finalizados === 1 ? '' : 's'} · {enCurso} en curso · de {DIAS_POR_TURNO} días</span>
           </div>
-          <div className="w-full h-2 bg-gray-100 rounded-full mt-1.5 overflow-hidden">
-            <div
-              className={`h-full ${semana.letra === 'A' ? 'bg-[#0E4660]' : 'bg-[#F5B300]'} transition-all`}
-              style={{ width: `${Math.min(100, (iniciados / DIAS_POR_TURNO) * 100)}%` }}
-            />
+          <div className="w-full h-2 bg-gray-100 rounded-full mt-1.5 overflow-hidden flex">
+            <div className="h-full bg-green-500 transition-all" style={{ width: `${Math.min(100, (finalizados / DIAS_POR_TURNO) * 100)}%` }} />
+            <div className="h-full bg-[#F5B300] transition-all" style={{ width: `${Math.min(100 - (finalizados / DIAS_POR_TURNO) * 100, (enCurso / DIAS_POR_TURNO) * 100)}%` }} />
           </div>
         </div>
 

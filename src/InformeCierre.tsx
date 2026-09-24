@@ -13,7 +13,7 @@ import {
   subscribeBorradores,
   dataUrlToUint8Array,
   resolveImageBytes,
-  esBorradorPendiente,
+  esSemillaSinEditar,
   semanaDeFecha,
   urlToBase64,
   formatFechaLarga,
@@ -110,7 +110,7 @@ export default function InformeCierre({ onBack }: InformeCierreProps) {
   useEffect(() => {
     if (preseleccionadoRef.current) return;
     const iniciados = borradores
-      .filter(b => b.turno === 'dia' && !esBorradorPendiente(b))
+      .filter(b => b.turno === 'dia' && !esSemillaSinEditar(b))
       .sort((a, b) => a.fecha.localeCompare(b.fecha));
     if (iniciados.length === 0) return;
     preseleccionadoRef.current = true;
@@ -129,7 +129,7 @@ export default function InformeCierre({ onBack }: InformeCierreProps) {
 
   // El Informe de Cierre solo consolida Turno Día; Turno Noche queda fuera de esta selección.
   const ordenadosPorFecha = useMemo(
-    () => borradores.filter(b => b.turno === 'dia' && !esBorradorPendiente(b)).sort((a, b) => a.fecha.localeCompare(b.fecha)),
+    () => borradores.filter(b => b.turno === 'dia' && !esSemillaSinEditar(b)).sort((a, b) => a.fecha.localeCompare(b.fecha)),
     [borradores]
   );
 

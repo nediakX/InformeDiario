@@ -1,4 +1,4 @@
-import { FileText, FileStack, FolderOpen, ArrowRight, CalendarDays } from 'lucide-react';
+import { FileText, FileStack, FolderOpen, ArrowRight, CalendarDays, Bell } from 'lucide-react';
 import logoPsinet from "./assets/logo_psinet.jpg";
 import logoEdificio from "./assets/LogoEdificio.png";
 import { hoyLocalISO, semanaDeFecha, formatDiaMes, DIAS_POR_TURNO } from './types';
@@ -6,9 +6,11 @@ import { hoyLocalISO, semanaDeFecha, formatDiaMes, DIAS_POR_TURNO } from './type
 interface DashboardProps {
   onNavigate: (view: 'diario' | 'borradores' | 'cierre') => void;
   borradorCount: number;
+  /** Informes de esta semana de turno (hasta hoy) que siguen en borrador, sin finalizar. */
+  pendientesCount?: number;
 }
 
-export default function Dashboard({ onNavigate, borradorCount }: DashboardProps) {
+export default function Dashboard({ onNavigate, borradorCount, pendientesCount = 0 }: DashboardProps) {
   // Turno que corresponde hoy según el calendario 7x7 (A o B) y en qué día de su semana va.
   const hoy = hoyLocalISO();
   const semanaHoy = semanaDeFecha(hoy);
@@ -42,10 +44,26 @@ export default function Dashboard({ onNavigate, borradorCount }: DashboardProps)
         <div>
           <h1 className="font-display font-bold text-2xl text-[#0E4660]">¿Qué necesitas hacer hoy?</h1>
           <p className="text-sm text-gray-500 mt-1">Selecciona una opción para continuar.</p>
-          <span className="inline-flex items-center gap-1.5 mt-3 text-xs font-bold px-3 py-1.5 rounded-full bg-[#FFF3CD] text-[#856404]">
-            <CalendarDays size={14} />
-            Hoy corresponde Turno {semanaHoy.letra} · día {diaDelTurno} de {DIAS_POR_TURNO} ({formatDiaMes(semanaHoy.inicio)} – {formatDiaMes(semanaHoy.fin)})
-          </span>
+          <div className="flex flex-wrap items-center gap-2 mt-3">
+            <span className="inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full bg-[#FFF3CD] text-[#856404]">
+              <CalendarDays size={14} />
+              Hoy corresponde Turno {semanaHoy.letra} · día {diaDelTurno} de {DIAS_POR_TURNO} ({formatDiaMes(semanaHoy.inicio)} – {formatDiaMes(semanaHoy.fin)})
+            </span>
+            {pendientesCount > 0 && (
+              <button
+                type="button"
+                onClick={() => onNavigate('borradores')}
+                className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full bg-white border border-[#DCE1E6] text-gray-500 hover:text-[#0E4660] hover:border-[#0E4660] transition-colors"
+              >
+                <span className="relative flex h-2 w-2">
+                  <span className="absolute inline-flex h-full w-full rounded-full bg-[#F5B300] opacity-60" />
+                  <span className="relative inline-flex h-2 w-2 rounded-full bg-[#F5B300]" />
+                </span>
+                <Bell size={12} />
+                {pendientesCount} informe{pendientesCount === 1 ? '' : 's'} diario{pendientesCount === 1 ? '' : 's'} en borrador por completar
+              </button>
+            )}
+          </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-5">

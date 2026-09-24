@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import * as docx from 'docx';
 import { saveAs } from 'file-saver';
 import { ChevronDown, ChevronUp, Trash2, ClipboardList, Users, ListChecks, BatteryCharging, MessageSquare, Camera, Loader2, ArrowLeft, Plus } from 'lucide-react';
@@ -14,7 +14,8 @@ import InformeCierre from './InformeCierre';
 import {
   type BorradorEntry, fetchBorradores, subscribeBorradores, upsertBorrador, deleteBorrador, resolveImageBytes,
   VERTIV_TITLE, VERTIV_CARROS, VERTIV_CARROS_FLAT, VERTIV_ITEMS,
-  hoyLocalISO, cicloDeFecha, letraDeFecha, TURNOS_AUTOMATICOS, idBorradorAutomatico, savedAtSemilla, sembrarBorradores, esBorradorPendiente,
+  hoyLocalISO, semanaDeFecha, letraDeFecha, TURNOS_AUTOMATICOS, idBorradorAutomatico, savedAtSemilla,
+  deleteBorradores, esSemillaSinEditar, contarFotos, estadoBorrador,
 } from './types';
 
 
@@ -217,7 +218,6 @@ const lsKeyPersonal = (letra: string) => (letra === 'B' ? LS_KEY_PERSONAL_B : LS
 const LS_KEY_ACT_DIA = "psinet_actividades_dia_v6";
 const LS_KEY_ACT_NOCHE = "psinet_actividades_noche_v6";
 const LS_KEY_DRAFT = "psinet_informe_borrador_v1";
-const LS_KEY_AUTO_CICLO = "psinet_auto_ciclo_v1";
 
 // Personal y actividades "vigentes" de cada turno (lo guardado en este dispositivo o, si no hay, los valores por defecto).
 const getPersonalGuardado = (letra: string): PersonalItem[] => {
@@ -242,8 +242,8 @@ const getActividadesGuardadas = (turno: 'dia' | 'noche'): string[] => {
 const getCreadorPorDefecto = (letra: string) =>
   letra === 'B' ? CREADO_POR_OPTIONS_B[0] : { nombre: 'Max Diaz Cornejo', cargo: 'Supervisor' };
 
-// Borrador "vacío" que se crea solo para cada día del turno. Al abrirlo, el Informe Diario arma
-// las evidencias fotográficas a partir de las actividades, igual que en un informe nuevo.
+// Borrador "virtual" de un día del turno: existe solo en pantalla (no en Supabase) hasta que el informe
+// tenga al menos una foto. Al abrirlo, el Informe Diario arma las evidencias a partir de las actividades.
 const crearBorradorAutomatico = (fecha: string, letra: 'A' | 'B', turno: 'dia' | 'noche'): BorradorEntry => {
   const creador = getCreadorPorDefecto(letra);
   return {
@@ -270,29 +270,6 @@ const crearBorradorAutomatico = (fecha: string, letra: 'A' | 'B', turno: 'dia' |
   };
 };
 
-// Toma el ciclo de turnos de hoy (los 7 días del Turno A + los 7 días del Turno B) y crea en la nube
-// los borradores que aún no existan. Corre una vez por ciclo en cada dispositivo (así, si alguien
-// elimina uno a propósito, no reaparece) y nunca pisa un borrador ya creado.
-const sembrarInformesDelCiclo = async (): Promise<boolean> => {
-  const ciclo = cicloDeFecha(hoyLocalISO());
-  const marcaKey = `${LS_KEY_AUTO_CICLO}_${ciclo.A.inicio}_${TURNOS_AUTOMATICOS.join('-')}`;
-  if (localStorage.getItem(marcaKey)) return false;
-
-  const existentes = await fetchBorradores();
-  const claves = new Set(existentes.map(e => `${e.fecha}|${e.letraTurno}|${e.turno}`));
-  const nuevos: BorradorEntry[] = [];
-  [ciclo.A, ciclo.B].forEach(semana => {
-    semana.dias.forEach(fecha => {
-      TURNOS_AUTOMATICOS.forEach(turno => {
-        if (!claves.has(`${fecha}|${semana.letra}|${turno}`)) nuevos.push(crearBorradorAutomatico(fecha, semana.letra, turno));
-      });
-    });
-  });
-
-  await sembrarBorradores(nuevos);
-  localStorage.setItem(marcaKey, '1');
-  return nuevos.length > 0;
-};
 const MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
 
 const DECORACIONES_MENSUALES: Record<number, { source: string; label: string; message: string }> = {
@@ -371,6 +348,7 @@ export default function App() {
   const [view, setView] = useState<'dashboard' | 'diario' | 'borradores' | 'cierre'>('dashboard');
   const [borradores, setBorradores] = useState<BorradorEntry[]>([]);
   const [currentDraftId, setCurrentDraftId] = useState<string>(() => crypto.randomUUID());
+  const [descargandoId, setDescargandoId] = useState<string | null>(null);
 
   // Carga los borradores compartidos desde la nube y se suscribe a cambios de otros dispositivos.
   useEffect(() => {
@@ -378,12 +356,41 @@ export default function App() {
     return subscribeBorradores(setBorradores);
   }, []);
 
-  // Crea automáticamente los informes que le corresponde hacer a cada turno (7 días del A + 7 días del B).
+  // Limpieza única: una versión anterior guardó en Supabase borradores vacíos por cada día del turno.
+  // Ahora esos días se muestran como pendientes sin ocupar la base de datos, así que se eliminan los vacíos sin editar.
   useEffect(() => {
-    sembrarInformesDelCiclo()
-      .then(huboNuevos => { if (huboNuevos) void fetchBorradores().then(setBorradores); })
-      .catch(error => console.error("No se pudieron generar los informes automáticos del turno:", error));
+    fetchBorradores()
+      .then(lista => {
+        const sobrantes = lista.filter(esSemillaSinEditar).map(b => b.id);
+        if (!sobrantes.length) return undefined;
+        return deleteBorradores(sobrantes).then(() => fetchBorradores().then(setBorradores));
+      })
+      .catch(error => console.error("No se pudieron limpiar los borradores vacíos:", error));
   }, []);
+
+  const borradoresRef = useRef<BorradorEntry[]>([]);
+  borradoresRef.current = borradores;
+
+  // Lista que ve el usuario: lo guardado en Supabase + los 7 días del turno que toca hoy (Día y Noche) que aún no tienen fotos.
+  const hoy = hoyLocalISO();
+  const borradoresVisibles = useMemo(() => {
+    const semana = semanaDeFecha(hoy);
+    const guardados = borradores.filter(b => !esSemillaSinEditar(b));
+    const existentes = new Set(guardados.map(b => `${b.fecha}|${b.letraTurno}|${b.turno}`));
+    const virtuales: BorradorEntry[] = [];
+    semana.dias.forEach(fecha => {
+      TURNOS_AUTOMATICOS.forEach(turno => {
+        if (!existentes.has(`${fecha}|${semana.letra}|${turno}`)) virtuales.push(crearBorradorAutomatico(fecha, semana.letra, turno));
+      });
+    });
+    return [...guardados, ...virtuales];
+  }, [borradores, hoy]);
+
+  // Informes de esta semana de turno, hasta hoy, que todavía no están finalizados (para el aviso del Panel).
+  const informesPorCompletar = useMemo(() => {
+    const semana = semanaDeFecha(hoy);
+    return borradoresVisibles.filter(b => b.fecha >= semana.inicio && b.fecha <= hoy && estadoBorrador(b) !== 'finalizado').length;
+  }, [borradoresVisibles, hoy]);
 
   // Carga inicial y conversión de imágenes por defecto
   useEffect(() => {
@@ -561,7 +568,10 @@ export default function App() {
   // Igual que arriba: solo mientras el usuario está en la pantalla de Informe Diario,
   // para no crear/subir un borrador nuevo apenas se abre la app.
   const syncTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Guardado pendiente (dentro del debounce) que se puede ejecutar al instante, p. ej. al volver a Borradores.
+  const flushSyncRef = useRef<(() => void) | null>(null);
   useEffect(() => {
+    flushSyncRef.current = null;
     if (view !== 'diario' || !draftDecisionMadeRef.current || !personal.length || !actividades.length) return;
 
     const entry: BorradorEntry = {
@@ -587,19 +597,39 @@ export default function App() {
       savedAt: new Date().toISOString(),
     };
 
-    if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current);
-    syncTimeoutRef.current = setTimeout(() => {
+    // Se guarda en Supabase recién cuando el informe tiene al menos una foto (o si ya estaba guardado, para no dejarlo desactualizado).
+    const yaEstaEnLaNube = borradoresRef.current.some(b => b.id === currentDraftId);
+    if (contarFotos(entry).llenas === 0 && !yaEstaEnLaNube) return;
+
+    const mezclar = (prev: BorradorEntry[], item: BorradorEntry) => {
+      const idx = prev.findIndex(b => b.id === item.id);
+      if (idx >= 0) { const next = [...prev]; next[idx] = item; return next; }
+      return [...prev, item];
+    };
+
+    const guardarEnNube = () => {
       upsertBorrador(entry)
-        .then(saved => setBorradores(prev => {
-          const idx = prev.findIndex(b => b.id === saved.id);
-          if (idx >= 0) { const next = [...prev]; next[idx] = saved; return next; }
-          return [...prev, saved];
-        }))
+        .then(saved => setBorradores(prev => mezclar(prev, saved)))
         .catch(error => {
           console.error("No se pudo sincronizar el borrador con la nube:", error);
           showToast("No se pudo sincronizar con la nube. Revisa tu conexión.", true);
         });
+    };
+
+    if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current);
+    syncTimeoutRef.current = setTimeout(() => {
+      flushSyncRef.current = null;
+      guardarEnNube();
     }, 800);
+
+    // Si el usuario sale del informe antes de que pase el debounce, el cambio no se pierde: se guarda de inmediato
+    // y la lista de Borradores se actualiza al instante (mientras terminan de subirse las fotos).
+    flushSyncRef.current = () => {
+      if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current);
+      flushSyncRef.current = null;
+      setBorradores(prev => mezclar(prev, entry));
+      guardarEnNube();
+    };
 
     return () => {
       if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current);
@@ -634,6 +664,12 @@ export default function App() {
     setView('diario');
   };
 
+  // Volver desde el Informe Diario: guarda lo pendiente y regresa a la lista de Borradores.
+  const volverABorradores = () => {
+    flushSyncRef.current?.();
+    setView('borradores');
+  };
+
   // Navegación: abre un borrador existente (de otro día) para revisarlo o continuarlo.
   const openBorradorEntry = (entrySeleccionada: BorradorEntry) => {
     setTurno(entrySeleccionada.turno);
@@ -663,9 +699,8 @@ export default function App() {
   // "Generar Informe Diario": si ya existe el informe de hoy para el turno que corresponde (creado
   // automáticamente o a mano), lo abre; si no, parte uno nuevo.
   const goToInformeDeHoy = () => {
-    const hoy = hoyLocalISO();
     const letraHoy = letraDeFecha(hoy);
-    const deHoy = borradores
+    const deHoy = borradoresVisibles
       .filter(b => b.fecha === hoy && b.letraTurno === letraHoy)
       .sort((a, b) => (a.turno === b.turno ? 0 : a.turno === 'dia' ? -1 : 1));
     if (deHoy.length) openBorradorEntry(deHoy[0]);
@@ -1331,11 +1366,46 @@ export default function App() {
     });
   };
 
-  // Generador Word en React
-  const generarDocumento = async () => {
+  // Datos del informe que está abierto en el formulario (para generar el Word sin pasar un borrador).
+  const informeActual: BorradorEntry = {
+    id: currentDraftId,
+    turno,
+    fecha,
+    faena,
+    letraTurno,
+    contrato,
+    version,
+    servicio,
+    creadoNombre,
+    creadoCargo,
+    revisadoText,
+    autorizadoNombre,
+    autorizadoCargo,
+    personal,
+    actividades,
+    observaciones,
+    evidenceBlocks,
+    vertivCarroPhotos,
+    vertivItemPhotos,
+    savedAt: '',
+  };
+
+  // Generador Word en React. Sin argumento genera el informe abierto en el formulario;
+  // con un borrador guardado (p. ej. desde la lista de Borradores) genera ese informe.
+  // Devuelve true si el archivo se descargó.
+  const generarDocumento = async (datos?: BorradorEntry): Promise<boolean> => {
+    // Estos datos "tapan" a los del formulario dentro de esta función.
+    const informe = datos ?? informeActual;
+    const {
+      turno, fecha, faena, letraTurno, contrato, version, servicio,
+      creadoNombre, creadoCargo, revisadoText, autorizadoNombre, autorizadoCargo,
+      personal, actividades, observaciones, vertivCarroPhotos, vertivItemPhotos,
+    } = informe;
+    const evidenceBlocks = informe.evidenceBlocks as EvidenceBlock[];
+
     if (!fecha) {
       alert("Selecciona la fecha del turno.");
-      return;
+      return false;
     }
 
     setIsGenerating(true);
@@ -1757,12 +1827,23 @@ export default function App() {
       saveAs(blob, filename);
 
       showToast(`Documento generado exitosamente: ${filename}`);
+      return true;
     } catch (err) {
       console.error(err);
       showToast("Error al generar el archivo.", true);
+      return false;
     } finally {
       setIsGenerating(false);
     }
+  };
+
+  // Descarga el Word de un informe finalizado directamente desde la lista de Borradores.
+  const descargarInforme = async (entry: BorradorEntry) => {
+    if (descargandoId) return;
+    setDescargandoId(entry.id);
+    const ok = await generarDocumento(entry);
+    setDescargandoId(null);
+    if (!ok) window.alert("No se pudo generar el documento. Intenta nuevamente.");
   };
 
   const mesDeFecha = fecha ? Number(fecha.split("-")[1]) : 0;
@@ -1771,7 +1852,8 @@ export default function App() {
   if (view === 'dashboard') {
     return (
       <Dashboard
-        borradorCount={borradores.filter(b => !esBorradorPendiente(b)).length}
+        borradorCount={borradores.filter(b => !esSemillaSinEditar(b)).length}
+        pendientesCount={informesPorCompletar}
         onNavigate={next => {
           if (next === 'diario') goToInformeDeHoy();
           else setView(next);
@@ -1783,11 +1865,13 @@ export default function App() {
   if (view === 'borradores') {
     return (
       <Borradores
-        borradores={borradores}
+        borradores={borradoresVisibles}
         onOpen={openBorradorEntry}
         onDelete={handleDeleteBorrador}
         onBack={() => setView('dashboard')}
         onNew={goToNewInforme}
+        onDownload={descargarInforme}
+        descargandoId={descargandoId}
       />
     );
   }
@@ -1830,8 +1914,8 @@ export default function App() {
       {/* Main Container */}
       <main className="max-w-[900px] mx-auto p-5 space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <button type="button" onClick={() => setView('dashboard')} className="btn-outline text-[#0E4660] px-3 py-1.5 rounded-md text-xs font-bold hover:bg-[#d5e7f8] flex items-center gap-1.5">
-            <ArrowLeft size={14} /> Volver al menú
+          <button type="button" onClick={volverABorradores} className="btn-outline text-[#0E4660] px-3 py-1.5 rounded-md text-xs font-bold hover:bg-[#d5e7f8] flex items-center gap-1.5">
+            <ArrowLeft size={14} /> Volver a borradores
           </button>
           <button type="button" onClick={goToNewInforme} className="bg-[#0E4660] text-white px-3 py-1.5 rounded-md text-xs font-bold hover:bg-[#0a3549] flex items-center gap-1.5">
             <Plus size={14} /> Nuevo informe
@@ -2208,7 +2292,7 @@ export default function App() {
         {/* Action Button */}
         <div className="action-zone">
           <button
-            onClick={generarDocumento}
+            onClick={() => void generarDocumento()}
             disabled={isGenerating}
             className="btn-primary-field w-full text-white py-3.5 px-6 font-bold text-base rounded-md disabled:!bg-[#9fb3bd] disabled:cursor-not-allowed flex items-center justify-center gap-2"
           >
