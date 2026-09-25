@@ -187,6 +187,8 @@ const PERSONAL_SUGERIDO_OTROS: PersonalItem[] = [
   { nombre: "Javiera Lira.", cargo: "Directora Legal." },
   { nombre: "Carolina Klenner.", cargo: "Gerenta de Personas." },
   { nombre: "Juan Morata.", cargo: "Ingeniero Especialista." },
+  { nombre: "Cesar Orellana.", cargo: "Administrador de Contrato." },
+
 
 ];
 
