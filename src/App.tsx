@@ -1,7 +1,7 @@
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef, type PointerEvent as ReactPointerEvent } from 'react';
 import * as docx from 'docx';
 import { saveAs } from 'file-saver';
-import { ChevronDown, ChevronUp, Trash2, ClipboardList, Users, ListChecks, BatteryCharging, MessageSquare, Camera, Loader2, ArrowLeft, Plus } from 'lucide-react';
+import { ChevronDown, Trash2, ClipboardList, Users, ListChecks, BatteryCharging, MessageSquare, Camera, Loader2, ArrowLeft, Plus, ZoomIn, GripVertical } from 'lucide-react';
 import './App.css';
 import logoPsinet from "./assets/logo_psinet.jpg";
 import logoEdificio from "./assets/LogoEdificio.png";
@@ -11,11 +11,18 @@ import decoracionDiciembre from "./assets/25dec.png";
 import Dashboard from './Dashboard';
 import Borradores from './Borradores';
 import InformeCierre from './InformeCierre';
+import InformeMantenimiento from './Informemantenimiento';
+import InformeFallaCarro from './Informefallacarro';
+import ImpresionRapida from './Impresionrapida';
+import VisorFoto from './Visorfoto';
+
+type TipoBorradorTab = 'diario' | 'mantenimiento' | 'falla';
 import {
   type BorradorEntry, fetchBorradores, subscribeBorradores, upsertBorrador, deleteBorrador, resolveImageBytes,
   VERTIV_TITLE, VERTIV_CARROS, VERTIV_CARROS_FLAT, VERTIV_ITEMS,
   hoyLocalISO, semanaDeFecha, letraDeFecha, TURNOS_AUTOMATICOS, idBorradorAutomatico, savedAtSemilla,
   deleteBorradores, esSemillaSinEditar, contarFotos, estadoBorrador,
+  type BorradorOtroEntry, fetchBorradoresOtros, subscribeBorradoresOtros, deleteBorradorOtro,
 } from './types';
 
 
@@ -298,6 +305,56 @@ const urlToBase64 = async (url: string): Promise<string> => {
   });
 };
 
+// Reordenar una lista arrastrando (mouse o dedo, con Pointer Events: sirve igual en el teléfono que en el
+// computador). Se usa en "Personal en Turno" y "Actividades Diarias". El elemento que llama a bind(i) —
+// normalmente el ícono ⠿ de la fila — captura el puntero, así los eventos de mover/soltar le siguen llegando
+// aunque el dedo se mueva sobre otras filas.
+function useDragReorder<T>(items: T[], setItems: (items: T[]) => void, onDrop?: (items: T[]) => void) {
+  const [dragIndex, setDragIndex] = useState<number | null>(null);
+  const rowRefs = useRef<(HTMLElement | null)[]>([]);
+  const itemsRef = useRef(items);
+  itemsRef.current = items;
+
+  const setRowRef = (index: number) => (el: HTMLElement | null) => { rowRefs.current[index] = el; };
+
+  const onPointerMove = (event: ReactPointerEvent) => {
+    if (dragIndex === null) return;
+    const y = event.clientY;
+    let targetIndex = itemsRef.current.length - 1;
+    for (let i = 0; i < rowRefs.current.length; i++) {
+      const el = rowRefs.current[i];
+      if (!el) continue;
+      const rect = el.getBoundingClientRect();
+      if (y < rect.top + rect.height / 2) { targetIndex = i; break; }
+    }
+    if (targetIndex !== dragIndex) {
+      const updated = [...itemsRef.current];
+      const [moved] = updated.splice(dragIndex, 1);
+      updated.splice(targetIndex, 0, moved);
+      setItems(updated);
+      setDragIndex(targetIndex);
+    }
+  };
+
+  const finishDrag = () => {
+    if (dragIndex !== null) onDrop?.(itemsRef.current);
+    setDragIndex(null);
+  };
+
+  const bind = (index: number) => ({
+    onPointerDown: (event: ReactPointerEvent) => {
+      event.preventDefault();
+      (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
+      setDragIndex(index);
+    },
+    onPointerMove,
+    onPointerUp: finishDrag,
+    onPointerCancel: finishDrag,
+  });
+
+  return { dragIndex, setRowRef, bind };
+}
+
 export default function App() {
   // Estados de datos generales
   const [turno, setTurno] = useState<'dia' | 'noche'>('dia');
@@ -347,18 +404,71 @@ export default function App() {
   const draftDecisionMadeRef = useRef(false);
 
   // Navegación del panel: menú principal, generador diario, borradores guardados e informe de cierre semanal.
-  const [view, setView] = useState<'dashboard' | 'diario' | 'borradores' | 'cierre'>('dashboard');
+  const [view, setView] = useState<'dashboard' | 'diario' | 'borradores' | 'cierre' | 'mantenimiento' | 'falla-carro' | 'impresion'>('dashboard');
   // Pestaña (Día / Noche) que muestra la lista de Borradores; al volver desde un informe se deja la del turno de ese informe.
   const [borradoresTab, setBorradoresTab] = useState<'dia' | 'noche'>('dia');
+  // Tipo de informe que muestra la pantalla de Borradores (Diario / Mantenimiento / Falla).
+  const [borradoresTipoTab, setBorradoresTipoTab] = useState<TipoBorradorTab>('diario');
   const [borradores, setBorradores] = useState<BorradorEntry[]>([]);
   const [currentDraftId, setCurrentDraftId] = useState<string>(() => crypto.randomUUID());
   const [descargandoId, setDescargandoId] = useState<string | null>(null);
+  const [fotoAmpliada, setFotoAmpliada] = useState<string | null>(null);
+
+  // Borradores de Mantenimiento e Informe de Falla: mismo esquema de sincronización en la nube que Informe Diario.
+  const [borradoresMantenimiento, setBorradoresMantenimiento] = useState<BorradorOtroEntry[]>([]);
+  const [borradoresFalla, setBorradoresFalla] = useState<BorradorOtroEntry[]>([]);
+  // Borrador puntual que se debe abrir al entrar a Mantenimiento/Falla (desde "Continuar" o desde Borradores). null = informe nuevo.
+  const [mantenimientoAAbrir, setMantenimientoAAbrir] = useState<BorradorOtroEntry | null>(null);
+  const [fallaAAbrir, setFallaAAbrir] = useState<BorradorOtroEntry | null>(null);
+  // Cambia en cada "Nuevo informe" para forzar a Mantenimiento/Falla a remontarse con estado en blanco.
+  const [mantenimientoInstancia, setMantenimientoInstancia] = useState(0);
+  const [fallaInstancia, setFallaInstancia] = useState(0);
 
   // Carga los borradores compartidos desde la nube y se suscribe a cambios de otros dispositivos.
   useEffect(() => {
     void fetchBorradores().then(setBorradores);
     return subscribeBorradores(setBorradores);
   }, []);
+
+  useEffect(() => {
+    void fetchBorradoresOtros('mantenimiento').then(setBorradoresMantenimiento);
+    return subscribeBorradoresOtros('mantenimiento', setBorradoresMantenimiento);
+  }, []);
+
+  useEffect(() => {
+    void fetchBorradoresOtros('falla').then(setBorradoresFalla);
+    return subscribeBorradoresOtros('falla', setBorradoresFalla);
+  }, []);
+
+  // Navegación: Mantenimiento / Falla — "Nuevo informe" o "Continuar" un borrador guardado.
+  const goToNuevoMantenimiento = () => {
+    setMantenimientoAAbrir(null);
+    setMantenimientoInstancia(n => n + 1);
+    setView('mantenimiento');
+  };
+  const goToAbrirMantenimiento = (entry: BorradorOtroEntry) => {
+    setMantenimientoAAbrir(entry);
+    setMantenimientoInstancia(n => n + 1);
+    setView('mantenimiento');
+  };
+  const goToNuevaFalla = () => {
+    setFallaAAbrir(null);
+    setFallaInstancia(n => n + 1);
+    setView('falla-carro');
+  };
+  const goToAbrirFalla = (entry: BorradorOtroEntry) => {
+    setFallaAAbrir(entry);
+    setFallaInstancia(n => n + 1);
+    setView('falla-carro');
+  };
+  const handleDeleteBorradorOtro = (id: string) => {
+    setBorradoresMantenimiento(prev => prev.filter(b => b.id !== id));
+    setBorradoresFalla(prev => prev.filter(b => b.id !== id));
+    deleteBorradorOtro(id).catch(error => {
+      console.error("No se pudo eliminar el borrador en la nube:", error);
+      showToast("No se pudo eliminar el borrador en la nube.", true);
+    });
+  };
 
   // Limpieza única: una versión anterior guardó en Supabase borradores vacíos por cada día del turno.
   // Ahora esos días se muestran como pendientes sin ocupar la base de datos, así que se eliminan los vacíos sin editar.
@@ -881,15 +991,9 @@ export default function App() {
     persistActividades(updated);
   };
 
-  const handleMoveActividad = (index: number, direction: -1 | 1) => {
-    const targetIndex = index + direction;
-    if (targetIndex < 0 || targetIndex >= actividades.length) return;
-
-    const updated = [...actividades];
-    [updated[index], updated[targetIndex]] = [updated[targetIndex], updated[index]];
-    setActividades(updated);
-    persistActividades(updated);
-  };
+  // Reordenar arrastrando: Personal y Actividades se guardan solos (persistPersonal/persistActividades) al soltar.
+  const personalDrag = useDragReorder(personal, setPersonal, persistPersonal);
+  const actividadesDrag = useDragReorder(actividades, setActividades, persistActividades);
 
   const resetActividades = () => {
     const defaults = turno === 'dia' ? DEFAULT_ACTIVIDADES_DIA : DEFAULT_ACTIVIDADES_NOCHE;
@@ -1845,6 +1949,13 @@ export default function App() {
         onAbrirInforme={openBorradorEntry}
         onNuevoInforme={goToNewInforme}
         onNavigate={setView}
+        borradoresMantenimiento={borradoresMantenimiento}
+        borradoresFalla={borradoresFalla}
+        onNuevoMantenimiento={goToNuevoMantenimiento}
+        onAbrirMantenimiento={goToAbrirMantenimiento}
+        onNuevaFalla={goToNuevaFalla}
+        onAbrirFalla={goToAbrirFalla}
+        onVerBorradores={tipo => { setBorradoresTipoTab(tipo); setView('borradores'); }}
       />
     );
   }
@@ -1852,6 +1963,8 @@ export default function App() {
   if (view === 'borradores') {
     return (
       <Borradores
+        tipoTab={borradoresTipoTab}
+        onTipoTabChange={setBorradoresTipoTab}
         tab={borradoresTab}
         onTabChange={setBorradoresTab}
         borradores={borradoresVisibles}
@@ -1861,12 +1974,31 @@ export default function App() {
         onNew={goToNewInforme}
         onDownload={descargarInforme}
         descargandoId={descargandoId}
+        borradoresMantenimiento={borradoresMantenimiento}
+        borradoresFalla={borradoresFalla}
+        onNuevoMantenimiento={goToNuevoMantenimiento}
+        onAbrirMantenimiento={goToAbrirMantenimiento}
+        onNuevaFalla={goToNuevaFalla}
+        onAbrirFalla={goToAbrirFalla}
+        onDeleteOtro={handleDeleteBorradorOtro}
       />
     );
   }
 
   if (view === 'cierre') {
     return <InformeCierre onBack={() => setView('dashboard')} />;
+  }
+
+  if (view === 'mantenimiento') {
+    return <InformeMantenimiento key={mantenimientoInstancia} onBack={() => setView('dashboard')} borradorInicial={mantenimientoAAbrir} />;
+  }
+
+  if (view === 'falla-carro') {
+    return <InformeFallaCarro key={fallaInstancia} onBack={() => setView('dashboard')} borradorInicial={fallaAAbrir} />;
+  }
+
+  if (view === 'impresion') {
+    return <ImpresionRapida onBack={() => setView('dashboard')} />;
   }
 
   return (
@@ -1984,17 +2116,29 @@ export default function App() {
             <span className="text-[11px] text-gray-500">Mostrando {personal.length} personas del Turno {letraTurno}</span>
           </div>
 
+          <p className="text-xs text-gray-400 mb-1.5 flex items-center gap-1"><GripVertical size={12} /> Arrastra <GripVertical size={12} className="inline -ml-1" /> para reordenar el personal.</p>
           <table className="w-full border-collapse mb-3 text-sm">
             <tbody>
               {personal.map((p, i) => (
-                <tr key={i} className="border-b border-gray-100">
-                  <td className="w-[45%] p-1">
+                <tr key={i} ref={personalDrag.setRowRef(i)} className={`border-b border-gray-100 ${personalDrag.dragIndex === i ? 'bg-[#E8F1FB]' : ''}`}>
+                  <td className="w-8 p-1 text-center">
+                    <button
+                      type="button"
+                      {...personalDrag.bind(i)}
+                      className="cursor-grab active:cursor-grabbing text-gray-400 hover:text-[#0E4660] p-1 touch-none select-none"
+                      aria-label="Arrastrar para reordenar esta persona"
+                      title="Arrastrar para reordenar"
+                    >
+                      <GripVertical size={16} />
+                    </button>
+                  </td>
+                  <td className="w-[41%] p-1">
                     <input type="text" value={p.nombre} onChange={e => handleUpdatePersonal(i, 'nombre', e.target.value)} className="w-full p-1.5 border border-[#DCE1E6] rounded" />
                   </td>
-                  <td className="w-[45%] p-1">
+                  <td className="w-[39%] p-1">
                     <input type="text" value={p.cargo} onChange={e => handleUpdatePersonal(i, 'cargo', e.target.value)} className="w-full p-1.5 border border-[#DCE1E6] rounded" />
                   </td>
-                  <td className="w-[10%] p-1 text-right">
+                  <td className="w-[12%] p-1 text-right">
                     <button onClick={() => handleRemovePersonal(i)} className="bg-red-50 text-red-700 px-2 py-1 rounded text-xs hover:bg-red-100">Quitar</button>
                   </td>
                 </tr>
@@ -2045,20 +2189,26 @@ export default function App() {
             <ChevronDown size={16} className="panel__summary-chevron" />
           </summary>
 
+          <p className="text-xs text-gray-400 mb-1.5 flex items-center gap-1"><GripVertical size={12} /> Arrastra <GripVertical size={12} className="inline -ml-1" /> para reordenar las actividades.</p>
           <table className="w-full border-collapse mb-3 text-sm">
             <tbody>
               {actividades.map((act, i) => (
-                <tr key={i} className="border-b border-gray-100">
-                  <td className="w-[82%] p-1">
+                <tr key={i} ref={actividadesDrag.setRowRef(i)} className={`border-b border-gray-100 ${actividadesDrag.dragIndex === i ? 'bg-[#E8F1FB]' : ''}`}>
+                  <td className="w-8 p-1 text-center">
+                    <button
+                      type="button"
+                      {...actividadesDrag.bind(i)}
+                      className="cursor-grab active:cursor-grabbing text-gray-400 hover:text-[#0E4660] p-1 touch-none select-none"
+                      aria-label="Arrastrar para reordenar esta actividad"
+                      title="Arrastrar para reordenar"
+                    >
+                      <GripVertical size={16} />
+                    </button>
+                  </td>
+                  <td className="w-[74%] p-1">
                     <input type="text" value={act} onChange={e => handleUpdateActividad(i, e.target.value)} className="w-full p-1.5 border border-[#DCE1E6] rounded" />
                   </td>
                   <td className="w-[18%] p-1 text-right whitespace-nowrap">
-                    <button type="button" onClick={() => handleMoveActividad(i, -1)} disabled={i === 0} title="Subir actividad" aria-label="Subir actividad" className="p-1.5 mr-1 rounded text-[#0E4660] hover:bg-[#E8F1FB] disabled:opacity-30 disabled:cursor-not-allowed">
-                      <ChevronUp size={16} />
-                    </button>
-                    <button type="button" onClick={() => handleMoveActividad(i, 1)} disabled={i === actividades.length - 1} title="Bajar actividad" aria-label="Bajar actividad" className="p-1.5 mr-1 rounded text-[#0E4660] hover:bg-[#E8F1FB] disabled:opacity-30 disabled:cursor-not-allowed">
-                      <ChevronDown size={16} />
-                    </button>
                     <button type="button" onClick={() => handleRemoveActividad(i)} className="bg-red-50 text-red-700 px-2 py-1 rounded text-xs hover:bg-red-100">Quitar</button>
                   </td>
                 </tr>
@@ -2122,9 +2272,20 @@ export default function App() {
                     title="Haz clic aquí y luego pega una imagen con Ctrl+V"
                   >
                     {vertivCarroPhotos[i] && (
-                      <button onClick={() => clearVertivCarroPhoto(i)} className="absolute top-0.5 right-0.5 bg-red-600 text-white rounded-full w-4 h-4 text-[10px] leading-3">
-                        ×
-                      </button>
+                      <>
+                        <button onClick={() => clearVertivCarroPhoto(i)} className="absolute top-0.5 right-0.5 bg-red-600 text-white rounded-full w-4 h-4 text-[10px] leading-3 z-10">
+                          ×
+                        </button>
+                        <button
+                          type="button"
+                          onClick={e => { e.stopPropagation(); setFotoAmpliada(vertivCarroPhotos[i]); }}
+                          className="absolute top-0.5 left-0.5 bg-black/55 hover:bg-black/70 text-white rounded-full w-4 h-4 flex items-center justify-center z-10"
+                          aria-label="Ampliar foto"
+                          title="Ampliar foto"
+                        >
+                          <ZoomIn size={10} />
+                        </button>
+                      </>
                     )}
                     <img src={vertivCarroPhotos[i] || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='75'%3E%3Crect width='100%25' height='100%25' fill='%23eee'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%23aaa' font-size='9'%3ESin foto%3C/text%3E%3C/svg%3E"} alt={title} className="w-[92px] h-[70px] object-cover rounded mx-auto mb-1 bg-gray-100" />
                     <button type="button" onClick={() => openDocumentScanner({ type: 'vertivCarro', index: i })} className="w-full bg-[#0E4660] text-white rounded px-1 py-1 mb-1 text-[9px] font-bold">Escanear documento</button>
@@ -2146,9 +2307,20 @@ export default function App() {
                     title="Haz clic aquí y luego pega una imagen con Ctrl+V"
                   >
                     {vertivItemPhotos[i] && (
-                      <button onClick={() => clearVertivItemPhoto(i)} className="absolute top-0.5 right-0.5 bg-red-600 text-white rounded-full w-4 h-4 text-[10px] leading-3">
-                        ×
-                      </button>
+                      <>
+                        <button onClick={() => clearVertivItemPhoto(i)} className="absolute top-0.5 right-0.5 bg-red-600 text-white rounded-full w-4 h-4 text-[10px] leading-3 z-10">
+                          ×
+                        </button>
+                        <button
+                          type="button"
+                          onClick={e => { e.stopPropagation(); setFotoAmpliada(vertivItemPhotos[i]); }}
+                          className="absolute top-0.5 left-0.5 bg-black/55 hover:bg-black/70 text-white rounded-full w-4 h-4 flex items-center justify-center z-10"
+                          aria-label="Ampliar foto"
+                          title="Ampliar foto"
+                        >
+                          <ZoomIn size={10} />
+                        </button>
+                      </>
                     )}
                     <img src={vertivItemPhotos[i] || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='75'%3E%3Crect width='100%25' height='100%25' fill='%23eee'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%23aaa' font-size='9'%3ESin foto%3C/text%3E%3C/svg%3E"} alt={item} className="w-[92px] h-[70px] object-cover rounded mx-auto mb-1 bg-gray-100" />
                     <button type="button" onClick={() => openDocumentScanner({ type: 'vertivItem', index: i })} className="w-full bg-[#0E4660] text-white rounded px-1 py-1 mb-1 text-[9px] font-bold">Escanear documento</button>
@@ -2254,6 +2426,17 @@ export default function App() {
                       >
                         <Trash2 size={12} />
                       </button>
+                      {src && (
+                        <button
+                          type="button"
+                          onClick={e => { e.stopPropagation(); setFotoAmpliada(src); }}
+                          className="absolute top-0.5 left-0.5 bg-black/55 hover:bg-black/70 text-white rounded-full w-5 h-5 flex items-center justify-center z-10"
+                          aria-label="Ampliar foto"
+                          title="Ampliar foto"
+                        >
+                          <ZoomIn size={12} />
+                        </button>
+                      )}
                       <img src={src || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='130' height='98'%3E%3Crect width='100%25' height='100%25' fill='%23eee'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%23aaa' font-size='10'%3EArrastra o pega%3C/text%3E%3C/svg%3E"} alt="Evidencia" className="w-[120px] h-[90px] object-cover rounded mx-auto mb-1 bg-gray-100" />
                       <button type="button" onClick={() => openDocumentScanner({ type: 'evidence', blockIndex: bi, photoIndex: pi })} className="w-full bg-[#0E4660] text-white rounded px-1.5 py-1 mb-1 text-[10px] font-bold">Escanear documento</button>
                       <span className="block text-[10px] text-gray-500">Imagen, cámara o app de escaneo:</span>
@@ -2371,6 +2554,8 @@ export default function App() {
           {toastMessage.text}
         </div>
       )}
+
+      {fotoAmpliada && <VisorFoto src={fotoAmpliada} onClose={() => setFotoAmpliada(null)} />}
     </div>
   );
 }

@@ -1,14 +1,17 @@
 import { useEffect, useState } from 'react';
-import { FileText, FileStack, FolderOpen, ArrowRight, CalendarDays, Bell, FilePlus, Sun, Moon } from 'lucide-react';
+import { FileText, FileStack, FolderOpen, ArrowRight, CalendarDays, Bell, FilePlus, Sun, Moon, Wrench, AlertTriangle, Construction, Printer } from 'lucide-react';
 import logoPsinet from "./assets/logo_psinet.jpg";
 import logoEdificio from "./assets/LogoEdificio.png";
 import {
-  type BorradorEntry,
+  type BorradorEntry, type BorradorOtroEntry,
   hoyLocalISO, semanaDeFecha, formatDiaMes, formatFechaLarga, estadoBorrador, contarFotos, DIAS_POR_TURNO,
+  estadoBorradorGenerico, contarFotosGenerico,
 } from './types';
 
+type TipoBorradorTab = 'diario' | 'mantenimiento' | 'falla';
+
 interface DashboardProps {
-  onNavigate: (view: 'borradores' | 'cierre') => void;
+  onNavigate: (view: 'borradores' | 'cierre' | 'impresion') => void;
   /** Informes de hoy (Día y Noche), guardados o todavía pendientes: la persona elige con cuál trabajar. */
   informesHoy?: BorradorEntry[];
   onAbrirInforme: (entry: BorradorEntry) => void;
@@ -17,10 +20,29 @@ interface DashboardProps {
   borradorCount: number;
   /** Informes de esta semana de turno (hasta hoy) que siguen en borrador, sin finalizar. */
   pendientesCount?: number;
+  /** Borradores guardados en la nube de Mantenimiento e Falla (todos, no solo los de hoy: no dependen del turno). */
+  borradoresMantenimiento?: BorradorOtroEntry[];
+  borradoresFalla?: BorradorOtroEntry[];
+  onNuevoMantenimiento: () => void;
+  onAbrirMantenimiento: (entry: BorradorOtroEntry) => void;
+  onNuevaFalla: () => void;
+  onAbrirFalla: (entry: BorradorOtroEntry) => void;
+  /** Lleva a la pantalla de Borradores ya en la pestaña del tipo indicado. */
+  onVerBorradores: (tipo: TipoBorradorTab) => void;
 }
 
-export default function Dashboard({ onNavigate, borradorCount, pendientesCount = 0, informesHoy = [], onAbrirInforme, onNuevoInforme }: DashboardProps) {
+const ESTADO_OTRO_LABEL: Record<'pendiente' | 'iniciado' | 'finalizado', string> = {
+  pendiente: 'Sin fotos', iniciado: 'Iniciado', finalizado: 'Finalizado',
+};
+
+export default function Dashboard({
+  onNavigate, borradorCount, pendientesCount = 0, informesHoy = [], onAbrirInforme, onNuevoInforme,
+  borradoresMantenimiento = [], borradoresFalla = [],
+  onNuevoMantenimiento, onAbrirMantenimiento, onNuevaFalla, onAbrirFalla, onVerBorradores,
+}: DashboardProps) {
   const [modalInformeOpen, setModalInformeOpen] = useState(false);
+  const [modalMantenimientoOpen, setModalMantenimientoOpen] = useState(false);
+  const [modalFallaOpen, setModalFallaOpen] = useState(false);
 
   // Turno de trabajo (A o B) según el calendario 7x7 y en qué día de su semana va.
   // Día o Noche no se deduce de la hora: cada informe se elige o se crea con su propio turno.
@@ -28,12 +50,15 @@ export default function Dashboard({ onNavigate, borradorCount, pendientesCount =
   const semanaHoy = semanaDeFecha(hoy);
   const diaDelTurno = semanaHoy.dias.indexOf(hoy) + 1;
 
+  const algunModalOpen = modalInformeOpen || modalMantenimientoOpen || modalFallaOpen;
   useEffect(() => {
-    if (!modalInformeOpen) return;
-    const onKeyDown = (event: KeyboardEvent) => { if (event.key === 'Escape') setModalInformeOpen(false); };
+    if (!algunModalOpen) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') { setModalInformeOpen(false); setModalMantenimientoOpen(false); setModalFallaOpen(false); }
+    };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [modalInformeOpen]);
+  }, [algunModalOpen]);
 
   // "Generar Informe Diario": pregunta con cuál de los informes de hoy (Día o Noche) continuar, o si crear uno nuevo
   // (y en ese caso de qué turno). Nunca se elige el turno por la hora.
@@ -45,6 +70,12 @@ export default function Dashboard({ onNavigate, borradorCount, pendientesCount =
     if (estado === 'finalizado') return `Finalizado · ${fotos.llenas} de ${fotos.total} fotos`;
     if (estado === 'iniciado') return `Iniciado · ${fotos.llenas} de ${fotos.total} fotos`;
     return 'Aún sin fotos';
+  };
+
+  const detalleOtro = (entry: BorradorOtroEntry) => {
+    const estado = estadoBorradorGenerico(entry.datos);
+    const fotos = contarFotosGenerico(entry.datos);
+    return `${ESTADO_OTRO_LABEL[estado]} · ${fotos.llenas} de ${fotos.total} fotos`;
   };
 
   return (
@@ -71,7 +102,7 @@ export default function Dashboard({ onNavigate, borradorCount, pendientesCount =
         <div className="site-header__rule" />
       </header>
 
-      <main className="max-w-[1000px] mx-auto p-5 space-y-6">
+      <main className="max-w-[1000px] mx-auto p-5 space-y-8">
         <div>
           <h1 className="font-display font-bold text-2xl text-[#0E4660]">¿Qué necesitas hacer hoy?</h1>
           <p className="text-sm text-gray-500 mt-1">Selecciona una opción para continuar.</p>
@@ -97,61 +128,141 @@ export default function Dashboard({ onNavigate, borradorCount, pendientesCount =
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-          <button
-            type="button"
-            onClick={handleGenerarInforme}
-            className="dashboard-card group text-left"
-          >
-            <div className="dashboard-card__icon bg-[#0E4660]">
-              <FileText size={26} color="#fff" strokeWidth={2} />
-            </div>
-            <h2 className="font-display font-bold text-lg text-[#0E4660] mt-4">Generar Informe Diario</h2>
-            <p className="text-sm text-gray-500 mt-1.5 flex-1">
-              Continúa el informe de hoy (Turno Día o Turno Noche) o crea uno nuevo: personal, actividades, evidencia fotográfica y firmas.
-            </p>
-            <span className="dashboard-card__cta">
-              Comenzar <ArrowRight size={15} className="transition-transform group-hover:translate-x-1" />
-            </span>
-          </button>
+        <section>
+          <h2 className="dashboard-section__title">Informe de turno</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            <button
+              type="button"
+              onClick={handleGenerarInforme}
+              className="dashboard-card dashboard-card--principal group text-left"
+            >
+              <div className="dashboard-card__icon bg-[#0E4660]">
+                <FileText size={26} color="#fff" strokeWidth={2} />
+              </div>
+              <h2 className="font-display font-bold text-lg text-[#0E4660] mt-4">Generar Informe Diario</h2>
+              <p className="text-sm text-gray-500 mt-1.5 flex-1">
+                Continúa el informe de hoy (Turno Día o Turno Noche) o crea uno nuevo: personal, actividades, evidencia fotográfica y firmas.
+              </p>
+              <span className="dashboard-card__cta">
+                Comenzar <ArrowRight size={15} className="transition-transform group-hover:translate-x-1" />
+              </span>
+            </button>
 
-          <button
-            type="button"
-            onClick={() => onNavigate('borradores')}
-            className="dashboard-card group text-left"
-          >
-            <div className="dashboard-card__icon bg-[#F5B300]">
-              <FolderOpen size={26} color="#fff" strokeWidth={2} />
-            </div>
-            <h2 className="font-display font-bold text-lg text-[#0E4660] mt-4">Borradores</h2>
-            <p className="text-sm text-gray-500 mt-1.5 flex-1">
-              Revisa, continúa o elimina los informes guardados de los demás días del turno.
-            </p>
-            <span className="dashboard-card__badge">
-              <CalendarDays size={13} /> {borradorCount} guardado{borradorCount === 1 ? "" : "s"}
-            </span>
-            <span className="dashboard-card__cta">
-              Ver borradores <ArrowRight size={15} className="transition-transform group-hover:translate-x-1" />
-            </span>
-          </button>
+            <button
+              type="button"
+              onClick={() => onNavigate('cierre')}
+              className="dashboard-card group text-left"
+            >
+              <div className="dashboard-card__icon bg-[#ED7D31]">
+                <FileStack size={26} color="#fff" strokeWidth={2} />
+              </div>
+              <h2 className="font-display font-bold text-lg text-[#0E4660] mt-4">Informe de Cierre</h2>
+              <p className="text-sm text-gray-500 mt-1.5 flex-1">
+                Genera el reporte de cierre semanal, uniendo las actividades de los 7 días del turno más las imágenes adicionales solicitadas.
+              </p>
+              <span className="dashboard-card__cta">
+                Generar cierre <ArrowRight size={15} className="transition-transform group-hover:translate-x-1" />
+              </span>
+            </button>
+          </div>
+        </section>
 
-          <button
-            type="button"
-            onClick={() => onNavigate('cierre')}
-            className="dashboard-card group text-left"
-          >
-            <div className="dashboard-card__icon bg-[#ED7D31]">
-              <FileStack size={26} color="#fff" strokeWidth={2} />
-            </div>
-            <h2 className="font-display font-bold text-lg text-[#0E4660] mt-4">Informe de Cierre</h2>
-            <p className="text-sm text-gray-500 mt-1.5 flex-1">
-              Genera el reporte de cierre semanal, uniendo las actividades de los 7 días del turno más las imágenes adicionales solicitadas.
-            </p>
-            <span className="dashboard-card__cta">
-              Generar cierre <ArrowRight size={15} className="transition-transform group-hover:translate-x-1" />
-            </span>
-          </button>
-        </div>
+        <section>
+          <h2 className="dashboard-section__title">
+            Otros informes <span className="dashboard-section__title-badge">Aún en desarrollo</span>
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            <button
+              type="button"
+              onClick={() => setModalMantenimientoOpen(true)}
+              title="Aún en desarrollo: puedes entrar a probarlo y guardar borrador, pero puede tener cambios."
+              className="dashboard-card group text-left opacity-80 hover:opacity-100"
+            >
+              <div className="dashboard-card__icon bg-[#55636B]">
+                <Wrench size={26} color="#fff" strokeWidth={2} />
+              </div>
+              <h2 className="font-display font-bold text-lg text-[#0E4660] mt-4">Mantenimiento de Generador</h2>
+              <p className="text-sm text-gray-500 mt-1.5 flex-1">
+                Genera el informe de mantenimiento preventivo de un generador: registro, descripción, evidencia fotográfica e inspección técnica.
+              </p>
+              <span className="dashboard-card__badge">
+                <Construction size={13} /> Aún en desarrollo
+              </span>
+              {borradoresMantenimiento.length > 0 && (
+                <span className="text-[11px] text-gray-500 mt-1.5">{borradoresMantenimiento.length} borrador{borradoresMantenimiento.length === 1 ? '' : 'es'} guardado{borradoresMantenimiento.length === 1 ? '' : 's'}</span>
+              )}
+              <span className="dashboard-card__cta">
+                Generar informe <ArrowRight size={15} className="transition-transform group-hover:translate-x-1" />
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setModalFallaOpen(true)}
+              title="Aún en desarrollo: puedes entrar a probarlo y guardar borrador, pero puede tener cambios."
+              className="dashboard-card group text-left opacity-80 hover:opacity-100"
+            >
+              <div className="dashboard-card__icon bg-[#B3261E]">
+                <AlertTriangle size={26} color="#fff" strokeWidth={2} />
+              </div>
+              <h2 className="font-display font-bold text-lg text-[#0E4660] mt-4">Informe de Falla — Carro</h2>
+              <p className="text-sm text-gray-500 mt-1.5 flex-1">
+                Genera el reporte de falla de un Carro (Light / LTE): descripción de la falla, solución implementada, verificación final y registro fotográfico.
+              </p>
+              <span className="dashboard-card__badge">
+                <Construction size={13} /> Aún en desarrollo
+              </span>
+              {borradoresFalla.length > 0 && (
+                <span className="text-[11px] text-gray-500 mt-1.5">{borradoresFalla.length} borrador{borradoresFalla.length === 1 ? '' : 'es'} guardado{borradoresFalla.length === 1 ? '' : 's'}</span>
+              )}
+              <span className="dashboard-card__cta">
+                Generar informe <ArrowRight size={15} className="transition-transform group-hover:translate-x-1" />
+              </span>
+            </button>
+          </div>
+        </section>
+
+        <section>
+          <h2 className="dashboard-section__title">Herramientas</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            <button
+              type="button"
+              onClick={() => onNavigate('borradores')}
+              className="dashboard-card group text-left"
+            >
+              <div className="dashboard-card__icon bg-[#F5B300]">
+                <FolderOpen size={26} color="#fff" strokeWidth={2} />
+              </div>
+              <h2 className="font-display font-bold text-lg text-[#0E4660] mt-4">Borradores</h2>
+              <p className="text-sm text-gray-500 mt-1.5 flex-1">
+                Revisa, continúa o elimina los informes guardados: Diario, Mantenimiento y Falla — Carro, cada uno en su pestaña.
+              </p>
+              <span className="dashboard-card__badge">
+                <CalendarDays size={13} /> {borradorCount} guardado{borradorCount === 1 ? "" : "s"}
+              </span>
+              <span className="dashboard-card__cta">
+                Ver borradores <ArrowRight size={15} className="transition-transform group-hover:translate-x-1" />
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => onNavigate('impresion')}
+              className="dashboard-card group text-left"
+            >
+              <div className="dashboard-card__icon bg-[#0E4660]">
+                <Printer size={26} color="#fff" strokeWidth={2} />
+              </div>
+              <h2 className="font-display font-bold text-lg text-[#0E4660] mt-4">Impresión Rápida</h2>
+              <p className="text-sm text-gray-500 mt-1.5 flex-1">
+                Elige qué documentos de faena necesitas y cuántas copias de cada uno, y se juntan en un solo PDF listo para imprimir.
+              </p>
+              <span className="dashboard-card__cta">
+                Elegir e imprimir <ArrowRight size={15} className="transition-transform group-hover:translate-x-1" />
+              </span>
+            </button>
+          </div>
+        </section>
       </main>
 
       {modalInformeOpen && (
@@ -229,6 +340,134 @@ export default function Dashboard({ onNavigate, borradorCount, pendientesCount =
                 onClick={() => setModalInformeOpen(false)}
                 className="border border-[#DCE1E6] text-[#333] rounded-md px-3 py-2 text-sm font-bold hover:bg-gray-50"
               >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {modalMantenimientoOpen && (
+        <div className="fixed inset-0 z-50 bg-black/50 p-4 flex items-center justify-center" onClick={() => setModalMantenimientoOpen(false)}>
+          <div
+            role="dialog"
+            aria-modal="true"
+            className="modal-anim w-full max-w-md bg-white rounded-xl p-6 shadow-xl space-y-4"
+            onClick={event => event.stopPropagation()}
+          >
+            <div>
+              <h2 className="text-lg font-bold text-[#0E4660]">Mantenimiento de Generador</h2>
+              <p className="text-sm text-gray-500 mt-1">Continúa un borrador guardado o crea uno nuevo.</p>
+            </div>
+
+            {borradoresMantenimiento.slice(0, 4).map(entry => (
+              <button
+                key={entry.id}
+                type="button"
+                onClick={() => { setModalMantenimientoOpen(false); onAbrirMantenimiento(entry); }}
+                className="w-full text-left flex items-start gap-3 p-4 rounded-lg border-2 border-[#0E4660] bg-[#f0f6fb] hover:bg-[#e3eff9] transition-colors"
+              >
+                <span className="mt-0.5 flex h-9 w-9 flex-none items-center justify-center rounded-full bg-[#0E4660] text-white">
+                  <Wrench size={16} />
+                </span>
+                <span className="min-w-0">
+                  <span className="block font-display font-bold text-[#0E4660] truncate">{entry.titulo || 'Continuar borrador'}</span>
+                  <span className="block text-xs text-gray-500 mt-0.5">{formatFechaLarga(entry.fecha)}</span>
+                  <span className="block text-xs text-gray-500">{detalleOtro(entry)}</span>
+                </span>
+              </button>
+            ))}
+
+            {borradoresMantenimiento.length > 4 && (
+              <button
+                type="button"
+                onClick={() => { setModalMantenimientoOpen(false); onVerBorradores('mantenimiento'); }}
+                className="text-xs font-bold text-[#0E4660] underline"
+              >
+                Ver los {borradoresMantenimiento.length} borradores guardados
+              </button>
+            )}
+
+            <button
+              type="button"
+              onClick={() => { setModalMantenimientoOpen(false); onNuevoMantenimiento(); }}
+              className="w-full flex items-center gap-3 p-4 rounded-lg border-2 border-[#DCE1E6] bg-white hover:bg-[#f0f6fb] transition-colors text-left"
+            >
+              <span className="flex h-9 w-9 flex-none items-center justify-center rounded-full bg-[#F5B300] text-white">
+                <FilePlus size={16} />
+              </span>
+              <span>
+                <span className="block font-display font-bold text-[#0E4660]">Crear uno nuevo</span>
+                <span className="block text-xs text-gray-500 mt-0.5">Parte en blanco con la fecha de hoy.</span>
+              </span>
+            </button>
+
+            <div className="flex justify-end">
+              <button type="button" onClick={() => setModalMantenimientoOpen(false)} className="border border-[#DCE1E6] text-[#333] rounded-md px-3 py-2 text-sm font-bold hover:bg-gray-50">
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {modalFallaOpen && (
+        <div className="fixed inset-0 z-50 bg-black/50 p-4 flex items-center justify-center" onClick={() => setModalFallaOpen(false)}>
+          <div
+            role="dialog"
+            aria-modal="true"
+            className="modal-anim w-full max-w-md bg-white rounded-xl p-6 shadow-xl space-y-4"
+            onClick={event => event.stopPropagation()}
+          >
+            <div>
+              <h2 className="text-lg font-bold text-[#0E4660]">Informe de Falla — Carro</h2>
+              <p className="text-sm text-gray-500 mt-1">Continúa un borrador guardado o crea uno nuevo.</p>
+            </div>
+
+            {borradoresFalla.slice(0, 4).map(entry => (
+              <button
+                key={entry.id}
+                type="button"
+                onClick={() => { setModalFallaOpen(false); onAbrirFalla(entry); }}
+                className="w-full text-left flex items-start gap-3 p-4 rounded-lg border-2 border-[#0E4660] bg-[#f0f6fb] hover:bg-[#e3eff9] transition-colors"
+              >
+                <span className="mt-0.5 flex h-9 w-9 flex-none items-center justify-center rounded-full bg-[#0E4660] text-white">
+                  <AlertTriangle size={16} />
+                </span>
+                <span className="min-w-0">
+                  <span className="block font-display font-bold text-[#0E4660] truncate">{entry.titulo || 'Continuar borrador'}</span>
+                  <span className="block text-xs text-gray-500 mt-0.5">{formatFechaLarga(entry.fecha)}</span>
+                  <span className="block text-xs text-gray-500">{detalleOtro(entry)}</span>
+                </span>
+              </button>
+            ))}
+
+            {borradoresFalla.length > 4 && (
+              <button
+                type="button"
+                onClick={() => { setModalFallaOpen(false); onVerBorradores('falla'); }}
+                className="text-xs font-bold text-[#0E4660] underline"
+              >
+                Ver los {borradoresFalla.length} borradores guardados
+              </button>
+            )}
+
+            <button
+              type="button"
+              onClick={() => { setModalFallaOpen(false); onNuevaFalla(); }}
+              className="w-full flex items-center gap-3 p-4 rounded-lg border-2 border-[#DCE1E6] bg-white hover:bg-[#f0f6fb] transition-colors text-left"
+            >
+              <span className="flex h-9 w-9 flex-none items-center justify-center rounded-full bg-[#F5B300] text-white">
+                <FilePlus size={16} />
+              </span>
+              <span>
+                <span className="block font-display font-bold text-[#0E4660]">Crear uno nuevo</span>
+                <span className="block text-xs text-gray-500 mt-0.5">Parte en blanco con la fecha de hoy.</span>
+              </span>
+            </button>
+
+            <div className="flex justify-end">
+              <button type="button" onClick={() => setModalFallaOpen(false)} className="border border-[#DCE1E6] text-[#333] rounded-md px-3 py-2 text-sm font-bold hover:bg-gray-50">
                 Cancelar
               </button>
             </div>

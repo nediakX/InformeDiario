@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { ArrowLeft, Trash2, FolderOpen, CalendarDays, Users, Camera, Plus, Cloud, Sun, Moon, History, Download, Loader2 } from 'lucide-react';
+import { ArrowLeft, Trash2, FolderOpen, CalendarDays, Users, Camera, Plus, Cloud, Sun, Moon, History, Download, Loader2, Wrench, AlertTriangle, FileText } from 'lucide-react';
 import logoPsinet from "./assets/logo_psinet.jpg";
 import logoEdificio from "./assets/LogoEdificio.png";
 import {
   type BorradorEntry,
+  type BorradorOtroEntry,
   type SemanaTurno,
   DIAS_POR_TURNO,
   contarFotos,
@@ -15,9 +16,16 @@ import {
   nombreDiaSemana,
   semanaDeFecha,
   sumarDias,
+  contarFotosGenerico,
+  estadoBorradorGenerico,
 } from './types';
 
+type TipoBorradorTab = 'diario' | 'mantenimiento' | 'falla';
+
 interface BorradoresProps {
+  /** Tipo de informe que se está mostrando (Diario / Mantenimiento / Falla): los tres viven en esta misma pantalla. */
+  tipoTab: TipoBorradorTab;
+  onTipoTabChange: (tipo: TipoBorradorTab) => void;
   borradores: BorradorEntry[];
   /** Pestaña activa (Día / Noche); la controla App para poder volver a la del informe que se estaba editando. */
   tab: 'dia' | 'noche';
@@ -30,13 +38,34 @@ interface BorradoresProps {
   /** Descarga el Word de un informe finalizado. */
   onDownload: (entry: BorradorEntry) => void;
   descargandoId: string | null;
+  /** Mantenimiento e Falla: borradores en la nube, sin calendario de turno (uno por carro/generador). */
+  borradoresMantenimiento?: BorradorOtroEntry[];
+  borradoresFalla?: BorradorOtroEntry[];
+  onNuevoMantenimiento: () => void;
+  onAbrirMantenimiento: (entry: BorradorOtroEntry) => void;
+  onNuevaFalla: () => void;
+  onAbrirFalla: (entry: BorradorOtroEntry) => void;
+  onDeleteOtro: (id: string) => void;
 }
 
 const porFechaAsc = (a: BorradorEntry, b: BorradorEntry) => a.fecha.localeCompare(b.fecha);
+const porGuardadoDesc = (a: BorradorOtroEntry, b: BorradorOtroEntry) => b.savedAt.localeCompare(a.savedAt);
 const rangoSemana = (s: SemanaTurno) => `${formatDiaMes(s.inicio)} – ${formatDiaMes(s.fin)}`;
 
-export default function Borradores({ borradores, tab, onTabChange, onOpen, onDelete, onBack, onNew, onDownload, descargandoId }: BorradoresProps) {
+const ESTADOS = {
+  pendiente: { etiqueta: 'Pendiente', clase: 'bg-gray-100 text-gray-500', boton: 'Comenzar' },
+  iniciado: { etiqueta: 'Iniciado', clase: 'bg-[#FFF3CD] text-[#856404]', boton: 'Continuar' },
+  finalizado: { etiqueta: 'Finalizado', clase: 'bg-green-100 text-green-700', boton: 'Abrir' },
+} as const;
+
+export default function Borradores({
+  borradores, tab, onTabChange, onOpen, onDelete, onBack, onNew, onDownload, descargandoId,
+  tipoTab, onTipoTabChange,
+  borradoresMantenimiento = [], borradoresFalla = [],
+  onNuevoMantenimiento, onAbrirMantenimiento, onNuevaFalla, onAbrirFalla, onDeleteOtro,
+}: BorradoresProps) {
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [confirmDeleteOtro, setConfirmDeleteOtro] = useState<{ id: string; onConfirm: () => void } | null>(null);
   const [nuevoOpen, setNuevoOpen] = useState(false);
 
   // Calendario 7x7: solo se muestran los 7 días del turno que está trabajando hoy (A o B).
@@ -71,12 +100,6 @@ export default function Borradores({ borradores, tab, onTabChange, onOpen, onDel
   const chipEnTurno = (
     <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#F5B300] text-white">En turno</span>
   );
-
-  const ESTADOS = {
-    pendiente: { etiqueta: 'Pendiente', clase: 'bg-gray-100 text-gray-500', boton: 'Comenzar' },
-    iniciado: { etiqueta: 'Iniciado', clase: 'bg-[#FFF3CD] text-[#856404]', boton: 'Continuar' },
-    finalizado: { etiqueta: 'Finalizado', clase: 'bg-green-100 text-green-700', boton: 'Abrir' },
-  } as const;
 
   const renderEntry = (entry: BorradorEntry) => {
     const estado = ESTADOS[estadoBorrador(entry)];
@@ -131,6 +154,68 @@ export default function Borradores({ borradores, tab, onTabChange, onOpen, onDel
     );
   };
 
+  // --- Mantenimiento / Falla: sin calendario de turno, un borrador por carro/generador ---
+  const configOtro = tipoTab === 'mantenimiento'
+    ? {
+        titulo: 'Mantenimiento de Generador',
+        icono: <Wrench size={16} />,
+        lista: [...borradoresMantenimiento].sort(porGuardadoDesc),
+        onAbrir: onAbrirMantenimiento,
+        onNuevo: onNuevoMantenimiento,
+        vacio: 'Aún no hay borradores de Mantenimiento. Se crean solos al usar "Nuevo informe" y guardar la primera foto.',
+      }
+    : tipoTab === 'falla'
+    ? {
+        titulo: 'Informe de Falla — Carro',
+        icono: <AlertTriangle size={16} />,
+        lista: [...borradoresFalla].sort(porGuardadoDesc),
+        onAbrir: onAbrirFalla,
+        onNuevo: onNuevaFalla,
+        vacio: 'Aún no hay borradores de Falla. Se crean solos al usar "Nuevo informe" y guardar la primera foto.',
+      }
+    : null;
+
+  const renderEntryOtro = (entry: BorradorOtroEntry) => {
+    const estado = ESTADOS[estadoBorradorGenerico(entry.datos)];
+    const fotos = contarFotosGenerico(entry.datos);
+    return (
+      <div key={entry.id} className="panel p-4 flex flex-col sm:flex-row sm:items-center gap-3">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="font-display font-bold text-base text-[#0E4660] truncate">{entry.titulo || 'Sin título'}</span>
+            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${estado.clase}`}>{estado.etiqueta}</span>
+          </div>
+          <div className="flex items-center gap-4 mt-1.5 text-xs text-gray-500">
+            <span className="flex items-center gap-1"><CalendarDays size={12} /> {formatFechaLarga(entry.fecha)}</span>
+            <span className="flex items-center gap-1">
+              <Camera size={12} /> {fotos.total > 0 ? `${fotos.llenas} de ${fotos.total} fotos` : `${fotos.llenas} fotos`}
+            </span>
+          </div>
+        </div>
+        <div className="flex items-center gap-2 flex-shrink-0">
+          <button type="button" onClick={() => configOtro?.onAbrir(entry)} className="bg-[#0E4660] text-white px-3 py-1.5 rounded-md text-xs font-bold hover:bg-[#0a3549]">
+            {estado.boton}
+          </button>
+          <button
+            type="button"
+            onClick={() => setConfirmDeleteOtro({ id: entry.id, onConfirm: () => onDeleteOtro(entry.id) })}
+            className="bg-red-50 text-red-700 p-2 rounded-md hover:bg-red-100"
+            aria-label="Eliminar borrador"
+            title="Eliminar borrador"
+          >
+            <Trash2 size={15} />
+          </button>
+        </div>
+      </div>
+    );
+  };
+
+  const TIPOS_TAB = [
+    { key: 'diario' as const, titulo: 'Informe Diario', icono: <FileText size={15} />, count: borradores.filter(b => !esSemillaSinEditar(b)).length },
+    { key: 'mantenimiento' as const, titulo: 'Mantenimiento', icono: <Wrench size={15} />, count: borradoresMantenimiento.length },
+    { key: 'falla' as const, titulo: 'Falla — Carro', icono: <AlertTriangle size={15} />, count: borradoresFalla.length },
+  ];
+
   return (
     <div className="min-h-screen text-[#222] font-sans pb-20">
       <header className="site-header">
@@ -160,90 +245,143 @@ export default function Borradores({ borradores, tab, onTabChange, onOpen, onDel
           <button type="button" onClick={onBack} className="btn-outline text-[#0E4660] px-3 py-1.5 rounded-md text-xs font-bold hover:bg-[#d5e7f8] flex items-center gap-1.5">
             <ArrowLeft size={14} /> Volver al menú
           </button>
-          <button type="button" onClick={() => setNuevoOpen(true)} className="bg-[#0E4660] text-white px-3 py-1.5 rounded-md text-xs font-bold hover:bg-[#0a3549] flex items-center gap-1.5">
-            <Plus size={14} /> Nuevo informe diario
-          </button>
+          {tipoTab === 'diario' ? (
+            <button type="button" onClick={() => setNuevoOpen(true)} className="bg-[#0E4660] text-white px-3 py-1.5 rounded-md text-xs font-bold hover:bg-[#0a3549] flex items-center gap-1.5">
+              <Plus size={14} /> Nuevo informe diario
+            </button>
+          ) : (
+            <button type="button" onClick={configOtro?.onNuevo} className="bg-[#0E4660] text-white px-3 py-1.5 rounded-md text-xs font-bold hover:bg-[#0a3549] flex items-center gap-1.5">
+              <Plus size={14} /> Nuevo informe
+            </button>
+          )}
         </div>
 
-        <div className="panel p-5">
-          <div className="flex items-center gap-2 mb-1 flex-wrap">
-            <CalendarDays size={18} className="text-[#0E4660]" />
-            <h2 className="font-display font-bold text-lg text-[#0E4660]">Turno {semana.letra} · {rangoSemana(semana)}</h2>
-            {chipEnTurno}
-          </div>
-          <p className="text-xs text-gray-500">
-            Aquí aparecen los 7 días del turno según el calendario 7x7. Cada informe queda <b>Pendiente</b> hasta que adjuntas su primera foto:
-            entonces se guarda en Supabase como <b>Iniciado</b>, y pasa a <b>Finalizado</b> cuando están todas las fotos. El {formatDiaMes(proxima.inicio)} empieza
-            el Turno {proxima.letra} y aquí aparecerán sus 7 días; esta semana pasará a "Semanas anteriores".
-          </p>
-          <div className="flex items-center justify-between gap-2 text-sm text-gray-500 mt-3">
-            <span className="font-bold text-[#0E4660]">{tituloTab}</span>
-            <span>{finalizados} finalizado{finalizados === 1 ? '' : 's'} · {enCurso} en curso · de {DIAS_POR_TURNO} días</span>
-          </div>
-          <div className="w-full h-2 bg-gray-100 rounded-full mt-1.5 overflow-hidden flex">
-            <div className="h-full bg-green-500 transition-all" style={{ width: `${Math.min(100, (finalizados / DIAS_POR_TURNO) * 100)}%` }} />
-            <div className="h-full bg-[#F5B300] transition-all" style={{ width: `${Math.min(100 - (finalizados / DIAS_POR_TURNO) * 100, (enCurso / DIAS_POR_TURNO) * 100)}%` }} />
-          </div>
-        </div>
-
-        <div role="tablist" aria-label="Turno" className="flex gap-2">
-          {turnos.map(t => {
-            const activo = tab === t.key;
+        <div role="tablist" aria-label="Tipo de informe" className="flex gap-2 flex-wrap">
+          {TIPOS_TAB.map(t => {
+            const activo = tipoTab === t.key;
             return (
               <button
                 key={t.key}
                 type="button"
                 role="tab"
                 aria-selected={activo}
-                onClick={() => onTabChange(t.key)}
-                className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-bold border transition-colors ${
-                  activo
-                    ? 'bg-[#0E4660] text-white border-[#0E4660]'
-                    : 'bg-white text-[#0E4660] border-[#DCE1E6] hover:bg-[#f0f6fb]'
+                onClick={() => onTipoTabChange(t.key)}
+                className={`flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-bold border transition-colors ${
+                  activo ? 'bg-[#0E4660] text-white border-[#0E4660]' : 'bg-white text-[#0E4660] border-[#DCE1E6] hover:bg-[#f0f6fb]'
                 }`}
               >
                 {t.icono} {t.titulo}
-                <span className={`text-[11px] px-1.5 py-0.5 rounded-full ${activo ? 'bg-white/20' : 'bg-gray-100 text-gray-500'}`}>
-                  {delTurnoActual(t.key).length}
-                </span>
+                <span className={`text-[11px] px-1.5 py-0.5 rounded-full ${activo ? 'bg-white/20' : 'bg-gray-100 text-gray-500'}`}>{t.count}</span>
               </button>
             );
           })}
         </div>
 
-        {lista.length === 0 ? (
-          <div className="panel p-8 text-center text-gray-500">
-            <FolderOpen size={32} className="mx-auto mb-2 text-gray-300" />
-            <p className="text-sm">
-              {borradores.length === 0
-                ? 'Aún no hay borradores. Los informes del turno aparecerán aquí automáticamente; también puedes crear uno con "Nuevo informe diario".'
-                : `No hay informes de ${tituloTab} en esta semana del Turno ${semana.letra}.`}
-            </p>
-          </div>
-        ) : (
-          <div className="space-y-3">{lista.map(renderEntry)}</div>
-        )}
-
-        {totalAnteriores > 0 && (
-          <details className="panel p-5">
-            <summary className="panel__summary font-display font-bold text-lg">
-              <History size={18} className="panel__summary-icon" strokeWidth={2.2} />
-              Semanas anteriores · {tituloTab} ({totalAnteriores})
-            </summary>
-            <div className="space-y-5 mt-4">
-              {gruposAnteriores.map(({ semana: sem, entries }) => (
-                <div key={sem.inicio} className="space-y-3">
-                  <div className="text-sm font-bold text-[#0E4660]">
-                    Turno {sem.letra} · {rangoSemana(sem)}
-                    <span className="ml-2 text-xs font-normal text-gray-500">
-                      {entries.length} informe{entries.length === 1 ? '' : 's'} guardado{entries.length === 1 ? '' : 's'}
-                    </span>
-                  </div>
-                  {entries.map(renderEntry)}
-                </div>
-              ))}
+        {tipoTab === 'diario' ? (
+          <>
+            <div className="panel p-5">
+              <div className="flex items-center gap-2 mb-1 flex-wrap">
+                <CalendarDays size={18} className="text-[#0E4660]" />
+                <h2 className="font-display font-bold text-lg text-[#0E4660]">Turno {semana.letra} · {rangoSemana(semana)}</h2>
+                {chipEnTurno}
+              </div>
+              <p className="text-xs text-gray-500">
+                Aquí aparecen los 7 días del turno según el calendario 7x7. Cada informe queda <b>Pendiente</b> hasta que adjuntas su primera foto:
+                entonces se guarda en Supabase como <b>Iniciado</b>, y pasa a <b>Finalizado</b> cuando están todas las fotos. El {formatDiaMes(proxima.inicio)} empieza
+                el Turno {proxima.letra} y aquí aparecerán sus 7 días; esta semana pasará a "Semanas anteriores".
+              </p>
+              <div className="flex items-center justify-between gap-2 text-sm text-gray-500 mt-3">
+                <span className="font-bold text-[#0E4660]">{tituloTab}</span>
+                <span>{finalizados} finalizado{finalizados === 1 ? '' : 's'} · {enCurso} en curso · de {DIAS_POR_TURNO} días</span>
+              </div>
+              <div className="w-full h-2 bg-gray-100 rounded-full mt-1.5 overflow-hidden flex">
+                <div className="h-full bg-green-500 transition-all" style={{ width: `${Math.min(100, (finalizados / DIAS_POR_TURNO) * 100)}%` }} />
+                <div className="h-full bg-[#F5B300] transition-all" style={{ width: `${Math.min(100 - (finalizados / DIAS_POR_TURNO) * 100, (enCurso / DIAS_POR_TURNO) * 100)}%` }} />
+              </div>
             </div>
-          </details>
+
+            <div role="tablist" aria-label="Turno" className="flex gap-2">
+              {turnos.map(t => {
+                const activo = tab === t.key;
+                return (
+                  <button
+                    key={t.key}
+                    type="button"
+                    role="tab"
+                    aria-selected={activo}
+                    onClick={() => onTabChange(t.key)}
+                    className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-bold border transition-colors ${
+                      activo
+                        ? 'bg-[#0E4660] text-white border-[#0E4660]'
+                        : 'bg-white text-[#0E4660] border-[#DCE1E6] hover:bg-[#f0f6fb]'
+                    }`}
+                  >
+                    {t.icono} {t.titulo}
+                    <span className={`text-[11px] px-1.5 py-0.5 rounded-full ${activo ? 'bg-white/20' : 'bg-gray-100 text-gray-500'}`}>
+                      {delTurnoActual(t.key).length}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {lista.length === 0 ? (
+              <div className="panel p-8 text-center text-gray-500">
+                <FolderOpen size={32} className="mx-auto mb-2 text-gray-300" />
+                <p className="text-sm">
+                  {borradores.length === 0
+                    ? 'Aún no hay borradores. Los informes del turno aparecerán aquí automáticamente; también puedes crear uno con "Nuevo informe diario".'
+                    : `No hay informes de ${tituloTab} en esta semana del Turno ${semana.letra}.`}
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-3">{lista.map(renderEntry)}</div>
+            )}
+
+            {totalAnteriores > 0 && (
+              <details className="panel p-5">
+                <summary className="panel__summary font-display font-bold text-lg">
+                  <History size={18} className="panel__summary-icon" strokeWidth={2.2} />
+                  Semanas anteriores · {tituloTab} ({totalAnteriores})
+                </summary>
+                <div className="space-y-5 mt-4">
+                  {gruposAnteriores.map(({ semana: sem, entries }) => (
+                    <div key={sem.inicio} className="space-y-3">
+                      <div className="text-sm font-bold text-[#0E4660]">
+                        Turno {sem.letra} · {rangoSemana(sem)}
+                        <span className="ml-2 text-xs font-normal text-gray-500">
+                          {entries.length} informe{entries.length === 1 ? '' : 's'} guardado{entries.length === 1 ? '' : 's'}
+                        </span>
+                      </div>
+                      {entries.map(renderEntry)}
+                    </div>
+                  ))}
+                </div>
+              </details>
+            )}
+          </>
+        ) : (
+          <>
+            <div className="panel p-5">
+              <div className="flex items-center gap-2 mb-1 flex-wrap">
+                {configOtro?.icono}
+                <h2 className="font-display font-bold text-lg text-[#0E4660]">{configOtro?.titulo}</h2>
+              </div>
+              <p className="text-xs text-gray-500">
+                Estos borradores no dependen del calendario de turno: cada uno es un carro o un generador distinto, y quedan guardados
+                hasta que los termines o los elimines. Se guardan en la nube apenas tienen la primera foto.
+              </p>
+            </div>
+
+            {(configOtro?.lista.length ?? 0) === 0 ? (
+              <div className="panel p-8 text-center text-gray-500">
+                <FolderOpen size={32} className="mx-auto mb-2 text-gray-300" />
+                <p className="text-sm">{configOtro?.vacio}</p>
+              </div>
+            ) : (
+              <div className="space-y-3">{configOtro?.lista.map(renderEntryOtro)}</div>
+            )}
+          </>
         )}
       </main>
 
@@ -289,6 +427,27 @@ export default function Borradores({ borradores, tab, onTabChange, onOpen, onDel
               <button
                 type="button"
                 onClick={() => { onDelete(confirmDeleteId); setConfirmDeleteId(null); }}
+                className="bg-red-700 text-white rounded-md px-3 py-2 text-sm font-bold hover:bg-red-800"
+              >
+                Eliminar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {confirmDeleteOtro && (
+        <div className="fixed inset-0 z-50 bg-black/50 p-4 flex items-center justify-center">
+          <div className="modal-anim w-full max-w-md bg-white rounded-xl p-6 shadow-xl space-y-4">
+            <h2 className="text-lg font-bold text-[#0E4660]">Eliminar borrador</h2>
+            <p className="text-sm text-gray-600">Esta acción no se puede deshacer. ¿Deseas eliminar este borrador?</p>
+            <div className="flex justify-end gap-2">
+              <button type="button" onClick={() => setConfirmDeleteOtro(null)} className="border border-[#DCE1E6] text-[#333] rounded-md px-3 py-2 text-sm font-bold hover:bg-gray-50">
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={() => { confirmDeleteOtro.onConfirm(); setConfirmDeleteOtro(null); }}
                 className="bg-red-700 text-white rounded-md px-3 py-2 text-sm font-bold hover:bg-red-800"
               >
                 Eliminar

@@ -3,10 +3,11 @@ import * as docx from 'docx';
 import { saveAs } from 'file-saver';
 import {
   ArrowLeft, Loader2, FileStack, CalendarRange, ImagePlus, Trash2, CircleCheckBig, Circle,
-  Plus, ListTodo, Car, Wrench,
+  Plus, ListTodo, Car, Wrench, ZoomIn,
 } from 'lucide-react';
 import logoPsinet from "./assets/logo_psinet.jpg";
 import logoEdificio from "./assets/LogoEdificio.png";
+import VisorFoto from './Visorfoto';
 import {
   type BorradorEntry,
   fetchBorradores,
@@ -95,6 +96,7 @@ export default function InformeCierre({ onBack }: InformeCierreProps) {
   const [selectedPhotoSlot, setSelectedPhotoSlot] = useState<{ type: 'seccion' | 'camionetaAntes' | 'camionetaDespues'; id: string; photoIndex?: number } | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [toastMessage, setToastMessage] = useState<{ text: string; isError?: boolean } | null>(null);
+  const [fotoAmpliada, setFotoAmpliada] = useState<string | null>(null);
 
   const META_DIAS = 7;
 
@@ -705,6 +707,17 @@ export default function InformeCierre({ onBack }: InformeCierreProps) {
                         <button type="button" onClick={e => { e.stopPropagation(); removeFotoDeSeccion(seccion.id, pi); }} className="absolute top-0.5 right-0.5 bg-red-600 text-white rounded-full w-5 h-5 flex items-center justify-center hover:bg-red-700">
                           <Trash2 size={12} />
                         </button>
+                        {src && (
+                          <button
+                            type="button"
+                            onClick={e => { e.stopPropagation(); setFotoAmpliada(src); }}
+                            className="absolute top-0.5 left-0.5 bg-black/55 hover:bg-black/70 text-white rounded-full w-5 h-5 flex items-center justify-center z-10"
+                            aria-label="Ampliar foto"
+                            title="Ampliar foto"
+                          >
+                            <ZoomIn size={12} />
+                          </button>
+                        )}
                         <img src={src || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='75'%3E%3Crect width='100%25' height='100%25' fill='%23eee'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%23aaa' font-size='9'%3ESin foto%3C/text%3E%3C/svg%3E"} alt="" className="w-[110px] h-[82px] object-cover rounded mx-auto mb-1 bg-gray-100" />
                         <input type="file" accept="image/*" onChange={e => e.target.files?.[0] && assignFotoSeccion(e.target.files[0], seccion.id, pi)} className="text-[9px] w-full" />
                       </div>
@@ -738,6 +751,17 @@ export default function InformeCierre({ onBack }: InformeCierreProps) {
                       className={`photo-slot text-center text-[10px] text-gray-500 relative border-2 border-dashed rounded-md p-1 bg-white cursor-pointer ${selectedPhotoSlot?.id === c.id && selectedPhotoSlot.type === (cual === 'antes' ? 'camionetaAntes' : 'camionetaDespues') ? 'border-[#0E4660] ring-2 ring-[#0E4660]/20' : 'border-gray-300'}`}
                     >
                       <span className="block text-[10px] font-bold uppercase text-gray-500 mb-1">{cual}</span>
+                      {c[cual] && (
+                        <button
+                          type="button"
+                          onClick={e => { e.stopPropagation(); setFotoAmpliada(c[cual]); }}
+                          className="absolute top-0.5 left-0.5 bg-black/55 hover:bg-black/70 text-white rounded-full w-5 h-5 flex items-center justify-center z-10"
+                          aria-label="Ampliar foto"
+                          title="Ampliar foto"
+                        >
+                          <ZoomIn size={12} />
+                        </button>
+                      )}
                       <img src={c[cual] || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='90'%3E%3Crect width='100%25' height='100%25' fill='%23eee'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%23aaa' font-size='9'%3ESin foto%3C/text%3E%3C/svg%3E"} alt={cual} className="w-full h-[90px] object-cover rounded mb-1 bg-gray-100" />
                       <input type="file" accept="image/*" onChange={e => e.target.files?.[0] && assignCamionetaFoto(e.target.files[0], c.id, cual)} className="text-[9px] w-full" />
                     </div>
@@ -759,7 +783,18 @@ export default function InformeCierre({ onBack }: InformeCierreProps) {
             <p className="text-xs font-bold text-[#6B6B6B] mb-2">Evidencia fotográfica (automática)</p>
             {fotoReportabilidad ? (
               <div className="flex items-center gap-3">
-                <img src={fotoReportabilidad.src} alt="Evidencia Reportabilidad GG" className="w-[140px] h-[70px] object-cover rounded border border-[#DCE1E6] bg-gray-100" />
+                <button
+                  type="button"
+                  onClick={() => setFotoAmpliada(fotoReportabilidad.src)}
+                  className="relative flex-shrink-0 group"
+                  aria-label="Ampliar foto de Reportabilidad GG"
+                  title="Ampliar foto"
+                >
+                  <img src={fotoReportabilidad.src} alt="Evidencia Reportabilidad GG" className="w-[140px] h-[70px] object-cover rounded border border-[#DCE1E6] bg-gray-100" />
+                  <span className="absolute top-0.5 left-0.5 bg-black/55 group-hover:bg-black/70 text-white rounded-full w-5 h-5 flex items-center justify-center">
+                    <ZoomIn size={12} />
+                  </span>
+                </button>
                 <p className="text-xs text-gray-500">
                   Se toma del Registro de mantenimiento de GG del informe del {formatFechaLarga(fotoReportabilidad.fecha)}.
                   {!fotoReportabilidad.esUltimoDia && ' El último día seleccionado no tiene esa foto, por eso se usa la del día anterior más cercano.'}
@@ -789,6 +824,8 @@ export default function InformeCierre({ onBack }: InformeCierreProps) {
           {toastMessage.text}
         </div>
       )}
+
+      {fotoAmpliada && <VisorFoto src={fotoAmpliada} onClose={() => setFotoAmpliada(null)} />}
     </div>
   );
 }
