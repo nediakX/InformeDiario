@@ -8,6 +8,16 @@ interface ImpresionRapidaProps {
   onBack: () => void;
 }
 
+/**
+ * TS tipa Uint8Array.buffer como ArrayBufferLike (incluye SharedArrayBuffer),
+ * pero Blob exige específicamente ArrayBuffer. pdf-lib siempre devuelve un
+ * Uint8Array respaldado por un ArrayBuffer real; esta función solo ajusta
+ * el tipo para el compilador, recortando al rango exacto de bytes.
+ */
+function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
+  return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
+}
+
 interface DocumentoImprimible {
   id: string;
   nombre: string;
@@ -154,10 +164,10 @@ export default function ImpresionRapida({ onBack }: ImpresionRapidaProps) {
       }
 
       const simpleUrl = paginasSimple > 0
-        ? URL.createObjectURL(new Blob([await pdfSimple.save()], { type: 'application/pdf' }))
+        ? URL.createObjectURL(new Blob([toArrayBuffer(await pdfSimple.save())], { type: 'application/pdf' }))
         : null;
       const dobleUrl = paginasDoble > 0
-        ? URL.createObjectURL(new Blob([await pdfDoble.save()], { type: 'application/pdf' }))
+        ? URL.createObjectURL(new Blob([toArrayBuffer(await pdfDoble.save())], { type: 'application/pdf' }))
         : null;
 
       setResultado({
