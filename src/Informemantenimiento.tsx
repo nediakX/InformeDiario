@@ -1,12 +1,12 @@
-import { useState, useEffect, useRef, type Dispatch, type SetStateAction } from 'react';
+import { useState, useEffect, useRef, type Dispatch, type SetStateAction, type ClipboardEvent } from 'react';
 import * as docx from 'docx';
 import { saveAs } from 'file-saver';
 import {
-  ArrowLeft, Loader2, Wrench, ClipboardList, Camera, Gauge, ListChecks, Plus, Trash2, Save, X, ZoomIn,
+  ArrowLeft, Loader2, Wrench, ClipboardList, Camera, Gauge, ListChecks, Plus, Trash2, Save, X, Copy,
 } from 'lucide-react';
 import logoPsinet from "./assets/logo_psinet.jpg";
 import logoEdificio from "./assets/LogoEdificio.png";
-import VisorFoto from './Visorfoto';
+import VisorFoto, { copiarImagenAlPortapapel } from './Visorfoto';
 import {
   hoyLocalISO, formatFechaLarga, dataUrlToUint8Array, urlToBase64, resolveImageBytes, BLUE, ORANGE,
   type BorradorOtroEntry, upsertBorradorOtro, deleteBorradorOtro,
@@ -131,6 +131,14 @@ const DEFAULT_FILTROS: Omit<FiltroItem, 'id'>[] = [
   { nombre: "FILTRO DE COMBUSTIBLE", estado: "OK", tipo: "FS01275", observaciones: "Filtro nuevo" },
 ];
 
+// --- Listado de carros / sitios (mismo listado que usa el Informe de Falla) ---
+const CARRO_OPCIONES: string[] = [
+  "LTE_CMF_01", "LTE_CMF_02", "LTE_CMF_04", "LTE_CMF_08", "LTE_CMF_09",
+  "LTE_CMM_03", "LTE_CMM_05", "LTE_CMM_06", "LTE_CMM_07", "LTE_CMM_10",
+  "LTE_11", "MMOO_01",
+];
+const SITIO_OPCIONES: string[] = CARRO_OPCIONES.map(c => c.replace(/_/g, " "));
+
 const withIds = <T,>(items: T[]): (T & { id: string })[] => items.map(item => ({ ...item, id: uid() }));
 
 export default function InformeMantenimiento({ onBack, borradorInicial = null }: InformeMantenimientoProps) {
@@ -139,7 +147,7 @@ export default function InformeMantenimiento({ onBack, borradorInicial = null }:
   const [creadoNombre, setCreadoNombre] = useState("Ricardo Riquelme.");
   const [creadoCargo, setCreadoCargo] = useState("Ingeniero Electromecánico");
   const [revisadoText, setRevisadoText] = useState("Jefe de Turno\nJuan Saavedra\nLuis Fernandez\nSupervisor de Operación");
-  const [sitio, setSitio] = useState("LTE CMF 11");
+  const [sitio, setSitio] = useState(SITIO_OPCIONES[0]);
   const [modeloGenerador, setModeloGenerador] = useState("Cummins C17D5");
 
   // --- Tabla REGISTRO ---
@@ -158,6 +166,9 @@ export default function InformeMantenimiento({ onBack, borradorInicial = null }:
 
   // --- Registro fotográfico ---
   const [fotos, setFotos] = useState<FotoItem[]>(() => withIds(DEFAULT_FOTOS).map(f => ({ ...f, photo: null })));
+  // Referencia siempre actualizada a "fotos", para que el handler de pegado (Ctrl+V) no use una lista desactualizada.
+  const fotosRef = useRef<FotoItem[]>(fotos);
+  useEffect(() => { fotosRef.current = fotos; }, [fotos]);
 
   // --- Programa de mantenimiento ---
   const [horasPlan, setHorasPlan] = useState("1750");
@@ -184,6 +195,7 @@ export default function InformeMantenimiento({ onBack, borradorInicial = null }:
   const [isGenerating, setIsGenerating] = useState(false);
   const [toastMessage, setToastMessage] = useState<{ text: string; isError?: boolean } | null>(null);
   const [fotoAmpliada, setFotoAmpliada] = useState<string | null>(null);
+  const [selectedFotoId, setSelectedFotoId] = useState<string | null>(null);
 
   // --- Borrador en la nube (compartido con el equipo, igual que Informe Diario) ---
   const borradorCargadoRef = useRef(false);
@@ -307,6 +319,11 @@ export default function InformeMantenimiento({ onBack, borradorInicial = null }:
     setTimeout(() => setToastMessage(null), 3500);
   };
 
+  const handleCopiarFoto = async (src: string) => {
+    const ok = await copiarImagenAlPortapapel(src);
+    showToast(ok ? "Imagen copiada al portapapeles." : "No se pudo copiar la imagen.", !ok);
+  };
+
   // --- Helpers de listas simples (componentes / trabajos) ---
   const updateListItem = (setter: Dispatch<SetStateAction<string[]>>, i: number, value: string) =>
     setter(prev => prev.map((v, idx) => (idx === i ? value : v)));
@@ -320,6 +337,44 @@ export default function InformeMantenimiento({ onBack, borradorInicial = null }:
   const assignFoto = async (id: string, file: File) => updateFoto(id, { photo: await fileToDataUrl(file) });
   const addFoto = () => setFotos(prev => [...prev, { id: uid(), section: "", caption: "", description: "", photo: null }]);
   const removeFoto = (id: string) => setFotos(prev => prev.filter(f => f.id !== id));
+
+  // Tras pegar una foto, selecciona automáticamente la siguiente casilla (o crea una nueva al final
+  // si ya no quedan) para poder seguir pegando con Ctrl+V de corrido, sin volver a hacer clic cada vez.
+  const avanzarSeleccionFoto = (idActual: string) => {
+    const lista = fotosRef.current;
+    const idx = lista.findIndex(f => f.id === idActual);
+    if (idx === -1) return;
+    if (idx + 1 < lista.length) {
+      setSelectedFotoId(lista[idx + 1].id);
+    } else {
+      const nueva: FotoItem = { id: uid(), section: "", caption: "", description: "", photo: null };
+      setFotos(prev => [...prev, nueva]);
+      setSelectedFotoId(nueva.id);
+    }
+  };
+
+  // Permite pegar una imagen (Ctrl+V) directamente sobre la casilla seleccionada, igual que en el Informe de Cierre.
+  useEffect(() => {
+    const handleDocumentPaste = (event: Event) => {
+      if (!selectedFotoId) return;
+      const clipboardEvent = event as unknown as ClipboardEvent<Document>;
+      const items = clipboardEvent.clipboardData?.items;
+      if (!items) return;
+      for (const item of Array.from(items)) {
+        if (item.type.startsWith('image/')) {
+          const file = item.getAsFile();
+          if (file) {
+            void assignFoto(selectedFotoId, file);
+            avanzarSeleccionFoto(selectedFotoId);
+          }
+          break;
+        }
+      }
+    };
+    document.addEventListener('paste', handleDocumentPaste as unknown as EventListener);
+    return () => document.removeEventListener('paste', handleDocumentPaste as unknown as EventListener);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedFotoId]);
 
   // --- Repuestos / plan preventivo / filtros / verificaciones ---
   const updateRow = <T extends { id: string }>(setter: Dispatch<SetStateAction<T[]>>, id: string, patch: Partial<T>) =>
@@ -423,15 +478,18 @@ export default function InformeMantenimiento({ onBack, borradorInicial = null }:
         new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "DE GENERADOR", size: 52, font: "Arial", bold: true, color: "000000" })] }),
         new Paragraph({ text: "" }),
         new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: sitio, bold: true, size: 36, font: "Arial", color: BLUE })] }),
+      ];
+
+      // Fecha / Creado por / Revisado por: columna angosta a la derecha, alineados a la derecha.
+      const coverRightChildren: docx.Paragraph[] = [
+        new Paragraph({ alignment: AlignmentType.RIGHT, children: [new TextRun({ text: formatFechaLarga(fecha), size: 20, font: "Arial" })] }),
         new Paragraph({ text: "" }),
-        new Paragraph({ children: [new TextRun({ text: formatFechaLarga(fecha), size: 24, font: "Arial" })] }),
+        new Paragraph({ alignment: AlignmentType.RIGHT, children: [new TextRun({ text: "Creado por:", size: 18, font: "Arial", bold: true })] }),
+        new Paragraph({ alignment: AlignmentType.RIGHT, children: [new TextRun({ text: creadoNombre, size: 18, font: "Arial" })] }),
+        new Paragraph({ alignment: AlignmentType.RIGHT, children: [new TextRun({ text: `Cargo: ${creadoCargo}`, size: 18, font: "Arial" })] }),
         new Paragraph({ text: "" }),
-        new Paragraph({ children: [new TextRun({ text: "Creado por:", size: 20, font: "Arial", bold: true })] }),
-        new Paragraph({ children: [new TextRun({ text: creadoNombre, size: 20, font: "Arial" })] }),
-        new Paragraph({ children: [new TextRun({ text: `Cargo: ${creadoCargo}`, size: 20, font: "Arial" })] }),
-        new Paragraph({ text: "" }),
-        new Paragraph({ children: [new TextRun({ text: "Revisado por:", size: 20, font: "Arial", bold: true })] }),
-        ...revisadoPor.map(line => new Paragraph({ children: [new TextRun({ text: line, size: 20, font: "Arial" })] })),
+        new Paragraph({ alignment: AlignmentType.RIGHT, children: [new TextRun({ text: "Revisado por:", size: 18, font: "Arial", bold: true })] }),
+        ...revisadoPor.map(line => new Paragraph({ alignment: AlignmentType.RIGHT, children: [new TextRun({ text: line, size: 18, font: "Arial" })] })),
       ];
 
       const coverTable = new Table({
@@ -446,7 +504,7 @@ export default function InformeMantenimiento({ onBack, borradorInicial = null }:
               width: { size: 2360, type: WidthType.DXA },
               borders: { top: { style: BorderStyle.NONE }, bottom: { style: BorderStyle.NONE }, right: { style: BorderStyle.NONE }, left: { style: BorderStyle.SINGLE, size: 18, color: ORANGE } },
               margins: { left: 300, top: 100, bottom: 100 },
-              children: [new Paragraph({ text: "" })],
+              children: coverRightChildren,
             }),
           ],
         })],
@@ -506,14 +564,24 @@ export default function InformeMantenimiento({ onBack, borradorInicial = null }:
 
       const fotoBlocks: (docx.Paragraph | docx.Table)[] = [
         new Paragraph({ text: "", pageBreakBefore: true }),
-        new Paragraph({ heading: HeadingLevel.HEADING_1, children: [new TextRun({ text: `Registro fotográfico del mantenimiento del generador ${modeloGenerador}`, color: BLUE, size: 26, font: "Arial", bold: true })] }),
+        new Paragraph({ heading: HeadingLevel.HEADING_1, keepNext: true, children: [new TextRun({ text: `Registro fotográfico del mantenimiento del generador ${modeloGenerador}`, color: BLUE, size: 26, font: "Arial", bold: true })] }),
       ];
 
       let seccionAnterior = "__none__";
+      let primeraSeccion = true;
       for (let i = 0; i < fotos.length; ) {
         const item = fotos[i];
         if (item.section && item.section !== seccionAnterior) {
-          fotoBlocks.push(new Paragraph({ heading: HeadingLevel.HEADING_2, spacing: { before: 200 }, children: [new TextRun({ text: item.section, color: BLUE, size: 22, font: "Arial", bold: true })] }));
+          // Cada sección nueva (salvo la primera) arranca en página limpia, para que el título
+          // no quede separado de sus fotos por un salto de página automático.
+          fotoBlocks.push(new Paragraph({
+            heading: HeadingLevel.HEADING_2,
+            keepNext: true,
+            pageBreakBefore: !primeraSeccion,
+            spacing: { before: 200 },
+            children: [new TextRun({ text: item.section, color: BLUE, size: 22, font: "Arial", bold: true })],
+          }));
+          primeraSeccion = false;
         }
         seccionAnterior = item.section || seccionAnterior;
 
@@ -528,7 +596,7 @@ export default function InformeMantenimiento({ onBack, borradorInicial = null }:
           width: { size: 100, type: WidthType.PERCENTAGE },
           layout: TableLayoutType.FIXED,
           columnWidths: pair.map(() => Math.floor(9360 / pair.length)),
-          rows: [new TableRow({ children: cells })],
+          rows: [new TableRow({ cantSplit: false, children: cells })],
         }));
         i += pair.length;
       }
@@ -791,7 +859,9 @@ export default function InformeMantenimiento({ onBack, borradorInicial = null }:
             </div>
             <div>
               <label className="block text-xs text-[#6B6B6B] font-bold mb-1">Sitio / Nombre emplazamiento</label>
-              <input type="text" value={sitio} onChange={e => setSitio(e.target.value)} className="w-full p-2 border border-[#DCE1E6] rounded-md text-sm" placeholder="Ej: LTE CMF 11" />
+              <select value={sitio} onChange={e => setSitio(e.target.value)} className="w-full p-2 border border-[#DCE1E6] rounded-md text-sm bg-white">
+                {SITIO_OPCIONES.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
             </div>
             <div>
               <label className="block text-xs text-[#6B6B6B] font-bold mb-1">Creado por — Nombre</label>
@@ -800,18 +870,6 @@ export default function InformeMantenimiento({ onBack, borradorInicial = null }:
             <div>
               <label className="block text-xs text-[#6B6B6B] font-bold mb-1">Creado por — Cargo</label>
               <input type="text" value={creadoCargo} onChange={e => setCreadoCargo(e.target.value)} className="w-full p-2 border border-[#DCE1E6] rounded-md text-sm" />
-            </div>
-            <div>
-              <label className="block text-xs text-[#6B6B6B] font-bold mb-1">Modelo del generador</label>
-              <input type="text" value={modeloGenerador} onChange={e => setModeloGenerador(e.target.value)} className="w-full p-2 border border-[#DCE1E6] rounded-md text-sm" placeholder="Ej: Cummins C17D5" />
-            </div>
-            <div>
-              <label className="block text-xs text-[#6B6B6B] font-bold mb-1">Ejecutante</label>
-              <input type="text" value={ejecutante} onChange={e => setEjecutante(e.target.value)} className="w-full p-2 border border-[#DCE1E6] rounded-md text-sm" />
-            </div>
-            <div className="md:col-span-2">
-              <label className="block text-xs text-[#6B6B6B] font-bold mb-1">Revisado por (una línea por persona / cargo)</label>
-              <textarea value={revisadoText} onChange={e => setRevisadoText(e.target.value)} rows={4} className="w-full p-2 border border-[#DCE1E6] rounded-md text-sm" />
             </div>
           </div>
         </details>
@@ -823,20 +881,8 @@ export default function InformeMantenimiento({ onBack, borradorInicial = null }:
           </summary>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
             <div>
-              <label className="block text-xs text-[#6B6B6B] font-bold mb-1">Cliente</label>
-              <input type="text" value={cliente} onChange={e => setCliente(e.target.value)} className="w-full p-2 border border-[#DCE1E6] rounded-md text-sm" />
-            </div>
-            <div>
               <label className="block text-xs text-[#6B6B6B] font-bold mb-1">Área</label>
               <input type="text" value={area} onChange={e => setArea(e.target.value)} className="w-full p-2 border border-[#DCE1E6] rounded-md text-sm" />
-            </div>
-            <div>
-              <label className="block text-xs text-[#6B6B6B] font-bold mb-1">Minera</label>
-              <input type="text" value={minera} onChange={e => setMinera(e.target.value)} className="w-full p-2 border border-[#DCE1E6] rounded-md text-sm" />
-            </div>
-            <div>
-              <label className="block text-xs text-[#6B6B6B] font-bold mb-1">Tipo de servicio</label>
-              <input type="text" value={tipoServicio} onChange={e => setTipoServicio(e.target.value)} className="w-full p-2 border border-[#DCE1E6] rounded-md text-sm" />
             </div>
           </div>
 
@@ -871,7 +917,7 @@ export default function InformeMantenimiento({ onBack, borradorInicial = null }:
             <Camera size={18} className="panel__summary-icon" strokeWidth={2.2} />
             3. Registro fotográfico ({fotos.filter(f => f.photo).length}/{fotos.length})
           </summary>
-          <p className="text-xs text-gray-500 mb-3">Mismos bloques que el informe de referencia (antes/después, LOTO, refrigeración, filtros, Power Command, etc). Puedes editar el título, la descripción y agregar o quitar fotos.</p>
+          <p className="text-xs text-gray-500 mb-3">Mismos bloques que el informe de referencia (antes/después, LOTO, refrigeración, filtros, Power Command, etc). Puedes editar el título, la descripción y agregar o quitar fotos. Haz clic en una casilla y pega con Ctrl+V: la selección avanza sola a la siguiente casilla (o crea una nueva al final) para poder seguir pegando fotos de corrido.</p>
           <div className="space-y-3">
             {fotos.map(item => {
               const showSectionHeading = item.section && item.section !== lastSection;
@@ -881,21 +927,27 @@ export default function InformeMantenimiento({ onBack, borradorInicial = null }:
                   {showSectionHeading && <p className="text-xs font-bold text-[#0E4660] uppercase mt-2 mb-1">{item.section}</p>}
                   <div className="border border-dashed border-[#DCE1E6] rounded-lg p-3 bg-[#fafbfc] flex gap-3 items-start">
                     <div
-                      className="photo-slot w-[110px] min-w-[110px] text-center text-[10px] text-gray-500 relative border-2 border-dashed border-gray-300 rounded-md p-1 bg-white"
+                      onClick={() => setSelectedFotoId(item.id)}
+                      className={`photo-slot w-[110px] min-w-[110px] text-center text-[10px] text-gray-500 relative border-2 border-dashed rounded-md p-1 bg-white cursor-pointer ${selectedFotoId === item.id ? 'border-[#0E4660] ring-2 ring-[#0E4660]/20' : 'border-gray-300'}`}
                     >
                       {item.photo && (
                         <button
                           type="button"
-                          onClick={() => setFotoAmpliada(item.photo)}
+                          onClick={e => { e.stopPropagation(); handleCopiarFoto(item.photo!); }}
                           className="absolute top-0.5 left-0.5 bg-black/55 hover:bg-black/70 text-white rounded-full w-5 h-5 flex items-center justify-center z-10"
-                          aria-label="Ampliar foto"
-                          title="Ampliar foto"
+                          aria-label="Copiar imagen al portapapeles"
+                          title="Copiar imagen al portapapeles"
                         >
-                          <ZoomIn size={12} />
+                          <Copy size={12} />
                         </button>
                       )}
-                      <img src={item.photo || placeholderImg} alt="" className="w-full h-[80px] object-cover rounded mb-1 bg-gray-100" />
-                      <input type="file" accept="image/*" onChange={e => e.target.files?.[0] && assignFoto(item.id, e.target.files[0])} className="text-[9px] w-full" />
+                      <img
+                        src={item.photo || placeholderImg}
+                        alt=""
+                        onClick={e => { if (item.photo) { e.stopPropagation(); setFotoAmpliada(item.photo); } }}
+                        className={`w-full h-[80px] object-cover rounded mb-1 bg-gray-100 ${item.photo ? 'cursor-zoom-in' : ''}`}
+                      />
+                      <input type="file" accept="image/*" onClick={e => e.stopPropagation()} onChange={e => e.target.files?.[0] && assignFoto(item.id, e.target.files[0])} className="text-[9px] w-full" />
                     </div>
                     <div className="flex-1 space-y-1.5">
                       <input type="text" value={item.caption} onChange={e => updateFoto(item.id, { caption: e.target.value })} placeholder="Título / leyenda de la foto" className="w-full font-bold text-sm p-1.5 border border-[#DCE1E6] rounded text-[#0E4660]" />

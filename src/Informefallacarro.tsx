@@ -2,11 +2,11 @@ import { useState, useEffect, useRef, type Dispatch, type SetStateAction } from 
 import * as docx from 'docx';
 import { saveAs } from 'file-saver';
 import {
-  ArrowLeft, Loader2, AlertTriangle, ListChecks, ShieldCheck, Camera, Plus, Trash2, ClipboardList, Sparkles, Save, X, ZoomIn,
+  ArrowLeft, Loader2, AlertTriangle, ListChecks, ShieldCheck, Camera, Plus, Trash2, ClipboardList, Sparkles, Save, X, Copy,
 } from 'lucide-react';
 import logoPsinet from "./assets/logo_psinet.jpg";
 import logoEdificio from "./assets/LogoEdificio.png";
-import VisorFoto from './Visorfoto';
+import VisorFoto, { copiarImagenAlPortapapel } from './Visorfoto';
 import {
   hoyLocalISO, formatFechaLarga, dataUrlToUint8Array, urlToBase64, resolveImageBytes, BLUE, ORANGE,
   type BorradorOtroEntry, upsertBorradorOtro, deleteBorradorOtro,
@@ -428,6 +428,11 @@ export default function InformeFallaCarro({ onBack, borradorInicial = null }: In
   const showToast = (text: string, isError = false) => {
     setToastMessage({ text, isError });
     setTimeout(() => setToastMessage(null), 3500);
+  };
+
+  const handleCopiarFoto = async (src: string) => {
+    const ok = await copiarImagenAlPortapapel(src);
+    showToast(ok ? "Imagen copiada al portapapeles." : "No se pudo copiar la imagen.", !ok);
   };
 
   // --- Autocompletar textos a partir del carro / fecha / horas / técnico / tipo de falla ---
@@ -993,15 +998,20 @@ export default function InformeFallaCarro({ onBack, borradorInicial = null }: In
                       {slot.photo && (
                         <button
                           type="button"
-                          onClick={() => setFotoAmpliada(slot.photo)}
+                          onClick={() => handleCopiarFoto(slot.photo!)}
                           className="absolute top-0.5 left-0.5 bg-black/55 hover:bg-black/70 text-white rounded-full w-5 h-5 flex items-center justify-center z-10"
-                          aria-label="Ampliar foto"
-                          title="Ampliar foto"
+                          aria-label="Copiar imagen al portapapeles"
+                          title="Copiar imagen al portapapeles"
                         >
-                          <ZoomIn size={12} />
+                          <Copy size={12} />
                         </button>
                       )}
-                      <img src={slot.photo || placeholderImg} alt="" className="w-full h-[80px] object-cover rounded mb-1 bg-gray-100" />
+                      <img
+                        src={slot.photo || placeholderImg}
+                        alt=""
+                        onClick={() => slot.photo && setFotoAmpliada(slot.photo)}
+                        className={`w-full h-[80px] object-cover rounded mb-1 bg-gray-100 ${slot.photo ? 'cursor-zoom-in' : ''}`}
+                      />
                       <input type="file" accept="image/*" onChange={e => e.target.files?.[0] && asignarFoto(grupo.id, slot.id, e.target.files[0])} className="text-[9px] w-full mb-1" />
                       <input type="text" value={slot.caption ?? ""} onChange={e => updateFotoCaption(grupo.id, slot.id, e.target.value)} placeholder="Leyenda de esta foto (opcional)" className="w-full text-[9px] p-1 border border-[#DCE1E6] rounded" />
                       <button type="button" onClick={() => removeFotoDeGrupo(grupo.id, slot.id)} className="absolute -top-2 -right-2 bg-red-600 text-white rounded-full w-5 h-5 flex items-center justify-center text-[10px]">×</button>

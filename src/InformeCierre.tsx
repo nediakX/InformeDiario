@@ -3,11 +3,11 @@ import * as docx from 'docx';
 import { saveAs } from 'file-saver';
 import {
   ArrowLeft, Loader2, FileStack, CalendarRange, ImagePlus, Trash2, CircleCheckBig, Circle,
-  Plus, ListTodo, Car, Wrench, ZoomIn,
+  Plus, ListTodo, Car, Wrench, Copy,
 } from 'lucide-react';
 import logoPsinet from "./assets/logo_psinet.jpg";
 import logoEdificio from "./assets/LogoEdificio.png";
-import VisorFoto from './Visorfoto';
+import VisorFoto, { copiarImagenAlPortapapel } from './Visorfoto';
 import {
   type BorradorEntry,
   fetchBorradores,
@@ -128,6 +128,11 @@ export default function InformeCierre({ onBack }: InformeCierreProps) {
   }, [toastMessage]);
 
   const showToast = (text: string, isError?: boolean) => setToastMessage({ text, isError });
+
+  const handleCopiarFoto = async (src: string) => {
+    const ok = await copiarImagenAlPortapapel(src);
+    showToast(ok ? "Imagen copiada al portapapeles." : "No se pudo copiar la imagen.", !ok);
+  };
 
   // El Informe de Cierre solo consolida Turno Día; Turno Noche queda fuera de esta selección.
   const ordenadosPorFecha = useMemo(
@@ -710,15 +715,20 @@ export default function InformeCierre({ onBack }: InformeCierreProps) {
                         {src && (
                           <button
                             type="button"
-                            onClick={e => { e.stopPropagation(); setFotoAmpliada(src); }}
+                            onClick={e => { e.stopPropagation(); handleCopiarFoto(src); }}
                             className="absolute top-0.5 left-0.5 bg-black/55 hover:bg-black/70 text-white rounded-full w-5 h-5 flex items-center justify-center z-10"
-                            aria-label="Ampliar foto"
-                            title="Ampliar foto"
+                            aria-label="Copiar imagen al portapapeles"
+                            title="Copiar imagen al portapapeles"
                           >
-                            <ZoomIn size={12} />
+                            <Copy size={12} />
                           </button>
                         )}
-                        <img src={src || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='75'%3E%3Crect width='100%25' height='100%25' fill='%23eee'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%23aaa' font-size='9'%3ESin foto%3C/text%3E%3C/svg%3E"} alt="" className="w-[110px] h-[82px] object-cover rounded mx-auto mb-1 bg-gray-100" />
+                        <img
+                          src={src || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='75'%3E%3Crect width='100%25' height='100%25' fill='%23eee'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%23aaa' font-size='9'%3ESin foto%3C/text%3E%3C/svg%3E"}
+                          alt=""
+                          onClick={e => { if (src) { e.stopPropagation(); setFotoAmpliada(src); } }}
+                          className={`w-[110px] h-[82px] object-cover rounded mx-auto mb-1 bg-gray-100 ${src ? 'cursor-zoom-in' : ''}`}
+                        />
                         <input type="file" accept="image/*" onChange={e => e.target.files?.[0] && assignFotoSeccion(e.target.files[0], seccion.id, pi)} className="text-[9px] w-full" />
                       </div>
                     ))}
@@ -754,15 +764,20 @@ export default function InformeCierre({ onBack }: InformeCierreProps) {
                       {c[cual] && (
                         <button
                           type="button"
-                          onClick={e => { e.stopPropagation(); setFotoAmpliada(c[cual]); }}
+                          onClick={e => { e.stopPropagation(); handleCopiarFoto(c[cual]); }}
                           className="absolute top-0.5 left-0.5 bg-black/55 hover:bg-black/70 text-white rounded-full w-5 h-5 flex items-center justify-center z-10"
-                          aria-label="Ampliar foto"
-                          title="Ampliar foto"
+                          aria-label="Copiar imagen al portapapeles"
+                          title="Copiar imagen al portapapeles"
                         >
-                          <ZoomIn size={12} />
+                          <Copy size={12} />
                         </button>
                       )}
-                      <img src={c[cual] || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='90'%3E%3Crect width='100%25' height='100%25' fill='%23eee'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%23aaa' font-size='9'%3ESin foto%3C/text%3E%3C/svg%3E"} alt={cual} className="w-full h-[90px] object-cover rounded mb-1 bg-gray-100" />
+                      <img
+                        src={c[cual] || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='90'%3E%3Crect width='100%25' height='100%25' fill='%23eee'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%23aaa' font-size='9'%3ESin foto%3C/text%3E%3C/svg%3E"}
+                        alt={cual}
+                        onClick={e => { if (c[cual]) { e.stopPropagation(); setFotoAmpliada(c[cual]); } }}
+                        className={`w-full h-[90px] object-cover rounded mb-1 bg-gray-100 ${c[cual] ? 'cursor-zoom-in' : ''}`}
+                      />
                       <input type="file" accept="image/*" onChange={e => e.target.files?.[0] && assignCamionetaFoto(e.target.files[0], c.id, cual)} className="text-[9px] w-full" />
                     </div>
                   ))}
@@ -783,18 +798,23 @@ export default function InformeCierre({ onBack }: InformeCierreProps) {
             <p className="text-xs font-bold text-[#6B6B6B] mb-2">Evidencia fotográfica (automática)</p>
             {fotoReportabilidad ? (
               <div className="flex items-center gap-3">
-                <button
-                  type="button"
-                  onClick={() => setFotoAmpliada(fotoReportabilidad.src)}
-                  className="relative flex-shrink-0 group"
-                  aria-label="Ampliar foto de Reportabilidad GG"
-                  title="Ampliar foto"
-                >
-                  <img src={fotoReportabilidad.src} alt="Evidencia Reportabilidad GG" className="w-[140px] h-[70px] object-cover rounded border border-[#DCE1E6] bg-gray-100" />
-                  <span className="absolute top-0.5 left-0.5 bg-black/55 group-hover:bg-black/70 text-white rounded-full w-5 h-5 flex items-center justify-center">
-                    <ZoomIn size={12} />
-                  </span>
-                </button>
+                <div className="relative flex-shrink-0 group">
+                  <img
+                    src={fotoReportabilidad.src}
+                    alt="Evidencia Reportabilidad GG"
+                    onClick={() => setFotoAmpliada(fotoReportabilidad.src)}
+                    className="w-[140px] h-[70px] object-cover rounded border border-[#DCE1E6] bg-gray-100 cursor-zoom-in"
+                  />
+                  <button
+                    type="button"
+                    onClick={e => { e.stopPropagation(); handleCopiarFoto(fotoReportabilidad.src); }}
+                    className="absolute top-0.5 left-0.5 bg-black/55 group-hover:bg-black/70 text-white rounded-full w-5 h-5 flex items-center justify-center"
+                    aria-label="Copiar imagen al portapapeles"
+                    title="Copiar imagen al portapapeles"
+                  >
+                    <Copy size={12} />
+                  </button>
+                </div>
                 <p className="text-xs text-gray-500">
                   Se toma del Registro de mantenimiento de GG del informe del {formatFechaLarga(fotoReportabilidad.fecha)}.
                   {!fotoReportabilidad.esUltimoDia && ' El último día seleccionado no tiene esa foto, por eso se usa la del día anterior más cercano.'}

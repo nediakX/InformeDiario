@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef, type PointerEvent as ReactPointerEvent } from 'react';
 import * as docx from 'docx';
 import { saveAs } from 'file-saver';
-import { ChevronDown, Trash2, ClipboardList, Users, ListChecks, BatteryCharging, MessageSquare, Camera, Loader2, ArrowLeft, Plus, ZoomIn, GripVertical } from 'lucide-react';
+import { ChevronDown, Trash2, ClipboardList, Users, ListChecks, BatteryCharging, MessageSquare, Camera, Loader2, ArrowLeft, Plus, GripVertical, Copy } from 'lucide-react';
 import './App.css';
 import logoPsinet from "./assets/logo_psinet.jpg";
 import logoEdificio from "./assets/LogoEdificio.png";
@@ -14,7 +14,7 @@ import InformeCierre from './InformeCierre';
 import InformeMantenimiento from './Informemantenimiento';
 import InformeFallaCarro from './Informefallacarro';
 import ImpresionRapida from './Impresionrapida';
-import VisorFoto from './Visorfoto';
+import VisorFoto, { copiarImagenAlPortapapel } from './Visorfoto';
 
 type TipoBorradorTab = 'diario' | 'mantenimiento' | 'falla';
 import {
@@ -912,6 +912,11 @@ export default function App() {
   const showToast = (text: string, isError = false) => {
     setToastMessage({ text, isError });
     setTimeout(() => setToastMessage(null), 5000);
+  };
+
+  const handleCopiarFoto = async (src: string) => {
+    const ok = await copiarImagenAlPortapapel(src);
+    showToast(ok ? "Imagen copiada al portapapeles." : "No se pudo copiar la imagen.", !ok);
   };
 
   const persistPersonal = (newPersonal: PersonalItem[]) => {
@@ -2278,16 +2283,21 @@ export default function App() {
                         </button>
                         <button
                           type="button"
-                          onClick={e => { e.stopPropagation(); setFotoAmpliada(vertivCarroPhotos[i]); }}
+                          onClick={e => { e.stopPropagation(); handleCopiarFoto(vertivCarroPhotos[i]); }}
                           className="absolute top-0.5 left-0.5 bg-black/55 hover:bg-black/70 text-white rounded-full w-4 h-4 flex items-center justify-center z-10"
-                          aria-label="Ampliar foto"
-                          title="Ampliar foto"
+                          aria-label="Copiar imagen al portapapeles"
+                          title="Copiar imagen al portapapeles"
                         >
-                          <ZoomIn size={10} />
+                          <Copy size={10} />
                         </button>
                       </>
                     )}
-                    <img src={vertivCarroPhotos[i] || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='75'%3E%3Crect width='100%25' height='100%25' fill='%23eee'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%23aaa' font-size='9'%3ESin foto%3C/text%3E%3C/svg%3E"} alt={title} className="w-[92px] h-[70px] object-cover rounded mx-auto mb-1 bg-gray-100" />
+                    <img
+                      src={vertivCarroPhotos[i] || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='75'%3E%3Crect width='100%25' height='100%25' fill='%23eee'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%23aaa' font-size='9'%3ESin foto%3C/text%3E%3C/svg%3E"}
+                      alt={title}
+                      onClick={e => { if (vertivCarroPhotos[i]) { e.stopPropagation(); setFotoAmpliada(vertivCarroPhotos[i]); } }}
+                      className={`w-[92px] h-[70px] object-cover rounded mx-auto mb-1 bg-gray-100 ${vertivCarroPhotos[i] ? 'cursor-zoom-in' : ''}`}
+                    />
                     <button type="button" onClick={() => openDocumentScanner({ type: 'vertivCarro', index: i })} className="w-full bg-[#0E4660] text-white rounded px-1 py-1 mb-1 text-[9px] font-bold">Escanear documento</button>
                     <span className="block text-[9px] text-gray-500">Imagen, cámara o app de escaneo:</span>
                     <input type="file" accept="image/*" onChange={e => e.target.files?.[0] && assignVertivCarroPhoto(e.target.files[0], i)} className="text-[9px] w-full" />
@@ -2313,16 +2323,21 @@ export default function App() {
                         </button>
                         <button
                           type="button"
-                          onClick={e => { e.stopPropagation(); setFotoAmpliada(vertivItemPhotos[i]); }}
+                          onClick={e => { e.stopPropagation(); handleCopiarFoto(vertivItemPhotos[i]); }}
                           className="absolute top-0.5 left-0.5 bg-black/55 hover:bg-black/70 text-white rounded-full w-4 h-4 flex items-center justify-center z-10"
-                          aria-label="Ampliar foto"
-                          title="Ampliar foto"
+                          aria-label="Copiar imagen al portapapeles"
+                          title="Copiar imagen al portapapeles"
                         >
-                          <ZoomIn size={10} />
+                          <Copy size={10} />
                         </button>
                       </>
                     )}
-                    <img src={vertivItemPhotos[i] || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='75'%3E%3Crect width='100%25' height='100%25' fill='%23eee'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%23aaa' font-size='9'%3ESin foto%3C/text%3E%3C/svg%3E"} alt={item} className="w-[92px] h-[70px] object-cover rounded mx-auto mb-1 bg-gray-100" />
+                    <img
+                      src={vertivItemPhotos[i] || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='75'%3E%3Crect width='100%25' height='100%25' fill='%23eee'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%23aaa' font-size='9'%3ESin foto%3C/text%3E%3C/svg%3E"}
+                      alt={item}
+                      onClick={e => { if (vertivItemPhotos[i]) { e.stopPropagation(); setFotoAmpliada(vertivItemPhotos[i]); } }}
+                      className={`w-[92px] h-[70px] object-cover rounded mx-auto mb-1 bg-gray-100 ${vertivItemPhotos[i] ? 'cursor-zoom-in' : ''}`}
+                    />
                     <button type="button" onClick={() => openDocumentScanner({ type: 'vertivItem', index: i })} className="w-full bg-[#0E4660] text-white rounded px-1 py-1 mb-1 text-[9px] font-bold">Escanear documento</button>
                     <span className="block text-[9px] text-gray-500">Imagen, cámara o app de escaneo:</span>
                     <input type="file" accept="image/*" onChange={e => e.target.files?.[0] && assignVertivItemPhoto(e.target.files[0], i)} className="text-[9px] w-full" />
@@ -2429,15 +2444,20 @@ export default function App() {
                       {src && (
                         <button
                           type="button"
-                          onClick={e => { e.stopPropagation(); setFotoAmpliada(src); }}
+                          onClick={e => { e.stopPropagation(); handleCopiarFoto(src); }}
                           className="absolute top-0.5 left-0.5 bg-black/55 hover:bg-black/70 text-white rounded-full w-5 h-5 flex items-center justify-center z-10"
-                          aria-label="Ampliar foto"
-                          title="Ampliar foto"
+                          aria-label="Copiar imagen al portapapeles"
+                          title="Copiar imagen al portapapeles"
                         >
-                          <ZoomIn size={12} />
+                          <Copy size={12} />
                         </button>
                       )}
-                      <img src={src || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='130' height='98'%3E%3Crect width='100%25' height='100%25' fill='%23eee'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%23aaa' font-size='10'%3EArrastra o pega%3C/text%3E%3C/svg%3E"} alt="Evidencia" className="w-[120px] h-[90px] object-cover rounded mx-auto mb-1 bg-gray-100" />
+                      <img
+                        src={src || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='130' height='98'%3E%3Crect width='100%25' height='100%25' fill='%23eee'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%23aaa' font-size='10'%3EArrastra o pega%3C/text%3E%3C/svg%3E"}
+                        alt="Evidencia"
+                        onClick={e => { if (src) { e.stopPropagation(); setFotoAmpliada(src); } }}
+                        className={`w-[120px] h-[90px] object-cover rounded mx-auto mb-1 bg-gray-100 ${src ? 'cursor-zoom-in' : ''}`}
+                      />
                       <button type="button" onClick={() => openDocumentScanner({ type: 'evidence', blockIndex: bi, photoIndex: pi })} className="w-full bg-[#0E4660] text-white rounded px-1.5 py-1 mb-1 text-[10px] font-bold">Escanear documento</button>
                       <span className="block text-[10px] text-gray-500">Imagen, cámara o app de escaneo:</span>
                       <input type="file" accept="image/*" onChange={e => e.target.files?.[0] && assignFileToSlot(e.target.files[0], bi, pi)} className="text-[10px] w-full min-w-[168px]" />
