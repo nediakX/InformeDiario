@@ -60,6 +60,24 @@ const CARRO_OPCIONES: string[] = [
 ];
 const carroDisplay = (codigo: string) => `Carro ${codigo.replace(/_/g, " ")}`;
 
+// Ubicación física de cada carro: al elegir el carro se rellena sola la "Ubicación" de la portada.
+// (Códigos completos de referencia: O&M_LTE_CMM_03, O&M_LTE_CMF_09, O&M_MMOO 01, etc.)
+const UBICACION_POR_CARRO: Record<string, string> = {
+  "LTE_CMM_03": "Cerro Pepa",
+  "LTE_CMF_09": "Cerro La Ballena",
+  "MMOO_01": "Chancado Primario",
+  "LTE_CMF_04": "Cerro Antenas",
+  "LTE_CMM_06": "Mirador Fase 2",
+  "LTE_CMM_10": "Cerro Pisquero",
+  "LTE_CMF_02": "Truck Shop",
+  "LTE_CMF_08": "Ex Garita Rajo Inca",
+  "LTE_CMM_05": "Ex Barrio Cívico",
+  "LTE_CMF_01": "Bloquera",
+  "LTE_11": "Ex Ventiladores",
+  "LTE_CMM_07": "Campamento Antiguo",
+};
+const ubicacionDeCarro = (codigo: string) => UBICACION_POR_CARRO[codigo] ?? "";
+
 // --- Personal sugerido — mismo listado que usa el Informe Diario (supervisores, técnicos, líder técnico) ---
 const PERSONAL_EQUIPO_A: PersonalItem[] = [
   { nombre: "Max Diaz.", cargo: "Supervisor de Operaciones" },
@@ -281,7 +299,7 @@ export default function InformeFallaCarro({ onBack, borradorInicial = null }: In
   // --- Datos generales / portada / encabezado ---
   const [fecha, setFecha] = useState<string>(() => hoyLocalISO());
   const [carroCodigo, setCarroCodigo] = useState<string>(CARRO_OPCIONES[0]);
-  const [ubicacion, setUbicacion] = useState("Mirador Norte – Fase 03");
+  const [ubicacion, setUbicacion] = useState(() => ubicacionDeCarro(CARRO_OPCIONES[0]));
   const [creadoNombre, setCreadoNombre] = useState("Max Diaz.");
   const [creadoCargo, setCreadoCargo] = useState("Supervisor de Operaciones");
 
@@ -831,13 +849,23 @@ export default function InformeFallaCarro({ onBack, borradorInicial = null }: In
             </div>
             <div>
               <label className="block text-xs text-[#6B6B6B] font-bold mb-1">Carro / Sitio</label>
-              <select value={carroCodigo} onChange={e => setCarroCodigo(e.target.value)} className="w-full p-2 border border-[#DCE1E6] rounded-md text-sm bg-white">
-                {CARRO_OPCIONES.map(c => <option key={c} value={c}>{c}</option>)}
+              <select
+                value={carroCodigo}
+                onChange={e => {
+                  const codigo = e.target.value;
+                  setCarroCodigo(codigo);
+                  // Al cambiar de carro se selecciona automáticamente su ubicación (sigue siendo editable).
+                  const nuevaUbicacion = ubicacionDeCarro(codigo);
+                  if (nuevaUbicacion) setUbicacion(nuevaUbicacion);
+                }}
+                className="w-full p-2 border border-[#DCE1E6] rounded-md text-sm bg-white"
+              >
+                {CARRO_OPCIONES.map(c => <option key={c} value={c}>{ubicacionDeCarro(c) ? `${c} — ${ubicacionDeCarro(c)}` : c}</option>)}
               </select>
             </div>
             <div className="md:col-span-2">
               <label className="block text-xs text-[#6B6B6B] font-bold mb-1">Ubicación (opcional, portada)</label>
-              <input type="text" value={ubicacion} onChange={e => setUbicacion(e.target.value)} className="w-full p-2 border border-[#DCE1E6] rounded-md text-sm" placeholder="Ej: Mirador Norte – Fase 03" />
+              <input type="text" value={ubicacion} onChange={e => setUbicacion(e.target.value)} className="w-full p-2 border border-[#DCE1E6] rounded-md text-sm" placeholder="Se completa sola al elegir el carro" />
             </div>
 
             <div className="md:col-span-2 pt-1">

@@ -139,6 +139,24 @@ const CARRO_OPCIONES: string[] = [
 ];
 const SITIO_OPCIONES: string[] = CARRO_OPCIONES.map(c => c.replace(/_/g, " "));
 
+// Ubicación física de cada carro (misma tabla que el Informe de Falla). Al elegir el sitio se
+// rellena sola el campo "Área" del REGISTRO. (Ref.: O&M_LTE_CMM_03, O&M_LTE_CMF_09, O&M_MMOO 01, etc.)
+const UBICACION_POR_CARRO: Record<string, string> = {
+  "LTE_CMM_03": "Cerro Pepa",
+  "LTE_CMF_09": "Cerro La Ballena",
+  "MMOO_01": "Chancado Primario",
+  "LTE_CMF_04": "Cerro Antenas",
+  "LTE_CMM_06": "Mirador Fase 2",
+  "LTE_CMM_10": "Cerro Pisquero",
+  "LTE_CMF_02": "Truck Shop",
+  "LTE_CMF_08": "Ex Garita Rajo Inca",
+  "LTE_CMM_05": "Ex Barrio Cívico",
+  "LTE_CMF_01": "Bloquera",
+  "LTE_11": "Ex Ventiladores",
+  "LTE_CMM_07": "Campamento Antiguo",
+};
+const ubicacionDeSitio = (sitio: string) => UBICACION_POR_CARRO[sitio.trim().replace(/\s+/g, "_")] ?? "";
+
 const withIds = <T,>(items: T[]): (T & { id: string })[] => items.map(item => ({ ...item, id: uid() }));
 
 export default function InformeMantenimiento({ onBack, borradorInicial = null }: InformeMantenimientoProps) {
@@ -152,7 +170,7 @@ export default function InformeMantenimiento({ onBack, borradorInicial = null }:
 
   // --- Tabla REGISTRO ---
   const [cliente, setCliente] = useState("División El Salvador Codelco");
-  const [area, setArea] = useState("Ex ventiladores");
+  const [area, setArea] = useState(() => ubicacionDeSitio(SITIO_OPCIONES[0]));
   const [minera, setMinera] = useState("El Salvador Rajo Inca");
   const [tipoServicio, setTipoServicio] = useState("Mantenimiento preventivo Generador");
   const [ejecutante, setEjecutante] = useState("Ricardo Riquelme");
@@ -859,8 +877,18 @@ export default function InformeMantenimiento({ onBack, borradorInicial = null }:
             </div>
             <div>
               <label className="block text-xs text-[#6B6B6B] font-bold mb-1">Sitio / Nombre emplazamiento</label>
-              <select value={sitio} onChange={e => setSitio(e.target.value)} className="w-full p-2 border border-[#DCE1E6] rounded-md text-sm bg-white">
-                {SITIO_OPCIONES.map(s => <option key={s} value={s}>{s}</option>)}
+              <select
+                value={sitio}
+                onChange={e => {
+                  const nuevoSitio = e.target.value;
+                  setSitio(nuevoSitio);
+                  // Al cambiar de sitio se selecciona automáticamente su ubicación en "Área" (sigue siendo editable).
+                  const nuevaUbicacion = ubicacionDeSitio(nuevoSitio);
+                  if (nuevaUbicacion) setArea(nuevaUbicacion);
+                }}
+                className="w-full p-2 border border-[#DCE1E6] rounded-md text-sm bg-white"
+              >
+                {SITIO_OPCIONES.map(s => <option key={s} value={s}>{ubicacionDeSitio(s) ? `${s} — ${ubicacionDeSitio(s)}` : s}</option>)}
               </select>
             </div>
             <div>
