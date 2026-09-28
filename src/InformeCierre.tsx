@@ -129,7 +129,8 @@ export default function InformeCierre({ onBack }: InformeCierreProps) {
 
   const showToast = (text: string, isError?: boolean) => setToastMessage({ text, isError });
 
-  const handleCopiarFoto = async (src: string) => {
+  const handleCopiarFoto = async (src: string | null | undefined) => {
+    if (!src) return;
     const ok = await copiarImagenAlPortapapel(src);
     showToast(ok ? "Imagen copiada al portapapeles." : "No se pudo copiar la imagen.", !ok);
   };

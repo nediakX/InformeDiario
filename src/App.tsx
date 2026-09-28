@@ -914,7 +914,8 @@ export default function App() {
     setTimeout(() => setToastMessage(null), 5000);
   };
 
-  const handleCopiarFoto = async (src: string) => {
+  const handleCopiarFoto = async (src: string | null | undefined) => {
+    if (!src) return;
     const ok = await copiarImagenAlPortapapel(src);
     showToast(ok ? "Imagen copiada al portapapeles." : "No se pudo copiar la imagen.", !ok);
   };
