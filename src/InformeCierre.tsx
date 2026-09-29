@@ -86,7 +86,8 @@ const uid = () => `id-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 // Hay un único "cierre en curso" compartido por todo el equipo (no hay login): se guarda en la
 // tabla borradores_otros con tipo 'cierre' y un id fijo. Así, lo que se avanza en el PC aparece en
 // el celular (y al revés), en tiempo real. Las fotos se suben al bucket de evidencias.
-const CIERRE_DRAFT_ID = 'cierre-en-curso';
+// La columna id es de tipo uuid, así que el id fijo del cierre compartido debe ser un UUID válido.
+const CIERRE_DRAFT_ID = '00000000-0000-4000-8000-00000000c1e2';
 
 interface DatosCierre {
   creadoNombre: string;
