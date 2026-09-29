@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, type Dispatch, type SetStateAction, type C
 import * as docx from 'docx';
 import { saveAs } from 'file-saver';
 import {
-  ArrowLeft, Loader2, Wrench, ClipboardList, Camera, Gauge, ListChecks, Plus, Trash2, Save, X, Copy,
+  ArrowLeft, Loader2, Wrench, ClipboardList, Camera, Gauge, ListChecks, Plus, Trash2, Save, X, Copy, Image as ImageIcon,
 } from 'lucide-react';
 import logoPsinet from "./assets/logo_psinet.jpg";
 import logoEdificio from "./assets/LogoEdificio.png";
@@ -975,7 +975,16 @@ export default function InformeMantenimiento({ onBack, borradorInicial = null }:
                         onClick={e => { if (item.photo) { e.stopPropagation(); setFotoAmpliada(item.photo); } }}
                         className={`w-full h-[80px] object-cover rounded mb-1 bg-gray-100 ${item.photo ? 'cursor-zoom-in' : ''}`}
                       />
-                      <input type="file" accept="image/*" onClick={e => e.stopPropagation()} onChange={e => e.target.files?.[0] && assignFoto(item.id, e.target.files[0])} className="text-[9px] w-full" />
+                      <input type="file" accept="image/*" capture="environment" onClick={e => e.stopPropagation()} onChange={e => e.target.files?.[0] && assignFoto(item.id, e.target.files[0])} className="hidden" id={`foto-camara-${item.id}`} />
+                      <input type="file" accept="image/*" onClick={e => e.stopPropagation()} onChange={e => e.target.files?.[0] && assignFoto(item.id, e.target.files[0])} className="hidden" id={`foto-galeria-${item.id}`} />
+                      <div className="flex gap-1 mt-1" onClick={e => e.stopPropagation()}>
+                        <label htmlFor={`foto-camara-${item.id}`} className="flex-1 flex items-center justify-center gap-0.5 bg-[#0E4660] hover:bg-[#0a3549] text-white rounded py-1 cursor-pointer" title="Tomar foto">
+                          <Camera size={12} />
+                        </label>
+                        <label htmlFor={`foto-galeria-${item.id}`} className="flex-1 flex items-center justify-center gap-0.5 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded py-1 cursor-pointer" title="Elegir de galería">
+                          <ImageIcon size={12} />
+                        </label>
+                      </div>
                     </div>
                     <div className="flex-1 space-y-1.5">
                       <input type="text" value={item.caption} onChange={e => updateFoto(item.id, { caption: e.target.value })} placeholder="Título / leyenda de la foto" className="w-full font-bold text-sm p-1.5 border border-[#DCE1E6] rounded text-[#0E4660]" />
