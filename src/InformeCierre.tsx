@@ -12,6 +12,12 @@ import {
   type BorradorEntry,
   fetchBorradores,
   subscribeBorradores,
+  type BorradorOtroEntry,
+  fetchBorradoresOtros,
+  upsertBorradorOtro,
+  deleteBorradorOtro,
+  subscribeBorradoresOtros,
+  uploadPhotoIfNeeded,
   dataUrlToUint8Array,
   resolveImageBytes,
   esSemillaSinEditar,
@@ -74,6 +80,59 @@ const fileToDataUrl = (file: File): Promise<string> => new Promise((resolve, rej
 
 const uid = () => `id-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
+// ---------------------------------------------------------------------------------------
+// Sincronización entre dispositivos
+// ---------------------------------------------------------------------------------------
+// Hay un único "cierre en curso" compartido por todo el equipo (no hay login): se guarda en la
+// tabla borradores_otros con tipo 'cierre' y un id fijo. Así, lo que se avanza en el PC aparece en
+// el celular (y al revés), en tiempo real. Las fotos se suben al bucket de evidencias.
+const CIERRE_DRAFT_ID = 'cierre-en-curso';
+
+interface DatosCierre {
+  creadoNombre: string;
+  creadoCargo: string;
+  selectedIds: string[];
+  actividadesPendientes: string[];
+  seccionesImagenes: SeccionImagenes[];
+  camionetas: CamionetaEntry[];
+}
+
+/** Deja los datos (venga de la nube o del estado local) siempre con la misma forma y el mismo orden de claves. */
+const normalizarDatosCierre = (raw: unknown): DatosCierre => {
+  const d = (raw ?? {}) as Record<string, unknown>;
+  const str = (v: unknown, def: string) => (typeof v === 'string' ? v : def);
+  const foto = (v: unknown): string | null => (typeof v === 'string' && v ? v : null);
+  const strArr = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : []);
+
+  const secciones: SeccionImagenes[] = Array.isArray(d.seccionesImagenes)
+    ? (d.seccionesImagenes as Record<string, unknown>[]).map(s => ({
+        id: str(s.id, uid()),
+        title: str(s.title, ''),
+        photos: Array.isArray(s.photos) ? s.photos.map(foto) : [],
+      }))
+    : DEFAULT_SECCIONES_IMAGENES;
+
+  const camionetas: CamionetaEntry[] = Array.isArray(d.camionetas)
+    ? (d.camionetas as Record<string, unknown>[]).map(c => ({
+        id: str(c.id, uid()),
+        placa: str(c.placa, ''),
+        antes: foto(c.antes),
+        despues: foto(c.despues),
+      }))
+    : [{ id: 'camioneta-inicial', placa: '', antes: null, despues: null }];
+
+  const pendientes = strArr(d.actividadesPendientes);
+
+  return {
+    creadoNombre: str(d.creadoNombre, CREADO_POR_OPTIONS[0].nombre),
+    creadoCargo: str(d.creadoCargo, CREADO_POR_OPTIONS[0].cargo),
+    selectedIds: strArr(d.selectedIds),
+    actividadesPendientes: pendientes.length ? pendientes : [''],
+    seccionesImagenes: secciones,
+    camionetas,
+  };
+};
+
 export default function InformeCierre({ onBack }: InformeCierreProps) {
   const [borradores, setBorradores] = useState<BorradorEntry[]>([]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -105,6 +164,141 @@ export default function InformeCierre({ onBack }: InformeCierreProps) {
     void fetchBorradores().then(setBorradores);
     return subscribeBorradores(setBorradores);
   }, []);
+
+  // --- Cierre en curso compartido entre dispositivos (PC, celular, etc.) ---
+  const [cierreCargado, setCierreCargado] = useState(false);
+  const [sincronizando, setSincronizando] = useState(false);
+  const [errorSync, setErrorSync] = useState(false);
+  const [ultimoGuardadoEn, setUltimoGuardadoEn] = useState<string | null>(null);
+  const [subiendoFotos, setSubiendoFotos] = useState(0);
+  const ultimoSnapshotRef = useRef<string | null>(null); // último contenido que sabemos que está en la nube
+  const ultimoSavedAtRef = useRef<string | null>(null);  // para ignorar el "eco" de nuestro propio guardado
+  const guardadoPendienteRef = useRef(false);            // hay un guardado programado (debounce)
+  const guardandoRef = useRef(false);                    // hay un guardado en curso
+
+  const aplicarDatos = (datos: DatosCierre) => {
+    setCreadoNombre(datos.creadoNombre);
+    setCreadoCargo(datos.creadoCargo);
+    setSelectedIds(datos.selectedIds);
+    setActividadesPendientes(datos.actividadesPendientes);
+    setSeccionesImagenes(datos.seccionesImagenes);
+    setCamionetas(datos.camionetas);
+  };
+
+  const limpiarLocal = () => {
+    const vacio = normalizarDatosCierre({});
+    preseleccionadoRef.current = true; // no volver a preseleccionar días automáticamente
+    ultimoSnapshotRef.current = JSON.stringify(vacio);
+    ultimoSavedAtRef.current = null;
+    setUltimoGuardadoEn(null);
+    aplicarDatos(vacio);
+  };
+
+  useEffect(() => {
+    let cancelado = false;
+
+    void fetchBorradoresOtros('cierre').then(lista => {
+      if (cancelado) return;
+      const guardado = lista.find(b => b.id === CIERRE_DRAFT_ID);
+      if (guardado) {
+        const datos = normalizarDatosCierre(guardado.datos);
+        if (datos.selectedIds.length) preseleccionadoRef.current = true;
+        ultimoSnapshotRef.current = JSON.stringify(datos);
+        ultimoSavedAtRef.current = guardado.savedAt;
+        setUltimoGuardadoEn(guardado.savedAt);
+        aplicarDatos(datos);
+      }
+      setCierreCargado(true);
+    });
+
+    // Cambios hechos desde otro dispositivo: se aplican aquí, salvo que este equipo esté guardando algo propio.
+    const desuscribir = subscribeBorradoresOtros('cierre', lista => {
+      if (guardadoPendienteRef.current || guardandoRef.current) return;
+      const remoto = lista.find(b => b.id === CIERRE_DRAFT_ID);
+      if (!remoto) {
+        // Otro dispositivo empezó un cierre nuevo (borró el actual).
+        if (ultimoSavedAtRef.current) limpiarLocal();
+        return;
+      }
+      if (remoto.savedAt === ultimoSavedAtRef.current) return;
+      const datos = normalizarDatosCierre(remoto.datos);
+      const snapshot = JSON.stringify(datos);
+      if (snapshot === ultimoSnapshotRef.current) return;
+      preseleccionadoRef.current = true;
+      ultimoSnapshotRef.current = snapshot;
+      ultimoSavedAtRef.current = remoto.savedAt;
+      setUltimoGuardadoEn(remoto.savedAt);
+      aplicarDatos(datos);
+    });
+
+    return () => { cancelado = true; desuscribir(); };
+    // Solo al abrir el informe; aplicarDatos/limpiarLocal solo usan setters y refs estables.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Autoguardado en la nube (debounce). Espera a que terminen de subirse las fotos nuevas.
+  useEffect(() => {
+    if (!cierreCargado || subiendoFotos > 0) return;
+    const snapshot = JSON.stringify(normalizarDatosCierre({
+      creadoNombre, creadoCargo, selectedIds, actividadesPendientes, seccionesImagenes, camionetas,
+    }));
+    if (snapshot === ultimoSnapshotRef.current) return;
+
+    guardadoPendienteRef.current = true;
+    const timeout = setTimeout(() => {
+      guardadoPendienteRef.current = false;
+      guardandoRef.current = true;
+      setSincronizando(true);
+      const savedAt = new Date().toISOString();
+      const entry: BorradorOtroEntry = {
+        id: CIERRE_DRAFT_ID,
+        tipo: 'cierre',
+        titulo: `Informe de Cierre — ${creadoNombre}`,
+        fecha: savedAt.slice(0, 10),
+        savedAt,
+        datos: JSON.parse(snapshot) as Record<string, unknown>,
+      };
+      upsertBorradorOtro(entry)
+        .then(() => {
+          ultimoSnapshotRef.current = snapshot;
+          ultimoSavedAtRef.current = savedAt;
+          setUltimoGuardadoEn(savedAt);
+          setErrorSync(false);
+        })
+        .catch(error => {
+          console.error('No se pudo guardar el cierre en la nube:', error);
+          setErrorSync(true);
+          showToast('No se pudo sincronizar el cierre con la nube. Revisa tu conexión.', true);
+        })
+        .finally(() => {
+          guardandoRef.current = false;
+          setSincronizando(false);
+        });
+    }, 800);
+    return () => { clearTimeout(timeout); guardadoPendienteRef.current = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cierreCargado, subiendoFotos, creadoNombre, creadoCargo, selectedIds, actividadesPendientes, seccionesImagenes, camionetas]);
+
+  /** Sube una foto recién cargada al bucket y, cuando termina, cambia la copia local por su URL (así no se re-sube en cada guardado). */
+  const subirFotoEnSegundoPlano = async (dataUrl: string, reemplazar: (url: string) => void) => {
+    setSubiendoFotos(n => n + 1);
+    try {
+      const url = await uploadPhotoIfNeeded(dataUrl, `cierre/${CIERRE_DRAFT_ID}`);
+      if (url && url !== dataUrl) reemplazar(url);
+    } finally {
+      setSubiendoFotos(n => n - 1);
+    }
+  };
+
+  const nuevoCierre = () => {
+    if (!window.confirm('¿Empezar un cierre nuevo? Se borrará el cierre en curso (textos y fotos) en todos los dispositivos.')) return;
+    limpiarLocal();
+    deleteBorradorOtro(CIERRE_DRAFT_ID).catch(error => {
+      console.error('No se pudo eliminar el cierre en la nube:', error);
+      showToast('No se pudo eliminar el cierre en la nube.', true);
+    });
+    showToast('Cierre nuevo listo.');
+  };
 
   // Preselecciona automáticamente los días de la semana de turno más reciente (solo la primera vez que llegan datos).
   // El Informe de Cierre es exclusivo de Turno Día; los informes de Turno Noche tienen su propio cierre.
@@ -212,6 +406,9 @@ export default function InformeCierre({ onBack }: InformeCierreProps) {
     try {
       const dataUrl = await fileToDataUrl(file);
       setSeccionesImagenes(prev => prev.map(s => s.id === id ? { ...s, photos: s.photos.map((p, i) => i === photoIndex ? dataUrl : p) } : s));
+      void subirFotoEnSegundoPlano(dataUrl, url =>
+        setSeccionesImagenes(prev => prev.map(s => s.id === id ? { ...s, photos: s.photos.map(p => p === dataUrl ? url : p) } : s))
+      );
     } catch (error) {
       console.error(error);
       showToast("No se pudo cargar la imagen.", true);
@@ -225,6 +422,9 @@ export default function InformeCierre({ onBack }: InformeCierreProps) {
     try {
       const dataUrl = await fileToDataUrl(file);
       setCamionetas(prev => prev.map(c => c.id === id ? { ...c, [cual]: dataUrl } : c));
+      void subirFotoEnSegundoPlano(dataUrl, url =>
+        setCamionetas(prev => prev.map(c => c.id === id && c[cual] === dataUrl ? { ...c, [cual]: url } : c))
+      );
     } catch (error) {
       console.error(error);
       showToast("No se pudo cargar la imagen.", true);
@@ -446,6 +646,11 @@ export default function InformeCierre({ onBack }: InformeCierreProps) {
       }
 
 
+      // Las fotos ya sincronizadas son URLs de la nube: se convierten a dataURL para insertarlas en el .docx.
+      const aDataUrl = async (p: string | null) => (p && p.startsWith('http') ? await urlToBase64(p) : p);
+      const seccionesResueltas = await Promise.all(seccionesImagenes.map(async s => ({ ...s, photos: await Promise.all(s.photos.map(aDataUrl)) })));
+      const camionetasResueltas = await Promise.all(camionetas.map(async c => ({ ...c, antes: await aDataUrl(c.antes), despues: await aDataUrl(c.despues) })));
+
       const pendientesFiltradas = actividadesPendientes.filter(a => a.trim());
       const seccion3: docx.Paragraph[] = [
         new Paragraph({ text: "", pageBreakBefore: true }),
@@ -455,7 +660,7 @@ export default function InformeCierre({ onBack }: InformeCierreProps) {
           : [new Paragraph({ children: [new TextRun({ text: "Sin actividades pendientes.", italics: true, color: "999999", font: "Arial" })] })]),
       ];
 
-      const seccionesImg: (docx.Paragraph | docx.Table)[] = seccionesImagenes.flatMap(seccion => {
+      const seccionesImg: (docx.Paragraph | docx.Table)[] = seccionesResueltas.flatMap(seccion => {
         const usablePhotos = seccion.photos.filter((p): p is string => Boolean(p));
         if (!seccion.title.trim() && usablePhotos.length === 0) return [];
         const rows: docx.TableRow[] = [];
@@ -482,7 +687,7 @@ export default function InformeCierre({ onBack }: InformeCierreProps) {
         ];
       });
 
-      const camionetasValidas = camionetas.filter(c => c.placa.trim() || c.antes || c.despues);
+      const camionetasValidas = camionetasResueltas.filter(c => c.placa.trim() || c.antes || c.despues);
       const seccionCamionetas: (docx.Paragraph | docx.Table)[] = camionetasValidas.length ? [
         new Paragraph({ text: "", pageBreakBefore: true }),
         new Paragraph({ heading: HeadingLevel.HEADING_1, children: [new TextRun({ text: `${seccionNum++}) Camionetas`, color: BLUE, size: 26, font: "Arial", bold: true })] }),
@@ -599,9 +804,27 @@ export default function InformeCierre({ onBack }: InformeCierreProps) {
       </header>
 
       <main className="max-w-[900px] mx-auto p-5 space-y-4">
-        <button type="button" onClick={onBack} className="btn-outline text-[#0E4660] px-3 py-1.5 rounded-md text-xs font-bold hover:bg-[#d5e7f8] flex items-center gap-1.5">
-          <ArrowLeft size={14} /> Volver al menú
-        </button>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <button type="button" onClick={onBack} className="btn-outline text-[#0E4660] px-3 py-1.5 rounded-md text-xs font-bold hover:bg-[#d5e7f8] flex items-center gap-1.5">
+            <ArrowLeft size={14} /> Volver al menú
+          </button>
+          <div className="flex items-center gap-2 text-[11px] text-gray-500">
+            <span className={errorSync ? 'text-red-700 font-bold' : ''}>
+              {!cierreCargado
+                ? 'Cargando cierre…'
+                : errorSync
+                  ? 'Sin sincronizar — revisa tu conexión'
+                  : sincronizando || subiendoFotos > 0
+                    ? 'Guardando en la nube…'
+                    : ultimoGuardadoEn
+                      ? `Sincronizado · ${new Date(ultimoGuardadoEn).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })}`
+                      : 'Se guarda solo en la nube'}
+            </span>
+            <button type="button" onClick={nuevoCierre} className="btn-outline text-[#0E4660] px-2.5 py-1 rounded-md text-[11px] font-bold hover:bg-[#d5e7f8]">
+              Cierre nuevo
+            </button>
+          </div>
+        </div>
 
         <details open className="panel p-5">
           <summary className="panel__summary font-display font-bold text-lg">

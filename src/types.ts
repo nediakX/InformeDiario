@@ -128,7 +128,7 @@ export async function fetchBorradores(): Promise<BorradorEntry[]> {
 }
 
 /** Sube al bucket público las fotos nuevas (dataURL) de un borrador; deja intactas las que ya son URL. */
-async function uploadPhotoIfNeeded(photo: string | null, folder: string): Promise<string | null> {
+export async function uploadPhotoIfNeeded(photo: string | null, folder: string): Promise<string | null> {
   if (!photo) return photo;
   if (photo.startsWith("http")) return photo;
   const isPng = photo.startsWith("data:image/png");
@@ -409,7 +409,7 @@ export async function deleteBorradores(ids: string[]): Promise<void> {
 // formulario completo de cada uno se guarda tal cual en la columna "datos" (JSONB), así no hace
 // falta crear ni mantener una tabla nueva cada vez que un informe agregue o cambie un campo.
 
-export type TipoInformeOtro = 'mantenimiento' | 'falla';
+export type TipoInformeOtro = 'mantenimiento' | 'falla' | 'cierre';
 
 export interface BorradorOtroEntry<T = Record<string, unknown>> {
   id: string;
