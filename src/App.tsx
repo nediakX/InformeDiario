@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef, type PointerEvent as ReactPointerEvent } from 'react';
 import * as docx from 'docx';
 import { saveAs } from 'file-saver';
-import { ChevronDown, Trash2, ClipboardList, Users, ListChecks, BatteryCharging, MessageSquare, Camera, Loader2, ArrowLeft, Plus, GripVertical, Copy } from 'lucide-react';
+import { ChevronDown, Trash2, ClipboardList, Users, ListChecks, BatteryCharging, MessageSquare, Camera, Loader2, ArrowLeft, Plus, GripVertical, Copy, ArrowUp } from 'lucide-react';
 import './App.css';
 import logoPsinet from "./assets/logo_psinet.jpg";
 import logoEdificio from "./assets/LogoEdificio.png";
@@ -199,6 +199,18 @@ const PERSONAL_SUGERIDO_OTROS: PersonalItem[] = [
 
 ];
 
+// Carros a los que se les puede hacer mantenimiento preventivo (actividad sugerida "Mantenimiento").
+const CARROS_MANTENCION: string[] = [
+  "LTE_CMF_01", "LTE_CMF_02", "LTE_CMF_04", "LTE_CMF_08", "LTE_CMF_09",
+  "LTE_CMM_03", "LTE_CMM_05", "LTE_CMM_06", "LTE_CMM_07", "LTE_CMM_10",
+  "LTE_11", "MMOO_01",
+];
+
+// Valor de la actividad sugerida que abre el selector de carro.
+const ACTIVIDAD_SUGERIDA_MANTENCION = "Mantenimiento";
+// Prefijo de la actividad que se genera al elegir un carro (es solo del día, no va a la plantilla).
+const PREFIJO_MANTENCION_CARRO = "Mantenimiento preventivo ";
+
 // Bloque fijo que solo aplica cuando el turno es de NOCHE.
 // Va SIEMPRE junto (no es editable por el usuario) y se omite por completo en turno DÍA.
 // (VERTIV_TITLE, VERTIV_CARROS, VERTIV_CARROS_FLAT y VERTIV_ITEMS viven en types.ts,
@@ -355,7 +367,7 @@ function useDragReorder<T>(items: T[], setItems: (items: T[]) => void, onDrop?: 
   return { dragIndex, setRowRef, bind };
 }
 
-export default function App() {
+function AppContenido() {
   // Estados de datos generales
   const [turno, setTurno] = useState<'dia' | 'noche'>('dia');
   const [fecha, setFecha] = useState<string>(() => hoyLocalISO());
@@ -389,6 +401,8 @@ export default function App() {
   const [toastMessage, setToastMessage] = useState<{ text: string; isError?: boolean } | null>(null);
   const [selectedPersonalSugerido, setSelectedPersonalSugerido] = useState<string>('');
   const [selectedActividadSugerida, setSelectedActividadSugerida] = useState<string>('');
+  const [mantencionModalOpen, setMantencionModalOpen] = useState(false);
+  const [carroMantencion, setCarroMantencion] = useState<string>('');
   const [genericCounter, setGenericCounter] = useState<number>(0);
   const [selectedEvidenceSlot, setSelectedEvidenceSlot] = useState<{ blockIndex: number; photoIndex: number } | null>(null);
   const selectedEvidenceSlotRef = useRef<{ blockIndex: number; photoIndex: number } | null>(null);
@@ -785,6 +799,27 @@ export default function App() {
     view,
   ]);
 
+  // Historial del navegador: cada pantalla del panel es una entrada del historial, así el botón "atrás"
+  // (del teléfono o del navegador) vuelve a la vista anterior en vez de salirse de la página.
+  const turnoRef = useRef(turno);
+  turnoRef.current = turno;
+  useEffect(() => {
+    window.history.replaceState({ view: 'dashboard' }, '');
+    const onPopState = (event: PopStateEvent) => {
+      const destino = (event.state?.view as typeof view | undefined) ?? 'dashboard';
+      flushSyncRef.current?.(); // si venía del Informe Diario, guarda lo pendiente antes de salir
+      if (destino === 'borradores') setBorradoresTab(turnoRef.current);
+      setView(destino);
+    };
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, []);
+
+  useEffect(() => {
+    if (window.history.state?.view !== view) window.history.pushState({ view }, '');
+    window.scrollTo(0, 0);
+  }, [view]);
+
   // Navegación: entra a "Generar Informe Diario" comenzando desde cero, con un nuevo borrador.
   const goToNewInforme = (turnoElegido?: 'dia' | 'noche') => {
     startNewReport(turnoElegido);
@@ -926,11 +961,13 @@ export default function App() {
     } catch (e) { console.error(e); }
   };
 
-  // Guarda la lista de actividades bajo la clave del turno indicado (por defecto, el turno actual)
+  // Guarda la lista de actividades bajo la clave del turno indicado (por defecto, el turno actual).
+  // Las mantenciones por carro son solo de este informe, por eso no se guardan en la plantilla permanente.
   const persistActividades = (newActividades: string[], forTurno: 'dia' | 'noche' = turno) => {
     try {
       const key = forTurno === 'dia' ? LS_KEY_ACT_DIA : LS_KEY_ACT_NOCHE;
-      localStorage.setItem(key, JSON.stringify(newActividades));
+      const plantilla = newActividades.filter(a => !a.startsWith(PREFIJO_MANTENCION_CARRO));
+      localStorage.setItem(key, JSON.stringify(plantilla));
     } catch (e) { console.error(e); }
   };
 
@@ -1009,6 +1046,19 @@ export default function App() {
       persistActividades(defaults);
       showToast("Lista de actividades restaurada.");
     }
+  };
+
+  const cerrarModalMantencion = () => {
+    setMantencionModalOpen(false);
+    setCarroMantencion('');
+  };
+
+  // Agrega la mantención del carro elegido solo a este informe (sin tocar la plantilla permanente).
+  const confirmarMantencionCarro = () => {
+    if (!carroMantencion) return;
+    setActividades(prev => [...prev, `${PREFIJO_MANTENCION_CARRO}${carroMantencion}`]);
+    setSelectedActividadSugerida('');
+    cerrarModalMantencion();
   };
 
   // Handlers Evidencias
@@ -2229,7 +2279,7 @@ export default function App() {
               <option value="Test de alcohol y drogas">Test de alcohol y drogas</option>
               <option value="Reunión de inicio de TDFS">Reunión de inicio de TDFS</option>
               <option value="Movimiento de carro">Movimiento de carro</option>
-              <option value="Mantenimiento">Mantenimiento</option>
+              <option value={ACTIVIDAD_SUGERIDA_MANTENCION}>Mantenimiento preventivo</option>
               <option value="Reunion de cierre TDFS">Reunion de cierre TDFS</option>
               <option value="Checklist de de carros LTE">Checklist de de carros LTE</option>
               <option value="Orden y Limpieza de Bodega">Orden y Limpieza de Bodega</option>
@@ -2237,10 +2287,13 @@ export default function App() {
 
             </select>
             <button onClick={() => {
-              if (selectedActividadSugerida) {
-                handleAddActividad(selectedActividadSugerida);
-                setSelectedActividadSugerida('');
+              if (!selectedActividadSugerida) return;
+              if (selectedActividadSugerida === ACTIVIDAD_SUGERIDA_MANTENCION) {
+                setMantencionModalOpen(true); // pide el carro antes de insertar
+                return;
               }
+              handleAddActividad(selectedActividadSugerida);
+              setSelectedActividadSugerida('');
             }} className="btn-outline text-[#0E4660] px-3 py-1.5 rounded-md text-xs font-bold hover:bg-[#d5e7f8]">
               + Insertar sugerida
             </button>
@@ -2569,6 +2622,44 @@ export default function App() {
         </div>
       )}
 
+      {mantencionModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/50 p-4 flex items-center justify-center" role="dialog" aria-modal="true" aria-labelledby="mantencion-title">
+          <div className="modal-anim w-full max-w-md bg-white rounded-xl p-6 shadow-xl space-y-4">
+            <h2 id="mantencion-title" className="text-lg font-bold text-[#0E4660]">Mantenimiento preventivo</h2>
+            <p className="text-sm text-gray-600">Selecciona el carro al que se le realizará la mantención.</p>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              {CARROS_MANTENCION.map(carro => (
+                <button
+                  key={carro}
+                  type="button"
+                  onClick={() => setCarroMantencion(carro)}
+                  className={`rounded-md border px-2 py-2 text-xs font-bold ${
+                    carroMantencion === carro
+                      ? 'bg-[#0E4660] text-white border-[#0E4660]'
+                      : 'border-[#DCE1E6] text-[#0E4660] hover:bg-[#E8F1FB]'
+                  }`}
+                >
+                  {carro}
+                </button>
+              ))}
+            </div>
+            <div className="flex justify-end gap-2">
+              <button type="button" onClick={cerrarModalMantencion} className="border border-[#DCE1E6] text-[#333] rounded-md px-3 py-2 text-sm font-bold hover:bg-gray-50">
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={confirmarMantencionCarro}
+                disabled={!carroMantencion}
+                className="bg-[#0E4660] text-white rounded-md px-3 py-2 text-sm font-bold hover:bg-[#0a3549] disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Insertar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Toast Notification */}
       {toastMessage && (
         <div className={`toast-anim fixed bottom-5 left-1/2 -translate-x-1/2 ${toastMessage.isError ? 'bg-red-800' : 'bg-[#0E4660]'} text-white py-3 px-5 rounded-lg text-sm shadow-lg z-50`}>
@@ -2578,5 +2669,39 @@ export default function App() {
 
       {fotoAmpliada && <VisorFoto src={fotoAmpliada} onClose={() => setFotoAmpliada(null)} />}
     </div>
+  );
+}
+
+// Botón flotante para volver arriba: aparece al bajar en cualquier pantalla del panel.
+function BotonSubir() {
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    const onScroll = () => setVisible(window.scrollY > 300);
+    onScroll();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
+
+  if (!visible) return null;
+  return (
+    <button
+      type="button"
+      onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+      className="fixed bottom-5 right-4 z-40 w-11 h-11 rounded-full bg-[#0E4660] text-white shadow-lg flex items-center justify-center hover:bg-[#0a3549] active:scale-95"
+      aria-label="Subir al inicio de la página"
+      title="Subir"
+    >
+      <ArrowUp size={20} />
+    </button>
+  );
+}
+
+export default function App() {
+  return (
+    <>
+      <AppContenido />
+      <BotonSubir />
+    </>
   );
 }
