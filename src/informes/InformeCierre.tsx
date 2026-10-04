@@ -1,33 +1,22 @@
 import { useEffect, useMemo, useRef, useState, type ClipboardEvent } from 'react';
-import * as docx from 'docx';
+import type * as docx from 'docx';
 import { saveAs } from 'file-saver';
 import {
   ArrowLeft, Loader2, FileStack, CalendarRange, ImagePlus, Trash2, CircleCheckBig, Circle,
   Plus, ListTodo, Car, Wrench, Copy,
 } from 'lucide-react';
-import logoPsinet from "./assets/logo_psinet.jpg";
-import logoEdificio from "./assets/LogoEdificio.png";
-import VisorFoto, { copiarImagenAlPortapapel } from './Visorfoto';
-import {
-  type BorradorEntry,
-  fetchBorradores,
-  subscribeBorradores,
-  type BorradorOtroEntry,
-  fetchBorradoresOtros,
-  upsertBorradorOtro,
-  deleteBorradorOtro,
-  subscribeBorradoresOtros,
-  uploadPhotoIfNeeded,
-  dataUrlToUint8Array,
-  resolveImageBytes,
-  esSemillaSinEditar,
-  semanaDeFecha,
-  urlToBase64,
-  formatFechaLarga,
-  formatFechaPunto,
-  BLUE,
-  ORANGE,
-} from './types';
+import logoPsinet from "../assets/logo_psinet.jpg";
+import logoEdificio from "../assets/LogoEdificio.png";
+import VisorFoto, { copiarImagenAlPortapapel } from '../componentes/VisorFoto';
+import { N_CONTRATO } from '../datos/catalogos';
+import { fileToDataUrl, uid } from '../lib/fotos';
+import { type BorradorEntry, fetchBorradores, subscribeBorradores, esSemillaSinEditar } from '../datos/borradoresDiario';
+import { type BorradorOtroEntry, fetchBorradoresOtros, upsertBorradorOtro, deleteBorradorOtro, subscribeBorradoresOtros } from '../datos/borradoresOtros';
+import { formatFechaLarga, formatFechaPunto } from '../datos/fechas';
+import { BLUE, ORANGE } from '../datos/plantillaWord';
+import { semanaDeFecha } from '../datos/turnos';
+import { dataUrlToUint8Array, resolveImageBytes, urlToBase64 } from '../lib/imagenes';
+import { uploadPhotoIfNeeded } from '../lib/storage';
 
 interface InformeCierreProps {
   onBack: () => void;
@@ -70,15 +59,6 @@ const CREADO_POR_OPTIONS_B: { nombre: string; cargo: string }[] = [
 ];
 
 const CREADO_POR_ALL = [...CREADO_POR_OPTIONS, ...CREADO_POR_OPTIONS_B];
-
-const fileToDataUrl = (file: File): Promise<string> => new Promise((resolve, reject) => {
-  const reader = new FileReader();
-  reader.onloadend = () => resolve(reader.result as string);
-  reader.onerror = reject;
-  reader.readAsDataURL(file);
-});
-
-const uid = () => `id-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
 // ---------------------------------------------------------------------------------------
 // Sincronización entre dispositivos
@@ -143,7 +123,7 @@ export default function InformeCierre({ onBack }: InformeCierreProps) {
 
   // Datos fijos del cierre (ya no se editan en el formulario).
   const faena = 'Minera Rajo Inca';
-  const contrato = '4600027858';
+  const contrato = N_CONTRATO;
   const version = '1';
   const revisadoText = 'Juan Saavedra\nJuan Morata';
   const autorizadoNombre = 'Cesar Orellana';
@@ -286,6 +266,9 @@ export default function InformeCierre({ onBack }: InformeCierreProps) {
     try {
       const url = await uploadPhotoIfNeeded(dataUrl, `cierre/${CIERRE_DRAFT_ID}`);
       if (url && url !== dataUrl) reemplazar(url);
+    } catch {
+      // Se reintenta sola en el próximo guardado del cierre (que sube las fotos pendientes).
+      showToast('No se pudo subir una foto. Se reintentará al guardar.', true);
     } finally {
       setSubiendoFotos(n => n - 1);
     }
@@ -471,7 +454,7 @@ export default function InformeCierre({ onBack }: InformeCierreProps) {
         Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell,
         Header, ImageRun, WidthType, BorderStyle, AlignmentType,
         HeadingLevel, VerticalAlign, TableLayoutType,
-      } = docx;
+      } = await import('docx'); // se descarga solo al generar el Word (la app abre más rápido)
 
       const cellBorders = (color?: string) => {
         const b = { style: BorderStyle.SINGLE, size: 4, color: color || "D9D9D9" };

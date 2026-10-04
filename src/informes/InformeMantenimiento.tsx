@@ -1,16 +1,19 @@
 import { useState, useEffect, useRef, type Dispatch, type SetStateAction, type ClipboardEvent } from 'react';
-import * as docx from 'docx';
+import type * as docx from 'docx';
 import { saveAs } from 'file-saver';
 import {
   ArrowLeft, Loader2, Wrench, ClipboardList, Camera, Gauge, ListChecks, Plus, Trash2, Save, X, Copy, Image as ImageIcon,
 } from 'lucide-react';
-import logoPsinet from "./assets/logo_psinet.jpg";
-import logoEdificio from "./assets/LogoEdificio.png";
-import VisorFoto, { copiarImagenAlPortapapel } from './Visorfoto';
-import {
-  hoyLocalISO, formatFechaLarga, dataUrlToUint8Array, urlToBase64, resolveImageBytes, BLUE, ORANGE,
-  type BorradorOtroEntry, upsertBorradorOtro, deleteBorradorOtro,
-} from './types';
+import logoPsinet from "../assets/logo_psinet.jpg";
+import logoEdificio from "../assets/LogoEdificio.png";
+import VisorFoto, { copiarImagenAlPortapapel } from '../componentes/VisorFoto';
+import { CARRO_OPCIONES, UBICACION_POR_CARRO } from '../datos/catalogos';
+import { fileToDataUrl, uid } from '../lib/fotos';
+import { type BorradorOtroEntry, upsertBorradorOtro, deleteBorradorOtro } from '../datos/borradoresOtros';
+import { hoyLocalISO, formatFechaLarga } from '../datos/fechas';
+import { BLUE, ORANGE } from '../datos/plantillaWord';
+import { mapaFotosSubidas, aplicarFotosSubidas } from '../lib/storage';
+import { cargarDocx, logosInforme, resolverImagenes, bytesDeImagen, precargarGeneracionWord } from '../lib/docxRecursos';
 
 interface InformeMantenimientoProps {
   onBack: () => void;
@@ -31,15 +34,6 @@ interface ParteItem { id: string; parte: string; cantidad: string; detalle: stri
 interface PlanItem { id: string; detalle: string; cantidad: string; parte: string; }
 interface ChecklistItem { id: string; label: string; estado: string; observaciones: string; }
 interface FiltroItem { id: string; nombre: string; estado: string; tipo: string; observaciones: string; }
-
-const uid = () => `id-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-
-const fileToDataUrl = (file: File): Promise<string> => new Promise((resolve, reject) => {
-  const reader = new FileReader();
-  reader.onloadend = () => resolve(reader.result as string);
-  reader.onerror = reject;
-  reader.readAsDataURL(file);
-});
 
 // ---------------------------------------------------------------------------------------
 // Datos por defecto — tomados de la estructura del informe de referencia (LTE_CMF_11),
@@ -132,29 +126,10 @@ const DEFAULT_FILTROS: Omit<FiltroItem, 'id'>[] = [
 ];
 
 // --- Listado de carros / sitios (mismo listado que usa el Informe de Falla) ---
-const CARRO_OPCIONES: string[] = [
-  "LTE_CMF_01", "LTE_CMF_02", "LTE_CMF_04", "LTE_CMF_08", "LTE_CMF_09",
-  "LTE_CMM_03", "LTE_CMM_05", "LTE_CMM_06", "LTE_CMM_07", "LTE_CMM_10",
-  "LTE_11", "MMOO_01",
-];
 const SITIO_OPCIONES: string[] = CARRO_OPCIONES.map(c => c.replace(/_/g, " "));
 
 // Ubicación física de cada carro (misma tabla que el Informe de Falla). Al elegir el sitio se
 // rellena sola el campo "Área" del REGISTRO. (Ref.: O&M_LTE_CMM_03, O&M_LTE_CMF_09, O&M_MMOO 01, etc.)
-const UBICACION_POR_CARRO: Record<string, string> = {
-  "LTE_CMM_03": "Cerro Pepa",
-  "LTE_CMF_09": "Cerro La Ballena",
-  "MMOO_01": "Chancado Primario",
-  "LTE_CMF_04": "Cerro Antenas",
-  "LTE_CMM_06": "Mirador Fase 2",
-  "LTE_CMM_10": "Cerro Pisquero",
-  "LTE_CMF_02": "Truck Shop",
-  "LTE_CMF_08": "Ex Garita Rajo Inca",
-  "LTE_CMM_05": "Ex Barrio Cívico",
-  "LTE_CMF_01": "Bloquera",
-  "LTE_11": "Ex Ventiladores",
-  "LTE_CMM_07": "Campamento Antiguo",
-};
 const ubicacionDeSitio = (sitio: string) => UBICACION_POR_CARRO[sitio.trim().replace(/\s+/g, "_")] ?? "";
 
 const withIds = <T,>(items: T[]): (T & { id: string })[] => items.map(item => ({ ...item, id: uid() }));
@@ -222,6 +197,9 @@ export default function InformeMantenimiento({ onBack, borradorInicial = null }:
   const [hayBorrador, setHayBorrador] = useState(false);
   const [borradorGuardadoEn, setBorradorGuardadoEn] = useState<string | null>(null);
   const [guardandoBorrador, setGuardandoBorrador] = useState(false);
+
+  // Deja lista la librería del Word y los logos mientras se completa el formulario.
+  useEffect(() => { precargarGeneracionWord(); }, []);
 
   // Al abrir el informe: si viene un borrador guardado (desde el Panel o desde Borradores), se carga.
   useEffect(() => {
@@ -295,6 +273,9 @@ export default function InformeMantenimiento({ onBack, borradorInicial = null }:
       setGuardandoBorrador(true);
       upsertBorradorOtro(entry)
         .then(guardado => {
+          // Las fotos recién subidas pasan a ser URL en el formulario: así el próximo autoguardado no las vuelve a subir.
+          const subidas = mapaFotosSubidas(entry.datos, guardado.datos);
+          if (subidas.size) setFotos(prev => aplicarFotosSubidas(prev, subidas));
           yaGuardadoEnNubeRef.current = true;
           setHayBorrador(true);
           setBorradorGuardadoEn(guardado.savedAt);
@@ -416,7 +397,7 @@ export default function InformeMantenimiento({ onBack, borradorInicial = null }:
         Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell,
         Header, ImageRun, WidthType, BorderStyle, AlignmentType,
         HeadingLevel, VerticalAlign, TableLayoutType,
-      } = docx;
+      } = await cargarDocx(); // se descarga una sola vez (y se precarga al abrir el formulario)
 
       const cellBorders = (color?: string) => {
         const b = { style: BorderStyle.SINGLE, size: 4, color: color || "D9D9D9" };
@@ -427,12 +408,12 @@ export default function InformeMantenimiento({ onBack, borradorInicial = null }:
         return { top: n, bottom: n, left: n, right: n, insideHorizontal: n, insideVertical: n };
       };
 
-      const logoDataUrl = await urlToBase64(logoPsinet);
-      const coverDataUrl = await urlToBase64(logoEdificio);
-      const logoBytes = dataUrlToUint8Array(logoDataUrl);
-      const logoType = logoDataUrl.startsWith("data:image/png") ? "png" : "jpg";
-      const coverBytes = dataUrlToUint8Array(coverDataUrl);
-      const coverType = coverDataUrl.startsWith("data:image/png") ? "png" : "jpg";
+      // Logos (en caché) y TODAS las fotos se resuelven en paralelo antes de armar el documento;
+      // el documento se arma igual que antes, solo que ya no espera cada descarga por separado.
+      const [{ logoBytes, logoType, coverBytes, coverType }, imagenes] = await Promise.all([
+        logosInforme(),
+        resolverImagenes(fotos.map(f => f.photo)),
+      ]);
       const revisadoPor = revisadoText.split("\n").map(s => s.trim()).filter(Boolean);
 
       const headerCellMargins = { top: 160, bottom: 160, left: 220, right: 220 };
@@ -568,7 +549,7 @@ export default function InformeMantenimiento({ onBack, borradorInicial = null }:
       const buildFotoCell = async (item: FotoItem, widthDxa: number) => {
         const children: docx.Paragraph[] = [];
         if (item.photo) {
-          const { bytes, type } = await resolveImageBytes(item.photo);
+          const { bytes, type } = imagenes.get(item.photo) ?? await bytesDeImagen(item.photo);
           children.push(new Paragraph({ alignment: AlignmentType.CENTER, children: [new ImageRun({ data: bytes, transformation: { width: 260, height: 260 }, type })] }));
         } else {
           children.push(new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "(Sin foto cargada)", italics: true, color: "999999", size: 18, font: "Arial" })] }));

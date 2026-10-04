@@ -7,7 +7,8 @@ if (!supabaseUrl || !supabaseAnonKey) {
   console.warn("Faltan VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY: la sincronización en la nube no funcionará.");
 }
 
-// Cliente compartido sin login: todo el equipo lee/escribe con la misma clave anon.
+// Cliente único de la app. La sesión del usuario (login) se guarda en el dispositivo y se renueva sola;
+// las políticas de la base de datos solo dejan leer/escribir a las cuentas aprobadas.
 export const supabase = createClient(supabaseUrl ?? "", supabaseAnonKey ?? "");
 
 export const BORRADORES_TABLE = "borradores";

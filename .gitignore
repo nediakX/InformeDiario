@@ -25,3 +25,6 @@ dist-ssr
 
 .vercel
 .env*
+
+# Archivos generados por TypeScript
+*.tsbuildinfo

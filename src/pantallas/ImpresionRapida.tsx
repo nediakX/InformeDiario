@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { PDFDocument } from 'pdf-lib';
 import { ArrowLeft, Printer, Loader2, FileText, Minus, Plus, Copy, RotateCw } from 'lucide-react';
-import logoPsinet from "./assets/logo_psinet.jpg";
-import logoEdificio from "./assets/LogoEdificio.png";
+import logoPsinet from "../assets/logo_psinet.jpg";
+import logoEdificio from "../assets/LogoEdificio.png";
 
 interface ImpresionRapidaProps {
   onBack: () => void;

@@ -1,24 +1,11 @@
 import { useState } from 'react';
 import { ArrowLeft, Trash2, FolderOpen, CalendarDays, Users, Camera, Plus, Cloud, Sun, Moon, History, Download, Loader2, Wrench, AlertTriangle, FileText } from 'lucide-react';
-import logoPsinet from "./assets/logo_psinet.jpg";
-import logoEdificio from "./assets/LogoEdificio.png";
-import {
-  type BorradorEntry,
-  type BorradorOtroEntry,
-  type SemanaTurno,
-  DIAS_POR_TURNO,
-  contarFotos,
-  esSemillaSinEditar,
-  estadoBorrador,
-  formatDiaMes,
-  formatFechaLarga,
-  hoyLocalISO,
-  nombreDiaSemana,
-  semanaDeFecha,
-  sumarDias,
-  contarFotosGenerico,
-  estadoBorradorGenerico,
-} from './types';
+import logoPsinet from "../assets/logo_psinet.jpg";
+import logoEdificio from "../assets/LogoEdificio.png";
+import { type BorradorEntry, contarFotos, esSemillaSinEditar, estadoBorrador } from '../datos/borradoresDiario';
+import { type BorradorOtroEntry, contarFotosGenerico, estadoBorradorGenerico } from '../datos/borradoresOtros';
+import { formatDiaMes, formatFechaLarga, hoyLocalISO, nombreDiaSemana, sumarDias } from '../datos/fechas';
+import { type SemanaTurno, DIAS_POR_TURNO, semanaDeFecha } from '../datos/turnos';
 
 type TipoBorradorTab = 'diario' | 'mantenimiento' | 'falla';
 

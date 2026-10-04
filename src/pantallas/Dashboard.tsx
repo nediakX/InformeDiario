@@ -1,17 +1,17 @@
 import { useEffect, useState } from 'react';
-import { FileText, FileStack, FolderOpen, ArrowRight, CalendarDays, Bell, FilePlus, Sun, Moon, Wrench, AlertTriangle, Construction, Printer } from 'lucide-react';
-import logoPsinet from "./assets/logo_psinet.jpg";
-import logoEdificio from "./assets/LogoEdificio.png";
-import {
-  type BorradorEntry, type BorradorOtroEntry,
-  hoyLocalISO, semanaDeFecha, formatDiaMes, formatFechaLarga, estadoBorrador, contarFotos, DIAS_POR_TURNO,
-  estadoBorradorGenerico, contarFotosGenerico,
-} from './types';
+import { FileText, FileStack, FolderOpen, ArrowRight, CalendarDays, Bell, FilePlus, Sun, Moon, Wrench, AlertTriangle, Construction, Printer, LogOut, ShieldCheck, UserRound } from 'lucide-react';
+import { useSesion, nombreVisible } from '../auth/sesion';
+import logoPsinet from "../assets/logo_psinet.jpg";
+import logoEdificio from "../assets/LogoEdificio.png";
+import { type BorradorEntry, estadoBorrador, contarFotos } from '../datos/borradoresDiario';
+import { type BorradorOtroEntry, estadoBorradorGenerico, contarFotosGenerico } from '../datos/borradoresOtros';
+import { hoyLocalISO, formatDiaMes, formatFechaLarga } from '../datos/fechas';
+import { semanaDeFecha, DIAS_POR_TURNO } from '../datos/turnos';
 
 type TipoBorradorTab = 'diario' | 'mantenimiento' | 'falla';
 
 interface DashboardProps {
-  onNavigate: (view: 'borradores' | 'cierre' | 'impresion') => void;
+  onNavigate: (view: 'borradores' | 'cierre' | 'impresion' | 'admin') => void;
   /** Informes de hoy (Día y Noche), guardados o todavía pendientes: la persona elige con cuál trabajar. */
   informesHoy?: BorradorEntry[];
   onAbrirInforme: (entry: BorradorEntry) => void;
@@ -40,6 +40,7 @@ export default function Dashboard({
   borradoresMantenimiento = [], borradoresFalla = [],
   onNuevoMantenimiento, onAbrirMantenimiento, onNuevaFalla, onAbrirFalla, onVerBorradores,
 }: DashboardProps) {
+  const { perfil, esAdmin, pendientesAprobacion, cerrarSesion } = useSesion();
   const [modalInformeOpen, setModalInformeOpen] = useState(false);
   const [modalMantenimientoOpen, setModalMantenimientoOpen] = useState(false);
   const [modalFallaOpen, setModalFallaOpen] = useState(false);
@@ -103,6 +104,20 @@ export default function Dashboard({
       </header>
 
       <main className="max-w-[1000px] mx-auto p-5 space-y-8">
+        <div className="flex flex-wrap items-center justify-end gap-2 -mb-4">
+          <span className="inline-flex items-center gap-1.5 text-xs text-gray-600 bg-white border border-[#DCE1E6] rounded-full px-3 py-1.5 max-w-full">
+            <UserRound size={14} className="flex-none text-[#0E4660]" />
+            <span className="truncate">{nombreVisible(perfil)}</span>
+            {esAdmin && <span className="flex-none text-[10px] font-bold uppercase tracking-wide text-[#0E4660] bg-[#e3edf3] rounded-full px-1.5 py-0.5">Admin</span>}
+          </span>
+          <button
+            type="button"
+            onClick={() => { if (window.confirm('¿Cerrar sesión en este dispositivo?')) void cerrarSesion(); }}
+            className="inline-flex items-center gap-1.5 text-xs font-bold text-[#0E4660] bg-white border border-[#DCE1E6] rounded-full px-3 py-1.5 hover:border-[#0E4660] transition-colors"
+          >
+            <LogOut size={14} /> Cerrar sesión
+          </button>
+        </div>
         <div>
           <h1 className="font-display font-bold text-2xl text-[#0E4660]">¿Qué necesitas hacer hoy?</h1>
           <p className="text-sm text-gray-500 mt-1">Selecciona una opción para continuar.</p>
@@ -261,6 +276,30 @@ export default function Dashboard({
                 Elegir e imprimir <ArrowRight size={15} className="transition-transform group-hover:translate-x-1" />
               </span>
             </button>
+
+            {esAdmin && (
+              <button
+                type="button"
+                onClick={() => onNavigate('admin')}
+                className="dashboard-card group text-left md:col-span-2"
+              >
+                <div className="dashboard-card__icon bg-[#14181C]">
+                  <ShieldCheck size={26} color="#F5B300" strokeWidth={2} />
+                </div>
+                <h2 className="font-display font-bold text-lg text-[#0E4660] mt-4">Panel de administración</h2>
+                <p className="text-sm text-gray-500 mt-1.5 flex-1">
+                  Indicadores de cumplimiento, fallas y mantenimientos por carro, actividad del equipo y aprobación de cuentas de usuario.
+                </p>
+                {pendientesAprobacion > 0 && (
+                  <span className="dashboard-card__badge">
+                    <Bell size={13} /> {pendientesAprobacion} cuenta{pendientesAprobacion === 1 ? '' : 's'} por aprobar
+                  </span>
+                )}
+                <span className="dashboard-card__cta">
+                  Abrir panel <ArrowRight size={15} className="transition-transform group-hover:translate-x-1" />
+                </span>
+              </button>
+            )}
           </div>
         </section>
       </main>
