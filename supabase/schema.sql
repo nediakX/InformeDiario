@@ -77,6 +77,18 @@ create trigger on_auth_user_created
 after insert on auth.users
 for each row execute function public.crear_perfil_usuario();
 
+-- Cuentas que se registraron ANTES de ejecutar este script: se les crea su perfil (pendiente).
+insert into public.perfiles (id, email, nombre, rut, faena)
+select
+  u.id,
+  u.email,
+  coalesce(u.raw_user_meta_data ->> 'nombre', ''),
+  nullif(u.raw_user_meta_data ->> 'rut', ''),
+  case when u.raw_user_meta_data ->> 'faena' in ('rajo_inca', 'andina') then u.raw_user_meta_data ->> 'faena' end
+from auth.users u
+where u.email is not null
+on conflict do nothing;
+
 -- Funciones que usan las políticas (security definer: leen perfiles sin quedar en bucle con su RLS).
 create or replace function public.es_usuario_aprobado()
 returns boolean
