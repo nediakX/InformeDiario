@@ -84,7 +84,10 @@ export default function ChecklistCamioneta({ onBack }: { onBack: () => void }) {
     const d = checklistVacio(semana.inicio, semana.letra);
     const anterior = camionetas.get(clavePatente(patenteActiva));
     d.patente = patenteActiva;
-    d.conductor = nombreVisible(perfil);
+    // Conductor por defecto: la persona que abre el checklist, si está en la lista de conductores.
+    const propio = nombreVisible(perfil);
+    const lista = [...config.conductores.A, ...config.conductores.B];
+    d.conductor = lista.length ? (lista.find(n => mismaPersona(n, propio)) ?? '') : propio;
     if (anterior) {
       d.patente = anterior.patente || patenteActiva;
       d.marca = anterior.marca; d.modelo = anterior.modelo; d.anio = anterior.anio;
@@ -93,7 +96,7 @@ export default function ChecklistCamioneta({ onBack }: { onBack: () => void }) {
       d.kmInicio = anterior.kmFin; // el kilometraje de inicio es el de término de la semana anterior
     }
     return d;
-  }, [semana.inicio, semana.letra, camionetas, patenteActiva, perfil]);
+  }, [semana.inicio, semana.letra, camionetas, patenteActiva, perfil, config.conductores]);
 
   const rango = `${formatDiaMes(sumarDias(semana.inicio, -1))} – ${formatDiaMes(semana.fin)}`;
 
@@ -165,6 +168,7 @@ export default function ChecklistCamioneta({ onBack }: { onBack: () => void }) {
             key={id}
             id={id}
             division={division}
+            conductores={config.conductores}
             entrada={entrada}
             base={base}
             hoy={hoy}
@@ -176,8 +180,9 @@ export default function ChecklistCamioneta({ onBack }: { onBack: () => void }) {
   );
 }
 
-function FormularioChecklist({ id, division, entrada, base, hoy, onGuardado }: {
+function FormularioChecklist({ id, division, conductores, entrada, base, hoy, onGuardado }: {
   id: string;
+  conductores: { A: string[]; B: string[] };
   /** Avisa el checklist recién guardado (la lista de camionetas se actualiza al tiro, aun sin señal). */
   onGuardado: (entry: BorradorOtroEntry) => void;
   division: ReturnType<typeof useSesion>['division'];
@@ -362,7 +367,10 @@ function FormularioChecklist({ id, division, entrada, base, hoy, onGuardado }: {
           <UserRound size={18} className="panel__summary-icon" strokeWidth={2.2} /> Datos de la semana
         </summary>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <div className="sm:col-span-2">{input('conductor', 'Nombre del conductor')}</div>
+          <div className="sm:col-span-2">
+            <span className="block text-xs text-[#6B6B6B] font-bold mb-1">Nombre del conductor</span>
+            <SelectorConductor valor={datos.conductor} onChange={v => campo('conductor', v)} conductores={conductores} letra={datos.letra} />
+          </div>
           {input('marca', 'Marca', 'text', { placeholder: 'Ej. Toyota' })}
           {input('modelo', 'Modelo', 'text', { placeholder: 'Ej. Hilux' })}
           {input('anio', 'Año', 'text', { inputMode: 'numeric' })}
@@ -472,7 +480,9 @@ function FormularioChecklist({ id, division, entrada, base, hoy, onGuardado }: {
         <div className="mt-4">
           <span className="block text-xs text-[#6B6B6B] font-bold mb-1">Firma y nombre del conductor ({ETIQUETAS_DIA[dia].toLowerCase()})</span>
           <div className="flex gap-2">
-            <input value={datos.firmas[dia]} onChange={e => firmar(e.target.value)} placeholder="Nombre de quien conduce este día" className="flex-1 p-2 border border-[#DCE1E6] rounded-md text-sm" />
+            <div className="flex-1">
+              <SelectorConductor key={dia} valor={datos.firmas[dia]} onChange={firmar} conductores={conductores} letra={datos.letra} vacio="Seleccionar quién conduce este día" />
+            </div>
             {datos.conductor && datos.firmas[dia] !== datos.conductor && (
               <button type="button" onClick={() => firmar(datos.conductor)} className="checklist-accion">Usar conductor</button>
             )}
@@ -512,5 +522,57 @@ function FormularioChecklist({ id, division, entrada, base, hoy, onGuardado }: {
         </div>
       )}
     </>
+  );
+}
+
+/** Compara nombres sin importar mayúsculas, tildes ni el segundo apellido ("Juan Morata" = "Juan Morata López"). */
+function mismaPersona(a: string, b: string) {
+  const palabras = (t: string) => t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-zñ ]/g, ' ').split(/\s+/).filter(Boolean);
+  const pa = palabras(a); const pb = new Set(palabras(b));
+  return pa.length > 0 && pa.every(p => pb.has(p));
+}
+
+/** Lista desplegable de conductores (primero los del turno de la semana) con opción de escribir otro nombre. */
+function SelectorConductor({ valor, onChange, conductores, letra, vacio = 'Seleccionar conductor' }: {
+  valor: string;
+  onChange: (v: string) => void;
+  conductores: { A: string[]; B: string[] };
+  letra: 'A' | 'B';
+  vacio?: string;
+}) {
+  const OTRO = '__otro__';
+  const grupos: ['A' | 'B', string[]][] = letra === 'B' ? [['B', conductores.B], ['A', conductores.A]] : [['A', conductores.A], ['B', conductores.B]];
+  const todos = [...conductores.A, ...conductores.B];
+  const enLista = todos.includes(valor);
+  const [escribiendo, setEscribiendo] = useState(Boolean(valor) && !enLista);
+  const clase = 'w-full p-2 border border-[#DCE1E6] rounded-md text-sm';
+
+  if (!todos.length) {
+    return <input value={valor} onChange={e => onChange(e.target.value)} placeholder={vacio} className={clase} />;
+  }
+
+  return (
+    <div className="space-y-2">
+      <select
+        value={escribiendo || (valor && !enLista) ? OTRO : valor}
+        onChange={e => {
+          if (e.target.value === OTRO) { setEscribiendo(true); return; }
+          setEscribiendo(false);
+          onChange(e.target.value);
+        }}
+        className={`${clase} bg-white`}
+      >
+        <option value="">{vacio}</option>
+        {grupos.map(([l, nombres]) => nombres.length > 0 && (
+          <optgroup key={l} label={`Turno ${l}`}>
+            {nombres.map(n => <option key={n} value={n}>{n}</option>)}
+          </optgroup>
+        ))}
+        <option value={OTRO}>Otro (escribir nombre)…</option>
+      </select>
+      {(escribiendo || (valor && !enLista)) && (
+        <input autoFocus value={valor} onChange={e => onChange(e.target.value)} placeholder="Nombre del conductor" className={clase} />
+      )}
+    </div>
   );
 }

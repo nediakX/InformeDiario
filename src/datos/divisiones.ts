@@ -44,6 +44,8 @@ export interface ConfigDivision {
   ubicacionPorCarro: Record<string, string>;
   /** Camionetas fijas del Checklist de Camioneta (se pueden agregar otras desde la pantalla). */
   camionetas: Camioneta[];
+  /** Conductores de cada turno (lista desplegable del Checklist de Camioneta). */
+  conductores: { A: string[]; B: string[] };
   /** Sitios de la reportabilidad diaria GG (actividad por defecto de Turno Noche y texto final del Word). */
   sitiosReportabilidad: string;
   diario: {
@@ -149,6 +151,10 @@ export const CONFIG_DIVISION: Record<Division, ConfigDivision> = {
       { patente: 'VCTF-84', marca: 'Mitsubishi', modelo: 'L200 Katana', anio: '2025' },
       { patente: 'TZYJ-98', marca: 'Toyota', modelo: 'Hilux', anio: '2025' },
     ],
+    conductores: {
+      A: ['Carlos Moll', 'Patricio Santana', 'Claudia Droguett', 'Juan Morata', 'Juan Saavedra'],
+      B: ['Omar Gutierrez', 'Camilo Pailapan', 'Fernando Contreras', 'Luis Fernandez', 'Alberto Arancibia'],
+    },
     sitiosReportabilidad: 'LTE 01, 02, 03, 04, 06, 07, 08, 09, 10, 11 y MMOO 01',
     sufijoLocal: '',
     vertiv: true,
@@ -204,6 +210,7 @@ export const CONFIG_DIVISION: Record<Division, ConfigDivision> = {
     carros: ANDINA_CARROS,
     ubicacionPorCarro: ANDINA_UBICACIONES,
     camionetas: [], // aún sin camionetas fijas: se agregan con "Otra patente"
+    conductores: { A: [], B: [] }, // aún sin lista: el nombre se escribe a mano
     sitiosReportabilidad: 'SUR SUR, CONGRESO, CHIVATO, DNL, MORRENA, TRES ESQUINAS, PIPA y 3700',
     sufijoLocal: '_andina',
     vertiv: false,
