@@ -9,7 +9,8 @@ import logoEdificio from "../../assets/LogoEdificio.png";
 
 import { copiarImagenAlPortapapel } from '../../componentes/VisorFoto';
 import { N_CONTRATO, LINEA_SERVICIO } from '../../datos/catalogos';
-import { comprimirImagen, comprimirDataUrl } from '../../lib/fotos';
+import { comprimirImagen } from '../../lib/fotos';
+import { enderezarAutomatico } from '../../lib/escaner';
 import { leerLocal, guardarLocal, borrarLocal } from '../../lib/almacenLocal';
 
 import { type Vista } from '../../app/rutas';
@@ -23,7 +24,7 @@ import { resolveImageBytes } from '../../lib/imagenes';
 import { mapaFotosSubidas, aplicarFotosSubidas } from '../../lib/storage';
 
 import type { Dispatch, SetStateAction, RefObject } from 'react';
-import { BLUE, type BorradorLocal, type CvApi, type CvMat, DECORACIONES_MENSUALES, DEFAULT_ACTIVIDADES_DIA, DEFAULT_ACTIVIDADES_NOCHE, DEFAULT_EVIDENCIAS_NOCHE, EVIDENCIAS_CON_TAMANO_FOTOGRAFICO_SOLICITADO, EVIDENCIAS_EXCLUIDAS_DIA, type EvidenceBlock, INDICADORES_BULLETS, indicadoresIntro, actividadesNoche, MESES, OBS_FINAL_BULLETS, ORANGE, PREFIJO_MANTENCION_CARRO, type PersonalItem, type ScannerTarget, formatFechaEvidencia, getActividadesGuardadas, getCreadorPorDefecto, getDefaultPersonal, getPersonalGuardado, lsKeyActividades, lsKeyBorradorLocal, lsKeyPersonal, urlToBase64, vertivVacio } from './constantes';
+import { BLUE, type BorradorLocal, DECORACIONES_MENSUALES, DEFAULT_ACTIVIDADES_DIA, DEFAULT_ACTIVIDADES_NOCHE, DEFAULT_EVIDENCIAS_NOCHE, EVIDENCIAS_CON_TAMANO_FOTOGRAFICO_SOLICITADO, EVIDENCIAS_EXCLUIDAS_DIA, type EvidenceBlock, INDICADORES_BULLETS, indicadoresIntro, actividadesNoche, MESES, OBS_FINAL_BULLETS, ORANGE, PREFIJO_MANTENCION_CARRO, type PersonalItem, type ScannerTarget, formatFechaEvidencia, getActividadesGuardadas, getCreadorPorDefecto, getDefaultPersonal, getPersonalGuardado, lsKeyActividades, lsKeyBorradorLocal, lsKeyPersonal, urlToBase64, vertivVacio } from './constantes';
 import { CONFIG_DIVISION, type Division } from '../../datos/divisiones';
 import { useDragReorder } from './useDragReorder';
 
@@ -112,15 +113,10 @@ export function useInformeDiario({ view, setBorradores, borradoresRef, division 
 
   const [scannerTarget, setScannerTarget] = useState<ScannerTarget | null>(null);
 
-  const [scannerPreview, setScannerPreview] = useState<string | null>(null);
 
-  const [scannerMessage, setScannerMessage] = useState('Apunta al documento completo y captura la imagen.');
 
-  const scannerVideoRef = useRef<HTMLVideoElement>(null);
 
-  const scannerCanvasRef = useRef<HTMLCanvasElement>(null);
 
-  const scannerStreamRef = useRef<MediaStream | null>(null);
 
   const [draftPromptOpen, setDraftPromptOpen] = useState(false);
 
@@ -666,7 +662,7 @@ export function useInformeDiario({ view, setBorradores, borradoresRef, division 
   const assignVertivCarroPhoto = (file: File, idx: number) => {
     if (!file || !file.type.startsWith("image/")) return;
     void comprimirImagen(file).then(async comprimida => {
-      const scannedImage = await scanDocumentPerspective(comprimida);
+      const scannedImage = await enderezarAutomatico(comprimida);
       setVertivCarroPhotos(prev => {
         const updated = [...prev];
         updated[idx] = scannedImage;
@@ -807,7 +803,7 @@ export function useInformeDiario({ view, setBorradores, borradoresRef, division 
   const assignVertivItemPhoto = (file: File, idx: number) => {
     if (!file || !file.type.startsWith("image/")) return;
     void comprimirImagen(file).then(async comprimida => {
-      const scannedImage = await scanDocumentPerspective(comprimida);
+      const scannedImage = await enderezarAutomatico(comprimida);
       setVertivItemPhotos(prev => {
         const updated = [...prev];
         updated[idx] = scannedImage;
@@ -824,169 +820,25 @@ export function useInformeDiario({ view, setBorradores, borradoresRef, division 
     });
   };
 
-  const stopScannerCamera = () => {
-    scannerStreamRef.current?.getTracks().forEach(track => track.stop());
-    scannerStreamRef.current = null;
-  };
+  // Escáner de documentos (componentes/EscanerDocumento): se abre para un espacio de foto y,
+  // al confirmar, deja ahí el documento ya recortado, enderezado y con aspecto de escaneo.
+  const openDocumentScanner = (target: ScannerTarget) => setScannerTarget(target);
+  const closeDocumentScanner = () => setScannerTarget(null);
 
-  useEffect(() => {
-    if (!scannerTarget) {
-      stopScannerCamera();
-      return;
-    }
-
-    let cancelled = false;
-    if (!navigator.mediaDevices?.getUserMedia) {
-      setScannerMessage('Este navegador no permite usar la cámara.');
-      return;
-    }
-    navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } }, audio: false })
-      .then(stream => {
-        if (cancelled) {
-          stream.getTracks().forEach(track => track.stop());
-          return;
-        }
-        scannerStreamRef.current = stream;
-        if (scannerVideoRef.current) {
-          scannerVideoRef.current.srcObject = stream;
-          void scannerVideoRef.current.play();
-        }
-      })
-      .catch(() => setScannerMessage('No se pudo abrir la cámara. Revisa los permisos del navegador.'));
-
-    return () => {
-      cancelled = true;
-      stopScannerCamera();
-    };
-  }, [scannerTarget]);
-
-  const openDocumentScanner = (target: ScannerTarget) => {
-    setScannerTarget(target);
-    setScannerPreview(null);
-    setScannerMessage('Apunta al documento completo y captura la imagen.');
-  };
-
-  const closeDocumentScanner = () => {
-    stopScannerCamera();
-    setScannerTarget(null);
-    setScannerPreview(null);
-  };
-
-  const scanDocumentPerspective = async (sourceDataUrl: string) => {
-    try {
-      const image = new Image();
-      image.src = sourceDataUrl;
-      await image.decode();
-
-      const sourceCanvas = document.createElement('canvas');
-      sourceCanvas.width = image.naturalWidth;
-      sourceCanvas.height = image.naturalHeight;
-      sourceCanvas.getContext('2d')?.drawImage(image, 0, 0);
-
-      const cvModule = await import('@techstark/opencv-js');
-      const exportedOpenCv = (cvModule as unknown as { default?: unknown }).default ?? cvModule;
-      const cv = await (exportedOpenCv as Promise<CvApi>);
-      if (!cv.Mat || !cv.imread) return sourceDataUrl;
-
-      const source = cv.imread(sourceCanvas);
-      const gray = new cv.Mat();
-      const blurred = new cv.Mat();
-      const edges = new cv.Mat();
-      const thresholded = new cv.Mat();
-      const contours = new cv.MatVector();
-      const hierarchy = new cv.Mat();
-      cv.cvtColor(source, gray, cv.COLOR_RGBA2GRAY);
-      cv.GaussianBlur(gray, blurred, new cv.Size(5, 5), 0);
-      cv.Canny(blurred, edges, 75, 200);
-      let best: CvMat | null = null;
-      let bestArea = 0;
-      const inspectContours = (image: CvMat, mode: number) => {
-        cv.findContours(image, contours, hierarchy, mode, cv.CHAIN_APPROX_SIMPLE);
-        for (let index = 0; index < contours.size(); index += 1) {
-          const contour = contours.get(index);
-          const perimeter = cv.arcLength(contour, true);
-          const approximation = new cv.Mat();
-          cv.approxPolyDP(contour, approximation, 0.02 * perimeter, true);
-          const area = Math.abs(cv.contourArea(approximation));
-          if (approximation.rows === 4 && area > bestArea && area > source.cols * source.rows * 0.08) {
-            best?.delete();
-            best = approximation;
-            bestArea = area;
-          } else {
-            approximation.delete();
-          }
-          contour.delete();
-        }
-      };
-
-      inspectContours(edges, cv.RETR_LIST);
-      if (!best) {
-        cv.threshold(gray, thresholded, 0, 255, cv.THRESH_BINARY + cv.THRESH_OTSU);
-        inspectContours(thresholded, cv.RETR_EXTERNAL);
-      }
-
-      if (!best) {
-        source.delete(); gray.delete(); blurred.delete(); edges.delete(); thresholded.delete(); contours.delete(); hierarchy.delete();
-        return sourceDataUrl;
-      }
-
-      const selectedContour = best as CvMat;
-      const points = Array.from(selectedContour.data32S) as number[];
-      const corners: { x: number; y: number }[] = [
-        { x: points[0], y: points[1] },
-        { x: points[2], y: points[3] },
-        { x: points[4], y: points[5] },
-        { x: points[6], y: points[7] },
-      ];
-      const topLeft = corners.reduce((a, b) => a.x + a.y < b.x + b.y ? a : b);
-      const bottomRight = corners.reduce((a, b) => a.x + a.y > b.x + b.y ? a : b);
-      const topRight = corners.reduce((a, b) => a.x - a.y > b.x - b.y ? a : b);
-      const bottomLeft = corners.reduce((a, b) => a.x - a.y < b.x - b.y ? a : b);
-      const width = Math.max(Math.hypot(bottomRight.x - bottomLeft.x, bottomRight.y - bottomLeft.y), Math.hypot(topRight.x - topLeft.x, topRight.y - topLeft.y));
-      const height = Math.max(Math.hypot(topRight.x - bottomRight.x, topRight.y - bottomRight.y), Math.hypot(topLeft.x - bottomLeft.x, topLeft.y - bottomLeft.y));
-      const destination = cv.matFromArray(4, 1, cv.CV_32FC2, [0, 0, width, 0, width, height, 0, height]);
-      const sourcePoints = cv.matFromArray(4, 1, cv.CV_32FC2, [topLeft.x, topLeft.y, topRight.x, topRight.y, bottomRight.x, bottomRight.y, bottomLeft.x, bottomLeft.y]);
-      const transform = cv.getPerspectiveTransform(sourcePoints, destination);
-      const warped = new cv.Mat();
-      cv.warpPerspective(source, warped, transform, new cv.Size(width, height));
-      cv.imshow(sourceCanvas, warped);
-      const result = sourceCanvas.toDataURL('image/jpeg', 0.92);
-
-      selectedContour.delete(); source.delete(); gray.delete(); blurred.delete(); edges.delete(); thresholded.delete(); contours.delete(); hierarchy.delete();
-      destination.delete(); sourcePoints.delete(); transform.delete(); warped.delete();
-      return result;
-    } catch {
-      return sourceDataUrl;
-    }
-  };
-
-  const captureDocument = async () => {
-    const video = scannerVideoRef.current;
-    const canvas = scannerCanvasRef.current;
-    if (!video || !canvas || !video.videoWidth || !video.videoHeight) return;
-
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    canvas.getContext('2d')?.drawImage(video, 0, 0, canvas.width, canvas.height);
-    setScannerMessage('Detectando bordes y corrigiendo perspectiva...');
-    const scannedImage = await scanDocumentPerspective(await comprimirDataUrl(canvas.toDataURL('image/jpeg', 0.92)));
-    setScannerPreview(scannedImage);
-    setScannerMessage('Revisa la captura. Puedes confirmarla o tomar otra.');
-  };
-
-  const confirmScannedDocument = () => {
-    if (!scannerTarget || !scannerPreview) return;
-    if (scannerTarget.type === 'evidence') {
+  const confirmScannedDocument = (documento: string) => {
+    const destino = scannerTarget;
+    if (!destino) return;
+    if (destino.type === 'evidence') {
       setEvidenceBlocks(prev => prev.map((block, blockIndex) => {
-        if (blockIndex !== scannerTarget.blockIndex) return block;
+        if (blockIndex !== destino.blockIndex) return block;
         const photos = [...block.photos];
-        photos[scannerTarget.photoIndex] = scannerPreview;
+        photos[destino.photoIndex] = documento;
         return { ...block, photos };
       }));
-    } else if (scannerTarget.type === 'vertivCarro') {
-      setVertivCarroPhotos(prev => prev.map((photo, index) => index === scannerTarget.index ? scannerPreview : photo));
+    } else if (destino.type === 'vertivCarro') {
+      setVertivCarroPhotos(prev => prev.map((photo, index) => index === destino.index ? documento : photo));
     } else {
-      setVertivItemPhotos(prev => prev.map((photo, index) => index === scannerTarget.index ? scannerPreview : photo));
+      setVertivItemPhotos(prev => prev.map((photo, index) => index === destino.index ? documento : photo));
     }
     closeDocumentScanner();
   };
@@ -1574,7 +1426,6 @@ export function useInformeDiario({ view, setBorradores, borradoresRef, division 
     autorizadoCargo,
     autorizadoNombre,
     avisoRespaldoRef,
-    captureDocument,
     cargarBorrador,
     carroMantencion,
     cerrarModalMantencion,
@@ -1637,13 +1488,7 @@ export function useInformeDiario({ view, setBorradores, borradoresRef, division 
     resetActividades,
     resetPersonal,
     revisadoText,
-    scanDocumentPerspective,
-    scannerCanvasRef,
-    scannerMessage,
-    scannerPreview,
-    scannerStreamRef,
     scannerTarget,
-    scannerVideoRef,
     selectedActividadSugerida,
     selectedEvidenceSlot,
     selectedEvidenceSlotRef,
@@ -1673,8 +1518,6 @@ export function useInformeDiario({ view, setBorradores, borradoresRef, division 
     setPersonal,
     setPhotoRemovalRequest,
     setRevisadoText,
-    setScannerMessage,
-    setScannerPreview,
     setScannerTarget,
     setSelectedActividadSugerida,
     setSelectedEvidenceSlot,
@@ -1688,7 +1531,6 @@ export function useInformeDiario({ view, setBorradores, borradoresRef, division 
     setVertivItemPhotos,
     showToast,
     startNewReport,
-    stopScannerCamera,
     syncTimeoutRef,
     toastMessage,
     turno,

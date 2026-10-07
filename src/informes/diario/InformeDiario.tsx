@@ -6,6 +6,7 @@ import logoEdificio from "../../assets/LogoEdificio.png";
 
 import VisorFoto from '../../componentes/VisorFoto';
 import { gruposTareas } from '../../datos/catalogos';
+import EscanerDocumento from '../../componentes/EscanerDocumento';
 
 import { VERTIV_CARROS_FLAT, VERTIV_ITEMS } from '../../datos/plantillaWord';
 
@@ -29,7 +30,6 @@ export default function InformeDiario({ d, volverABorradores, goToNewInforme }: 
     assignFileToSlot,
     assignVertivCarroPhoto,
     assignVertivItemPhoto,
-    captureDocument,
     carroMantencion,
     cerrarModalMantencion,
     clearVertivCarroPhoto,
@@ -70,11 +70,7 @@ export default function InformeDiario({ d, volverABorradores, goToNewInforme }: 
     requestRemovePhotoSlot,
     resetActividades,
     resetPersonal,
-    scannerCanvasRef,
-    scannerMessage,
-    scannerPreview,
     scannerTarget,
-    scannerVideoRef,
     selectedActividadSugerida,
     selectedEvidenceSlot,
     selectedPersonalSugerido,
@@ -88,7 +84,6 @@ export default function InformeDiario({ d, volverABorradores, goToNewInforme }: 
     setMantencionModalOpen,
     setObservaciones,
     setPhotoRemovalRequest,
-    setScannerPreview,
     setSelectedActividadSugerida,
     setSelectedPersonalSugerido,
     startNewReport,
@@ -643,31 +638,7 @@ export default function InformeDiario({ d, volverABorradores, goToNewInforme }: 
       )}
 
       {scannerTarget && (
-        <div className="fixed inset-0 z-50 bg-black/90 p-4 flex items-center justify-center">
-          <div className="modal-anim w-full max-w-lg bg-white rounded-xl p-4 space-y-3">
-            <div className="flex items-center justify-between gap-3">
-              <h2 className="text-base font-bold text-[#0E4660]">Escanear documento</h2>
-              <button type="button" onClick={closeDocumentScanner} className="text-gray-500 text-xl leading-none" aria-label="Cerrar escáner">×</button>
-            </div>
-            <p className="text-xs text-gray-600">{scannerMessage}</p>
-            {scannerPreview ? (
-              <img src={scannerPreview} alt="Vista previa del documento escaneado" className="w-full max-h-[55vh] object-contain rounded border border-gray-200 bg-gray-100" />
-            ) : (
-              <video ref={scannerVideoRef} autoPlay muted playsInline className="w-full max-h-[55vh] object-contain rounded bg-black" />
-            )}
-            <canvas ref={scannerCanvasRef} className="hidden" />
-            <div className="flex gap-2">
-              {scannerPreview ? (
-                <>
-                  <button type="button" onClick={() => setScannerPreview(null)} className="flex-1 border border-[#DCE1E6] rounded-md px-3 py-2 text-sm">Tomar otra</button>
-                  <button type="button" onClick={confirmScannedDocument} className="flex-1 bg-[#0E4660] text-white rounded-md px-3 py-2 text-sm font-bold">Usar documento</button>
-                </>
-              ) : (
-                <button type="button" onClick={() => void captureDocument()} className="w-full bg-[#0E4660] text-white rounded-md px-3 py-2 text-sm font-bold">Capturar y escanear</button>
-              )}
-            </div>
-          </div>
-        </div>
+        <EscanerDocumento onUsar={confirmScannedDocument} onCancelar={closeDocumentScanner} />
       )}
 
       {mantencionModalOpen && (
