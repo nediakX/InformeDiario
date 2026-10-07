@@ -1,9 +1,12 @@
 // Pestaña "Usuarios": aprobar o rechazar solicitudes y asignar el rol de administrador.
 import { useMemo, useState } from 'react';
+import { Search } from 'lucide-react';
 import { Check, ShieldCheck, ShieldOff, X, RotateCcw } from 'lucide-react';
 import { useSesion, etiquetaFaena, type EstadoCuenta, type Perfil } from '../auth/sesion';
 import { cambiarEstadoUsuario, cambiarRolAdmin } from './datos';
 import { TarjetaGrafico } from './graficos';
+import { estadoConexion, type FilaPresencia } from './presencia';
+import PuntoConexion from './PuntoConexion';
 
 type Filtro = EstadoCuenta | 'todos';
 
@@ -22,14 +25,25 @@ const fecha = (iso: string | null) => {
   return d.toLocaleString('es-CL', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 };
 
-export default function Usuarios({ perfiles, onCambio }: { perfiles: Perfil[]; onCambio: () => Promise<void> }) {
+export default function Usuarios({ perfiles, onCambio, presencia, ahora }: {
+  perfiles: Perfil[];
+  onCambio: () => Promise<void>;
+  presencia: FilaPresencia[];
+  ahora: number;
+}) {
   const { perfil: yo } = useSesion();
   const hayPendientes = perfiles.some(p => p.estado === 'pendiente');
   const [filtro, setFiltro] = useState<Filtro>(hayPendientes ? 'pendiente' : 'aprobado');
   const [ocupado, setOcupado] = useState<string | null>(null);
   const [error, setError] = useState('');
+  const [busqueda, setBusqueda] = useState('');
 
-  const lista = useMemo(() => perfiles.filter(p => filtro === 'todos' || p.estado === filtro), [perfiles, filtro]);
+  const presenciaPorUsuario = useMemo(() => new Map(presencia.map(f => [f.usuario_id, f])), [presencia]);
+  const lista = useMemo(() => {
+    const q = busqueda.trim().toLowerCase();
+    return perfiles.filter(p => (filtro === 'todos' || p.estado === filtro)
+      && (!q || `${p.nombre} ${p.email} ${p.rut ?? ''}`.toLowerCase().includes(q)));
+  }, [perfiles, filtro, busqueda]);
   const conteo = (f: Filtro) => (f === 'todos' ? perfiles.length : perfiles.filter(p => p.estado === f).length);
 
   const ejecutar = async (id: string, accion: () => Promise<void>) => {
@@ -60,6 +74,10 @@ export default function Usuarios({ perfiles, onCambio }: { perfiles: Perfil[]; o
         </div>
       }
     >
+      <label className="filtro-busqueda mb-3">
+        <Search size={14} aria-hidden="true" />
+        <input type="search" placeholder="Buscar por nombre, correo o RUT…" value={busqueda} onChange={e => setBusqueda(e.target.value)} />
+      </label>
       {error && <p className="text-sm text-[#a32626] mb-2">{error}</p>}
       {lista.length === 0 ? (
         <p className="viz-empty">No hay cuentas en esta categoría.</p>
@@ -67,7 +85,7 @@ export default function Usuarios({ perfiles, onCambio }: { perfiles: Perfil[]; o
         <div className="viz-table-wrap">
           <table className="viz-table">
             <thead>
-              <tr><th>Nombre</th><th>RUT</th><th>Faena</th><th>Estado</th><th>Último acceso</th><th>Registro</th><th aria-label="Acciones" /></tr>
+              <tr><th>Nombre</th><th>RUT</th><th>Faena</th><th>Estado</th><th>Conexión</th><th>Último acceso</th><th>Registro</th><th aria-label="Acciones" /></tr>
             </thead>
             <tbody>
               {lista.map(p => {
@@ -87,6 +105,7 @@ export default function Usuarios({ perfiles, onCambio }: { perfiles: Perfil[]; o
                         {p.es_admin && <span className="pill pill--admin"><ShieldCheck size={12} aria-hidden="true" /> Admin</span>}
                       </div>
                     </td>
+                    <td>{p.estado === 'aprobado' ? <PuntoConexion estado={estadoConexion(presenciaPorUsuario.get(p.id), ahora)} /> : '—'}</td>
                     <td className="whitespace-nowrap">{fecha(p.ultimo_acceso)}</td>
                     <td className="whitespace-nowrap">{fecha(p.created_at)}</td>
                     <td>

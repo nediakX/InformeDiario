@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, type Dispatch, type SetStateAction, type ClipboardEvent } from 'react';
 import type * as docx from 'docx';
 import { saveAs } from 'file-saver';
+import { registrarActividad } from '../lib/actividad';
 import {
   ArrowLeft, Loader2, Wrench, ClipboardList, Camera, Gauge, ListChecks, Plus, Trash2, Save, X, Copy, Image as ImageIcon,
 } from 'lucide-react';
@@ -780,6 +781,7 @@ export default function InformeMantenimiento({ onBack, borradorInicial = null }:
       const sitioArchivo = sitio.trim().replace(/\s+/g, "_") || "SITIO";
       const filename = `Informe_Mantenimiento_Generador_${sitioArchivo}_${day}-${month}-${year}.docx`;
       saveAs(blob, filename);
+      void registrarActividad('word_generado', filename, currentDraftId);
       showToast(`Documento generado exitosamente: ${filename}`);
     } catch (err) {
       console.error(err);

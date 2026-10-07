@@ -37,10 +37,20 @@ documentos fotografiados. Publicado en Vercel.
 - Recuperación de contraseña por correo. En Supabase → Authentication → URL Configuration, agrega la URL
   de la app (la de Vercel y `http://localhost:5173`) en *Site URL* / *Redirect URLs*.
 
+## Panel de administración (`/admin`)
+
+| Pestaña | Qué muestra |
+|---|---|
+| Resumen | KPIs: cumplimiento de informes, atrasados, fallas, mantenimientos, fotos, usuarios en línea y gráficos |
+| En línea | Quién tiene la app abierta, en qué pantalla y desde qué dispositivo (latido cada minuto; en línea = < 2 min) |
+| Usuarios | Aprobar / rechazar cuentas, rol de administrador, búsqueda y estado de conexión |
+| Actividad | Bitácora: sesiones, informes creados/eliminados, Word generados y cambios de cuentas; filtros y exportar CSV |
+| Sistema | Uso de fotos y base de datos frente al plan de Supabase; buscar y eliminar fotos huérfanas |
+
 ## Rutas
 
 `/` panel · `/informe-diario/:id` · `/borradores/:tipo` · `/cierre` · `/mantenimiento/:id?` · `/falla/:id?` ·
-`/impresion` · `/admin` y `/admin/usuarios` (solo administradores) · `/login`, `/registro`.
+`/impresion` · `/admin`, `/admin/en-linea`, `/admin/usuarios`, `/admin/actividad`, `/admin/sistema` (solo administradores) · `/login`, `/registro`.
 `vercel.json` redirige cualquier ruta a `index.html` para que los enlaces directos funcionen.
 
 ## Estructura
@@ -80,6 +90,8 @@ src/
 │   └── catalogos.ts          Contrato, carros, ubicaciones y tareas sugeridas (editar aquí)
 ├── lib/                  Utilidades técnicas
 │   ├── supabase.ts           Cliente de Supabase
+│   ├── presencia.ts          Latido de presencia (usuarios en línea)
+│   ├── actividad.ts          Registro de eventos en la bitácora
 │   ├── storage.ts            Subida/borrado de fotos en la nube
 │   ├── imagenes.ts           Conversión de imágenes para el Word
 │   ├── fotos.ts              Compresión de fotos (1600 px, JPEG 0,8)

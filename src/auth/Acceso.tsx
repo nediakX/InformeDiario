@@ -5,6 +5,7 @@ import { supabase } from '../lib/supabase';
 import AuthLayout, { Field, Icon } from './AuthLayout';
 import { FAENAS, formatearRut, rutValido, type Faena } from './sesion';
 import { mensajeErrorAuth } from './errores';
+import { registrarActividad } from '../lib/actividad';
 
 type Pestana = 'login' | 'register';
 type Aviso = { tipo: 'ok' | 'error'; texto: string } | null;
@@ -101,6 +102,8 @@ export default function Acceso() {
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
         if (error) throw error;
+        // Solo queda registrado si la cuenta ya está aprobada (la base de datos rechaza el resto).
+        void registrarActividad('inicio_sesion', 'Inició sesión');
       }
     } catch (error) {
       setAviso({ tipo: 'error', texto: mensajeErrorAuth(error) });

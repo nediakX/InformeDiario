@@ -9,12 +9,24 @@
 //   /mantenimiento/:id?        Mantenimiento de Generador (sin id = nuevo)
 //   /falla/:id?                Informe de Falla — Carro (sin id = nuevo)
 //   /impresion                 Impresión Rápida
-//   /admin/:pestana?           Panel de administración (resumen | usuarios)
+//   /admin/:pestana?           Panel de administración (resumen | en-linea | usuarios | actividad | sistema)
 //   /login, /registro          Acceso (solo sin sesión)
 
 export type Vista = 'dashboard' | 'diario' | 'borradores' | 'cierre' | 'mantenimiento' | 'falla-carro' | 'impresion' | 'admin';
 export type TipoBorradores = 'diario' | 'mantenimiento' | 'falla';
-export type PestanaAdmin = 'resumen' | 'usuarios';
+export type PestanaAdmin = 'resumen' | 'en-linea' | 'usuarios' | 'actividad' | 'sistema';
+
+/** Nombre legible de cada pantalla (se muestra en "Usuarios en línea"). */
+export const NOMBRE_PANTALLA: Record<Vista, string> = {
+  dashboard: 'Panel principal',
+  diario: 'Informe Diario',
+  borradores: 'Borradores',
+  cierre: 'Informe de Cierre',
+  mantenimiento: 'Mantenimiento de Generador',
+  'falla-carro': 'Informe de Falla — Carro',
+  impresion: 'Impresión Rápida',
+  admin: 'Panel de administración',
+};
 
 const BASE: Record<Vista, string> = {
   dashboard: '/',
@@ -52,4 +64,5 @@ export function leerRuta(pathname: string): RutaLeida {
 export const esTipoBorradores = (v: string | null): v is TipoBorradores =>
   v === 'diario' || v === 'mantenimiento' || v === 'falla';
 
-export const esPestanaAdmin = (v: string | null): v is PestanaAdmin => v === 'resumen' || v === 'usuarios';
+export const esPestanaAdmin = (v: string | null): v is PestanaAdmin =>
+  v === 'resumen' || v === 'en-linea' || v === 'usuarios' || v === 'actividad' || v === 'sistema';

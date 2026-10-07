@@ -9,7 +9,8 @@ import Dashboard from '../pantallas/Dashboard';
 import Borradores from '../pantallas/Borradores';
 
 import { useSesion } from '../auth/sesion';
-import { leerRuta, rutaDe, esTipoBorradores, esPestanaAdmin, type Vista, type TipoBorradores } from './rutas';
+import { leerRuta, rutaDe, esTipoBorradores, esPestanaAdmin, NOMBRE_PANTALLA, type Vista, type TipoBorradores } from './rutas';
+import { usePresencia } from '../lib/presencia';
 
 import { type BorradorEntry, fetchBorradores, subscribeBorradores, deleteBorrador, deleteBorradores, esSemillaSinEditar, estadoBorrador } from '../datos/borradoresDiario';
 import { type BorradorOtroEntry, fetchBorradoresOtros, subscribeBorradoresOtros, deleteBorradorOtro } from '../datos/borradoresOtros';
@@ -49,6 +50,8 @@ function AppContenido() {
   const ruta = useMemo(() => leerRuta(location.pathname), [location.pathname]);
 
   const view = ruta.vista;
+  // Presencia: el Panel de administración ve quién está conectado y en qué pantalla.
+  usePresencia(view ? NOMBRE_PANTALLA[view] : 'Panel principal');
 
   const vistaActualRef = useRef(view);
 

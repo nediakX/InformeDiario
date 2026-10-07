@@ -8,6 +8,8 @@ import Acceso from './Acceso';
 import EstadoCuenta from './EstadoCuenta';
 import NuevaContrasena from './NuevaContrasena';
 import { SesionContext, type Perfil, type SesionValor } from './sesion';
+import { registrarActividad } from '../lib/actividad';
+import { marcarSalida } from '../lib/presencia';
 import './auth.css';
 
 function Cargando({ texto }: { texto: string }) {
@@ -87,6 +89,7 @@ export default function AuthGate({ children }: { children: ReactNode }) {
   const pendientesAprobacion = esAdmin ? pendientes : 0;
 
   const cerrarSesion = useCallback(async () => {
+    await Promise.all([registrarActividad('cierre_sesion', 'Cerró sesión'), marcarSalida()]);
     await supabase.auth.signOut();
     setPerfilDe(null);
   }, []);

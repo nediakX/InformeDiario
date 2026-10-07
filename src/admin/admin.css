@@ -20,7 +20,13 @@
 .admin-tabs {
   display: flex;
   gap: 4px;
+  overflow-x: auto;
   border-bottom: 1px solid #dce1e6;
+  scrollbar-width: thin;
+}
+
+.admin-tab {
+  flex: none;
 }
 
 .admin-tab {
@@ -474,4 +480,76 @@
 @media (max-width: 640px) {
   .hero__value { font-size: 44px; }
   .hbars__row { grid-template-columns: minmax(80px, 42%) 1fr; }
+}
+
+/* --- Presencia, actividad y sistema --- */
+.admin-badge--ok {
+  background: #e6f6e6;
+  color: #006300;
+}
+
+.conexion {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.conexion__punto {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+}
+
+.conexion--en-linea { color: #006300; }
+.conexion--en-linea .conexion__punto { background: var(--status-good); box-shadow: 0 0 0 3px rgba(12, 163, 12, 0.15); }
+.conexion--ausente { color: #7a5b00; }
+.conexion--ausente .conexion__punto { background: var(--status-warning); }
+.conexion--desconectado { color: var(--text-muted); }
+.conexion--desconectado .conexion__punto { background: #c3c2b7; }
+
+.fila-atenuada td {
+  color: var(--text-muted);
+}
+
+.filtro-select,
+.filtro-busqueda {
+  height: 34px;
+  border: 1px solid #dce1e6;
+  border-radius: 8px;
+  background: #fff;
+  font-size: 13px;
+}
+
+.filtro-select {
+  padding: 0 10px;
+}
+
+.filtro-busqueda {
+  display: flex;
+  flex: 1 1 220px;
+  max-width: 360px;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px;
+  color: var(--text-muted);
+}
+
+.filtro-busqueda input {
+  width: 100%;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--text-primary);
+}
+
+.pill--evento-sesion { background: #e3edf3; color: #0e4660; }
+.pill--evento-informes { background: #e6f6e6; color: #006300; }
+.pill--evento-cuentas { background: #fff3cd; color: #7a5b00; }
+.pill--evento-sistema { background: #eef1f2; color: var(--text-secondary); }
+
+.hero__value--md {
+  font-size: 34px;
 }

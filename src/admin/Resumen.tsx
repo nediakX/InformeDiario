@@ -10,7 +10,7 @@ const fechaHora = (iso: string) => {
   return Number.isNaN(d.getTime()) ? '—' : d.toLocaleString('es-CL', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
 };
 
-export default function Resumen({ stats, rango }: { stats: Estadisticas; rango: Rango }) {
+export default function Resumen({ stats, rango, enLinea }: { stats: Estadisticas; rango: Rango; enLinea: number }) {
   const { kpis } = stats;
   const textoRango = `${formatDiaMes(rango.desde)} – ${formatDiaMes(rango.hasta)}`;
 
@@ -28,6 +28,7 @@ export default function Resumen({ stats, rango }: { stats: Estadisticas; rango: 
           <Indicador etiqueta="Fallas reportadas" valor={kpis.fallas} detalle={textoRango} />
           <Indicador etiqueta="Mantenimientos" valor={kpis.mantenimientos} detalle={textoRango} />
           <Indicador etiqueta="Fotos de evidencia" valor={kpis.fotos} detalle="Cargadas en el periodo" />
+          <Indicador etiqueta="En línea ahora" valor={enLinea} detalle="Ver pestaña En línea" />
           <Indicador etiqueta="Usuarios activos" valor={kpis.usuariosActivos} detalle={`de ${kpis.usuariosAprobados} con acceso`} />
           <Indicador
             etiqueta="Cuentas por aprobar"

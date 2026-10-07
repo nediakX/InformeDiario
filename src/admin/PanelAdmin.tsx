@@ -1,8 +1,11 @@
 // Panel de administración (solo cuentas con rol de administrador):
 //  - Resumen: KPIs y estadísticas de informes (cumplimiento, fallas, mantenimientos, actividad).
+//  - En línea: quién está usando la app ahora, en qué pantalla y desde qué dispositivo.
 //  - Usuarios: aprobar / rechazar cuentas y asignar el rol de administrador.
+//  - Actividad: bitácora de sesiones, informes, Word generados y cambios de cuentas.
+//  - Sistema: uso de almacenamiento frente al plan de Supabase y limpieza de fotos huérfanas.
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, BarChart3, Loader2, RefreshCw, Users } from 'lucide-react';
+import { ArrowLeft, BarChart3, HardDrive, History, Loader2, RefreshCw, Users, Wifi, type LucideIcon } from 'lucide-react';
 import logoPsinet from '../assets/logo_psinet.jpg';
 import logoEdificio from '../assets/LogoEdificio.png';
 import { supabase } from '../lib/supabase';
@@ -13,6 +16,10 @@ import {
 } from './datos';
 import Resumen from './Resumen';
 import Usuarios from './Usuarios';
+import EnLinea from './EnLinea';
+import Actividad from './Actividad';
+import Sistema from './Sistema';
+import { estadoConexion, usePresenciaAdmin } from './presencia';
 import type { PestanaAdmin } from '../app/rutas';
 import './admin.css';
 
@@ -63,6 +70,19 @@ export default function PanelAdmin({ onBack, pestana, onPestanaChange }: {
 
   const stats = useMemo(() => (datos ? calcularEstadisticas(datos, rango) : null), [datos, rango]);
 
+  const presencia = usePresenciaAdmin();
+  // Solo cuentas con acceso (igual que la tabla de la pestaña "En línea").
+  const aprobados = useMemo(() => new Set((datos?.perfiles ?? []).filter(p => p.estado === 'aprobado').map(p => p.id)), [datos]);
+  const enLineaAhora = presencia.filas.filter(f => aprobados.has(f.usuario_id) && estadoConexion(f, presencia.ahora) === 'en_linea').length;
+
+  const pestanas: { valor: PestanaAdmin; etiqueta: string; Icono: LucideIcon; badge?: number; badgeClase?: string }[] = [
+    { valor: 'resumen', etiqueta: 'Resumen', Icono: BarChart3 },
+    { valor: 'en-linea', etiqueta: 'En línea', Icono: Wifi, badge: enLineaAhora, badgeClase: 'admin-badge--ok' },
+    { valor: 'usuarios', etiqueta: 'Usuarios', Icono: Users, badge: pendientesAprobacion },
+    { valor: 'actividad', etiqueta: 'Actividad', Icono: History },
+    { valor: 'sistema', etiqueta: 'Sistema', Icono: HardDrive },
+  ];
+
   return (
     <div className="admin-root min-h-screen text-[#222] font-sans pb-20">
       <header className="site-header">
@@ -94,13 +114,12 @@ export default function PanelAdmin({ onBack, pestana, onPestanaChange }: {
         </div>
 
         <div className="admin-tabs" role="tablist">
-          <button type="button" role="tab" aria-selected={pestana === 'resumen'} className="admin-tab" onClick={() => setPestana('resumen')}>
-            <BarChart3 size={16} /> Resumen
-          </button>
-          <button type="button" role="tab" aria-selected={pestana === 'usuarios'} className="admin-tab" onClick={() => setPestana('usuarios')}>
-            <Users size={16} /> Usuarios
-            {pendientesAprobacion > 0 && <span className="admin-badge" aria-label={`${pendientesAprobacion} pendientes`}>{pendientesAprobacion}</span>}
-          </button>
+          {pestanas.map(({ valor, etiqueta, Icono, badge, badgeClase }) => (
+            <button key={valor} type="button" role="tab" aria-selected={pestana === valor} className="admin-tab" onClick={() => setPestana(valor)}>
+              <Icono size={16} /> {etiqueta}
+              {badge ? <span className={`admin-badge ${badgeClase ?? ''}`}>{badge}</span> : null}
+            </button>
+          ))}
         </div>
 
         {error && <div className="rounded-md border border-[#f1c0c0] bg-[#fbe9e9] text-[#a32626] text-sm px-4 py-3">{error}</div>}
@@ -114,10 +133,16 @@ export default function PanelAdmin({ onBack, pestana, onPestanaChange }: {
                 ))}
               </div>
             </div>
-            {stats ? <Resumen stats={stats} rango={rango} /> : cargando && <Cargando />}
+            {stats ? <Resumen stats={stats} rango={rango} enLinea={enLineaAhora} /> : cargando && <Cargando />}
           </>
+        ) : pestana === 'en-linea' ? (
+          datos ? <EnLinea perfiles={datos.perfiles} filas={presencia.filas} ahora={presencia.ahora} /> : cargando && <Cargando />
+        ) : pestana === 'usuarios' ? (
+          datos ? <Usuarios perfiles={datos.perfiles} onCambio={cargar} presencia={presencia.filas} ahora={presencia.ahora} /> : cargando && <Cargando />
+        ) : pestana === 'actividad' ? (
+          datos ? <Actividad perfiles={datos.perfiles} /> : cargando && <Cargando />
         ) : (
-          datos ? <Usuarios perfiles={datos.perfiles} onCambio={cargar} /> : cargando && <Cargando />
+          <Sistema />
         )}
       </main>
     </div>

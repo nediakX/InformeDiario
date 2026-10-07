@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 
 import type * as docx from 'docx';
 import { saveAs } from 'file-saver';
+import { registrarActividad } from '../../lib/actividad';
 
 import logoPsinet from "../../assets/logo_psinet.jpg";
 import logoEdificio from "../../assets/LogoEdificio.png";
@@ -1522,6 +1523,7 @@ export function useInformeDiario({ view, setBorradores, borradoresRef }: Opcione
       const fechaArchivo = `${day}-${month}-${year}`;
       const filename = `Reporte_Actividades_Turno${turno === "dia" ? "Dia" : "Noche"}_${fechaArchivo}.docx`;
       saveAs(blob, filename);
+      void registrarActividad('word_generado', filename, informe.id);
 
       showToast(`Documento generado exitosamente: ${filename}`);
       return true;

@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, type Dispatch, type SetStateAction } from 'react';
 import type * as docx from 'docx';
 import { saveAs } from 'file-saver';
+import { registrarActividad } from '../lib/actividad';
 import {
   ArrowLeft, Loader2, AlertTriangle, ListChecks, ShieldCheck, Camera, Plus, Trash2, ClipboardList, Sparkles, Save, X, Copy,
 } from 'lucide-react';
@@ -752,6 +753,7 @@ export default function InformeFallaCarro({ onBack, borradorInicial = null }: In
       const [year, month, day] = fecha.split("-");
       const filename = `Informe_de_falla_${carroCodigo}_${day}-${month}-${year}.docx`;
       saveAs(blob, filename);
+      void registrarActividad('word_generado', filename, currentDraftId);
       showToast(`Documento generado exitosamente: ${filename}`);
     } catch (err) {
       console.error(err);

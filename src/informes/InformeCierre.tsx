@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ClipboardEvent } from 'react';
 import type * as docx from 'docx';
 import { saveAs } from 'file-saver';
+import { registrarActividad } from '../lib/actividad';
 import {
   ArrowLeft, Loader2, FileStack, CalendarRange, ImagePlus, Trash2, CircleCheckBig, Circle,
   Plus, ListTodo, Car, Wrench, Copy,
@@ -754,6 +755,7 @@ export default function InformeCierre({ onBack }: InformeCierreProps) {
         ? `Reporte de cierre semana al ${formatFechaPunto(rangoFechas.inicio)} al ${formatFechaPunto(rangoFechas.fin)} -Turno ${letraTurno}.docx`
         : `Reporte de cierre -Turno ${letraTurno}.docx`;
       saveAs(blob, nombreArchivo);
+      void registrarActividad('word_generado', nombreArchivo);
       showToast(`Documento generado exitosamente: ${nombreArchivo}`);
     } catch (err) {
       console.error(err);

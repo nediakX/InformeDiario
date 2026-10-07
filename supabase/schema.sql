@@ -314,3 +314,227 @@ begin
     alter publication supabase_realtime add table public.perfiles;
   end if;
 end $$;
+
+-- ===========================================================================
+-- Panel de administración: usuarios en línea (presencia)
+-- ===========================================================================
+-- Cada sesión abierta envía un "latido" cada minuto con la pantalla en que está. Un usuario se
+-- considera "en línea" si su último latido tiene menos de 2 minutos. Solo los administradores
+-- pueden ver esta tabla; cada usuario solo escribe su propia fila (a través de las funciones).
+create table if not exists public.presencia (
+  usuario_id uuid primary key references auth.users (id) on delete cascade,
+  ultimo_visto timestamptz not null default now(),
+  conectado_desde timestamptz not null default now(),
+  pantalla text,
+  dispositivo text
+);
+
+alter table public.presencia enable row level security;
+
+drop policy if exists "presencia_select_admin" on public.presencia;
+create policy "presencia_select_admin" on public.presencia
+for select to authenticated using (public.es_admin());
+
+-- Latido: actualiza (o crea) la presencia del usuario actual. Si llevaba más de 5 minutos sin
+-- latidos, se cuenta como una conexión nueva ("conectado desde").
+create or replace function public.latido(p_pantalla text, p_dispositivo text)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if auth.uid() is null or not public.es_usuario_aprobado() then
+    return;
+  end if;
+  insert into public.presencia (usuario_id, ultimo_visto, conectado_desde, pantalla, dispositivo)
+  values (auth.uid(), now(), now(), left(p_pantalla, 80), left(p_dispositivo, 40))
+  on conflict (usuario_id) do update set
+    conectado_desde = case
+      when public.presencia.ultimo_visto < now() - interval '5 minutes' then now()
+      else public.presencia.conectado_desde
+    end,
+    ultimo_visto = now(),
+    pantalla = excluded.pantalla,
+    dispositivo = excluded.dispositivo;
+end;
+$$;
+
+-- Al cerrar sesión: deja de aparecer en línea de inmediato.
+create or replace function public.salir()
+returns void
+language sql
+security definer
+set search_path = ''
+as $$
+  update public.presencia set ultimo_visto = now() - interval '10 minutes' where usuario_id = auth.uid();
+$$;
+
+revoke all on function public.latido(text, text) from public, anon;
+revoke all on function public.salir() from public, anon;
+grant execute on function public.latido(text, text) to authenticated;
+grant execute on function public.salir() to authenticated;
+
+-- ===========================================================================
+-- Panel de administración: registro de actividad (bitácora)
+-- ===========================================================================
+create table if not exists public.actividad (
+  id bigint generated always as identity primary key,
+  usuario_id uuid references auth.users (id) on delete set null default auth.uid(),
+  tipo text not null,
+  detalle text not null default '',
+  referencia text,
+  creado_at timestamptz not null default now()
+);
+
+create index if not exists actividad_creado_at_idx on public.actividad (creado_at desc);
+create index if not exists actividad_usuario_idx on public.actividad (usuario_id, creado_at desc);
+
+alter table public.actividad enable row level security;
+
+-- Solo los administradores leen la bitácora; cada usuario aprobado registra SUS propios eventos
+-- (inicio/cierre de sesión, Word generados). Nadie puede editar ni borrar registros desde la app.
+drop policy if exists "actividad_select_admin" on public.actividad;
+create policy "actividad_select_admin" on public.actividad
+for select to authenticated using (public.es_admin());
+
+drop policy if exists "actividad_insert_propia" on public.actividad;
+create policy "actividad_insert_propia" on public.actividad
+for insert to authenticated with check (usuario_id = auth.uid() and public.es_usuario_aprobado());
+
+-- Eventos que registra la base de datos sola: informes creados/eliminados y cambios de cuentas.
+create or replace function public.auditar_borrador()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tipo text;
+  v_detalle text;
+  v_ref text;
+begin
+  if TG_TABLE_NAME = 'borradores' then
+    v_ref := coalesce(new.id, old.id)::text;
+    v_detalle := 'Informe Diario ' || to_char(coalesce(new.fecha, old.fecha), 'DD-MM-YYYY') || ' · '
+      || case coalesce(new.turno, old.turno) when 'dia' then 'Día' else 'Noche' end;
+  else
+    v_ref := coalesce(new.id, old.id)::text;
+    v_detalle := initcap(coalesce(new.tipo, old.tipo)) || ' · ' || coalesce(new.titulo, old.titulo, '');
+  end if;
+  v_tipo := case TG_OP when 'INSERT' then 'informe_creado' else 'informe_eliminado' end;
+  insert into public.actividad (usuario_id, tipo, detalle, referencia) values (auth.uid(), v_tipo, v_detalle, v_ref);
+  return null;
+end;
+$$;
+
+drop trigger if exists borradores_auditar on public.borradores;
+create trigger borradores_auditar
+after insert or delete on public.borradores
+for each row execute function public.auditar_borrador();
+
+drop trigger if exists borradores_otros_auditar on public.borradores_otros;
+create trigger borradores_otros_auditar
+after insert or delete on public.borradores_otros
+for each row execute function public.auditar_borrador();
+
+create or replace function public.auditar_perfil()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if TG_OP = 'INSERT' then
+    insert into public.actividad (usuario_id, tipo, detalle, referencia)
+    values (new.id, 'cuenta_registrada', coalesce(nullif(new.nombre, ''), new.email), new.id::text);
+    return null;
+  end if;
+  if new.estado is distinct from old.estado then
+    insert into public.actividad (usuario_id, tipo, detalle, referencia)
+    values (auth.uid(), 'cuenta_' || new.estado, coalesce(nullif(new.nombre, ''), new.email), new.id::text);
+  end if;
+  if new.es_admin is distinct from old.es_admin then
+    insert into public.actividad (usuario_id, tipo, detalle, referencia)
+    values (auth.uid(), case when new.es_admin then 'admin_otorgado' else 'admin_quitado' end,
+            coalesce(nullif(new.nombre, ''), new.email), new.id::text);
+  end if;
+  return null;
+end;
+$$;
+
+drop trigger if exists perfiles_auditar on public.perfiles;
+create trigger perfiles_auditar
+after insert or update on public.perfiles
+for each row execute function public.auditar_perfil();
+
+-- ===========================================================================
+-- Panel de administración: uso de almacenamiento y fotos huérfanas
+-- ===========================================================================
+-- Tamaño de la base de datos y de las fotos (para compararlo con el límite del plan).
+create or replace function public.uso_almacenamiento()
+returns json
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  if not public.es_admin() then
+    raise exception 'Solo administradores';
+  end if;
+  return json_build_object(
+    'db_bytes', pg_database_size(current_database()),
+    'fotos_bytes', (select coalesce(sum((metadata ->> 'size')::bigint), 0) from storage.objects where bucket_id = 'evidencias'),
+    'fotos_cantidad', (select count(*) from storage.objects where bucket_id = 'evidencias')
+  );
+end;
+$$;
+
+-- Fotos del bucket que ningún informe usa (copias duplicadas antiguas, borradores eliminados…).
+-- Se excluyen las subidas en las últimas 24 h, por si pertenecen a un informe que aún se está guardando.
+-- Las fotos se borran desde la app (API de Storage), nunca con SQL, para que se eliminen de verdad.
+create or replace function public.fotos_huerfanas()
+returns table (nombre text, bytes bigint, creado_at timestamptz)
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_texto text;
+begin
+  if not public.es_admin() then
+    raise exception 'Solo administradores';
+  end if;
+  select coalesce(string_agg(t, ' '), '') into v_texto from (
+    select evidence_blocks::text || ' ' || vertiv_carro_photos::text || ' ' || vertiv_item_photos::text as t from public.borradores
+    union all
+    select datos::text from public.borradores_otros
+  ) refs;
+  return query
+    select o.name, coalesce((o.metadata ->> 'size')::bigint, 0), o.created_at
+    from storage.objects o
+    where o.bucket_id = 'evidencias'
+      and o.created_at < now() - interval '24 hours'
+      and position(o.name in v_texto) = 0
+    order by o.created_at;
+end;
+$$;
+
+revoke all on function public.uso_almacenamiento() from public, anon;
+revoke all on function public.fotos_huerfanas() from public, anon;
+grant execute on function public.uso_almacenamiento() to authenticated;
+grant execute on function public.fotos_huerfanas() to authenticated;
+
+-- Realtime de presencia y actividad para el panel de administración (solo la agrega si falta).
+do $$
+begin
+  if not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'presencia') then
+    alter publication supabase_realtime add table public.presencia;
+  end if;
+  if not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'actividad') then
+    alter publication supabase_realtime add table public.actividad;
+  end if;
+end $$;
+
