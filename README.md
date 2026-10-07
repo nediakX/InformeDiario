@@ -50,6 +50,17 @@ documentos fotografiados. Publicado en Vercel.
   Vertiv, listas de carros/sitios) está en `src/datos/divisiones.ts`.
 - El Salvador conserva exactamente sus datos y documentos Word de siempre; los informes existentes quedan en El Salvador.
 
+## Checklist de Camioneta (`/checklist-camioneta`)
+
+- Registro GSSO-LTE-R-LV-DSAL-29: un checklist por camioneta (patente) y semana de turno, con los 8 días del
+  formato (martes de llegada + miércoles a martes). Cada día se marca ✓ / X por ítem, las aptitudes del
+  conductor (SI / NO) y su nombre; "Todo ✓" y "Copiar día anterior" agilizan el llenado.
+- Los datos de la camioneta (marca, modelo, mantención, extintor, km) pasan solos a la semana siguiente.
+- Se guarda en `borradores_otros` (tipo `checklist_camioneta`), también sin conexión.
+- El Word se genera rellenando la plantilla original (`src/assets/plantillas/checklist_camioneta.docx`):
+  el formato del registro queda idéntico. Si cambia el formato, se reemplaza ese archivo
+  (y, si cambian filas o columnas, las posiciones en `src/informes/checklist/catalogo.ts`).
+
 ## Modo sin conexión
 
 - La app se instala sola en el dispositivo la primera vez que se abre con señal (service worker) y después

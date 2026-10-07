@@ -182,7 +182,7 @@ export function calcularEstadisticas(datos: DatosAdmin, rango: Rango, ahora = ne
   const aprobados = datos.perfiles.filter(p => p.estado === 'aprobado');
   const desdeMs = new Date(`${rango.desde}T00:00:00`).getTime();
 
-  const etiquetaTipo: Record<string, string> = { mantenimiento: 'Mantenimiento', falla: 'Falla — Carro', cierre: 'Cierre semanal' };
+  const etiquetaTipo: Record<string, string> = { mantenimiento: 'Mantenimiento', falla: 'Falla — Carro', cierre: 'Cierre semanal', checklist_camioneta: 'Checklist camioneta' };
   const recientes = [
     ...datos.diarios.map(b => ({
       id: b.id, tipo: `Diario · ${b.turno === 'dia' ? 'Día' : 'Noche'}`, titulo: `Turno ${b.letraTurno || letraDeFecha(b.fecha)}`,

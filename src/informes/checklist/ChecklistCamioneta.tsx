@@ -1,0 +1,502 @@
+// Checklist diario de la camioneta (registro GSSO-LTE-R-LV-DSAL-29).
+//
+// Un registro por camioneta y semana de turno, con los 8 días del formato (martes de llegada +
+// miércoles a martes). Cada día se marca ✓ / X en cada ítem, las aptitudes del conductor y su
+// nombre; se guarda solo en la nube (y en el dispositivo si no hay señal) y se descarga en Word
+// con el mismo formato del registro oficial.
+import { useEffect, useMemo, useState } from 'react';
+import {
+  ArrowLeft, ChevronLeft, ChevronRight, CarFront, ClipboardCheck, UserRound, ShieldAlert,
+  Check, X, Copy, Eraser, Loader2, FileDown, Plus, NotebookPen,
+} from 'lucide-react';
+import { saveAs } from 'file-saver';
+import logoPsinet from '../../assets/logo_psinet.jpg';
+import logoEdificio from '../../assets/LogoEdificio.png';
+import { useSesion, nombreVisible } from '../../auth/sesion';
+import { configDivision } from '../../datos/divisiones';
+import { hoyLocalISO, sumarDias, formatDiaMes } from '../../datos/fechas';
+import { semanaDeFecha, uuidDeterministico } from '../../datos/turnos';
+import { type BorradorOtroEntry, fetchBorradoresOtros, subscribeBorradoresOtros, upsertBorradorOtro } from '../../datos/borradoresOtros';
+import { registrarActividad } from '../../lib/actividad';
+import {
+  SECCIONES, DIAS_CHECKLIST, INICIALES_DIA, ETIQUETAS_DIA, fechasChecklist, checklistVacio, normalizarChecklist,
+  avanceDia, requiereAviso, clavePatente, type DatosChecklist, type Marca, type Respuesta,
+} from './catalogo';
+import { generarChecklistWord, nombreArchivoChecklist } from './word';
+import './checklist.css';
+
+const TIPO = 'checklist_camioneta' as const;
+const ddmm = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
+
+export default function ChecklistCamioneta({ onBack }: { onBack: () => void }) {
+  const { division, perfil } = useSesion();
+  const config = configDivision(division);
+  const hoy = hoyLocalISO();
+  const [fechaRef, setFechaRef] = useState(hoy);
+  const semana = useMemo(() => semanaDeFecha(fechaRef), [fechaRef]);
+  const [lista, setLista] = useState<BorradorOtroEntry[] | null>(null);
+
+  useEffect(() => {
+    let vivo = true;
+    void fetchBorradoresOtros(TIPO, division).then(l => { if (vivo) setLista(l); });
+    const desuscribir = subscribeBorradoresOtros(TIPO, division, l => setLista(l));
+    return () => { vivo = false; desuscribir(); };
+  }, [division]);
+
+  // Camionetas conocidas (de checklists anteriores), la más reciente primero.
+  const camionetas = useMemo(() => {
+    const vistas = new Map<string, DatosChecklist>();
+    for (const e of [...(lista ?? [])].sort((a, b) => b.savedAt.localeCompare(a.savedAt))) {
+      const d = normalizarChecklist(e.datos, semana.inicio, semana.letra);
+      const clave = clavePatente(d.patente);
+      if (clave && !vistas.has(clave)) vistas.set(clave, d);
+    }
+    return vistas;
+  }, [lista, semana.inicio, semana.letra]);
+
+  const CLAVE_PATENTE = `psinet_checklist_patente${config.sufijoLocal}`;
+  const [patente, setPatenteState] = useState<string>(() => {
+    try { return localStorage.getItem(CLAVE_PATENTE) ?? ''; } catch { return ''; }
+  });
+  const setPatente = (p: string) => {
+    const limpia = p.toUpperCase().trim();
+    setPatenteState(limpia);
+    try { localStorage.setItem(CLAVE_PATENTE, limpia); } catch { /* sin almacenamiento */ }
+  };
+  const [nuevaPatente, setNuevaPatente] = useState('');
+  // Sin patente elegida: se usa la última camioneta registrada.
+  const patenteActiva = patente || [...camionetas.values()][0]?.patente || '';
+
+  const id = patenteActiva ? uuidDeterministico(`checklist|${division}|${semana.inicio}|${clavePatente(patenteActiva)}`) : '';
+  const entrada = lista?.find(e => e.id === id) ?? null;
+
+  /** Checklist nuevo de la semana: arrastra los datos de la camioneta del último registro. */
+  const base = useMemo(() => {
+    const d = checklistVacio(semana.inicio, semana.letra);
+    const anterior = camionetas.get(clavePatente(patenteActiva));
+    d.patente = patenteActiva;
+    d.conductor = nombreVisible(perfil);
+    if (anterior) {
+      d.marca = anterior.marca; d.modelo = anterior.modelo; d.anio = anterior.anio;
+      d.fechaUltimaMantencion = anterior.fechaUltimaMantencion; d.kmProximaMantencion = anterior.kmProximaMantencion;
+      d.fechaControlLicencia = anterior.fechaControlLicencia; d.fechaExtintor = anterior.fechaExtintor;
+      d.kmInicio = anterior.kmFin; // el kilometraje de inicio es el de término de la semana anterior
+    }
+    return d;
+  }, [semana.inicio, semana.letra, camionetas, patenteActiva, perfil]);
+
+  const rango = `${formatDiaMes(sumarDias(semana.inicio, -1))} – ${formatDiaMes(semana.fin)}`;
+
+  return (
+    <div className="min-h-screen text-[#222] font-sans pb-24">
+      <header className="site-header">
+        <div className="site-header__inner">
+          <div className="flex items-center gap-4 py-3 px-5 flex-1 min-w-0">
+            <div className="site-header__plate"><img src={logoPsinet} alt="PSINet" /></div>
+            <div className="min-w-0">
+              <div className="site-header__title font-display font-bold text-xl leading-tight truncate">Checklist de Camioneta</div>
+              <div className="site-header__meta text-xs truncate">{config.sigla} / GSSO-LTE-R-LV-DSAL-29 · Lista de verificación diaria</div>
+            </div>
+          </div>
+          <div className="site-header__photo"><img src={logoEdificio} alt="" aria-hidden="true" /></div>
+        </div>
+        <div className="site-header__rule" />
+      </header>
+
+      <main className="max-w-[900px] mx-auto p-5 space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <button type="button" onClick={onBack} className="btn-outline text-[#0E4660] px-3 py-1.5 rounded-md text-xs font-bold hover:bg-[#d5e7f8] flex items-center gap-1.5">
+            <ArrowLeft size={14} /> Volver al menú
+          </button>
+          <div className="checklist-semana" role="group" aria-label="Semana de turno">
+            <button type="button" aria-label="Semana anterior" onClick={() => setFechaRef(sumarDias(semana.inicio, -7))}><ChevronLeft size={16} /></button>
+            <span>
+              <strong>Turno {semana.letra}</strong> · {rango}
+              {fechaRef !== hoy && semana.inicio !== semanaDeFecha(hoy).inicio && (
+                <button type="button" className="checklist-semana__hoy" onClick={() => setFechaRef(hoy)}>Ir a hoy</button>
+              )}
+            </span>
+            <button type="button" aria-label="Semana siguiente" onClick={() => setFechaRef(sumarDias(semana.inicio, 7))}><ChevronRight size={16} /></button>
+          </div>
+        </div>
+
+        <section className="panel p-5">
+          <h2 className="panel__summary font-display font-bold text-lg"><CarFront size={18} className="panel__summary-icon" strokeWidth={2.2} /> Camioneta</h2>
+          <div className="flex flex-wrap gap-2 items-center">
+            {[...camionetas.keys()].map(clave => {
+              const p = camionetas.get(clave)!.patente;
+              const activa = clavePatente(patenteActiva) === clave;
+              return (
+                <button key={clave} type="button" onClick={() => setPatente(p)} className={`checklist-chip ${activa ? 'checklist-chip--activa' : ''}`}>
+                  {p.toUpperCase()}
+                </button>
+              );
+            })}
+            <form
+              className="flex items-center gap-1.5"
+              onSubmit={e => { e.preventDefault(); if (nuevaPatente.trim()) { setPatente(nuevaPatente); setNuevaPatente(''); } }}
+            >
+              <input
+                value={nuevaPatente}
+                onChange={e => setNuevaPatente(e.target.value.toUpperCase())}
+                placeholder={camionetas.size ? 'Otra patente' : 'Patente'}
+                className="w-36 p-2 border border-[#DCE1E6] rounded-md text-sm uppercase"
+                aria-label="Patente de la camioneta"
+              />
+              <button type="submit" className="btn-outline text-[#0E4660] px-2.5 py-2 rounded-md text-xs font-bold hover:bg-[#d5e7f8] flex items-center gap-1"><Plus size={14} /> Agregar</button>
+            </form>
+          </div>
+          {!patenteActiva && <p className="text-sm text-gray-500 mt-3">Ingresa la patente de la camioneta para comenzar el checklist de la semana.</p>}
+        </section>
+
+        {lista === null && <p className="text-sm text-gray-500 flex items-center gap-2"><Loader2 size={16} className="animate-spin" /> Cargando checklists…</p>}
+        {lista !== null && patenteActiva && (
+          <FormularioChecklist
+            key={id}
+            id={id}
+            division={division}
+            entrada={entrada}
+            base={base}
+            hoy={hoy}
+            onGuardado={entry => setLista(prev => [entry, ...(prev ?? []).filter(e => e.id !== entry.id)])}
+          />
+        )}
+      </main>
+    </div>
+  );
+}
+
+function FormularioChecklist({ id, division, entrada, base, hoy, onGuardado }: {
+  id: string;
+  /** Avisa el checklist recién guardado (la lista de camionetas se actualiza al tiro, aun sin señal). */
+  onGuardado: (entry: BorradorOtroEntry) => void;
+  division: ReturnType<typeof useSesion>['division'];
+  entrada: BorradorOtroEntry | null;
+  base: DatosChecklist;
+  hoy: string;
+}) {
+  const normalizar = (e: BorradorOtroEntry) => normalizarChecklist(e.datos, base.semanaInicio, base.letra);
+  const [datos, setDatos] = useState<DatosChecklist>(() => (entrada ? { ...normalizar(entrada), patente: base.patente } : base));
+  // Cada cambio suma una edición; hay cambios sin guardar mientras la última guardada sea anterior.
+  const [edicion, setEdicion] = useState(0);
+  const [edicionGuardada, setEdicionGuardada] = useState(0);
+  const sucio = edicion !== edicionGuardada;
+  const [guardando, setGuardando] = useState(false);
+  const [guardadoEn, setGuardadoEn] = useState<string | null>(entrada?.savedAt ?? null);
+  const [versionVista, setVersionVista] = useState<string | null>(entrada?.savedAt ?? null);
+  const [generando, setGenerando] = useState(false);
+  const [aviso, setAviso] = useState<{ texto: string; error?: boolean } | null>(null);
+
+  const fechas = useMemo(() => fechasChecklist(base.semanaInicio), [base.semanaInicio]);
+  const indiceHoy = fechas.indexOf(hoy);
+  const [dia, setDia] = useState(indiceHoy >= 0 ? indiceHoy : 0);
+
+  // Cambios guardados desde otro dispositivo: se aplican si aquí no hay cambios sin guardar.
+  if (entrada && entrada.savedAt !== versionVista) {
+    setVersionVista(entrada.savedAt);
+    if (!sucio && entrada.savedAt !== guardadoEn) {
+      setDatos({ ...normalizar(entrada), patente: base.patente });
+      setGuardadoEn(entrada.savedAt);
+    }
+  }
+
+  const cambiar = (fn: (d: DatosChecklist) => DatosChecklist) => {
+    setDatos(fn);
+    setEdicion(n => n + 1);
+  };
+  const campo = <K extends keyof DatosChecklist>(clave: K, valor: DatosChecklist[K]) => cambiar(d => ({ ...d, [clave]: valor }));
+
+  // Guardado automático (en la nube, o en el dispositivo si no hay señal).
+  useEffect(() => {
+    if (!sucio) return;
+    const version = edicion;
+    const timer = setTimeout(() => {
+      const savedAt = new Date().toISOString();
+      const entry: BorradorOtroEntry = {
+        id, tipo: 'checklist_camioneta', division,
+        titulo: `Camioneta ${datos.patente.toUpperCase()} · Turno ${datos.letra} · ${ddmm(fechas[0])} al ${ddmm(fechas[DIAS_CHECKLIST - 1])}`,
+        fecha: datos.semanaInicio,
+        savedAt,
+        datos: datos as unknown as Record<string, unknown>,
+      };
+      setGuardando(true);
+      upsertBorradorOtro(entry)
+        .then(() => {
+          setGuardadoEn(savedAt);
+          setVersionVista(savedAt);
+          setEdicionGuardada(version);
+          onGuardado(entry);
+        })
+        .catch(error => {
+          console.error('No se pudo guardar el checklist:', error);
+          setAviso({ texto: 'No se pudo guardar el checklist. Inténtalo de nuevo.', error: true });
+        })
+        .finally(() => setGuardando(false));
+    }, 700);
+    return () => clearTimeout(timer);
+  }, [sucio, edicion, datos, id, division, fechas, onGuardado]);
+
+
+  useEffect(() => {
+    if (!aviso) return;
+    const t = setTimeout(() => setAviso(null), 3500);
+    return () => clearTimeout(t);
+  }, [aviso]);
+
+  // --- Acciones del día -------------------------------------------------------------------------
+  const marcar = (itemId: string, valor: Marca) => cambiar(d => {
+    const actuales = [...(d.marcas[itemId] ?? [])];
+    actuales[dia] = actuales[dia] === valor ? '' : valor;
+    return { ...d, marcas: { ...d.marcas, [itemId]: actuales } };
+  });
+
+  const marcarSeccion = (ids: string[]) => cambiar(d => {
+    const marcas = { ...d.marcas };
+    for (const itemId of ids) {
+      const actuales = [...marcas[itemId]];
+      if (!actuales[dia]) actuales[dia] = 'ok';
+      marcas[itemId] = actuales;
+    }
+    return { ...d, marcas };
+  });
+
+  const todoOk = () => cambiar(d => {
+    const marcas = { ...d.marcas };
+    for (const itemId of Object.keys(marcas)) {
+      const actuales = [...marcas[itemId]];
+      if (!actuales[dia]) actuales[dia] = 'ok';
+      marcas[itemId] = actuales;
+    }
+    const firmas = [...d.firmas];
+    if (!firmas[dia]) firmas[dia] = d.conductor;
+    return { ...d, marcas, firmas };
+  });
+
+  const copiarAnterior = () => {
+    if (dia === 0) return;
+    cambiar(d => {
+      const marcas = Object.fromEntries(Object.entries(d.marcas).map(([k, v]) => {
+        const nuevo = [...v]; nuevo[dia] = v[dia - 1]; return [k, nuevo];
+      }));
+      const ap = (arr: Respuesta[]) => { const n = [...arr]; n[dia] = arr[dia - 1]; return n; };
+      const firmas = [...d.firmas]; firmas[dia] = d.firmas[dia - 1] || firmas[dia];
+      return { ...d, marcas, firmas, aptitudes: { alcohol: ap(d.aptitudes.alcohol), aptitud: ap(d.aptitudes.aptitud), medicamento: ap(d.aptitudes.medicamento) } };
+    });
+    setAviso({ texto: `Se copió el ${ETIQUETAS_DIA[dia - 1].toLowerCase()} ${ddmm(fechas[dia - 1])}.` });
+  };
+
+  const limpiarDia = () => {
+    if (!window.confirm(`¿Borrar las marcas del ${ETIQUETAS_DIA[dia].toLowerCase()} ${ddmm(fechas[dia])}?`)) return;
+    cambiar(d => {
+      const marcas = Object.fromEntries(Object.entries(d.marcas).map(([k, v]) => { const n = [...v]; n[dia] = ''; return [k, n]; }));
+      const ap = (arr: Respuesta[]) => { const n = [...arr]; n[dia] = ''; return n; };
+      const firmas = [...d.firmas]; firmas[dia] = '';
+      return { ...d, marcas, firmas, aptitudes: { alcohol: ap(d.aptitudes.alcohol), aptitud: ap(d.aptitudes.aptitud), medicamento: ap(d.aptitudes.medicamento) } };
+    });
+  };
+
+  const responder = (clave: keyof DatosChecklist['aptitudes'], valor: Respuesta) => cambiar(d => {
+    const arr = [...d.aptitudes[clave]];
+    arr[dia] = arr[dia] === valor ? '' : valor;
+    return { ...d, aptitudes: { ...d.aptitudes, [clave]: arr } };
+  });
+
+  const firmar = (valor: string) => cambiar(d => { const f = [...d.firmas]; f[dia] = valor; return { ...d, firmas: f }; });
+
+  const generarWord = async () => {
+    setGenerando(true);
+    try {
+      const blob = await generarChecklistWord(datos);
+      const nombre = nombreArchivoChecklist(datos);
+      saveAs(blob, nombre);
+      void registrarActividad('word_generado', nombre, id);
+      setAviso({ texto: 'Checklist descargado en Word.' });
+    } catch (error) {
+      console.error('No se pudo generar el checklist:', error);
+      setAviso({ texto: 'No se pudo generar el Word del checklist.', error: true });
+    } finally {
+      setGenerando(false);
+    }
+  };
+
+  const avance = avanceDia(datos, dia);
+  const completo = avance.hechos === avance.total;
+  const estadoGuardado = guardando || sucio
+    ? 'Guardando…'
+    : guardadoEn ? `Guardado · ${new Date(guardadoEn).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })}` : 'Se guarda solo';
+
+  const input = (clave: keyof DatosChecklist, etiqueta: string, tipo: 'text' | 'date' | 'number' = 'text', extra?: { placeholder?: string; inputMode?: 'numeric' }) => (
+    <label className="block">
+      <span className="block text-xs text-[#6B6B6B] font-bold mb-1">{etiqueta}</span>
+      <input
+        type={tipo}
+        value={datos[clave] as string}
+        onChange={e => campo(clave, e.target.value as never)}
+        placeholder={extra?.placeholder}
+        inputMode={extra?.inputMode}
+        className="w-full p-2 border border-[#DCE1E6] rounded-md text-sm"
+      />
+    </label>
+  );
+
+  return (
+    <>
+      <p className="text-[11px] text-gray-500 text-right -mt-2">{estadoGuardado}</p>
+
+      <details open className="panel p-5">
+        <summary className="panel__summary font-display font-bold text-lg">
+          <UserRound size={18} className="panel__summary-icon" strokeWidth={2.2} /> Datos de la semana
+        </summary>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="sm:col-span-2">{input('conductor', 'Nombre del conductor')}</div>
+          {input('marca', 'Marca', 'text', { placeholder: 'Ej. Toyota' })}
+          {input('modelo', 'Modelo', 'text', { placeholder: 'Ej. Hilux' })}
+          {input('anio', 'Año', 'text', { inputMode: 'numeric' })}
+          <label className="block">
+            <span className="block text-xs text-[#6B6B6B] font-bold mb-1">Patente</span>
+            <input value={datos.patente.toUpperCase()} readOnly className="w-full p-2 border border-[#DCE1E6] rounded-md text-sm bg-gray-50" />
+          </label>
+          {input('fechaUltimaMantencion', 'Fecha última mantención', 'date')}
+          {input('kmProximaMantencion', 'Km. próxima mantención', 'text', { inputMode: 'numeric' })}
+          {input('fechaControlLicencia', 'Fecha control licencia municipal', 'date')}
+          {input('fechaExtintor', 'Extintor incendio portátil vigente (fecha)', 'date')}
+          {input('kmInicio', 'Km. inicio de turno', 'text', { inputMode: 'numeric' })}
+          {input('kmFin', 'Km. fin de turno', 'text', { inputMode: 'numeric' })}
+        </div>
+      </details>
+
+      <div className="checklist-dias" role="tablist" aria-label="Día del checklist">
+        {fechas.map((fecha, i) => {
+          const a = avanceDia(datos, i);
+          const estado = a.hechos === 0 ? '' : a.hechos === a.total ? (a.negativos ? 'alerta' : 'listo') : 'parcial';
+          return (
+            <button
+              key={i}
+              type="button"
+              role="tab"
+              aria-selected={dia === i}
+              onClick={() => setDia(i)}
+              className={`checklist-dia ${dia === i ? 'checklist-dia--activo' : ''} ${estado ? `checklist-dia--${estado}` : ''}`}
+              title={`${ETIQUETAS_DIA[i]} ${ddmm(fecha)} · ${a.hechos}/${a.total}`}
+            >
+              <span className="checklist-dia__inicial">{INICIALES_DIA[i]}</span>
+              <span className="checklist-dia__fecha">{ddmm(fecha)}</span>
+              {fecha === hoy && <span className="checklist-dia__hoy">Hoy</span>}
+            </button>
+          );
+        })}
+      </div>
+
+      <section className="panel p-5">
+        <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+          <h2 className="font-display font-bold text-lg text-[#0E4660] flex items-center gap-2">
+            <ClipboardCheck size={18} /> {ETIQUETAS_DIA[dia]} {ddmm(fechas[dia])}
+            <span className={`checklist-progreso ${completo ? 'checklist-progreso--listo' : ''}`}>{avance.hechos}/{avance.total}</span>
+          </h2>
+          <div className="flex flex-wrap gap-1.5">
+            <button type="button" onClick={todoOk} className="checklist-accion checklist-accion--ok"><Check size={14} /> Todo ✓ en este día</button>
+            <button type="button" onClick={copiarAnterior} disabled={dia === 0} className="checklist-accion"><Copy size={14} /> Copiar día anterior</button>
+            <button type="button" onClick={limpiarDia} className="checklist-accion"><Eraser size={14} /> Limpiar</button>
+          </div>
+        </div>
+        <p className="text-xs text-gray-500 mb-4">Marca <strong>✓</strong> si está bien y <strong>X</strong> si está malo o falta. "Todo ✓" completa solo lo que esté vacío (no cambia las X).</p>
+
+        <div className="space-y-5">
+          {SECCIONES.map(seccion => (
+            <div key={seccion.id}>
+              <div className="checklist-seccion">
+                <h3>{seccion.titulo}</h3>
+                <button type="button" onClick={() => marcarSeccion(seccion.items.map(i => i.id))}>✓ todo</button>
+              </div>
+              <ul className="checklist-items">
+                {seccion.items.map(item => {
+                  const valor = datos.marcas[item.id]?.[dia] ?? '';
+                  return (
+                    <li key={item.id} className={valor === 'x' ? 'checklist-item--x' : ''}>
+                      <span>{item.nombre}</span>
+                      <div className="checklist-botones" role="group" aria-label={item.nombre}>
+                        <button type="button" aria-pressed={valor === 'ok'} className="ok" onClick={() => marcar(item.id, 'ok')} aria-label="Bien"><Check size={16} /></button>
+                        <button type="button" aria-pressed={valor === 'x'} className="x" onClick={() => marcar(item.id, 'x')} aria-label="Malo o falta"><X size={16} /></button>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="panel p-5">
+        <h2 className="font-display font-bold text-lg text-[#0E4660] flex items-center gap-2 mb-3">
+          <ShieldAlert size={18} /> Aptitudes físicas y psicológicas · {ETIQUETAS_DIA[dia]} {ddmm(fechas[dia])}
+        </h2>
+        <ul className="checklist-items">
+          {([
+            ['alcohol', '1.- ¿Se encuentra bajo los efectos de alcohol y/o droga?'],
+            ['aptitud', '2.- ¿Se encuentra en aptitudes físicas y psicológicas para conducir?'],
+            ['medicamento', '3.- ¿Está tomando algún medicamento?'],
+          ] as const).map(([clave, pregunta]) => (
+            <li key={clave}>
+              <span>{pregunta}</span>
+              <div className="checklist-botones checklist-botones--texto" role="group" aria-label={pregunta}>
+                {(['SI', 'NO'] as const).map(r => (
+                  <button key={r} type="button" aria-pressed={datos.aptitudes[clave][dia] === r} onClick={() => responder(clave, r)}>{r}</button>
+                ))}
+              </div>
+            </li>
+          ))}
+        </ul>
+        {datos.aptitudes.medicamento.some(r => r === 'SI') && (
+          <div className="mt-3">{input('medicamentoCual', '4.- Indicar cuál medicamento')}</div>
+        )}
+        {requiereAviso(datos, dia) && (
+          <p className="checklist-alerta" role="alert">
+            <ShieldAlert size={16} /> Debe informar inmediatamente a la Jefatura directa antes de conducir.
+          </p>
+        )}
+        <div className="mt-4">
+          <span className="block text-xs text-[#6B6B6B] font-bold mb-1">Firma y nombre del conductor ({ETIQUETAS_DIA[dia].toLowerCase()})</span>
+          <div className="flex gap-2">
+            <input value={datos.firmas[dia]} onChange={e => firmar(e.target.value)} placeholder="Nombre de quien conduce este día" className="flex-1 p-2 border border-[#DCE1E6] rounded-md text-sm" />
+            {datos.conductor && datos.firmas[dia] !== datos.conductor && (
+              <button type="button" onClick={() => firmar(datos.conductor)} className="checklist-accion">Usar conductor</button>
+            )}
+          </div>
+        </div>
+      </section>
+
+      <details open className="panel p-5">
+        <summary className="panel__summary font-display font-bold text-lg">
+          <NotebookPen size={18} className="panel__summary-icon" strokeWidth={2.2} /> Sistema DPF y observaciones
+        </summary>
+        <div className="space-y-3">
+          {input('dpf', '6.- ¿Se observa luz de alarma de sistema DPF en panel?', 'text', { placeholder: 'Ej. NO' })}
+          {input('limpiezaFiltro', '7.- Con respecto a la pregunta n°6, ¿se efectuó el procedimiento de limpieza del filtro?', 'text', { placeholder: 'Ej. No aplica' })}
+          <label className="block">
+            <span className="block text-xs text-[#6B6B6B] font-bold mb-1">Observaciones</span>
+            <textarea value={datos.observaciones} onChange={e => campo('observaciones', e.target.value)} rows={3} className="w-full p-2 border border-[#DCE1E6] rounded-md text-sm" />
+          </label>
+          <p className="text-xs text-gray-500">La hoja de revisión exterior (abolladuras, rayas y picaduras sobre el dibujo de la camioneta) se mantiene igual en el Word para marcarla a mano si corresponde.</p>
+        </div>
+      </details>
+
+      <div className="action-zone">
+        <button
+          type="button"
+          onClick={() => void generarWord()}
+          disabled={generando}
+          className="btn-primary-field w-full text-white py-3.5 px-6 font-bold text-base rounded-md disabled:!bg-[#9fb3bd] disabled:cursor-not-allowed flex items-center justify-center gap-2"
+        >
+          {generando ? (<><Loader2 size={18} className="animate-spin" /> Generando checklist…</>) : (<><FileDown size={18} /> Descargar checklist en Word</>)}
+        </button>
+      </div>
+
+      {aviso && (
+        <div className={`toast-anim fixed bottom-5 left-1/2 -translate-x-1/2 ${aviso.error ? 'bg-red-800' : 'bg-[#0E4660]'} text-white py-3 px-5 rounded-lg text-sm shadow-lg z-50`}>
+          {aviso.texto}
+        </div>
+      )}
+    </>
+  );
+}

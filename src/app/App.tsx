@@ -28,6 +28,7 @@ const InformeCierre = lazy(() => import('../informes/InformeCierre'));
 const InformeMantenimiento = lazy(() => import('../informes/InformeMantenimiento'));
 const InformeFallaCarro = lazy(() => import('../informes/InformeFallaCarro'));
 const ImpresionRapida = lazy(() => import('../pantallas/ImpresionRapida'));
+const ChecklistCamioneta = lazy(() => import('../informes/checklist/ChecklistCamioneta'));
 const PanelAdmin = lazy(() => import('../admin/PanelAdmin'));
 
 const CargandoPantalla = ({ children }: { children: ReactNode }) => (
@@ -87,6 +88,7 @@ function AppContenido() {
   const [borradoresMantenimiento, setBorradoresMantenimiento] = useState<BorradorOtroEntry[]>([]);
 
   const [borradoresFalla, setBorradoresFalla] = useState<BorradorOtroEntry[]>([]);
+  const [checklistsCamioneta, setChecklistsCamioneta] = useState<BorradorOtroEntry[]>([]);
 
   // Borrador puntual que se debe abrir al entrar a Mantenimiento/Falla (desde "Continuar" o desde Borradores). null = informe nuevo.
   const [mantenimientoAAbrir, setMantenimientoAAbrir] = useState<BorradorOtroEntry | null>(null);
@@ -112,6 +114,11 @@ function AppContenido() {
   useEffect(() => {
     void fetchBorradoresOtros('falla', division).then(setBorradoresFalla);
     return subscribeBorradoresOtros('falla', division, setBorradoresFalla);
+  }, [division]);
+
+  useEffect(() => {
+    void fetchBorradoresOtros('checklist_camioneta', division).then(setChecklistsCamioneta);
+    return subscribeBorradoresOtros('checklist_camioneta', division, setChecklistsCamioneta);
   }, [division]);
 
   // Navegación: Mantenimiento / Falla — "Nuevo informe" o "Continuar" un borrador guardado.
@@ -281,6 +288,7 @@ function AppContenido() {
         onNavigate={setView}
         borradoresMantenimiento={borradoresMantenimiento}
         borradoresFalla={borradoresFalla}
+        checklistsCamioneta={checklistsCamioneta}
         onNuevoMantenimiento={goToNuevoMantenimiento}
         onAbrirMantenimiento={goToAbrirMantenimiento}
         onNuevaFalla={goToNuevaFalla}
@@ -325,6 +333,10 @@ function AppContenido() {
 
   if (view === 'falla-carro') {
     return <CargandoPantalla><InformeFallaCarro key={`${fallaInstancia}-${fallaDeRuta?.id ?? 'nuevo'}`} onBack={() => setView('dashboard')} borradorInicial={fallaDeRuta} /></CargandoPantalla>;
+  }
+
+  if (view === 'checklist') {
+    return <CargandoPantalla><ChecklistCamioneta onBack={() => setView('dashboard')} /></CargandoPantalla>;
   }
 
   if (view === 'impresion') {

@@ -267,13 +267,18 @@ for delete to authenticated using (bucket_id = 'evidencias' and public.es_usuari
 -- ---------------------------------------------------------------------------
 create table if not exists public.borradores_otros (
   id uuid primary key,
-  tipo text not null check (tipo in ('mantenimiento', 'falla', 'cierre')),
+  tipo text not null check (tipo in ('mantenimiento', 'falla', 'cierre', 'checklist_camioneta')),
   titulo text,
   fecha date not null,
   datos jsonb not null default '{}',
   saved_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+-- Tipos de informe admitidos (se actualiza en bases creadas con versiones anteriores).
+alter table public.borradores_otros drop constraint if exists borradores_otros_tipo_check;
+alter table public.borradores_otros add constraint borradores_otros_tipo_check
+  check (tipo in ('mantenimiento', 'falla', 'cierre', 'checklist_camioneta'));
 
 create index if not exists borradores_otros_tipo_saved_at_idx
   on public.borradores_otros (tipo, saved_at desc);
@@ -452,7 +457,10 @@ begin
       || case coalesce(new.turno, old.turno) when 'dia' then 'Día' else 'Noche' end;
   else
     v_ref := coalesce(new.id, old.id)::text;
-    v_detalle := initcap(coalesce(new.tipo, old.tipo)) || ' · ' || coalesce(new.titulo, old.titulo, '');
+    v_detalle := case coalesce(new.tipo, old.tipo)
+        when 'checklist_camioneta' then 'Checklist camioneta'
+        else initcap(coalesce(new.tipo, old.tipo)) end
+      || ' · ' || coalesce(new.titulo, old.titulo, '');
   end if;
   if coalesce(new.division, old.division) = 'andina' then
     v_detalle := v_detalle || ' · Andina';

@@ -326,14 +326,13 @@ export default function InformeDiario({ d, volverABorradores, goToNewInforme }: 
                 <option value="Checklist de de carros LTE">Checklist de de carros LTE</option>
                 <option value="Orden y Limpieza de Bodega">Orden y Limpieza de Bodega</option>
               </optgroup>
-              {/* Tareas de la actividad (listado del cliente, en src/catalogos.ts). Se inserta solo el nombre de la tarea. */}
-              {gruposTareas(config).map(grupo => (
-                <optgroup key={grupo.titulo} label={grupo.titulo}>
-                  {grupo.tareas.map(t => (
-                    <option key={`${grupo.titulo}-${t.codigo}`} value={t.tarea}>{t.codigo} · {t.tarea}</option>
-                  ))}
-                </optgroup>
-              ))}
+              {/* Tareas de la actividad (listado del cliente, en src/datos/catalogos.ts). Se muestra y se
+                  inserta solo el nombre, sin numeración; las tareas repetidas en varios grupos aparecen una vez. */}
+              <optgroup label="Tareas de la actividad">
+                {[...new Set(gruposTareas(config).flatMap(grupo => grupo.tareas.map(t => t.tarea)))].map(tarea => (
+                  <option key={tarea} value={tarea}>{tarea}</option>
+                ))}
+              </optgroup>
             </select>
             <button onClick={() => {
               if (!selectedActividadSugerida) return;

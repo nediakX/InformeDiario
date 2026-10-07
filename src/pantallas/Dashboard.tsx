@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { FileText, FileStack, FolderOpen, ArrowRight, CalendarDays, Bell, FilePlus, Sun, Moon, Wrench, AlertTriangle, Construction, Printer, LogOut, ShieldCheck, UserRound } from 'lucide-react';
+import { ClipboardCheck, FileText, FileStack, FolderOpen, ArrowRight, CalendarDays, Bell, FilePlus, Sun, Moon, Wrench, AlertTriangle, Construction, Printer, LogOut, ShieldCheck, UserRound } from 'lucide-react';
 import { useSesion, nombreVisible } from '../auth/sesion';
 import { CONFIG_DIVISION } from '../datos/divisiones';
 import SelectorDivision from '../componentes/SelectorDivision';
@@ -9,11 +9,12 @@ import { type BorradorEntry, estadoBorrador, contarFotos } from '../datos/borrad
 import { type BorradorOtroEntry, estadoBorradorGenerico, contarFotosGenerico } from '../datos/borradoresOtros';
 import { hoyLocalISO, formatDiaMes, formatFechaLarga } from '../datos/fechas';
 import { semanaDeFecha, DIAS_POR_TURNO } from '../datos/turnos';
+import { estadoChecklistDelDia } from '../informes/checklist/catalogo';
 
 type TipoBorradorTab = 'diario' | 'mantenimiento' | 'falla';
 
 interface DashboardProps {
-  onNavigate: (view: 'borradores' | 'cierre' | 'impresion' | 'admin') => void;
+  onNavigate: (view: 'borradores' | 'cierre' | 'checklist' | 'impresion' | 'admin') => void;
   /** Informes de hoy (Día y Noche), guardados o todavía pendientes: la persona elige con cuál trabajar. */
   informesHoy?: BorradorEntry[];
   onAbrirInforme: (entry: BorradorEntry) => void;
@@ -25,6 +26,8 @@ interface DashboardProps {
   /** Borradores guardados en la nube de Mantenimiento e Falla (todos, no solo los de hoy: no dependen del turno). */
   borradoresMantenimiento?: BorradorOtroEntry[];
   borradoresFalla?: BorradorOtroEntry[];
+  /** Checklists de camioneta guardados (para mostrar si el de hoy ya está completo). */
+  checklistsCamioneta?: BorradorOtroEntry[];
   onNuevoMantenimiento: () => void;
   onAbrirMantenimiento: (entry: BorradorOtroEntry) => void;
   onNuevaFalla: () => void;
@@ -39,10 +42,11 @@ const ESTADO_OTRO_LABEL: Record<'pendiente' | 'iniciado' | 'finalizado', string>
 
 export default function Dashboard({
   onNavigate, borradorCount, pendientesCount = 0, informesHoy = [], onAbrirInforme, onNuevoInforme,
-  borradoresMantenimiento = [], borradoresFalla = [],
+  borradoresMantenimiento = [], borradoresFalla = [], checklistsCamioneta = [],
   onNuevoMantenimiento, onAbrirMantenimiento, onNuevaFalla, onAbrirFalla, onVerBorradores,
 }: DashboardProps) {
   const { perfil, esAdmin, pendientesAprobacion, cerrarSesion, division } = useSesion();
+  const checklistHoy = estadoChecklistDelDia(checklistsCamioneta, hoyLocalISO());
   const [modalInformeOpen, setModalInformeOpen] = useState(false);
   const [modalMantenimientoOpen, setModalMantenimientoOpen] = useState(false);
   const [modalFallaOpen, setModalFallaOpen] = useState(false);
@@ -191,6 +195,26 @@ export default function Dashboard({
               </p>
               <span className="dashboard-card__cta">
                 Generar cierre <ArrowRight size={15} className="transition-transform group-hover:translate-x-1" />
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => onNavigate('checklist')}
+              className="dashboard-card group text-left"
+            >
+              <div className="dashboard-card__icon bg-[#1E8E3E]">
+                <ClipboardCheck size={26} color="#fff" strokeWidth={2} />
+              </div>
+              <h2 className="font-display font-bold text-lg text-[#0E4660] mt-4">Checklist de Camioneta</h2>
+              <p className="text-sm text-gray-500 mt-1.5 flex-1">
+                Lista de verificación diaria de la camioneta (GSSO-LTE-R-LV-DSAL-29): documentos, implementos, luces, neumáticos y aptitudes del conductor.
+              </p>
+              <span className={`text-[11px] font-bold mt-1.5 ${checklistHoy.completo ? 'text-[#1e6b34]' : 'text-[#856404]'}`}>
+                {checklistHoy.texto}
+              </span>
+              <span className="dashboard-card__cta">
+                Completar checklist <ArrowRight size={15} className="transition-transform group-hover:translate-x-1" />
               </span>
             </button>
           </div>

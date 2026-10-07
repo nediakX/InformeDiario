@@ -8,11 +8,12 @@
 //   /cierre                    Informe de Cierre semanal
 //   /mantenimiento/:id?        Mantenimiento de Generador (sin id = nuevo)
 //   /falla/:id?                Informe de Falla — Carro (sin id = nuevo)
+//   /checklist-camioneta       Checklist diario de la camioneta
 //   /impresion                 Impresión Rápida
 //   /admin/:pestana?           Panel de administración (resumen | en-linea | usuarios | actividad | sistema)
 //   /login, /registro          Acceso (solo sin sesión)
 
-export type Vista = 'dashboard' | 'diario' | 'borradores' | 'cierre' | 'mantenimiento' | 'falla-carro' | 'impresion' | 'admin';
+export type Vista = 'dashboard' | 'diario' | 'borradores' | 'cierre' | 'mantenimiento' | 'falla-carro' | 'checklist' | 'impresion' | 'admin';
 export type TipoBorradores = 'diario' | 'mantenimiento' | 'falla';
 export type PestanaAdmin = 'resumen' | 'en-linea' | 'usuarios' | 'actividad' | 'sistema';
 
@@ -24,6 +25,7 @@ export const NOMBRE_PANTALLA: Record<Vista, string> = {
   cierre: 'Informe de Cierre',
   mantenimiento: 'Mantenimiento de Generador',
   'falla-carro': 'Informe de Falla — Carro',
+  checklist: 'Checklist de Camioneta',
   impresion: 'Impresión Rápida',
   admin: 'Panel de administración',
 };
@@ -35,6 +37,7 @@ const BASE: Record<Vista, string> = {
   cierre: '/cierre',
   mantenimiento: '/mantenimiento',
   'falla-carro': '/falla',
+  checklist: '/checklist-camioneta',
   impresion: '/impresion',
   admin: '/admin',
 };
@@ -57,7 +60,7 @@ export function leerRuta(pathname: string): RutaLeida {
   if (resto.length) return { vista: null, param: null };
   const vista = (Object.keys(BASE) as Vista[]).find(v => v !== 'dashboard' && BASE[v] === `/${primera}`) ?? null;
   if (!vista) return { vista: null, param: null };
-  if (segunda && (vista === 'cierre' || vista === 'impresion')) return { vista: null, param: null };
+  if (segunda && (vista === 'cierre' || vista === 'impresion' || vista === 'checklist')) return { vista: null, param: null };
   return { vista, param: segunda };
 }
 

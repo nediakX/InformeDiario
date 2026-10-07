@@ -12,7 +12,7 @@ import { EVENTO_SINCRONIZADO, eliminarConCola, guardarConCola, listaConCambiosLo
 // formulario completo de cada uno se guarda tal cual en la columna "datos" (JSONB), así no hace
 // falta crear ni mantener una tabla nueva cada vez que un informe agregue o cambie un campo.
 
-export type TipoInformeOtro = 'mantenimiento' | 'falla' | 'cierre';
+export type TipoInformeOtro = 'mantenimiento' | 'falla' | 'cierre' | 'checklist_camioneta';
 
 export interface BorradorOtroEntry<T = Record<string, unknown>> {
   id: string;
