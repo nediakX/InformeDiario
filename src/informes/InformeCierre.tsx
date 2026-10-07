@@ -4,7 +4,7 @@ import { saveAs } from 'file-saver';
 import { registrarActividad } from '../lib/actividad';
 import {
   ArrowLeft, Loader2, FileStack, CalendarRange, ImagePlus, Trash2, CircleCheckBig, Circle,
-  Plus, ListTodo, Car, Wrench, Copy,
+  Plus, ListTodo, Car, Wrench, Copy, ChevronLeft, ChevronRight,
 } from 'lucide-react';
 import logoPsinet from "../assets/logo_psinet.jpg";
 import logoEdificio from "../assets/LogoEdificio.png";
@@ -13,7 +13,7 @@ import { N_CONTRATO } from '../datos/catalogos';
 import { fileToDataUrl, uid } from '../lib/fotos';
 import { type BorradorEntry, fetchBorradores, subscribeBorradores, esSemillaSinEditar } from '../datos/borradoresDiario';
 import { type BorradorOtroEntry, fetchBorradoresOtros, upsertBorradorOtro, deleteBorradorOtro, subscribeBorradoresOtros } from '../datos/borradoresOtros';
-import { formatFechaLarga, formatFechaPunto } from '../datos/fechas';
+import { formatFechaLarga, formatFechaPunto, formatDiaMes, hoyLocalISO, sumarDias } from '../datos/fechas';
 import { BLUE, ORANGE } from '../datos/plantillaWord';
 import { semanaDeFecha } from '../datos/turnos';
 import { configDivision, type Firmante } from '../datos/divisiones';
@@ -115,7 +115,9 @@ export default function InformeCierre({ onBack }: InformeCierreProps) {
   const creadorPorDefecto = CREADO_POR_OPTIONS[0];
   const [borradores, setBorradores] = useState<BorradorEntry[]>([]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const preseleccionadoRef = useRef(false);
+  // Semana de turno del cierre: por defecto la del turno en curso (se puede cambiar con ‹ ›).
+  const [fechaSemana, setFechaSemana] = useState(() => hoyLocalISO());
+  const semanaCierre = semanaDeFecha(fechaSemana);
   const [creadoNombre, setCreadoNombre] = useState(creadorPorDefecto.nombre);
   const [creadoCargo, setCreadoCargo] = useState(creadorPorDefecto.cargo);
 
@@ -130,7 +132,7 @@ export default function InformeCierre({ onBack }: InformeCierreProps) {
   // supervisores por turno (Andina), se toma de los días incluidos en el cierre.
   const letraTurno = CREADO_POR_OPTIONS_B.length
     ? (CREADO_POR_OPTIONS_B.some(o => o.nombre === creadoNombre) ? 'B' : 'A')
-    : (borradores.find(b => selectedIds.includes(b.id))?.letraTurno ?? 'A');
+    : semanaCierre.letra;
   const [actividadesPendientes, setActividadesPendientes] = useState<string[]>(['']);
   const [seccionesImagenes, setSeccionesImagenes] = useState<SeccionImagenes[]>(DEFAULT_SECCIONES_IMAGENES);
   const [camionetas, setCamionetas] = useState<CamionetaEntry[]>([{ id: uid(), placa: '', antes: null, despues: null }]);
@@ -169,7 +171,6 @@ export default function InformeCierre({ onBack }: InformeCierreProps) {
 
   const limpiarLocal = () => {
     const vacio = normalizarDatosCierre({}, creadorPorDefecto);
-    preseleccionadoRef.current = true; // no volver a preseleccionar días automáticamente
     ultimoSnapshotRef.current = JSON.stringify(vacio);
     ultimoSavedAtRef.current = null;
     setUltimoGuardadoEn(null);
@@ -184,7 +185,6 @@ export default function InformeCierre({ onBack }: InformeCierreProps) {
       const guardado = lista.find(b => b.id === CIERRE_DRAFT_ID);
       if (guardado) {
         const datos = normalizarDatosCierre(guardado.datos, creadorPorDefecto);
-        if (datos.selectedIds.length) preseleccionadoRef.current = true;
         ultimoSnapshotRef.current = JSON.stringify(datos);
         ultimoSavedAtRef.current = guardado.savedAt;
         setUltimoGuardadoEn(guardado.savedAt);
@@ -206,7 +206,6 @@ export default function InformeCierre({ onBack }: InformeCierreProps) {
       const datos = normalizarDatosCierre(remoto.datos, creadorPorDefecto);
       const snapshot = JSON.stringify(datos);
       if (snapshot === ultimoSnapshotRef.current) return;
-      preseleccionadoRef.current = true;
       ultimoSnapshotRef.current = snapshot;
       ultimoSavedAtRef.current = remoto.savedAt;
       setUltimoGuardadoEn(remoto.savedAt);
@@ -287,20 +286,7 @@ export default function InformeCierre({ onBack }: InformeCierreProps) {
     showToast('Cierre nuevo listo.');
   };
 
-  // Preselecciona automáticamente los días de la semana de turno más reciente (solo la primera vez que llegan datos).
-  // El Informe de Cierre es exclusivo de Turno Día; los informes de Turno Noche tienen su propio cierre.
-  // Los borradores automáticos que nadie ha abierto todavía ("pendientes") no cuentan.
-  useEffect(() => {
-    if (preseleccionadoRef.current) return;
-    const iniciados = borradores
-      .filter(b => b.turno === 'dia' && !esSemillaSinEditar(b))
-      .sort((a, b) => a.fecha.localeCompare(b.fecha));
-    if (iniciados.length === 0) return;
-    preseleccionadoRef.current = true;
-    const semana = semanaDeFecha(iniciados[iniciados.length - 1].fecha);
-    const deLaSemana = iniciados.filter(b => b.fecha >= semana.inicio && b.fecha <= semana.fin);
-    setSelectedIds((deLaSemana.length ? deLaSemana : iniciados).slice(-META_DIAS).map(b => b.id));
-  }, [borradores]);
+  // (Los días incluidos se calculan solos a partir de la semana de turno elegida: ver diasSeleccionados.)
 
   useEffect(() => {
     if (!toastMessage) return;
@@ -316,26 +302,33 @@ export default function InformeCierre({ onBack }: InformeCierreProps) {
     showToast(ok ? "Imagen copiada al portapapeles." : "No se pudo copiar la imagen.", !ok);
   };
 
-  // El Informe de Cierre solo consolida Turno Día; Turno Noche queda fuera de esta selección.
+  // El Informe de Cierre solo consolida Turno Día de la semana de turno elegida (la del turno en curso);
+  // los días de turnos anteriores y los de Turno Noche no se muestran.
   const ordenadosPorFecha = useMemo(
-    () => borradores.filter(b => b.turno === 'dia' && !esSemillaSinEditar(b)).sort((a, b) => a.fecha.localeCompare(b.fecha)),
-    [borradores]
+    () => borradores
+      .filter(b => b.turno === 'dia' && !esSemillaSinEditar(b) && b.fecha >= semanaCierre.inicio && b.fecha <= semanaCierre.fin)
+      .sort((a, b) => a.fecha.localeCompare(b.fecha)),
+    [borradores, semanaCierre.inicio, semanaCierre.fin]
   );
 
-  const diasSeleccionados = useMemo(
-    () => ordenadosPorFecha.filter(b => selectedIds.includes(b.id)),
-    [ordenadosPorFecha, selectedIds]
-  );
+  // Días incluidos: los marcados de esta semana; si no hay ninguno marcado (semana nueva o una
+  // selección de otro turno), se incluyen todos los días de la semana.
+  const diasSeleccionados = useMemo(() => {
+    const marcados = ordenadosPorFecha.filter(b => selectedIds.includes(b.id));
+    return marcados.length ? marcados : ordenadosPorFecha;
+  }, [ordenadosPorFecha, selectedIds]);
+  const idsIncluidos = diasSeleccionados.map(b => b.id);
 
   const toggleDia = (id: string) => {
-    setSelectedIds(prev => {
-      if (prev.includes(id)) return prev.filter(x => x !== id);
-      if (prev.length >= META_DIAS) {
-        showToast(`Solo puedes incluir hasta ${META_DIAS} días en el informe de cierre.`, true);
-        return prev;
+    if (idsIncluidos.includes(id)) {
+      if (idsIncluidos.length === 1) {
+        showToast('El cierre necesita al menos un día.', true);
+        return;
       }
-      return [...prev, id];
-    });
+      setSelectedIds(idsIncluidos.filter(x => x !== id));
+    } else {
+      setSelectedIds([...idsIncluidos, id]);
+    }
   };
 
   const rangoFechas = useMemo(() => {
@@ -848,15 +841,26 @@ export default function InformeCierre({ onBack }: InformeCierreProps) {
         <details open className="panel p-5">
           <summary className="panel__summary font-display font-bold text-lg">
             <CalendarRange size={18} className="panel__summary-icon" strokeWidth={2.2} />
-            2. Días incluidos — Turno Día ({selectedIds.length}/{META_DIAS})
+            2. Días incluidos — Turno Día ({diasSeleccionados.length}/{META_DIAS})
           </summary>
+          <div className="flex flex-wrap items-center gap-2 mb-3">
+            <span className="text-xs text-[#6B6B6B] font-bold">Semana de turno:</span>
+            <div className="inline-flex items-center gap-1 rounded-full border border-[#DCE1E6] bg-white px-1 py-0.5 text-xs text-[#0E4660]">
+              <button type="button" aria-label="Semana anterior" onClick={() => setFechaSemana(sumarDias(semanaCierre.inicio, -7))} className="p-1 rounded-full hover:bg-[#e3edf3]"><ChevronLeft size={15} /></button>
+              <span className="px-1"><strong>Turno {semanaCierre.letra}</strong> · {formatDiaMes(semanaCierre.inicio)} – {formatDiaMes(semanaCierre.fin)}</span>
+              <button type="button" aria-label="Semana siguiente" onClick={() => setFechaSemana(sumarDias(semanaCierre.inicio, 7))} className="p-1 rounded-full hover:bg-[#e3edf3]"><ChevronRight size={15} /></button>
+            </div>
+            {semanaCierre.inicio !== semanaDeFecha(hoyLocalISO()).inicio && (
+              <button type="button" onClick={() => setFechaSemana(hoyLocalISO())} className="text-xs font-bold text-[#0E4660] underline">Volver al turno en curso</button>
+            )}
+          </div>
           <p className="text-xs text-gray-500 mb-3">El Informe de Cierre solo consolida los informes de Turno Día; los de Turno Noche no se muestran aquí.</p>
           {ordenadosPorFecha.length === 0 ? (
-            <p className="text-sm text-gray-500">No hay borradores de Turno Día guardados todavía. Genera algunos Informes Diarios primero.</p>
+            <p className="text-sm text-gray-500">No hay informes de Turno Día de esta semana de turno todavía.</p>
           ) : (
             <div className="space-y-2">
               {ordenadosPorFecha.map(dia => {
-                const checked = selectedIds.includes(dia.id);
+                const checked = idsIncluidos.includes(dia.id);
                 return (
                   <button
                     type="button"
