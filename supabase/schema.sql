@@ -494,6 +494,13 @@ begin
     values (auth.uid(), case when new.es_admin then 'admin_otorgado' else 'admin_quitado' end,
             coalesce(nullif(new.nombre, ''), new.email), new.id::text);
   end if;
+  if new.faena is distinct from old.faena then
+    insert into public.actividad (usuario_id, tipo, detalle, referencia)
+    values (auth.uid(), 'division_cambiada',
+            coalesce(nullif(new.nombre, ''), new.email) || ' → '
+              || case new.faena when 'andina' then 'División Andina' else 'División El Salvador' end,
+            new.id::text);
+  end if;
   return null;
 end;
 $$;

@@ -5,7 +5,7 @@ import { type BorradorEntry, type BorradorRow, rowToEntry, estadoBorrador, conta
 import { type BorradorOtroRow, type BorradorOtroEntry, rowToOtroEntry, contarFotosGenerico, estadoBorradorGenerico } from '../datos/borradoresOtros';
 import { hoyLocalISO, sumarDias } from '../datos/fechas';
 import { letraDeFecha, semanaDeFecha, TURNOS_AUTOMATICOS } from '../datos/turnos';
-import type { Perfil } from '../auth/sesion';
+import type { Faena, Perfil } from '../auth/sesion';
 import type { Division } from '../datos/divisiones';
 
 export type Periodo = 'semana' | '30' | '90';
@@ -221,6 +221,12 @@ export async function cambiarEstadoUsuario(id: string, estado: Perfil['estado'],
     ? { estado, aprobado_por: adminId, aprobado_at: new Date().toISOString() }
     : { estado };
   const { error } = await supabase.from('perfiles').update(cambios).eq('id', id);
+  if (error) throw error;
+}
+
+/** Cambia la división (faena) de una cuenta: desde ese momento la persona trabaja con los informes de esa división. */
+export async function cambiarFaenaUsuario(id: string, faena: Faena) {
+  const { error } = await supabase.from('perfiles').update({ faena }).eq('id', id);
   if (error) throw error;
 }
 

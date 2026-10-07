@@ -43,8 +43,9 @@ documentos fotografiados. Publicado en Vercel.
   Borradores, cierres, mantenimientos, fallas, indicadores e impresión quedan separados por división.
 - La base de datos lo exige: las tablas `borradores` y `borradores_otros` tienen la columna `division` y las
   políticas solo dejan ver/modificar la propia división (los administradores ven ambas).
-- Los administradores cambian de división con el selector **El Salvador / Andina** del panel principal o del
-  Panel de administración (se recuerda en el dispositivo).
+- Los administradores cambian de división con el selector **El Salvador / Andina** del panel principal, de
+  Borradores o del Panel de administración (se recuerda en el dispositivo), y cambian la división de cualquier
+  cuenta en **Panel de administración → Usuarios** (queda registrado en Actividad).
 - Todo lo que cambia entre divisiones (faena, firmas Creado/Revisado/Autorizado, personal sugerido, bloque
   Vertiv, listas de carros/sitios) está en `src/datos/divisiones.ts`.
 - El Salvador conserva exactamente sus datos y documentos Word de siempre; los informes existentes quedan en El Salvador.
@@ -55,7 +56,7 @@ documentos fotografiados. Publicado en Vercel.
 |---|---|
 | Resumen | KPIs: cumplimiento de informes, atrasados, fallas, mantenimientos, fotos, usuarios en línea y gráficos |
 | En línea | Quién tiene la app abierta, en qué pantalla y desde qué dispositivo (latido cada minuto; en línea = < 2 min) |
-| Usuarios | Aprobar / rechazar cuentas, rol de administrador, búsqueda y estado de conexión |
+| Usuarios | Aprobar / rechazar cuentas, cambiar la división (El Salvador / Andina) de cada cuenta, rol de administrador, búsqueda y estado de conexión |
 | Actividad | Bitácora: sesiones, informes creados/eliminados, Word generados y cambios de cuentas; filtros y exportar CSV |
 | Sistema | Uso de fotos y base de datos frente al plan de Supabase; buscar y eliminar fotos huérfanas |
 

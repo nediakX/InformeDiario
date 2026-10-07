@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { ArrowLeft, Trash2, FolderOpen, CalendarDays, Users, Camera, Plus, Cloud, Sun, Moon, History, Download, Loader2, Wrench, AlertTriangle, FileText } from 'lucide-react';
+import SelectorDivision from '../componentes/SelectorDivision';
 import logoPsinet from "../assets/logo_psinet.jpg";
 import logoEdificio from "../assets/LogoEdificio.png";
 import { type BorradorEntry, contarFotos, esSemillaSinEditar, estadoBorrador } from '../datos/borradoresDiario';
@@ -232,6 +233,7 @@ export default function Borradores({
           <button type="button" onClick={onBack} className="btn-outline text-[#0E4660] px-3 py-1.5 rounded-md text-xs font-bold hover:bg-[#d5e7f8] flex items-center gap-1.5">
             <ArrowLeft size={14} /> Volver al menú
           </button>
+          <SelectorDivision className="mr-auto" />
           {tipoTab === 'diario' ? (
             <button type="button" onClick={() => setNuevoOpen(true)} className="bg-[#0E4660] text-white px-3 py-1.5 rounded-md text-xs font-bold hover:bg-[#0a3549] flex items-center gap-1.5">
               <Plus size={14} /> Nuevo informe diario

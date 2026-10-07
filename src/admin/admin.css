@@ -553,3 +553,16 @@
 .hero__value--md {
   font-size: 34px;
 }
+
+/* Selector de división de cada cuenta (pestaña Usuarios) */
+.select-division {
+  padding: 4px 8px;
+  border: 1px solid #dce1e6;
+  border-radius: 6px;
+  background: #fff;
+  color: #0e4660;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.select-division:disabled { opacity: 0.6; cursor: wait; }

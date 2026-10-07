@@ -27,6 +27,7 @@ const TIPOS: Record<string, { etiqueta: string; grupo: 'sesion' | 'informes' | '
   cuenta_pendiente: { etiqueta: 'Dejó una cuenta pendiente', grupo: 'cuentas' },
   admin_otorgado: { etiqueta: 'Dio rol de administrador', grupo: 'cuentas' },
   admin_quitado: { etiqueta: 'Quitó rol de administrador', grupo: 'cuentas' },
+  division_cambiada: { etiqueta: 'Cambió la división de una cuenta', grupo: 'cuentas' },
   fotos_limpiadas: { etiqueta: 'Limpió fotos huérfanas', grupo: 'sistema' },
 };
 

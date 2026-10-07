@@ -2,8 +2,8 @@
 import { useMemo, useState } from 'react';
 import { Search } from 'lucide-react';
 import { Check, ShieldCheck, ShieldOff, X, RotateCcw } from 'lucide-react';
-import { useSesion, etiquetaFaena, type EstadoCuenta, type Perfil } from '../auth/sesion';
-import { cambiarEstadoUsuario, cambiarRolAdmin } from './datos';
+import { useSesion, FAENAS, type EstadoCuenta, type Faena, type Perfil } from '../auth/sesion';
+import { cambiarEstadoUsuario, cambiarFaenaUsuario, cambiarRolAdmin } from './datos';
 import { TarjetaGrafico } from './graficos';
 import { estadoConexion, type FilaPresencia } from './presencia';
 import PuntoConexion from './PuntoConexion';
@@ -85,7 +85,7 @@ export default function Usuarios({ perfiles, onCambio, presencia, ahora }: {
         <div className="viz-table-wrap">
           <table className="viz-table">
             <thead>
-              <tr><th>Nombre</th><th>RUT</th><th>Faena</th><th>Estado</th><th>Conexión</th><th>Último acceso</th><th>Registro</th><th aria-label="Acciones" /></tr>
+              <tr><th>Nombre</th><th>RUT</th><th>División</th><th>Estado</th><th>Conexión</th><th>Último acceso</th><th>Registro</th><th aria-label="Acciones" /></tr>
             </thead>
             <tbody>
               {lista.map(p => {
@@ -98,7 +98,24 @@ export default function Usuarios({ perfiles, onCambio, presencia, ahora }: {
                       <div className="text-xs text-gray-500 break-all">{p.email}</div>
                     </td>
                     <td className="whitespace-nowrap">{p.rut || '—'}</td>
-                    <td>{etiquetaFaena(p.faena)}</td>
+                    <td>
+                      <select
+                        aria-label={`División de ${p.nombre || p.email}`}
+                        className="select-division"
+                        value={p.faena ?? ''}
+                        disabled={deshabilitado}
+                        onChange={e => {
+                          const faena = e.target.value as Faena;
+                          const etiqueta = FAENAS.find(f => f.valor === faena)?.etiqueta ?? faena;
+                          if (window.confirm(`¿Mover a ${p.nombre || p.email} a ${etiqueta}? Desde ahora verá y creará los informes de esa división.`)) {
+                            void ejecutar(p.id, () => cambiarFaenaUsuario(p.id, faena));
+                          }
+                        }}
+                      >
+                        {!p.faena && <option value="" disabled>Sin división</option>}
+                        {FAENAS.map(f => <option key={f.valor} value={f.valor}>{f.etiqueta}</option>)}
+                      </select>
+                    </td>
                     <td>
                       <div className="flex flex-wrap gap-1">
                         <span className={`pill pill--${p.estado}`}>{ETIQUETA_ESTADO[p.estado]}</span>

@@ -7,7 +7,7 @@ export type TipoActividad =
   | 'inicio_sesion' | 'cierre_sesion' | 'word_generado' | 'fotos_limpiadas' | 'impresion_generada'
   // Estos los registra la base de datos sola (triggers):
   | 'informe_creado' | 'informe_eliminado' | 'cuenta_registrada'
-  | 'cuenta_aprobado' | 'cuenta_rechazado' | 'cuenta_pendiente' | 'admin_otorgado' | 'admin_quitado';
+  | 'cuenta_aprobado' | 'cuenta_rechazado' | 'cuenta_pendiente' | 'admin_otorgado' | 'admin_quitado' | 'division_cambiada';
 
 export async function registrarActividad(tipo: TipoActividad, detalle = '', referencia?: string): Promise<void> {
   try {
