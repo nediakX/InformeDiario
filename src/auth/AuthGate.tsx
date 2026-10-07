@@ -11,7 +11,46 @@ import { SesionContext, type Perfil, type SesionValor } from './sesion';
 import { divisionDeFaena, esDivision, type Division } from '../datos/divisiones';
 import { registrarActividad } from '../lib/actividad';
 import { marcarSalida } from '../lib/presencia';
+import { esErrorDeRed, hayConexion, suscribirConexion } from '../lib/conexion';
+import IndicadorConexion from '../componentes/IndicadorConexion';
 import './auth.css';
+
+// --- Modo sin conexión ----------------------------------------------------------------------
+// Sin señal, Supabase no puede renovar la sesión y la entrega vacía, aunque sigue guardada en el
+// dispositivo; y el perfil (estado, rol, división) no se puede consultar. Para que quien ya entró
+// pueda seguir trabajando, se usa la sesión guardada y la última copia del perfil. Al volver la
+// señal, Supabase renueva la sesión sola y el perfil se vuelve a consultar.
+const CLAVE_PERFIL_LOCAL = 'psinet_perfil_local';
+
+function sesionGuardada(): Session | null {
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const clave = localStorage.key(i);
+      if (!clave || !/^sb-.+-auth-token$/.test(clave)) continue;
+      const valor = JSON.parse(localStorage.getItem(clave) ?? 'null') as (Session & { currentSession?: Session }) | null;
+      const sesion = valor?.currentSession ?? valor;
+      if (sesion?.user?.id && sesion.refresh_token) return sesion;
+    }
+  } catch { /* sin acceso al almacenamiento */ }
+  return null;
+}
+
+function perfilGuardado(userId: string): Perfil | null {
+  try {
+    const valor = JSON.parse(localStorage.getItem(CLAVE_PERFIL_LOCAL) ?? 'null') as Perfil | null;
+    return valor?.id === userId ? valor : null;
+  } catch { return null; }
+}
+
+function guardarPerfilLocal(perfil: Perfil | null) {
+  try {
+    if (perfil) localStorage.setItem(CLAVE_PERFIL_LOCAL, JSON.stringify(perfil));
+    else localStorage.removeItem(CLAVE_PERFIL_LOCAL);
+  } catch { /* sin acceso al almacenamiento */ }
+}
+
+/** Sin conexión, una sesión vacía no significa "sesión cerrada": se usa la guardada en el dispositivo. */
+const sesionEfectiva = (sesion: Session | null) => sesion ?? (hayConexion() ? null : sesionGuardada());
 
 function Cargando({ texto }: { texto: string }) {
   return (
@@ -37,12 +76,13 @@ export default function AuthGate({ children }: { children: ReactNode }) {
   // Sesión guardada en el dispositivo + cambios (login, logout, renovación del token, recuperación).
   useEffect(() => {
     void supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session);
+      setSession(sesionEfectiva(data.session));
       setSesionCargada(true);
     });
     const { data } = supabase.auth.onAuthStateChange((event, nueva) => {
       if (event === 'PASSWORD_RECOVERY') setRecuperando(true);
-      setSession(nueva);
+      // Un cierre de sesión pedido por la persona siempre se respeta; lo demás, sin señal, usa la sesión guardada.
+      setSession(event === 'SIGNED_OUT' ? nueva : sesionEfectiva(nueva));
       setSesionCargada(true);
     });
     return () => data.subscription.unsubscribe();
@@ -50,7 +90,13 @@ export default function AuthGate({ children }: { children: ReactNode }) {
 
   const cargarPerfil = useCallback(async (id: string) => {
     const { data, error } = await supabase.from('perfiles').select('*').eq('id', id).maybeSingle();
-    if (error) console.error('No se pudo cargar el perfil:', error);
+    if (error) {
+      // Sin conexión (o con la sesión aún sin renovar) se trabaja con la última copia del perfil.
+      if (!esErrorDeRed(error)) console.error('No se pudo cargar el perfil:', error);
+      setPerfilDe({ userId: id, perfil: perfilGuardado(id) });
+      return;
+    }
+    guardarPerfilLocal((data as Perfil | null) ?? null);
     setPerfilDe({ userId: id, perfil: (data as Perfil | null) ?? null });
   }, []);
 
@@ -67,7 +113,9 @@ export default function AuthGate({ children }: { children: ReactNode }) {
         void cargarPerfil(userId);
       })
       .subscribe();
-    return () => { void supabase.removeChannel(channel); };
+    // Al volver la señal se consulta de nuevo el perfil (por si cambió el estado, el rol o la división).
+    const dejarDeEscuchar = suscribirConexion(() => { if (hayConexion()) void cargarPerfil(userId); });
+    return () => { dejarDeEscuchar(); void supabase.removeChannel(channel); };
   }, [userId, cargarPerfil]);
 
   const esAdmin = Boolean(perfil && perfil.estado === 'aprobado' && perfil.es_admin);
@@ -91,8 +139,11 @@ export default function AuthGate({ children }: { children: ReactNode }) {
 
   const cerrarSesion = useCallback(async () => {
     await Promise.all([registrarActividad('cierre_sesion', 'Cerró sesión'), marcarSalida()]);
-    await supabase.auth.signOut();
+    // Sin conexión se cierra solo en este dispositivo (cerrar en el servidor necesita señal).
+    await supabase.auth.signOut(hayConexion() ? undefined : { scope: 'local' });
+    guardarPerfilLocal(null);
     setPerfilDe(null);
+    setSession(null);
   }, []);
 
   // División de trabajo: la de la cuenta; un administrador puede elegir la otra (se recuerda en el dispositivo).
@@ -123,6 +174,7 @@ export default function AuthGate({ children }: { children: ReactNode }) {
   // limpios con los datos de la división elegida.
   return (
     <SesionContext.Provider value={valor}>
+      <IndicadorConexion />
       <Fragment key={division}>{children}</Fragment>
     </SesionContext.Provider>
   );

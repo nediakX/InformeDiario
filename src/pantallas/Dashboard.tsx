@@ -106,7 +106,7 @@ export default function Dashboard({
       </header>
 
       <main className="max-w-[1000px] mx-auto p-5 space-y-8">
-        <div className="flex flex-wrap items-center justify-end gap-2 -mb-4">
+        <div className="flex flex-wrap items-center justify-end gap-2 sm:-mb-4">
           <span className="inline-flex items-center gap-1.5 text-xs text-gray-600 bg-white border border-[#DCE1E6] rounded-full px-3 py-1.5 max-w-full">
             <UserRound size={14} className="flex-none text-[#0E4660]" />
             <span className="truncate">{nombreVisible(perfil)}</span>

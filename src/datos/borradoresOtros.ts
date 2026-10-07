@@ -2,6 +2,7 @@ import { supabase, BORRADORES_OTROS_TABLE } from '../lib/supabase';
 import type { Division } from './divisiones';
 import { type EstadoBorrador } from './borradoresDiario';
 import { borrarCarpetaFotos, subirFotosEnObjeto } from '../lib/storage';
+import { EVENTO_SINCRONIZADO, eliminarConCola, guardarConCola, listaConCambiosLocales, registrarEjecutor } from '../lib/sincronizacion';
 
 // ---------------------------------------------------------------------------------------
 // Borradores "genéricos" (Mantenimiento de Generador e Informe de Falla — Carro)
@@ -56,22 +57,35 @@ const otroEntryToRow = (entry: BorradorOtroEntry): BorradorOtroRow => ({
 });
 
 /** Trae los borradores compartidos de un tipo (mantenimiento o falla), del más reciente al más antiguo. */
+// Sin conexión se usa la última lista descargada + los cambios guardados en este dispositivo.
 export async function fetchBorradoresOtros(tipo: TipoInformeOtro, division: Division): Promise<BorradorOtroEntry[]> {
-  const { data, error } = await supabase
-    .from(BORRADORES_OTROS_TABLE)
-    .select("*")
-    .eq("tipo", tipo)
-    .eq("division", division)
-    .order("saved_at", { ascending: false });
-  if (error) {
-    console.error(`No se pudieron cargar los borradores de ${tipo} desde la nube:`, error);
-    return [];
-  }
-  return (data as BorradorOtroRow[]).map(rowToOtroEntry);
+  return listaConCambiosLocales<BorradorOtroEntry>(
+    `cache_borradores_otros_${tipo}_${division}`,
+    async () => {
+      const { data, error } = await supabase
+        .from(BORRADORES_OTROS_TABLE)
+        .select("*")
+        .eq("tipo", tipo)
+        .eq("division", division)
+        .order("saved_at", { ascending: false });
+      if (error) throw error;
+      return (data as BorradorOtroRow[]).map(rowToOtroEntry);
+    },
+    "borradores_otros",
+    entry => entry.tipo === tipo && entry.division === division,
+    (a, b) => b.savedAt.localeCompare(a.savedAt),
+  );
 }
 
-/** Sube las fotos pendientes (dondequiera que estén dentro de "datos") y guarda/actualiza el borrador en la nube. */
-export async function upsertBorradorOtro(entry: BorradorOtroEntry): Promise<BorradorOtroEntry> {
+/**
+ * Guarda el borrador: sube las fotos pendientes (dondequiera que estén dentro de "datos") y lo
+ * guarda en la nube. Sin conexión queda en la cola de este dispositivo y se sube al volver la señal.
+ */
+export function upsertBorradorOtro(entry: BorradorOtroEntry): Promise<BorradorOtroEntry> {
+  return guardarConCola("borradores_otros", entry.id, entry, upsertBorradorOtroNube);
+}
+
+async function upsertBorradorOtroNube(entry: BorradorOtroEntry): Promise<BorradorOtroEntry> {
   const datos = await subirFotosEnObjeto(entry.datos, `borradores-otros/${entry.id}`);
   const conFotosSubidas: BorradorOtroEntry = { ...entry, datos };
   const { error } = await supabase.from(BORRADORES_OTROS_TABLE).upsert(otroEntryToRow(conFotosSubidas));
@@ -79,14 +93,23 @@ export async function upsertBorradorOtro(entry: BorradorOtroEntry): Promise<Borr
   return conFotosSubidas;
 }
 
-/** Elimina un borrador compartido de Mantenimiento/Falla (afecta a todos los dispositivos). */
-export async function deleteBorradorOtro(id: string): Promise<void> {
+/** Elimina un borrador compartido de Mantenimiento/Falla/Cierre (afecta a todos los dispositivos). Sin conexión, queda en cola. */
+export function deleteBorradorOtro(id: string): Promise<void> {
+  return eliminarConCola("borradores_otros", id, deleteBorradorOtroNube);
+}
+
+async function deleteBorradorOtroNube(id: string): Promise<void> {
   const { error } = await supabase.from(BORRADORES_OTROS_TABLE).delete().eq("id", id);
   if (error) throw error;
   void borrarCarpetaFotos(`borradores-otros/${id}`);
   // El Informe de Cierre sube sus fotos a "cierre/<id>" (si la carpeta no existe, no pasa nada).
   void borrarCarpetaFotos(`cierre/${id}`);
 }
+
+registrarEjecutor("borradores_otros", {
+  guardar: entry => upsertBorradorOtroNube(entry as BorradorOtroEntry),
+  eliminar: deleteBorradorOtroNube,
+});
 
 /** Escucha cambios en tiempo real de un tipo (mantenimiento o falla) y refresca la lista. */
 export function subscribeBorradoresOtros(tipo: TipoInformeOtro, division: Division, onChange: (list: BorradorOtroEntry[]) => void): () => void {
@@ -97,7 +120,10 @@ export function subscribeBorradoresOtros(tipo: TipoInformeOtro, division: Divisi
       void fetchBorradoresOtros(tipo, division).then(onChange);
     })
     .subscribe();
-  return () => { void supabase.removeChannel(channel); };
+  // Al terminar de subir cambios hechos sin conexión, la lista se refresca (fotos ya en la nube).
+  const alSincronizar = () => { void fetchBorradoresOtros(tipo, division).then(onChange); };
+  window.addEventListener(EVENTO_SINCRONIZADO, alSincronizar);
+  return () => { window.removeEventListener(EVENTO_SINCRONIZADO, alSincronizar); void supabase.removeChannel(channel); };
 }
 
 /** Cuenta fotos dentro de "datos" buscando cualquier campo llamado "photo" (así lo nombran Mantenimiento y Falla). */

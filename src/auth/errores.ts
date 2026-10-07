@@ -1,4 +1,6 @@
 // Traduce los errores de Supabase Auth a mensajes claros en español.
+import { esErrorDeRed } from '../lib/conexion';
+
 export function mensajeErrorAuth(error: unknown): string {
   const e = error as { message?: string; status?: number; code?: string } | null;
   const msg = (e?.message ?? '').toLowerCase();
@@ -12,7 +14,8 @@ export function mensajeErrorAuth(error: unknown): string {
   if (code === 'same_password' || msg.includes('should be different')) return 'La nueva contraseña debe ser distinta de la anterior.';
   if (e?.status === 429 || code === 'over_request_rate_limit' || code === 'over_email_send_rate_limit' || msg.includes('for security purposes'))
     return 'Demasiados intentos seguidos. Espere un momento e inténtelo de nuevo.';
-  if (msg.includes('failed to fetch') || msg.includes('network')) return 'No hay conexión con el servidor. Revise su conexión a internet.';
+  if (esErrorDeRed(error) || msg.includes('network'))
+    return 'Sin conexión a internet. La primera vez hay que ingresar con señal; después la app funciona también sin conexión en este dispositivo.';
   if (msg.includes('signups not allowed') || msg.includes('signup is disabled')) return 'El registro de nuevas cuentas está deshabilitado.';
   return 'Ocurrió un error inesperado. Inténtelo nuevamente.';
 }

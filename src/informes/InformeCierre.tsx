@@ -20,6 +20,7 @@ import { configDivision, type Firmante } from '../datos/divisiones';
 import { useSesion } from '../auth/sesion';
 import { dataUrlToUint8Array, resolveImageBytes, urlToBase64 } from '../lib/imagenes';
 import { uploadPhotoIfNeeded } from '../lib/storage';
+import { esErrorDeRed } from '../lib/conexion';
 
 interface InformeCierreProps {
   onBack: () => void;
@@ -267,9 +268,10 @@ export default function InformeCierre({ onBack }: InformeCierreProps) {
     try {
       const url = await uploadPhotoIfNeeded(dataUrl, `cierre/${CIERRE_DRAFT_ID}`);
       if (url && url !== dataUrl) reemplazar(url);
-    } catch {
+    } catch (error) {
       // Se reintenta sola en el próximo guardado del cierre (que sube las fotos pendientes).
-      showToast('No se pudo subir una foto. Se reintentará al guardar.', true);
+      // Sin conexión no se avisa: la foto queda en el dispositivo y se sube al volver la señal.
+      if (!esErrorDeRed(error)) showToast('No se pudo subir una foto. Se reintentará al guardar.', true);
     } finally {
       setSubiendoFotos(n => n - 1);
     }

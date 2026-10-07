@@ -4,6 +4,9 @@ import { BrowserRouter } from 'react-router'
 import App from './app/App'
 import AuthGate from './auth/AuthGate'
 import './index.css' // Importación indispensable para los estilos
+import { iniciarModoSinConexion } from './lib/pwa'
+
+iniciarModoSinConexion()
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>

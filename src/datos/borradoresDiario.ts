@@ -3,6 +3,7 @@
 import { supabase, BORRADORES_TABLE } from '../lib/supabase';
 import type { Division } from './divisiones';
 import { borrarCarpetaFotos, uploadPhotoIfNeeded } from '../lib/storage';
+import { EVENTO_SINCRONIZADO, eliminarConCola, guardarConCola, listaConCambiosLocales, registrarEjecutor } from '../lib/sincronizacion';
 
 export interface PersonalItemLike {
   nombre: string;
@@ -121,24 +122,37 @@ const entryToRow = (entry: BorradorEntry) => ({
 });
 
 /** Trae los borradores compartidos de una división (todos los dispositivos ven lo mismo). */
+// Sin conexión se usa la última lista descargada + los cambios guardados en este dispositivo.
 export async function fetchBorradores(division: Division): Promise<BorradorEntry[]> {
-  const { data, error } = await supabase
-    .from(BORRADORES_TABLE)
-    .select("*")
-    .eq("division", division)
-    .order("fecha", { ascending: true });
-  if (error) {
-    console.error("No se pudieron cargar los borradores desde la nube:", error);
-    return [];
-  }
-  return (data as BorradorRow[]).map(rowToEntry);
+  return listaConCambiosLocales<BorradorEntry>(
+    `cache_borradores_${division}`,
+    async () => {
+      const { data, error } = await supabase
+        .from(BORRADORES_TABLE)
+        .select("*")
+        .eq("division", division)
+        .order("fecha", { ascending: true });
+      if (error) throw error;
+      return (data as BorradorRow[]).map(rowToEntry);
+    },
+    "borradores",
+    entry => entry.division === division,
+    (a, b) => a.fecha.localeCompare(b.fecha),
+  );
 }
 
 const uploadPhotoArray = (photos: (string | null)[], folder: string) =>
   Promise.all(photos.map(photo => uploadPhotoIfNeeded(photo, folder)));
 
-/** Sube las fotos pendientes y guarda (crea o actualiza) el borrador compartido en la nube. */
-export async function upsertBorrador(entry: BorradorEntry): Promise<BorradorEntry> {
+/**
+ * Guarda el borrador: sube las fotos pendientes y lo guarda en la nube. Sin conexión queda en la
+ * cola de este dispositivo (con sus fotos) y se sube solo al volver la señal.
+ */
+export function upsertBorrador(entry: BorradorEntry): Promise<BorradorEntry> {
+  return guardarConCola("borradores", entry.id, entry, upsertBorradorNube);
+}
+
+async function upsertBorradorNube(entry: BorradorEntry): Promise<BorradorEntry> {
   const evidenceBlocks = await Promise.all(entry.evidenceBlocks.map(async block => ({
     ...block,
     photos: await uploadPhotoArray(block.photos, `borradores/${entry.id}`),
@@ -153,12 +167,21 @@ export async function upsertBorrador(entry: BorradorEntry): Promise<BorradorEntr
   return withUploadedPhotos;
 }
 
-/** Elimina un borrador compartido (afecta a todos los dispositivos). */
-export async function deleteBorrador(id: string): Promise<void> {
+/** Elimina un borrador compartido (afecta a todos los dispositivos). Sin conexión, queda en cola. */
+export function deleteBorrador(id: string): Promise<void> {
+  return eliminarConCola("borradores", id, deleteBorradorNube);
+}
+
+async function deleteBorradorNube(id: string): Promise<void> {
   const { error } = await supabase.from(BORRADORES_TABLE).delete().eq("id", id);
   if (error) throw error;
   void borrarCarpetaFotos(`borradores/${id}`);
 }
+
+registrarEjecutor("borradores", {
+  guardar: entry => upsertBorradorNube(entry as BorradorEntry),
+  eliminar: deleteBorradorNube,
+});
 
 /** Escucha cambios en tiempo real: cuando alguien crea/edita/borra un borrador en otro dispositivo, refresca la lista. */
 export function subscribeBorradores(division: Division, onChange: (list: BorradorEntry[]) => void): () => void {
@@ -170,7 +193,10 @@ export function subscribeBorradores(division: Division, onChange: (list: Borrado
       void fetchBorradores(division).then(onChange);
     })
     .subscribe();
-  return () => { void supabase.removeChannel(channel); };
+  // Al terminar de subir cambios hechos sin conexión, la lista se refresca (fotos ya en la nube).
+  const alSincronizar = () => { void fetchBorradores(division).then(onChange); };
+  window.addEventListener(EVENTO_SINCRONIZADO, alSincronizar);
+  return () => { window.removeEventListener(EVENTO_SINCRONIZADO, alSincronizar); void supabase.removeChannel(channel); };
 }
 
 /** Marca de guardado de los borradores "vacíos" que se mostraban antes de tener fotos; sirve para reconocerlos y limpiarlos. */

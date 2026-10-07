@@ -50,6 +50,20 @@ documentos fotografiados. Publicado en Vercel.
   Vertiv, listas de carros/sitios) está en `src/datos/divisiones.ts`.
 - El Salvador conserva exactamente sus datos y documentos Word de siempre; los informes existentes quedan en El Salvador.
 
+## Modo sin conexión
+
+- La app se instala sola en el dispositivo la primera vez que se abre con señal (service worker) y después
+  abre sin internet. En el celular se puede agregar a la pantalla de inicio ("Instalar app" / "Agregar a inicio").
+- Quien ya ingresó una vez sigue entrando sin señal, con su división y permisos (la sesión y el perfil quedan
+  guardados en el dispositivo). La primera vez sí hay que ingresar con conexión.
+- Sin señal, los informes (Diario, Mantenimiento, Falla y Cierre) y sus fotos se guardan en el dispositivo y se
+  suben solos al volver la conexión (cola en IndexedDB, `src/lib/sincronizacion.ts`). Las listas muestran la
+  última copia descargada más lo guardado en el dispositivo. El Word se genera igual sin conexión.
+- Arriba aparece una franja: "Sin conexión · N cambios guardados en este equipo", "Subiendo…" y "Todo sincronizado".
+- Si dos personas editan el mismo informe sin señal, al sincronizar queda el último cambio que se sube.
+- Necesitan internet: registrarse, aprobar cuentas, Panel de administración y "En línea".
+- Solo funciona en el sitio compilado (`npm run build` / Vercel), no en `npm run dev`.
+
 ## Panel de administración (`/admin`)
 
 | Pestaña | Qué muestra |
@@ -118,6 +132,9 @@ src/
 │   └── catalogos.ts          Contrato, carros, ubicaciones y tareas sugeridas (editar aquí)
 ├── lib/                  Utilidades técnicas
 │   ├── supabase.ts           Cliente de Supabase
+│   ├── conexion.ts           Estado de la conexión (en línea / sin conexión)
+│   ├── sincronizacion.ts     Modo sin conexión: cola de cambios y copia local de las listas
+│   ├── pwa.ts                Instala el service worker
 │   ├── presencia.ts          Latido de presencia (usuarios en línea)
 │   ├── actividad.ts          Registro de eventos en la bitácora
 │   ├── imprimir.ts           Abrir el diálogo de impresión de un PDF

@@ -3,10 +3,16 @@
 
 import { supabase, EVIDENCIAS_BUCKET } from './supabase';
 import { dataUrlToUint8Array } from './imagenes';
+import { esErrorDeRed } from './conexion';
 
 const esperar = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 const SUBIDA_INTENTOS = 3;
+
+// Fotos ya subidas en esta sesión (foto local → URL en la nube). Si el mismo informe se guarda otra
+// vez antes de enterarse de la URL (p. ej. la sincronización lo subió en segundo plano mientras
+// seguía abierto), la foto no se sube de nuevo.
+const yaSubidas = new Map<string, string>();
 
 /**
  * Sube al bucket público las fotos nuevas (dataURL) de un borrador; deja intactas las que ya son URL.
@@ -17,6 +23,8 @@ const SUBIDA_INTENTOS = 3;
 export async function uploadPhotoIfNeeded(photo: string | null, folder: string): Promise<string | null> {
   if (!photo) return photo;
   if (!photo.startsWith("data:")) return photo;
+  const previa = yaSubidas.get(photo);
+  if (previa) return previa;
   const isPng = photo.startsWith("data:image/png");
   const bytes = dataUrlToUint8Array(photo);
   const path = `${folder}/${crypto.randomUUID()}.${isPng ? "png" : "jpg"}`;
@@ -28,9 +36,11 @@ export async function uploadPhotoIfNeeded(photo: string | null, folder: string):
     });
     if (!error) {
       const { data } = supabase.storage.from(EVIDENCIAS_BUCKET).getPublicUrl(path);
+      yaSubidas.set(photo, data.publicUrl);
       return data.publicUrl;
     }
     ultimoError = error;
+    if (esErrorDeRed(error)) break; // sin señal: no tiene sentido reintentar ahora (queda en cola)
     if (intento < SUBIDA_INTENTOS) await esperar(1000 * intento);
   }
   console.error("No se pudo subir una foto a la nube:", ultimoError);
