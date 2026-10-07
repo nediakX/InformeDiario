@@ -134,7 +134,7 @@ export const DEFAULT_ACTIVIDADES_NOCHE: string[] = [
   "Planificación actividades diarias.",
   "Control de fatiga y somnolencia (Encuesta gestión de alerta temprana).",
   "Confección de Análisis de Riesgo del Trabajo (ART).",
-  "Se realiza reportabilidad diaria GG LTE 01, 02, 03, 04, 06, 07, 08, 09, 10, 11 y MMOO 01.",
+  "Se realiza reportabilidad diaria GG LTE 01, 02, 03, 04, 06, 07, 08, 09, 10, 11 y MMOO 01.", // El Salvador (ver actividadesNoche)
   "Monitoreo General status ENODO B.",
   "Monitoreo general status de energía.",
   "Actividades administrativas (confección de reportes)."
@@ -206,6 +206,17 @@ export const PREFIJO_MANTENCION_CARRO = "Mantenimiento preventivo ";
 export const INDICADORES_INTRO =
   "Durante el turno se ejecutó reportabilidad diaria GG de forma parcial en los sitios LTE 01, 02, 03, 04, 06, 07, 08, 09, 10, 11 y MMOO 01, manteniendo validación de continuidad de servicio y estado operacional en los puntos priorizados de la jornada.";
 
+/** Actividades por defecto de Turno Noche con los sitios de reportabilidad de la división. */
+export const actividadesNoche = (division: Division = 'el_salvador'): string[] =>
+  division === 'el_salvador' ? DEFAULT_ACTIVIDADES_NOCHE : DEFAULT_ACTIVIDADES_NOCHE.map(adaptarReportabilidad(division));
+
+/** Cambia los sitios de El Salvador por los de la división en los textos de reportabilidad GG. */
+const adaptarReportabilidad = (division: Division) => (texto: string) =>
+  texto.replace(CONFIG_DIVISION.el_salvador.sitiosReportabilidad, CONFIG_DIVISION[division].sitiosReportabilidad);
+
+/** Texto final del Word de Turno Noche con los sitios de la división. */
+export const indicadoresIntro = (division: Division = 'el_salvador') => adaptarReportabilidad(division)(INDICADORES_INTRO);
+
 export const INDICADORES_BULLETS: string[] = [
   "Se realizó monitoreo general del estado de E-Nodo B, verificando conectividad mediante ICMP y tiempos de respuesta (latencia) como referencia de estabilidad de red y comunicación operacional.",
   "Se efectuó monitoreo general de energía asociado a la continuidad operacional, incluyendo revisión de gestión de planta rectificadora Vertiv, voltaje del sistema LTE, voltaje de bancos de baterías, corriente del sistema, descarga total de bancos y condición térmica de gabinetes de baterías.",
@@ -247,9 +258,12 @@ export const getActividadesGuardadas = (turno: 'dia' | 'noche', division: Divisi
   try {
     const raw = localStorage.getItem(lsKeyActividades(turno, division));
     if (turno === 'dia') return raw ? ensureActividadesDiaPermanentes(JSON.parse(raw)) : DEFAULT_ACTIVIDADES_DIA;
-    return raw ? JSON.parse(raw) : DEFAULT_ACTIVIDADES_NOCHE;
+    if (!raw) return actividadesNoche(division);
+    const guardadas = JSON.parse(raw) as string[];
+    // Otras divisiones: si quedó guardada la reportabilidad con sitios de El Salvador, se corrige.
+    return division === 'el_salvador' ? guardadas : guardadas.map(adaptarReportabilidad(division));
   } catch {
-    return turno === 'dia' ? DEFAULT_ACTIVIDADES_DIA : DEFAULT_ACTIVIDADES_NOCHE;
+    return turno === 'dia' ? DEFAULT_ACTIVIDADES_DIA : actividadesNoche(division);
   }
 };
 

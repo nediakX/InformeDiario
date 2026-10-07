@@ -278,6 +278,10 @@ export default function InformeFallaCarro({ onBack, borradorInicial = null }: In
   const AUTORIZADO_CARGO_FIJO = config.autorizado.cargo;
   const { carros: CARRO_OPCIONES, ubicacionPorCarro } = configDivision(division);
   const ubicacionDeCarro = (codigo: string) => ubicacionPorCarro[codigo] ?? "";
+  const etiquetaCarro = (c: string) => {
+    const u = ubicacionDeCarro(c);
+    return u && u.toLowerCase() !== c.replace(/_/g, ' ').toLowerCase() ? `${c} — ${u}` : c;
+  };
   const carroInicial = CARRO_OPCIONES[0];
   const equiposPersonal = config.equipos.length
     ? config.equipos
@@ -855,7 +859,7 @@ export default function InformeFallaCarro({ onBack, borradorInicial = null }: In
                 }}
                 className="w-full p-2 border border-[#DCE1E6] rounded-md text-sm bg-white"
               >
-                {CARRO_OPCIONES.map(c => <option key={c} value={c}>{ubicacionDeCarro(c) ? `${c} — ${ubicacionDeCarro(c)}` : c}</option>)}
+                {CARRO_OPCIONES.map(c => <option key={c} value={c}>{etiquetaCarro(c)}</option>)}
               </select>
             </div>
             <div className="md:col-span-2">

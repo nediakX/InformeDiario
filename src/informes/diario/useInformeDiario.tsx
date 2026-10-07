@@ -23,7 +23,7 @@ import { resolveImageBytes } from '../../lib/imagenes';
 import { mapaFotosSubidas, aplicarFotosSubidas } from '../../lib/storage';
 
 import type { Dispatch, SetStateAction, RefObject } from 'react';
-import { BLUE, type BorradorLocal, type CvApi, type CvMat, DECORACIONES_MENSUALES, DEFAULT_ACTIVIDADES_DIA, DEFAULT_ACTIVIDADES_NOCHE, DEFAULT_EVIDENCIAS_NOCHE, EVIDENCIAS_CON_TAMANO_FOTOGRAFICO_SOLICITADO, EVIDENCIAS_EXCLUIDAS_DIA, type EvidenceBlock, INDICADORES_BULLETS, INDICADORES_INTRO, MESES, OBS_FINAL_BULLETS, ORANGE, PREFIJO_MANTENCION_CARRO, type PersonalItem, type ScannerTarget, formatFechaEvidencia, getActividadesGuardadas, getCreadorPorDefecto, getDefaultPersonal, getPersonalGuardado, lsKeyActividades, lsKeyBorradorLocal, lsKeyPersonal, urlToBase64, vertivVacio } from './constantes';
+import { BLUE, type BorradorLocal, type CvApi, type CvMat, DECORACIONES_MENSUALES, DEFAULT_ACTIVIDADES_DIA, DEFAULT_ACTIVIDADES_NOCHE, DEFAULT_EVIDENCIAS_NOCHE, EVIDENCIAS_CON_TAMANO_FOTOGRAFICO_SOLICITADO, EVIDENCIAS_EXCLUIDAS_DIA, type EvidenceBlock, INDICADORES_BULLETS, indicadoresIntro, actividadesNoche, MESES, OBS_FINAL_BULLETS, ORANGE, PREFIJO_MANTENCION_CARRO, type PersonalItem, type ScannerTarget, formatFechaEvidencia, getActividadesGuardadas, getCreadorPorDefecto, getDefaultPersonal, getPersonalGuardado, lsKeyActividades, lsKeyBorradorLocal, lsKeyPersonal, urlToBase64, vertivVacio } from './constantes';
 import { CONFIG_DIVISION, type Division } from '../../datos/divisiones';
 import { useDragReorder } from './useDragReorder';
 
@@ -454,7 +454,7 @@ export function useInformeDiario({ view, setBorradores, borradoresRef, division 
 
         const extraActivityBlocks = actividades
           .map((actText, index) => ({ actText, index }))
-          .filter(({ actText }) => actText.trim() && !DEFAULT_ACTIVIDADES_NOCHE.includes(actText))
+          .filter(({ actText }) => actText.trim() && !DEFAULT_ACTIVIDADES_NOCHE.includes(actText) && !actividadesNoche(division).includes(actText))
           .map(({ actText, index }) => {
             const existing = prevBlocks.find(block => block.isActivity && block.title === actText)
               ?? prevBlocks.find(block => block.isActivity && block.actIndex === index);
@@ -496,7 +496,7 @@ export function useInformeDiario({ view, setBorradores, borradoresRef, division 
       newBlocks.push(mantenimientoBlock);
       return newBlocks;
     });
-  }, [actividades, fecha, turno]);
+  }, [actividades, fecha, turno, division]);
 
   const showToast = (text: string, isError = false) => {
     setToastMessage({ text, isError });
@@ -594,7 +594,7 @@ export function useInformeDiario({ view, setBorradores, borradoresRef, division 
   const actividadesDrag = useDragReorder(actividades, setActividades, persistActividades);
 
   const resetActividades = () => {
-    const defaults = turno === 'dia' ? DEFAULT_ACTIVIDADES_DIA : DEFAULT_ACTIVIDADES_NOCHE;
+    const defaults = turno === 'dia' ? DEFAULT_ACTIVIDADES_DIA : actividadesNoche(division);
     const label = turno === 'dia' ? 'Turno Día' : 'Turno Noche';
     if (window.confirm(`¿Deseas restaurar la lista de actividades por defecto de ${label}?`)) {
       setActividades(defaults);
@@ -1453,7 +1453,7 @@ export function useInformeDiario({ view, setBorradores, borradoresRef, division 
           heading: HeadingLevel.HEADING_1,
           children: [new TextRun({ text: "Indicadores Técnicos Relevantes:", color: BLUE, size: 26, font: "Arial", bold: true })],
         }),
-        new Paragraph({ children: [new TextRun({ text: INDICADORES_INTRO, font: "Arial" })] }),
+        new Paragraph({ children: [new TextRun({ text: indicadoresIntro(informe.division), font: "Arial" })] }),
         ...INDICADORES_BULLETS.map(b => new Paragraph({ text: b, bullet: { level: 0 } })),
         ...OBS_FINAL_BULLETS.map(b => new Paragraph({ text: b, bullet: { level: 0 } })),
         new Paragraph({ text: "" }),

@@ -876,7 +876,10 @@ export default function InformeMantenimiento({ onBack, borradorInicial = null }:
                 }}
                 className="w-full p-2 border border-[#DCE1E6] rounded-md text-sm bg-white"
               >
-                {SITIO_OPCIONES.map(s => <option key={s} value={s}>{ubicacionDeSitio(s) ? `${s} — ${ubicacionDeSitio(s)}` : s}</option>)}
+                {SITIO_OPCIONES.map(s => {
+                    const u = ubicacionDeSitio(s);
+                    return <option key={s} value={s}>{u && u.toLowerCase() !== s.toLowerCase() ? `${s} — ${u}` : s}</option>;
+                  })}
               </select>
             </div>
             <div>

@@ -37,6 +37,8 @@ export interface ConfigDivision {
   carros: string[];
   /** Ubicación en faena de cada carro (se completa sola al elegirlo). */
   ubicacionPorCarro: Record<string, string>;
+  /** Sitios de la reportabilidad diaria GG (actividad por defecto de Turno Noche y texto final del Word). */
+  sitiosReportabilidad: string;
   diario: {
     revisadoText: string;
     autorizado: Firmante;
@@ -68,7 +70,12 @@ export interface ConfigDivision {
 
 // --- Andina -------------------------------------------------------------------------------
 // Carros LTE de División Andina.
-const ANDINA_CARROS: string[] = ['SUR_SUR', 'CONGRESO', 'CHIVATO', 'DLN', 'MORRENA', 'TRES_ESQUINAS', 'PIPA', '3700'];
+const ANDINA_CARROS: string[] = ['SUR_SUR', 'CONGRESO', 'CHIVATO', 'DNL', 'MORRENA', 'TRES_ESQUINAS', 'PIPA', '3700'];
+// En Andina cada carro lleva el nombre de su ubicación.
+const ANDINA_UBICACIONES: Record<string, string> = {
+  SUR_SUR: 'Sur Sur', CONGRESO: 'Congreso', CHIVATO: 'Chivato', DNL: 'DNL',
+  MORRENA: 'Morrena', TRES_ESQUINAS: 'Tres Esquinas', PIPA: 'Pipa', '3700': '3700',
+};
 const ANDINA_ADMINISTRADOR: Firmante = { nombre: 'Cesar Enrique Orellana Martinez', cargo: 'Administrador de contrato' };
 const ANDINA_JEFE_TURNO: Firmante = { nombre: 'Dennis William Gatica Martinez', cargo: 'Jefe Turno' };
 const ANDINA_INGENIERO: Firmante = { nombre: 'Luciano Salvador Olmos Torres', cargo: 'Ingeniero especialista RAN, CORE, EPC' };
@@ -101,6 +108,7 @@ export const CONFIG_DIVISION: Record<Division, ConfigDivision> = {
     origenTraslado: 'El Salvador',
     carros: CARRO_OPCIONES,
     ubicacionPorCarro: UBICACION_POR_CARRO,
+    sitiosReportabilidad: 'LTE 01, 02, 03, 04, 06, 07, 08, 09, 10, 11 y MMOO 01',
     sufijoLocal: '',
     vertiv: true,
     personalSugerido: [
@@ -153,7 +161,8 @@ export const CONFIG_DIVISION: Record<Division, ConfigDivision> = {
     faena: 'División Andina',
     origenTraslado: 'Los Andes',
     carros: ANDINA_CARROS,
-    ubicacionPorCarro: {},
+    ubicacionPorCarro: ANDINA_UBICACIONES,
+    sitiosReportabilidad: 'SUR SUR, CONGRESO, CHIVATO, DNL, MORRENA, TRES ESQUINAS, PIPA y 3700',
     sufijoLocal: '_andina',
     vertiv: false,
     personalSugerido: ANDINA_PERSONAL,
