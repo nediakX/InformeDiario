@@ -1,0 +1,124 @@
+/* Panel principal: tablero del turno + accesos a las tareas.
+   Un solo elemento protagonista (la franja del turno, del mismo negro que el encabezado);
+   el resto queda sobrio: filas blancas con su estado en una línea. */
+
+.dash { max-width: 1040px; margin: 0 auto; padding: 22px 20px 40px; display: grid; gap: 26px; }
+
+/* Saludo y cuenta */
+.dash-top { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 14px; }
+.dash-saludo { font-size: 2rem; line-height: 1.05; font-weight: 800; color: var(--brand-blue); margin: 0; }
+.dash-fecha { margin: 4px 0 0; font-size: 0.9rem; color: var(--text-soft); }
+.dash-cuenta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.dash-usuario, .dash-salir {
+  display: inline-flex; align-items: center; gap: 6px; max-width: 260px;
+  padding: 6px 12px; border-radius: 999px; border: 1px solid var(--line); background: #fff;
+  font-size: 0.78rem; color: var(--ink-2);
+}
+.dash-usuario svg { color: var(--brand-blue); flex: none; }
+.dash-usuario__rol { flex: none; font-size: 0.66rem; font-weight: 700; color: var(--brand-blue); background: #e3edf3; border-radius: 999px; padding: 1px 7px; }
+.dash-salir { font-weight: 700; color: var(--brand-blue); cursor: pointer; }
+.dash-salir:hover { border-color: var(--brand-blue); }
+
+/* Tablero del turno */
+.dash-turno {
+  background: var(--ink); color: #e8edf0; border-radius: 14px; padding: 20px 22px 16px;
+  border-top: 4px solid var(--amber);
+}
+.dash-turno__cabecera { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: 12px; margin-bottom: 16px; }
+.dash-turno__letra { margin: 0; font-size: 2.6rem; line-height: 0.95; font-weight: 800; color: #fff; }
+.dash-turno__rango { margin: 6px 0 0; font-size: 0.85rem; color: #a9b6bd; }
+.dash-turno__resumen { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; font-size: 0.85rem; color: #c9d3d8; }
+.dash-turno__resumen strong { font-size: 1.35rem; color: #fff; margin-right: 2px; }
+.dash-turno__pendientes {
+  display: inline-flex; align-items: center; gap: 5px; padding: 5px 11px; border-radius: 999px;
+  background: rgba(245, 179, 0, 0.14); color: var(--amber); font-weight: 700; font-size: 0.78rem; cursor: pointer;
+  border: 1px solid rgba(245, 179, 0, 0.4);
+}
+.dash-turno__pendientes:hover { background: rgba(245, 179, 0, 0.24); }
+
+.dash-semana { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 8px; }
+.dash-dia {
+  display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 10px 4px 9px;
+  border-radius: 10px; background: #1f262c; border: 1px solid #2c353c;
+}
+.dash-dia__nombre { font-size: 0.72rem; color: #8e9ca4; }
+.dash-dia__fecha { font-size: 1.5rem; font-weight: 700; color: #fff; line-height: 1.1; }
+.dash-dia__pips { display: flex; flex-direction: column; gap: 4px; margin-top: 6px; width: 70%; }
+.dash-dia--hoy { border-color: var(--amber); box-shadow: inset 0 0 0 1px var(--amber); }
+.dash-dia--hoy .dash-dia__nombre { color: var(--amber); font-weight: 700; }
+.dash-dia--futuro { opacity: 0.45; }
+
+.dash-pip { display: inline-block; height: 6px; width: 100%; border-radius: 3px; background: transparent; border: 1px solid #55636b; }
+.dash-pip--finalizado { background: #34a853; border-color: #34a853; }
+.dash-pip--iniciado { background: var(--amber); border-color: var(--amber); }
+.dash-pip--pendiente { border-color: #7b8a92; }
+.dash-pip--futuro { border-style: dashed; border-color: #3e4a51; }
+
+.dash-leyenda { display: flex; flex-wrap: wrap; gap: 14px; margin: 12px 0 0; font-size: 0.72rem; color: #8e9ca4; }
+.dash-leyenda > span { display: inline-flex; align-items: center; gap: 6px; }
+.dash-leyenda .dash-pip { width: 16px; }
+.dash-leyenda__nota { margin-left: auto; }
+
+/* Informe de hoy */
+.dash-hoy__cabecera, .dash-subtitulo { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin: 0 0 10px; }
+.dash-hoy__cabecera h2, .dash-subtitulo { font-size: 1.35rem; font-weight: 700; color: var(--brand-blue); }
+.dash-enlace { white-space: nowrap; flex: none; display: inline-flex; align-items: center; gap: 5px; font-size: 0.8rem; font-weight: 700; color: var(--brand-blue); cursor: pointer; }
+.dash-enlace:hover { text-decoration: underline; }
+.dash-hoy__turnos { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+
+.dash-turno-hoy {
+  display: flex; align-items: center; gap: 14px; width: 100%; text-align: left; cursor: pointer;
+  background: #fff; border: 1px solid var(--line); border-left: 5px solid var(--line); border-radius: 10px; padding: 16px;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.dash-turno-hoy:hover { border-color: var(--brand-blue); box-shadow: 0 6px 18px rgba(20, 24, 28, 0.08); }
+.dash-turno-hoy--iniciado { border-left-color: var(--amber); }
+.dash-turno-hoy--finalizado { border-left-color: #1e8e3e; }
+.dash-turno-hoy__icono { display: grid; place-items: center; width: 44px; height: 44px; flex: none; border-radius: 50%; background: #e3edf3; color: var(--brand-blue); }
+.dash-turno-hoy__texto { display: grid; gap: 3px; flex: 1; min-width: 0; }
+.dash-turno-hoy__titulo { font-size: 1.25rem; font-weight: 700; color: var(--ink); line-height: 1.1; }
+.dash-turno-hoy__estado { font-size: 0.8rem; color: var(--text-soft); }
+.dash-barra { display: block; height: 4px; border-radius: 2px; background: var(--line-soft); overflow: hidden; margin-top: 3px; }
+.dash-barra > span { display: block; height: 100%; background: var(--brand-blue); }
+.dash-turno-hoy--finalizado .dash-barra > span { background: #1e8e3e; }
+.dash-turno-hoy__accion {
+  display: inline-flex; align-items: center; gap: 2px; flex: none; padding: 8px 10px 8px 14px; border-radius: 8px;
+  background: var(--brand-blue); color: #fff; font-size: 0.82rem; font-weight: 700;
+}
+.dash-turno-hoy--finalizado .dash-turno-hoy__accion { background: #fff; color: var(--brand-blue); border: 1px solid var(--line); }
+
+/* Tareas */
+.dash-tareas { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.dash-tarea {
+  display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; cursor: pointer;
+  background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px;
+  transition: border-color 0.15s ease;
+}
+.dash-tarea:hover { border-color: var(--brand-blue); }
+.dash-tarea:hover .dash-tarea__flecha { color: var(--brand-blue); transform: translateX(2px); }
+.dash-tarea__icono { display: grid; place-items: center; width: 40px; height: 40px; flex: none; border-radius: 9px; }
+.dash-tarea__texto { display: grid; gap: 2px; flex: 1; min-width: 0; }
+.dash-tarea__titulo { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-weight: 700; font-size: 0.95rem; color: var(--ink); }
+.dash-tarea__etiqueta { font-size: 0.66rem; font-weight: 700; color: #856404; background: #fff3cd; border-radius: 999px; padding: 1px 7px; }
+.dash-tarea__estado { font-size: 0.8rem; color: var(--text-soft); }
+.dash-tarea__estado--ok { color: #1e6b34; font-weight: 600; }
+.dash-tarea__estado--aviso { color: #8a5a00; font-weight: 600; }
+.dash-tarea__flecha { flex: none; color: #9aa5ad; transition: transform 0.15s ease, color 0.15s ease; }
+
+.dash button:focus-visible { outline: 3px solid var(--amber); outline-offset: 2px; }
+
+@media (max-width: 720px) {
+  .dash { padding: 16px 16px 40px; gap: 22px; }
+  .dash-saludo { font-size: 1.7rem; }
+  .dash-hoy__cabecera h2, .dash-subtitulo { font-size: 1.2rem; }
+  .dash-turno { padding: 16px 14px 14px; }
+  .dash-turno__letra { font-size: 2.1rem; }
+  .dash-semana { gap: 4px; }
+  .dash-dia { padding: 8px 2px 7px; }
+  .dash-dia__fecha { font-size: 1.2rem; }
+  .dash-leyenda__nota { margin-left: 0; }
+  .dash-hoy__turnos, .dash-tareas { grid-template-columns: 1fr; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .dash-turno-hoy, .dash-tarea, .dash-tarea__flecha { transition: none; }
+}

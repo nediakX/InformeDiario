@@ -290,6 +290,7 @@ function AppContenido() {
         borradorCount={borradores.filter(b => !esSemillaSinEditar(b)).length}
         pendientesCount={informesPorCompletar}
         informesHoy={informesHoy}
+        borradoresSemana={borradoresVisibles}
         onAbrirInforme={openBorradorEntry}
         onNuevoInforme={goToNewInforme}
         onNavigate={setView}

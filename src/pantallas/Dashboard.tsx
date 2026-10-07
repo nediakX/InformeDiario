@@ -1,17 +1,42 @@
 import { useEffect, useState } from 'react';
-import { ClipboardCheck, FileText, FileStack, FolderOpen, ArrowRight, CalendarDays, Bell, FilePlus, Sun, Moon, Wrench, AlertTriangle, Construction, Printer, LogOut, ShieldCheck, UserRound } from 'lucide-react';
+import { ClipboardCheck, FileStack, FolderOpen, ChevronRight, Bell, FilePlus, Sun, Moon, Wrench, AlertTriangle, Printer, LogOut, ShieldCheck, UserRound, type LucideIcon } from 'lucide-react';
 import { useSesion, nombreVisible } from '../auth/sesion';
 import { CONFIG_DIVISION } from '../datos/divisiones';
+import './dashboard.css';
 import SelectorDivision from '../componentes/SelectorDivision';
 import logoPsinet from "../assets/logo_psinet.jpg";
 import logoEdificio from "../assets/LogoEdificio.png";
-import { type BorradorEntry, estadoBorrador, contarFotos } from '../datos/borradoresDiario';
+import { type BorradorEntry, estadoBorrador, contarFotos, esSemillaSinEditar } from '../datos/borradoresDiario';
 import { type BorradorOtroEntry, estadoBorradorGenerico, contarFotosGenerico } from '../datos/borradoresOtros';
 import { hoyLocalISO, formatDiaMes, formatFechaLarga } from '../datos/fechas';
 import { semanaDeFecha, DIAS_POR_TURNO } from '../datos/turnos';
 import { estadoChecklistDelDia } from '../informes/checklist/catalogo';
 
 type TipoBorradorTab = 'diario' | 'mantenimiento' | 'falla';
+type EstadoPip = 'pendiente' | 'iniciado' | 'finalizado' | 'futuro';
+
+const INICIAL_DIA = ['D', 'L', 'M', 'M', 'J', 'V', 'S'];
+const ETIQUETA_ESTADO: Record<EstadoPip, string> = { pendiente: 'sin fotos', iniciado: 'en curso', finalizado: 'finalizado', futuro: 'aún no' };
+
+/** Acceso a una tarea: ícono, nombre y su estado en una línea. */
+function Tarea({ icono: Icono, color, titulo, estado, tono, etiqueta, onClick }: {
+  icono: LucideIcon; color: string; titulo: string; estado: string;
+  tono?: 'ok' | 'aviso'; etiqueta?: string; onClick: () => void;
+}) {
+  return (
+    <button type="button" onClick={onClick} className="dash-tarea">
+      <span className="dash-tarea__icono" style={{ background: color }}><Icono size={20} color="#fff" strokeWidth={2} aria-hidden="true" /></span>
+      <span className="dash-tarea__texto">
+        <span className="dash-tarea__titulo">
+          {titulo}
+          {etiqueta && <span className="dash-tarea__etiqueta">{etiqueta}</span>}
+        </span>
+        <span className={`dash-tarea__estado ${tono ? `dash-tarea__estado--${tono}` : ''}`}>{estado}</span>
+      </span>
+      <ChevronRight size={18} className="dash-tarea__flecha" aria-hidden="true" />
+    </button>
+  );
+}
 
 interface DashboardProps {
   onNavigate: (view: 'borradores' | 'cierre' | 'checklist' | 'impresion' | 'admin') => void;
@@ -26,6 +51,8 @@ interface DashboardProps {
   /** Borradores guardados en la nube de Mantenimiento e Falla (todos, no solo los de hoy: no dependen del turno). */
   borradoresMantenimiento?: BorradorOtroEntry[];
   borradoresFalla?: BorradorOtroEntry[];
+  /** Informes diarios de la semana de turno (guardados y los automáticos aún vacíos), para el tablero del turno. */
+  borradoresSemana?: BorradorEntry[];
   /** Checklists de camioneta guardados (para mostrar si el de hoy ya está completo). */
   checklistsCamioneta?: BorradorOtroEntry[];
   onNuevoMantenimiento: () => void;
@@ -42,7 +69,7 @@ const ESTADO_OTRO_LABEL: Record<'pendiente' | 'iniciado' | 'finalizado', string>
 
 export default function Dashboard({
   onNavigate, borradorCount, pendientesCount = 0, informesHoy = [], onAbrirInforme, onNuevoInforme,
-  borradoresMantenimiento = [], borradoresFalla = [], checklistsCamioneta = [],
+  borradoresMantenimiento = [], borradoresFalla = [], checklistsCamioneta = [], borradoresSemana = [],
   onNuevoMantenimiento, onAbrirMantenimiento, onNuevaFalla, onAbrirFalla, onVerBorradores,
 }: DashboardProps) {
   const { perfil, esAdmin, pendientesAprobacion, cerrarSesion, division } = useSesion();
@@ -56,6 +83,21 @@ export default function Dashboard({
   const hoy = hoyLocalISO();
   const semanaHoy = semanaDeFecha(hoy);
   const diaDelTurno = semanaHoy.dias.indexOf(hoy) + 1;
+
+  const primerNombre = (nombreVisible(perfil).split(' ')[0] || '').replace(/^./, c => c.toUpperCase());
+  const fechaHoyTexto = new Date(`${hoy}T12:00:00`).toLocaleDateString('es-CL', { weekday: 'long', day: 'numeric', month: 'long' })
+    .replace(/^./, c => c.toUpperCase());
+
+  // Estado de cada informe diario de la semana (Día y Noche) para el tablero del turno.
+  const estadoDe = (fecha: string, turno: 'dia' | 'noche'): EstadoPip => {
+    const b = borradoresSemana.find(x => x.fecha === fecha && x.turno === turno);
+    if (!b || esSemillaSinEditar(b)) return fecha > hoy ? 'futuro' : 'pendiente';
+    return estadoBorrador(b);
+  };
+  const diasQueTocan = semanaHoy.dias.filter(f => f <= hoy);
+  const informesQueTocan = diasQueTocan.length * 2;
+  const finalizadosSemana = diasQueTocan.reduce((n, f) => n + (estadoDe(f, 'dia') === 'finalizado' ? 1 : 0) + (estadoDe(f, 'noche') === 'finalizado' ? 1 : 0), 0);
+  const diasConInformeDia = semanaHoy.dias.filter(f => ['iniciado', 'finalizado'].includes(estadoDe(f, 'dia'))).length;
 
   const algunModalOpen = modalInformeOpen || modalMantenimientoOpen || modalFallaOpen;
   useEffect(() => {
@@ -109,234 +151,135 @@ export default function Dashboard({
         <div className="site-header__rule" />
       </header>
 
-      <main className="max-w-[1000px] mx-auto p-5 space-y-8">
-        <div className="flex flex-wrap items-center justify-end gap-2 sm:-mb-4">
-          <span className="inline-flex items-center gap-1.5 text-xs text-gray-600 bg-white border border-[#DCE1E6] rounded-full px-3 py-1.5 max-w-full">
-            <UserRound size={14} className="flex-none text-[#0E4660]" />
-            <span className="truncate">{nombreVisible(perfil)}</span>
-            {esAdmin && <span className="flex-none text-[10px] font-bold uppercase tracking-wide text-[#0E4660] bg-[#e3edf3] rounded-full px-1.5 py-0.5">Admin</span>}
-          </span>
-          <button
-            type="button"
-            onClick={() => { if (window.confirm('¿Cerrar sesión en este dispositivo?')) void cerrarSesion(); }}
-            className="inline-flex items-center gap-1.5 text-xs font-bold text-[#0E4660] bg-white border border-[#DCE1E6] rounded-full px-3 py-1.5 hover:border-[#0E4660] transition-colors"
-          >
-            <LogOut size={14} /> Cerrar sesión
-          </button>
-        </div>
-        <div>
-          <h1 className="font-display font-bold text-2xl text-[#0E4660]">¿Qué necesitas hacer hoy?</h1>
-          <p className="text-sm text-gray-500 mt-1">Selecciona una opción para continuar.</p>
-          <div className="flex flex-wrap items-center gap-2 mt-3">
+      <main className="dash">
+        {/* Saludo y cuenta */}
+        <div className="dash-top">
+          <div className="min-w-0">
+            <h1 className="dash-saludo font-display">Hola, {primerNombre}</h1>
+            <p className="dash-fecha">{fechaHoyTexto}</p>
+          </div>
+          <div className="dash-cuenta">
             <SelectorDivision />
-            <span className="inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full bg-[#FFF3CD] text-[#856404]">
-              <CalendarDays size={14} />
-              Hoy: Turno {semanaHoy.letra} · día {diaDelTurno} de {DIAS_POR_TURNO} ({formatDiaMes(semanaHoy.inicio)} – {formatDiaMes(semanaHoy.fin)})
+            <span className="dash-usuario" title={perfil.email}>
+              <UserRound size={14} aria-hidden="true" />
+              <span className="truncate">{nombreVisible(perfil)}</span>
+              {esAdmin && <span className="dash-usuario__rol">Admin</span>}
             </span>
-            {pendientesCount > 0 && (
-              <button
-                type="button"
-                onClick={() => onNavigate('borradores')}
-                className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full bg-white border border-[#DCE1E6] text-gray-500 hover:text-[#0E4660] hover:border-[#0E4660] transition-colors"
-              >
-                <span className="relative flex h-2 w-2">
-                  <span className="absolute inline-flex h-full w-full rounded-full bg-[#F5B300] opacity-60" />
-                  <span className="relative inline-flex h-2 w-2 rounded-full bg-[#F5B300]" />
-                </span>
-                <Bell size={12} />
-                {pendientesCount} informe{pendientesCount === 1 ? '' : 's'} diario{pendientesCount === 1 ? '' : 's'} en borrador por completar
-              </button>
-            )}
-            {/* Primer día o últimos dos días de la semana de turno: recordatorio para imprimir el kit de formularios. */}
-            {(diaDelTurno === 1 || diaDelTurno >= DIAS_POR_TURNO - 1) && (
-              <button
-                type="button"
-                onClick={() => onNavigate('impresion')}
-                className="inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full bg-[#0E4660] text-white hover:bg-[#0a3549] transition-colors"
-              >
-                <Printer size={12} />
-                {diaDelTurno === 1 ? 'Imprimir el kit de formularios de esta semana' : 'Preparar el kit de formularios de la próxima semana'}
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={() => { if (window.confirm('¿Cerrar sesión en este dispositivo?')) void cerrarSesion(); }}
+              className="dash-salir"
+            >
+              <LogOut size={14} aria-hidden="true" /> Salir
+            </button>
           </div>
         </div>
 
-        <section>
-          <h2 className="dashboard-section__title">Informe de turno</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-            <button
-              type="button"
-              onClick={handleGenerarInforme}
-              className="dashboard-card dashboard-card--principal group text-left"
-            >
-              <div className="dashboard-card__icon bg-[#0E4660]">
-                <FileText size={26} color="#fff" strokeWidth={2} />
-              </div>
-              <h2 className="font-display font-bold text-lg text-[#0E4660] mt-4">Generar Informe Diario</h2>
-              <p className="text-sm text-gray-500 mt-1.5 flex-1">
-                Continúa el informe de hoy (Turno Día o Turno Noche) o crea uno nuevo: personal, actividades, evidencia fotográfica y firmas.
+        {/* Tablero del turno: la semana de un vistazo, con el estado de cada informe diario */}
+        <section className="dash-turno" aria-labelledby="dash-turno-titulo">
+          <div className="dash-turno__cabecera">
+            <div>
+              <h2 id="dash-turno-titulo" className="dash-turno__letra font-display">Turno {semanaHoy.letra}</h2>
+              <p className="dash-turno__rango">
+                Día {diaDelTurno} de {DIAS_POR_TURNO} · {formatDiaMes(semanaHoy.inicio)} al {formatDiaMes(semanaHoy.fin)}
               </p>
-              <span className="dashboard-card__cta">
-                Comenzar <ArrowRight size={15} className="transition-transform group-hover:translate-x-1" />
-              </span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => onNavigate('cierre')}
-              className="dashboard-card group text-left"
-            >
-              <div className="dashboard-card__icon bg-[#ED7D31]">
-                <FileStack size={26} color="#fff" strokeWidth={2} />
-              </div>
-              <h2 className="font-display font-bold text-lg text-[#0E4660] mt-4">Informe de Cierre</h2>
-              <p className="text-sm text-gray-500 mt-1.5 flex-1">
-                Genera el reporte de cierre semanal, uniendo las actividades de los 7 días del turno más las imágenes adicionales solicitadas.
-              </p>
-              <span className="dashboard-card__cta">
-                Generar cierre <ArrowRight size={15} className="transition-transform group-hover:translate-x-1" />
-              </span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => onNavigate('checklist')}
-              className="dashboard-card group text-left"
-            >
-              <div className="dashboard-card__icon bg-[#1E8E3E]">
-                <ClipboardCheck size={26} color="#fff" strokeWidth={2} />
-              </div>
-              <h2 className="font-display font-bold text-lg text-[#0E4660] mt-4">Checklist de Camioneta</h2>
-              <p className="text-sm text-gray-500 mt-1.5 flex-1">
-                Lista de verificación diaria de la camioneta (GSSO-LTE-R-LV-DSAL-29): documentos, implementos, luces, neumáticos y aptitudes del conductor.
-              </p>
-              <span className={`text-[11px] font-bold mt-1.5 ${checklistHoy.completo ? 'text-[#1e6b34]' : 'text-[#856404]'}`}>
-                {checklistHoy.texto}
-              </span>
-              <span className="dashboard-card__cta">
-                Completar checklist <ArrowRight size={15} className="transition-transform group-hover:translate-x-1" />
-              </span>
-            </button>
-          </div>
-        </section>
-
-        <section>
-          <h2 className="dashboard-section__title">
-            Otros informes <span className="dashboard-section__title-badge">Aún en desarrollo</span>
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-            <button
-              type="button"
-              onClick={() => setModalMantenimientoOpen(true)}
-              title="Aún en desarrollo: puedes entrar a probarlo y guardar borrador, pero puede tener cambios."
-              className="dashboard-card group text-left opacity-80 hover:opacity-100"
-            >
-              <div className="dashboard-card__icon bg-[#55636B]">
-                <Wrench size={26} color="#fff" strokeWidth={2} />
-              </div>
-              <h2 className="font-display font-bold text-lg text-[#0E4660] mt-4">Mantenimiento de Generador</h2>
-              <p className="text-sm text-gray-500 mt-1.5 flex-1">
-                Genera el informe de mantenimiento preventivo de un generador: registro, descripción, evidencia fotográfica e inspección técnica.
-              </p>
-              <span className="dashboard-card__badge">
-                <Construction size={13} /> Aún en desarrollo
-              </span>
-              {borradoresMantenimiento.length > 0 && (
-                <span className="text-[11px] text-gray-500 mt-1.5">{borradoresMantenimiento.length} borrador{borradoresMantenimiento.length === 1 ? '' : 'es'} guardado{borradoresMantenimiento.length === 1 ? '' : 's'}</span>
+            </div>
+            <div className="dash-turno__resumen">
+              <span><strong className="font-display">{finalizadosSemana}</strong> de {informesQueTocan} informes finalizados</span>
+              {pendientesCount > 0 && (
+                <button type="button" onClick={() => onNavigate('borradores')} className="dash-turno__pendientes">
+                  <Bell size={13} aria-hidden="true" /> {pendientesCount} por completar
+                </button>
               )}
-              <span className="dashboard-card__cta">
-                Generar informe <ArrowRight size={15} className="transition-transform group-hover:translate-x-1" />
-              </span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setModalFallaOpen(true)}
-              title="Aún en desarrollo: puedes entrar a probarlo y guardar borrador, pero puede tener cambios."
-              className="dashboard-card group text-left opacity-80 hover:opacity-100"
-            >
-              <div className="dashboard-card__icon bg-[#B3261E]">
-                <AlertTriangle size={26} color="#fff" strokeWidth={2} />
-              </div>
-              <h2 className="font-display font-bold text-lg text-[#0E4660] mt-4">Informe de Falla — Carro</h2>
-              <p className="text-sm text-gray-500 mt-1.5 flex-1">
-                Genera el reporte de falla de un Carro (Light / LTE): descripción de la falla, solución implementada, verificación final y registro fotográfico.
-              </p>
-              <span className="dashboard-card__badge">
-                <Construction size={13} /> Aún en desarrollo
-              </span>
-              {borradoresFalla.length > 0 && (
-                <span className="text-[11px] text-gray-500 mt-1.5">{borradoresFalla.length} borrador{borradoresFalla.length === 1 ? '' : 'es'} guardado{borradoresFalla.length === 1 ? '' : 's'}</span>
-              )}
-              <span className="dashboard-card__cta">
-                Generar informe <ArrowRight size={15} className="transition-transform group-hover:translate-x-1" />
-              </span>
-            </button>
+            </div>
           </div>
-        </section>
-
-        <section>
-          <h2 className="dashboard-section__title">Herramientas</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-            <button
-              type="button"
-              onClick={() => onNavigate('borradores')}
-              className="dashboard-card group text-left"
-            >
-              <div className="dashboard-card__icon bg-[#F5B300]">
-                <FolderOpen size={26} color="#fff" strokeWidth={2} />
-              </div>
-              <h2 className="font-display font-bold text-lg text-[#0E4660] mt-4">Borradores</h2>
-              <p className="text-sm text-gray-500 mt-1.5 flex-1">
-                Revisa, continúa o elimina los informes guardados: Diario, Mantenimiento y Falla — Carro, cada uno en su pestaña.
-              </p>
-              <span className="dashboard-card__badge">
-                <CalendarDays size={13} /> {borradorCount} guardado{borradorCount === 1 ? "" : "s"}
-              </span>
-              <span className="dashboard-card__cta">
-                Ver borradores <ArrowRight size={15} className="transition-transform group-hover:translate-x-1" />
-              </span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => onNavigate('impresion')}
-              className="dashboard-card group text-left"
-            >
-              <div className="dashboard-card__icon bg-[#0E4660]">
-                <Printer size={26} color="#fff" strokeWidth={2} />
-              </div>
-              <h2 className="font-display font-bold text-lg text-[#0E4660] mt-4">Impresión Rápida</h2>
-              <p className="text-sm text-gray-500 mt-1.5 flex-1">
-                Elige qué documentos de faena necesitas y cuántas copias de cada uno, y se juntan en un solo PDF listo para imprimir.
-              </p>
-              <span className="dashboard-card__cta">
-                Elegir e imprimir <ArrowRight size={15} className="transition-transform group-hover:translate-x-1" />
-              </span>
-            </button>
-
-            {esAdmin && (
-              <button
-                type="button"
-                onClick={() => onNavigate('admin')}
-                className="dashboard-card group text-left md:col-span-2"
-              >
-                <div className="dashboard-card__icon bg-[#14181C]">
-                  <ShieldCheck size={26} color="#F5B300" strokeWidth={2} />
-                </div>
-                <h2 className="font-display font-bold text-lg text-[#0E4660] mt-4">Panel de administración</h2>
-                <p className="text-sm text-gray-500 mt-1.5 flex-1">
-                  Indicadores de cumplimiento, fallas y mantenimientos por carro, actividad del equipo y aprobación de cuentas de usuario.
-                </p>
-                {pendientesAprobacion > 0 && (
-                  <span className="dashboard-card__badge">
-                    <Bell size={13} /> {pendientesAprobacion} cuenta{pendientesAprobacion === 1 ? '' : 's'} por aprobar
+          <ol className="dash-semana">
+            {semanaHoy.dias.map((fecha, i) => {
+              const futuro = fecha > hoy;
+              return (
+                <li key={fecha} className={`dash-dia ${fecha === hoy ? 'dash-dia--hoy' : ''} ${futuro ? 'dash-dia--futuro' : ''}`}>
+                  <span className="dash-dia__nombre">{INICIAL_DIA[new Date(`${fecha}T12:00:00`).getDay()]}</span>
+                  <span className="dash-dia__fecha font-display">{Number(fecha.slice(8, 10))}</span>
+                  <span className="dash-dia__pips" aria-label={`${formatFechaLarga(fecha)}: Día ${ETIQUETA_ESTADO[estadoDe(fecha, 'dia')]}, Noche ${ETIQUETA_ESTADO[estadoDe(fecha, 'noche')]}`}>
+                    <span className={`dash-pip dash-pip--${estadoDe(fecha, 'dia')}`} title="Turno Día" />
+                    <span className={`dash-pip dash-pip--${estadoDe(fecha, 'noche')}`} title="Turno Noche" />
                   </span>
-                )}
-                <span className="dashboard-card__cta">
-                  Abrir panel <ArrowRight size={15} className="transition-transform group-hover:translate-x-1" />
-                </span>
-              </button>
+                  {i === 0 && <span className="sr-only">Primer día del turno</span>}
+                </li>
+              );
+            })}
+          </ol>
+          <p className="dash-leyenda">
+            <span><span className="dash-pip dash-pip--finalizado" /> Finalizado</span>
+            <span><span className="dash-pip dash-pip--iniciado" /> En curso</span>
+            <span><span className="dash-pip dash-pip--pendiente" /> Sin fotos</span>
+            <span className="dash-leyenda__nota">Arriba Día · abajo Noche</span>
+          </p>
+        </section>
+
+        {/* Informe de hoy: acceso directo a los dos turnos */}
+        <section className="dash-hoy" aria-labelledby="dash-hoy-titulo">
+          <div className="dash-hoy__cabecera">
+            <h2 id="dash-hoy-titulo" className="font-display">Informe de hoy</h2>
+            <button type="button" onClick={handleGenerarInforme} className="dash-enlace">
+              <FilePlus size={14} aria-hidden="true" /> Crear otro informe
+            </button>
+          </div>
+          <div className="dash-hoy__turnos">
+            {(['dia', 'noche'] as const).map(turno => {
+              const informe = informesHoy.find(b => b.turno === turno);
+              const estado = informe ? estadoBorrador(informe) : 'pendiente';
+              const fotos = informe ? contarFotos(informe) : { llenas: 0, total: 0 };
+              const avance = fotos.total ? Math.round((fotos.llenas / fotos.total) * 100) : 0;
+              const Icono = turno === 'dia' ? Sun : Moon;
+              return (
+                <button
+                  key={turno}
+                  type="button"
+                  onClick={() => (informe ? onAbrirInforme(informe) : onNuevoInforme(turno))}
+                  className={`dash-turno-hoy dash-turno-hoy--${estado}`}
+                >
+                  <span className="dash-turno-hoy__icono"><Icono size={20} aria-hidden="true" /></span>
+                  <span className="dash-turno-hoy__texto">
+                    <span className="dash-turno-hoy__titulo font-display">Turno {turno === 'dia' ? 'Día' : 'Noche'}</span>
+                    <span className="dash-turno-hoy__estado">
+                      {estado === 'finalizado' ? `Finalizado · ${fotos.llenas} fotos` : estado === 'iniciado' ? `${fotos.llenas} de ${fotos.total} fotos` : 'Aún sin fotos'}
+                    </span>
+                    <span className="dash-barra" aria-hidden="true"><span style={{ width: `${avance}%` }} /></span>
+                  </span>
+                  <span className="dash-turno-hoy__accion">
+                    {estado === 'pendiente' ? 'Comenzar' : estado === 'finalizado' ? 'Revisar' : 'Continuar'}
+                    <ChevronRight size={16} aria-hidden="true" />
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </section>
+
+        {/* Resto de tareas: cada una con su estado en una línea */}
+        <section aria-labelledby="dash-tareas-titulo">
+          <h2 id="dash-tareas-titulo" className="dash-subtitulo font-display">Tareas del turno</h2>
+          <div className="dash-tareas">
+            <Tarea icono={ClipboardCheck} color="#1E8E3E" titulo="Checklist de camioneta" onClick={() => onNavigate('checklist')}
+              estado={checklistHoy.texto} tono={checklistHoy.completo ? 'ok' : 'aviso'} />
+            <Tarea icono={FileStack} color="#ED7D31" titulo="Informe de cierre" onClick={() => onNavigate('cierre')}
+              estado={`${diasConInformeDia} de ${DIAS_POR_TURNO} días de Turno Día con informe`} />
+            <Tarea icono={Printer} color="#0E4660" titulo="Impresión rápida" onClick={() => onNavigate('impresion')}
+              estado={diaDelTurno === 1 ? 'Imprime el kit de formularios de esta semana' : diaDelTurno >= DIAS_POR_TURNO - 1 ? 'Prepara el kit de la próxima semana' : 'Formularios de faena listos para imprimir'}
+              tono={diaDelTurno === 1 || diaDelTurno >= DIAS_POR_TURNO - 1 ? 'aviso' : undefined} />
+            <Tarea icono={FolderOpen} color="#55636B" titulo="Borradores" onClick={() => onNavigate('borradores')}
+              estado={`${borradorCount} informe${borradorCount === 1 ? '' : 's'} guardado${borradorCount === 1 ? '' : 's'}`} />
+            <Tarea icono={Wrench} color="#55636B" titulo="Mantenimiento de generador" onClick={() => setModalMantenimientoOpen(true)}
+              estado={borradoresMantenimiento.length ? `${borradoresMantenimiento.length} borrador${borradoresMantenimiento.length === 1 ? '' : 'es'}` : 'Sin borradores'}
+              etiqueta="En desarrollo" />
+            <Tarea icono={AlertTriangle} color="#B3261E" titulo="Informe de falla de carro" onClick={() => setModalFallaOpen(true)}
+              estado={borradoresFalla.length ? `${borradoresFalla.length} borrador${borradoresFalla.length === 1 ? '' : 'es'}` : 'Sin borradores'}
+              etiqueta="En desarrollo" />
+            {esAdmin && (
+              <Tarea icono={ShieldCheck} color="#14181C" titulo="Panel de administración" onClick={() => onNavigate('admin')}
+                estado={pendientesAprobacion > 0 ? `${pendientesAprobacion} cuenta${pendientesAprobacion === 1 ? '' : 's'} por aprobar` : 'Indicadores, usuarios y actividad'}
+                tono={pendientesAprobacion > 0 ? 'aviso' : undefined} />
             )}
           </div>
         </section>
