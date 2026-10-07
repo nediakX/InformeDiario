@@ -19,7 +19,7 @@ export const esDivision = (v: unknown): v is Division => v === 'el_salvador' || 
 export interface Firmante { nombre: string; cargo: string }
 
 /** Camioneta de la división: cada una tiene su propio Checklist de Camioneta por semana. */
-export interface Camioneta { patente: string; marca: string; modelo: string }
+export interface Camioneta { patente: string; marca: string; modelo: string; anio: string }
 
 export interface ConfigDivision {
   id: Division;
@@ -145,9 +145,9 @@ export const CONFIG_DIVISION: Record<Division, ConfigDivision> = {
     carros: CARRO_OPCIONES,
     ubicacionPorCarro: UBICACION_POR_CARRO,
     camionetas: [
-      { patente: 'VCTD-93', marca: 'Ford', modelo: '' },
-      { patente: 'VCTF-84', marca: 'Mitsubishi', modelo: 'L200' },
-      { patente: 'TZYJ-98', marca: 'Toyota', modelo: '' },
+      { patente: 'VCTD-93', marca: 'Ford', modelo: 'Ranger', anio: '2025' },
+      { patente: 'VCTF-84', marca: 'Mitsubishi', modelo: 'L200 Katana', anio: '2025' },
+      { patente: 'TZYJ-98', marca: 'Toyota', modelo: 'Hilux', anio: '2025' },
     ],
     sitiosReportabilidad: 'LTE 01, 02, 03, 04, 06, 07, 08, 09, 10, 11 y MMOO 01',
     sufijoLocal: '',

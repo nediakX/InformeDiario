@@ -48,7 +48,7 @@ export default function ChecklistCamioneta({ onBack }: { onBack: () => void }) {
     const vistas = new Map<string, DatosChecklist>();
     for (const c of config.camionetas) {
       const d = checklistVacio(semana.inicio, semana.letra);
-      vistas.set(clavePatente(c.patente), { ...d, patente: c.patente, marca: c.marca, modelo: c.modelo });
+      vistas.set(clavePatente(c.patente), { ...d, patente: c.patente, marca: c.marca, modelo: c.modelo, anio: c.anio });
     }
     const registradas = new Set<string>();
     for (const e of [...(lista ?? [])].sort((a, b) => b.savedAt.localeCompare(a.savedAt))) {
@@ -57,7 +57,7 @@ export default function ChecklistCamioneta({ onBack }: { onBack: () => void }) {
       if (!clave || registradas.has(clave)) continue;
       registradas.add(clave);
       const fija = config.camionetas.find(c => clavePatente(c.patente) === clave);
-      vistas.set(clave, fija ? { ...d, patente: fija.patente, marca: d.marca || fija.marca, modelo: d.modelo || fija.modelo } : d);
+      vistas.set(clave, fija ? { ...d, patente: fija.patente, marca: d.marca || fija.marca, modelo: d.modelo || fija.modelo, anio: d.anio || fija.anio } : d);
     }
     return vistas;
   }, [lista, semana.inicio, semana.letra, config.camionetas]);
@@ -185,8 +185,12 @@ function FormularioChecklist({ id, division, entrada, base, hoy, onGuardado }: {
   base: DatosChecklist;
   hoy: string;
 }) {
-  const normalizar = (e: BorradorOtroEntry) => normalizarChecklist(e.datos, base.semanaInicio, base.letra);
-  const [datos, setDatos] = useState<DatosChecklist>(() => (entrada ? { ...normalizar(entrada), patente: base.patente } : base));
+  // Lo guardado, completando con los datos fijos de la camioneta lo que haya quedado vacío.
+  const normalizar = (e: BorradorOtroEntry): DatosChecklist => {
+    const d = normalizarChecklist(e.datos, base.semanaInicio, base.letra);
+    return { ...d, patente: base.patente, marca: d.marca || base.marca, modelo: d.modelo || base.modelo, anio: d.anio || base.anio };
+  };
+  const [datos, setDatos] = useState<DatosChecklist>(() => (entrada ? normalizar(entrada) : base));
   // Cada cambio suma una edición; hay cambios sin guardar mientras la última guardada sea anterior.
   const [edicion, setEdicion] = useState(0);
   const [edicionGuardada, setEdicionGuardada] = useState(0);
@@ -205,7 +209,7 @@ function FormularioChecklist({ id, division, entrada, base, hoy, onGuardado }: {
   if (entrada && entrada.savedAt !== versionVista) {
     setVersionVista(entrada.savedAt);
     if (!sucio && entrada.savedAt !== guardadoEn) {
-      setDatos({ ...normalizar(entrada), patente: base.patente });
+      setDatos(normalizar(entrada));
       setGuardadoEn(entrada.savedAt);
     }
   }

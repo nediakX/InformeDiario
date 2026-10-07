@@ -199,6 +199,11 @@ create table if not exists public.borradores (
   updated_at timestamptz not null default now()
 );
 
+-- Columnas que las bases creadas con versiones anteriores pueden no tener ("create table if not
+-- exists" no agrega columnas a una tabla que ya existe).
+alter table public.borradores add column if not exists saved_at timestamptz not null default now();
+alter table public.borradores add column if not exists updated_at timestamptz not null default now();
+
 -- División a la que pertenece cada informe (los existentes son de El Salvador).
 alter table public.borradores add column if not exists division text not null default 'el_salvador'
   check (division in ('el_salvador', 'andina'));
@@ -274,6 +279,12 @@ create table if not exists public.borradores_otros (
   saved_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+-- Columnas que las bases creadas con versiones anteriores pueden no tener.
+alter table public.borradores_otros add column if not exists titulo text;
+alter table public.borradores_otros add column if not exists datos jsonb not null default '{}';
+alter table public.borradores_otros add column if not exists saved_at timestamptz not null default now();
+alter table public.borradores_otros add column if not exists updated_at timestamptz not null default now();
 
 -- Tipos de informe admitidos (se actualiza en bases creadas con versiones anteriores).
 alter table public.borradores_otros drop constraint if exists borradores_otros_tipo_check;
