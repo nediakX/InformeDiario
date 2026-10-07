@@ -188,21 +188,24 @@ export const requiereAviso = (datos: DatosChecklist, dia: number) =>
 const normalizarPatente = (p: string) => p.toUpperCase().replace(/[^A-Z0-9]/g, '');
 export const clavePatente = normalizarPatente;
 
-/** Estado del checklist de hoy para el panel principal (cualquier camioneta de la división). */
-export function estadoChecklistDelDia(entradas: { fecha: string; datos: unknown }[], hoy: string): { texto: string; completo: boolean } {
+/** Estado del checklist de hoy para el panel principal: cuántas camionetas ya tienen el día completo. */
+export function estadoChecklistDelDia(entradas: { fecha: string; datos: unknown }[], hoy: string, camionetasFijas: number): { texto: string; completo: boolean } {
   // Hoy puede ser el martes de llegada (primera columna de la semana siguiente) o un día de la semana en curso.
-  const candidatas = [semanaDeFecha(hoy), semanaDeFecha(sumarDias(hoy, 1))];
-  let mejor: { hechos: number; total: number } | null = null;
-  for (const semana of candidatas) {
+  const completas = new Set<string>();
+  const iniciadas = new Set<string>();
+  for (const semana of [semanaDeFecha(hoy), semanaDeFecha(sumarDias(hoy, 1))]) {
     const dia = fechasChecklist(semana.inicio).indexOf(hoy);
     if (dia < 0) continue;
     for (const e of entradas) {
       if (e.fecha !== semana.inicio) continue;
-      const a = avanceDia(normalizarChecklist(e.datos, semana.inicio, semana.letra), dia);
-      if (!mejor || a.hechos / a.total > mejor.hechos / mejor.total) mejor = a;
+      const d = normalizarChecklist(e.datos, semana.inicio, semana.letra);
+      const a = avanceDia(d, dia);
+      const clave = clavePatente(d.patente);
+      if (a.hechos > 0) iniciadas.add(clave);
+      if (a.hechos >= a.total) completas.add(clave);
     }
   }
-  if (!mejor || mejor.hechos === 0) return { texto: 'Hoy: pendiente', completo: false };
-  if (mejor.hechos >= mejor.total) return { texto: 'Hoy: completo ✓', completo: true };
-  return { texto: `Hoy: ${mejor.hechos} de ${mejor.total} revisados`, completo: false };
+  const total = Math.max(camionetasFijas, iniciadas.size);
+  if (!iniciadas.size) return { texto: total ? `Hoy: pendiente (${total} camioneta${total === 1 ? '' : 's'})` : 'Hoy: pendiente', completo: false };
+  return { texto: `Hoy: ${completas.size} de ${total} camionetas completas`, completo: completas.size >= total };
 }

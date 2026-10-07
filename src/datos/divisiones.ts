@@ -18,6 +18,9 @@ export const esDivision = (v: unknown): v is Division => v === 'el_salvador' || 
 
 export interface Firmante { nombre: string; cargo: string }
 
+/** Camioneta de la división: cada una tiene su propio Checklist de Camioneta por semana. */
+export interface Camioneta { patente: string; marca: string; modelo: string }
+
 export interface ConfigDivision {
   id: Division;
   nombre: string;          // "División El Salvador"
@@ -39,6 +42,8 @@ export interface ConfigDivision {
   carros: string[];
   /** Ubicación en faena de cada carro (se completa sola al elegirlo). */
   ubicacionPorCarro: Record<string, string>;
+  /** Camionetas fijas del Checklist de Camioneta (se pueden agregar otras desde la pantalla). */
+  camionetas: Camioneta[];
   /** Sitios de la reportabilidad diaria GG (actividad por defecto de Turno Noche y texto final del Word). */
   sitiosReportabilidad: string;
   diario: {
@@ -139,6 +144,11 @@ export const CONFIG_DIVISION: Record<Division, ConfigDivision> = {
     origenTraslado: 'El Salvador',
     carros: CARRO_OPCIONES,
     ubicacionPorCarro: UBICACION_POR_CARRO,
+    camionetas: [
+      { patente: 'VCTD-93', marca: 'Ford', modelo: '' },
+      { patente: 'VCTF-84', marca: 'Mitsubishi', modelo: 'L200' },
+      { patente: 'TZYJ-98', marca: 'Toyota', modelo: '' },
+    ],
     sitiosReportabilidad: 'LTE 01, 02, 03, 04, 06, 07, 08, 09, 10, 11 y MMOO 01',
     sufijoLocal: '',
     vertiv: true,
@@ -193,6 +203,7 @@ export const CONFIG_DIVISION: Record<Division, ConfigDivision> = {
     origenTraslado: 'Los Andes',
     carros: ANDINA_CARROS,
     ubicacionPorCarro: ANDINA_UBICACIONES,
+    camionetas: [], // aún sin camionetas fijas: se agregan con "Otra patente"
     sitiosReportabilidad: 'SUR SUR, CONGRESO, CHIVATO, DNL, MORRENA, TRES ESQUINAS, PIPA y 3700',
     sufijoLocal: '_andina',
     vertiv: false,

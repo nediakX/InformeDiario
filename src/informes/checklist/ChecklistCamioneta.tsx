@@ -43,16 +43,24 @@ export default function ChecklistCamioneta({ onBack }: { onBack: () => void }) {
     return () => { vivo = false; desuscribir(); };
   }, [division]);
 
-  // Camionetas conocidas (de checklists anteriores), la más reciente primero.
+  // Camionetas: las 3 del contrato y cualquier otra que se haya agregado (con sus últimos datos).
   const camionetas = useMemo(() => {
     const vistas = new Map<string, DatosChecklist>();
+    for (const c of config.camionetas) {
+      const d = checklistVacio(semana.inicio, semana.letra);
+      vistas.set(clavePatente(c.patente), { ...d, patente: c.patente, marca: c.marca, modelo: c.modelo });
+    }
+    const registradas = new Set<string>();
     for (const e of [...(lista ?? [])].sort((a, b) => b.savedAt.localeCompare(a.savedAt))) {
       const d = normalizarChecklist(e.datos, semana.inicio, semana.letra);
       const clave = clavePatente(d.patente);
-      if (clave && !vistas.has(clave)) vistas.set(clave, d);
+      if (!clave || registradas.has(clave)) continue;
+      registradas.add(clave);
+      const fija = config.camionetas.find(c => clavePatente(c.patente) === clave);
+      vistas.set(clave, fija ? { ...d, patente: fija.patente, marca: d.marca || fija.marca, modelo: d.modelo || fija.modelo } : d);
     }
     return vistas;
-  }, [lista, semana.inicio, semana.letra]);
+  }, [lista, semana.inicio, semana.letra, config.camionetas]);
 
   const CLAVE_PATENTE = `psinet_checklist_patente${config.sufijoLocal}`;
   const [patente, setPatenteState] = useState<string>(() => {
@@ -64,8 +72,9 @@ export default function ChecklistCamioneta({ onBack }: { onBack: () => void }) {
     try { localStorage.setItem(CLAVE_PATENTE, limpia); } catch { /* sin almacenamiento */ }
   };
   const [nuevaPatente, setNuevaPatente] = useState('');
-  // Sin patente elegida: se usa la última camioneta registrada.
-  const patenteActiva = patente || [...camionetas.values()][0]?.patente || '';
+  // Sin patente elegida: la primera camioneta del contrato.
+  const elegida = camionetas.get(clavePatente(patente));
+  const patenteActiva = elegida?.patente ?? (patente || config.camionetas[0]?.patente || [...camionetas.values()][0]?.patente || '');
 
   const id = patenteActiva ? uuidDeterministico(`checklist|${division}|${semana.inicio}|${clavePatente(patenteActiva)}`) : '';
   const entrada = lista?.find(e => e.id === id) ?? null;
@@ -77,6 +86,7 @@ export default function ChecklistCamioneta({ onBack }: { onBack: () => void }) {
     d.patente = patenteActiva;
     d.conductor = nombreVisible(perfil);
     if (anterior) {
+      d.patente = anterior.patente || patenteActiva;
       d.marca = anterior.marca; d.modelo = anterior.modelo; d.anio = anterior.anio;
       d.fechaUltimaMantencion = anterior.fechaUltimaMantencion; d.kmProximaMantencion = anterior.kmProximaMantencion;
       d.fechaControlLicencia = anterior.fechaControlLicencia; d.fechaExtintor = anterior.fechaExtintor;
@@ -124,11 +134,11 @@ export default function ChecklistCamioneta({ onBack }: { onBack: () => void }) {
           <h2 className="panel__summary font-display font-bold text-lg"><CarFront size={18} className="panel__summary-icon" strokeWidth={2.2} /> Camioneta</h2>
           <div className="flex flex-wrap gap-2 items-center">
             {[...camionetas.keys()].map(clave => {
-              const p = camionetas.get(clave)!.patente;
+              const c = camionetas.get(clave)!;
               const activa = clavePatente(patenteActiva) === clave;
               return (
-                <button key={clave} type="button" onClick={() => setPatente(p)} className={`checklist-chip ${activa ? 'checklist-chip--activa' : ''}`}>
-                  {p.toUpperCase()}
+                <button key={clave} type="button" onClick={() => setPatente(c.patente)} className={`checklist-chip ${activa ? 'checklist-chip--activa' : ''}`}>
+                  {[c.marca, c.patente.toUpperCase()].filter(Boolean).join(' · ')}
                 </button>
               );
             })}

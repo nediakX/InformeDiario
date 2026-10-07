@@ -117,9 +117,13 @@ function AppContenido() {
   }, [division]);
 
   useEffect(() => {
-    void fetchBorradoresOtros('checklist_camioneta', division).then(setChecklistsCamioneta);
     return subscribeBorradoresOtros('checklist_camioneta', division, setChecklistsCamioneta);
   }, [division]);
+  // Al volver al panel principal se vuelve a leer, para mostrar al tiro el estado del checklist de hoy.
+  const enPanel = view === 'dashboard';
+  useEffect(() => {
+    if (enPanel) void fetchBorradoresOtros('checklist_camioneta', division).then(setChecklistsCamioneta);
+  }, [division, enPanel]);
 
   // Navegación: Mantenimiento / Falla — "Nuevo informe" o "Continuar" un borrador guardado.
   const goToNuevoMantenimiento = () => {

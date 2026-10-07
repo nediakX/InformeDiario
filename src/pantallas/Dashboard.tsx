@@ -46,7 +46,7 @@ export default function Dashboard({
   onNuevoMantenimiento, onAbrirMantenimiento, onNuevaFalla, onAbrirFalla, onVerBorradores,
 }: DashboardProps) {
   const { perfil, esAdmin, pendientesAprobacion, cerrarSesion, division } = useSesion();
-  const checklistHoy = estadoChecklistDelDia(checklistsCamioneta, hoyLocalISO());
+  const checklistHoy = estadoChecklistDelDia(checklistsCamioneta, hoyLocalISO(), CONFIG_DIVISION[division].camionetas.length);
   const [modalInformeOpen, setModalInformeOpen] = useState(false);
   const [modalMantenimientoOpen, setModalMantenimientoOpen] = useState(false);
   const [modalFallaOpen, setModalFallaOpen] = useState(false);
