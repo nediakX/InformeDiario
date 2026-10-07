@@ -10,6 +10,8 @@ import logoPsinet from '../assets/logo_psinet.jpg';
 import logoEdificio from '../assets/LogoEdificio.png';
 import { supabase } from '../lib/supabase';
 import { useSesion } from '../auth/sesion';
+import { CONFIG_DIVISION } from '../datos/divisiones';
+import SelectorDivision from '../componentes/SelectorDivision';
 import {
   cargarDatosAdmin, calcularEstadisticas, rangoDePeriodo, PERIODOS,
   type DatosAdmin, type Periodo,
@@ -29,7 +31,7 @@ export default function PanelAdmin({ onBack, pestana, onPestanaChange }: {
   pestana: PestanaAdmin;
   onPestanaChange: (p: PestanaAdmin) => void;
 }) {
-  const { pendientesAprobacion } = useSesion();
+  const { pendientesAprobacion, division } = useSesion();
   const setPestana = onPestanaChange;
   const [periodo, setPeriodo] = useState<Periodo>('semana');
   const [datos, setDatos] = useState<DatosAdmin | null>(null);
@@ -42,14 +44,14 @@ export default function PanelAdmin({ onBack, pestana, onPestanaChange }: {
     setCargando(true);
     setError('');
     try {
-      setDatos(await cargarDatosAdmin(rango));
+      setDatos(await cargarDatosAdmin(rango, division));
     } catch (e) {
       console.error('No se pudieron cargar los datos del panel:', e);
       setError('No se pudieron cargar los datos. Revisa tu conexión e inténtalo de nuevo.');
     } finally {
       setCargando(false);
     }
-  }, [rango]);
+  }, [rango, division]);
 
   // Carga inicial y al cambiar el periodo (cargar() marca "cargando" antes de pedir los datos).
   // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -93,7 +95,7 @@ export default function PanelAdmin({ onBack, pestana, onPestanaChange }: {
             </div>
             <div className="min-w-0">
               <div className="site-header__title font-display font-bold text-xl leading-tight truncate">Panel de administración</div>
-              <div className="site-header__meta text-xs truncate">Indicadores de informes y gestión de usuarios</div>
+              <div className="site-header__meta text-xs truncate">{CONFIG_DIVISION[division].sigla} / Indicadores de informes y gestión de usuarios</div>
             </div>
           </div>
           <div className="site-header__photo">
@@ -108,6 +110,7 @@ export default function PanelAdmin({ onBack, pestana, onPestanaChange }: {
           <button type="button" onClick={onBack} className="btn-outline text-[#0E4660] px-3 py-1.5 rounded-md text-xs font-bold hover:bg-[#d5e7f8] flex items-center gap-1.5">
             <ArrowLeft size={14} /> Volver al menú
           </button>
+          <SelectorDivision />
           <button type="button" onClick={() => void cargar()} disabled={cargando} className="btn-mini" aria-label="Actualizar datos">
             {cargando ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />} Actualizar
           </button>

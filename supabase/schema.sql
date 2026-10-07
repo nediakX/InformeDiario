@@ -110,6 +110,29 @@ as $$
   select exists (select 1 from public.perfiles where id = auth.uid() and estado = 'aprobado' and es_admin);
 $$;
 
+-- División de la cuenta (según la faena del registro). Cada usuario ve y modifica solo los informes
+-- de su división; los administradores ven ambas.
+create or replace function public.mi_division()
+returns text
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select case faena when 'andina' then 'andina' else 'el_salvador' end
+  from public.perfiles where id = auth.uid();
+$$;
+
+create or replace function public.puede_ver_division(p_division text)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select public.es_usuario_aprobado() and (public.es_admin() or p_division = public.mi_division());
+$$;
+
 -- Cada usuario registra su último acceso (no puede cambiar nada más de su perfil).
 create or replace function public.registrar_acceso()
 returns void
@@ -176,24 +199,29 @@ create table if not exists public.borradores (
   updated_at timestamptz not null default now()
 );
 
+-- División a la que pertenece cada informe (los existentes son de El Salvador).
+alter table public.borradores add column if not exists division text not null default 'el_salvador'
+  check (division in ('el_salvador', 'andina'));
+create index if not exists borradores_division_fecha_idx on public.borradores (division, fecha);
+
 alter table public.borradores enable row level security;
 
--- Acceso compartido entre cuentas APROBADAS: todo el equipo ve y edita todos los informes.
+-- Acceso compartido entre cuentas APROBADAS de la misma división (los administradores ven ambas).
 drop policy if exists "borradores_select_shared" on public.borradores;
 create policy "borradores_select_shared" on public.borradores
-for select to authenticated using (public.es_usuario_aprobado());
+for select to authenticated using (public.puede_ver_division(division));
 
 drop policy if exists "borradores_insert_shared" on public.borradores;
 create policy "borradores_insert_shared" on public.borradores
-for insert to authenticated with check (public.es_usuario_aprobado());
+for insert to authenticated with check (public.puede_ver_division(division));
 
 drop policy if exists "borradores_update_shared" on public.borradores;
 create policy "borradores_update_shared" on public.borradores
-for update to authenticated using (public.es_usuario_aprobado()) with check (public.es_usuario_aprobado());
+for update to authenticated using (public.puede_ver_division(division)) with check (public.puede_ver_division(division));
 
 drop policy if exists "borradores_delete_shared" on public.borradores;
 create policy "borradores_delete_shared" on public.borradores
-for delete to authenticated using (public.es_usuario_aprobado());
+for delete to authenticated using (public.puede_ver_division(division));
 
 drop trigger if exists borradores_set_updated_at on public.borradores;
 create trigger borradores_set_updated_at
@@ -250,23 +278,27 @@ create table if not exists public.borradores_otros (
 create index if not exists borradores_otros_tipo_saved_at_idx
   on public.borradores_otros (tipo, saved_at desc);
 
+alter table public.borradores_otros add column if not exists division text not null default 'el_salvador'
+  check (division in ('el_salvador', 'andina'));
+create index if not exists borradores_otros_division_tipo_idx on public.borradores_otros (division, tipo, saved_at desc);
+
 alter table public.borradores_otros enable row level security;
 
 drop policy if exists "borradores_otros_select_shared" on public.borradores_otros;
 create policy "borradores_otros_select_shared" on public.borradores_otros
-for select to authenticated using (public.es_usuario_aprobado());
+for select to authenticated using (public.puede_ver_division(division));
 
 drop policy if exists "borradores_otros_insert_shared" on public.borradores_otros;
 create policy "borradores_otros_insert_shared" on public.borradores_otros
-for insert to authenticated with check (public.es_usuario_aprobado());
+for insert to authenticated with check (public.puede_ver_division(division));
 
 drop policy if exists "borradores_otros_update_shared" on public.borradores_otros;
 create policy "borradores_otros_update_shared" on public.borradores_otros
-for update to authenticated using (public.es_usuario_aprobado()) with check (public.es_usuario_aprobado());
+for update to authenticated using (public.puede_ver_division(division)) with check (public.puede_ver_division(division));
 
 drop policy if exists "borradores_otros_delete_shared" on public.borradores_otros;
 create policy "borradores_otros_delete_shared" on public.borradores_otros
-for delete to authenticated using (public.es_usuario_aprobado());
+for delete to authenticated using (public.puede_ver_division(division));
 
 drop trigger if exists borradores_otros_set_updated_at on public.borradores_otros;
 create trigger borradores_otros_set_updated_at
@@ -421,6 +453,9 @@ begin
   else
     v_ref := coalesce(new.id, old.id)::text;
     v_detalle := initcap(coalesce(new.tipo, old.tipo)) || ' · ' || coalesce(new.titulo, old.titulo, '');
+  end if;
+  if coalesce(new.division, old.division) = 'andina' then
+    v_detalle := v_detalle || ' · Andina';
   end if;
   v_tipo := case TG_OP when 'INSERT' then 'informe_creado' else 'informe_eliminado' end;
   insert into public.actividad (usuario_id, tipo, detalle, referencia) values (auth.uid(), v_tipo, v_detalle, v_ref);

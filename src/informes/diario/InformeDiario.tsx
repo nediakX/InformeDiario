@@ -9,7 +9,8 @@ import { GRUPOS_TAREAS } from '../../datos/catalogos';
 
 import { VERTIV_CARROS_FLAT, VERTIV_ITEMS } from '../../datos/plantillaWord';
 
-import { ACTIVIDAD_SUGERIDA_MANTENCION, CARROS_MANTENCION, CREADO_POR_ALL, PERSONAL_SUGERIDO_OTROS, getDefaultPersonal } from './constantes';
+import { ACTIVIDAD_SUGERIDA_MANTENCION, CARROS_MANTENCION, getDefaultPersonal } from './constantes';
+import { creadoPorDiario } from '../../datos/divisiones';
 import type { InformeDiarioEstado } from './useInformeDiario';
 
 interface InformeDiarioProps {
@@ -21,6 +22,8 @@ interface InformeDiarioProps {
 /** Pantalla del Informe Diario: formulario, evidencias fotográficas y botón para generar el Word. */
 export default function InformeDiario({ d, volverABorradores, goToNewInforme }: InformeDiarioProps) {
   const {
+    division,
+    config,
     actividades,
     actividadesDrag,
     assignFileToSlot,
@@ -109,7 +112,7 @@ export default function InformeDiario({ d, volverABorradores, goToNewInforme }: 
                 Reporte diario de actividades
               </div>
               <div className="site-header__meta text-xs truncate">
-                DSAL / Turno {letraTurno} · 2026
+                {config.sigla} / Turno {letraTurno} · 2026
               </div>
             </div>
           </div>
@@ -154,7 +157,7 @@ export default function InformeDiario({ d, volverABorradores, goToNewInforme }: 
                 </p>
                 {turno === 'noche' && (
                   <p className="text-[11px] text-[#0E4660] bg-[#E8F1FB] border border-[#cfe1f5] rounded-md px-2 py-1 mt-2">
-                    Turno Noche: la plantilla de "Actividades Diarias" cambia a la lista fija de noche, y se agregará automáticamente el bloque "Verificación de la Gestión en Planta Rectificadora Vertiv" junto con la hoja final de Indicadores Técnicos / Observaciones.
+                    Turno Noche: la plantilla de "Actividades Diarias" cambia a la lista fija de noche, y se agregará automáticamente {config.vertiv ? 'el bloque "Verificación de la Gestión en Planta Rectificadora Vertiv" junto con ' : ''}la hoja final de Indicadores Técnicos / Observaciones.
                   </p>
                 )}
               </div>
@@ -170,7 +173,7 @@ export default function InformeDiario({ d, volverABorradores, goToNewInforme }: 
                 <select
                   value={creadoNombre}
                   onChange={e => {
-                    const selected = CREADO_POR_ALL.find(option => option.nombre === e.target.value);
+                    const selected = creadoPorDiario(division).find(option => option.nombre === e.target.value);
                     if (selected) {
                       setCreadoNombre(selected.nombre);
                       setCreadoCargo(selected.cargo);
@@ -178,7 +181,7 @@ export default function InformeDiario({ d, volverABorradores, goToNewInforme }: 
                   }}
                   className="w-full p-2 border border-[#DCE1E6] rounded-md text-sm"
                 >
-                  {CREADO_POR_ALL.map(option => (
+                  {creadoPorDiario(division).map(option => (
                     <option key={option.nombre} value={option.nombre}>{option.nombre}</option>
                   ))}
                 </select>
@@ -244,12 +247,12 @@ export default function InformeDiario({ d, volverABorradores, goToNewInforme }: 
             <select value={selectedPersonalSugerido} onChange={e => setSelectedPersonalSugerido(e.target.value)} className="flex-1 min-w-[220px] p-2 border border-[#DCE1E6] rounded-md text-sm">
               <option value="">-- Seleccionar integrante del equipo --</option>
               <optgroup label={`Turno ${letraTurno}`}>
-                {getDefaultPersonal(letraTurno).map(p => (
+                {getDefaultPersonal(letraTurno, division).map(p => (
                   <option key={p.nombre} value={`${p.nombre}|${p.cargo}`}>{p.nombre} - {p.cargo}</option>
                 ))}
               </optgroup>
               <optgroup label="Otros">
-                {PERSONAL_SUGERIDO_OTROS.map(p => (
+                {config.personalSugerido.map(p => (
                   <option key={p.nombre} value={`${p.nombre}|${p.cargo}`}>{p.nombre} - {p.cargo}</option>
                 ))}
               </optgroup>
@@ -355,8 +358,8 @@ export default function InformeDiario({ d, volverABorradores, goToNewInforme }: 
           </div>
         </details>
 
-        {/* Section 3b: Bloque fijo Vertiv (solo Turno Noche) */}
-        {turno === 'noche' && (
+        {/* Section 3b: Bloque fijo Vertiv (solo Turno Noche, en divisiones con planta Vertiv) */}
+        {turno === 'noche' && config.vertiv && (
           <details open className="panel p-5">
             <summary className="panel__summary font-display font-bold text-lg">
               <BatteryCharging size={18} className="panel__summary-icon" strokeWidth={2.2} />

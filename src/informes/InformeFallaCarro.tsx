@@ -13,6 +13,8 @@ import { fileToDataUrl, uid } from '../lib/fotos';
 import { type BorradorOtroEntry, upsertBorradorOtro, deleteBorradorOtro } from '../datos/borradoresOtros';
 import { hoyLocalISO, formatFechaLarga } from '../datos/fechas';
 import { BLUE, ORANGE } from '../datos/plantillaWord';
+import { configDivision } from '../datos/divisiones';
+import { useSesion } from '../auth/sesion';
 import { mapaFotosSubidas, aplicarFotosSubidas } from '../lib/storage';
 import { cargarDocx, logosInforme, resolverImagenes, bytesDeImagen, precargarGeneracionWord } from '../lib/docxRecursos';
 
@@ -43,9 +45,7 @@ interface RegistroGrupo {
 const N_CONTRATO_FIJO = N_CONTRATO;
 const VERSION_FIJA = "1";
 const LINEA_SERVICIO_FIJA = LINEA_SERVICIO;
-const REVISADO_TEXT_FIJO = "Juan Saavedra.\nJuan Morata.";
-const AUTORIZADO_NOMBRE_FIJO = "Cesar Orellana.";
-const AUTORIZADO_CARGO_FIJO = "ADC";
+// Revisado / Autorizado por dependen de la división (ver datos/divisiones.ts).
 
 // --- Listado de carros / sitios ---
 const carroDisplay = (codigo: string) => `Carro ${codigo.replace(/_/g, " ")}`;
@@ -272,18 +272,29 @@ const construirGruposEstandar = (t: TextosGenerados, carro: string): RegistroGru
 };
 
 export default function InformeFallaCarro({ onBack, borradorInicial = null }: InformeFallaCarroProps) {
+  const { division } = useSesion();
+  const config = configDivision(division).falla;
+  const REVISADO_TEXT_FIJO = config.revisadoText;
+  const AUTORIZADO_NOMBRE_FIJO = config.autorizado.nombre;
+  const AUTORIZADO_CARGO_FIJO = config.autorizado.cargo;
+  // El Salvador elige el carro de su lista; otras divisiones lo escriben a mano.
+  const carroInicial = config.listaDeCarros ? CARRO_OPCIONES[0] : '';
+  const equiposPersonal = config.equipos.length
+    ? config.equipos
+    : [{ etiqueta: 'Equipo A', personas: PERSONAL_EQUIPO_A }, { etiqueta: 'Equipo B', personas: PERSONAL_EQUIPO_B }];
+
   // --- Datos generales / portada / encabezado ---
   const [fecha, setFecha] = useState<string>(() => hoyLocalISO());
-  const [carroCodigo, setCarroCodigo] = useState<string>(CARRO_OPCIONES[0]);
-  const [ubicacion, setUbicacion] = useState(() => ubicacionDeCarro(CARRO_OPCIONES[0]));
-  const [creadoNombre, setCreadoNombre] = useState("Max Diaz.");
-  const [creadoCargo, setCreadoCargo] = useState("Supervisor de Operaciones");
+  const [carroCodigo, setCarroCodigo] = useState<string>(carroInicial);
+  const [ubicacion, setUbicacion] = useState(() => ubicacionDeCarro(carroInicial));
+  const [creadoNombre, setCreadoNombre] = useState(config.creado.nombre);
+  const [creadoCargo, setCreadoCargo] = useState(config.creado.cargo);
 
   // --- Automatización: horas, técnico y tipo de falla común ---
   const [horaAlarma, setHoraAlarma] = useState("07:49");
   const [horaRespuesta, setHoraRespuesta] = useState("10:15");
   const [horaOperativo, setHoraOperativo] = useState("11:40");
-  const [tecnicoRespuesta, setTecnicoRespuesta] = useState("Max Diaz.");
+  const [tecnicoRespuesta, setTecnicoRespuesta] = useState(config.tecnico);
   const [tipoFalla, setTipoFalla] = useState(FALLAS_COMUNES[0].id);
 
   const datosAutoActuales = (): DatosAuto => ({
@@ -311,7 +322,7 @@ export default function InformeFallaCarro({ onBack, borradorInicial = null }: In
   // Los 8 recuadros estándar del informe de referencia: vista general, origen de la alarma, alarmas
   // del sitio, solicitud al NOC (solo texto), ajuste/acción realizada, evidencia restablecida, ART y
   // entorno + charla de 5 minutos. Solo hay que cargar las fotos de cada informe; el resto ya viene armado.
-  const [grupos, setGrupos] = useState<RegistroGrupo[]>(() => construirGruposEstandar(textosIniciales, carroDisplay(CARRO_OPCIONES[0])));
+  const [grupos, setGrupos] = useState<RegistroGrupo[]>(() => construirGruposEstandar(textosIniciales, carroDisplay(carroInicial)));
 
   const [isGenerating, setIsGenerating] = useState(false);
   const [toastMessage, setToastMessage] = useState<{ text: string; isError?: boolean } | null>(null);
@@ -369,6 +380,7 @@ export default function InformeFallaCarro({ onBack, borradorInicial = null }: In
     const entry: BorradorOtroEntry = {
       id: currentDraftId,
       tipo: 'falla',
+      division,
       titulo: `${carroDisplay(carroCodigo)}${fallaLabel ? ` — ${fallaLabel}` : ''}`,
       fecha,
       savedAt: new Date().toISOString(),
@@ -402,7 +414,7 @@ export default function InformeFallaCarro({ onBack, borradorInicial = null }: In
     }, 800);
     return () => clearTimeout(timeout);
   }, [
-    currentDraftId, fecha, carroCodigo, ubicacion, creadoNombre, creadoCargo,
+    division, currentDraftId, fecha, carroCodigo, ubicacion, creadoNombre, creadoCargo,
     horaAlarma, horaRespuesta, horaOperativo, tecnicoRespuesta, tipoFalla,
     descripcionTexto, notificacionIntro, notificacionPuntos, notificacionCheckItem,
     solucionIntro, hallazgos, accionesSolucion,
@@ -503,7 +515,7 @@ export default function InformeFallaCarro({ onBack, borradorInicial = null }: In
   // ---------------------------------------------------------------------------------------
   const generarDocumento = async () => {
     if (!fecha) { showToast("Selecciona la fecha del informe.", true); return; }
-    if (!carroCodigo) { showToast("Selecciona el carro / sitio.", true); return; }
+    if (!carroCodigo.trim()) { showToast("Selecciona el carro / sitio.", true); return; }
 
     setIsGenerating(true);
     try {
@@ -832,19 +844,29 @@ export default function InformeFallaCarro({ onBack, borradorInicial = null }: In
             </div>
             <div>
               <label className="block text-xs text-[#6B6B6B] font-bold mb-1">Carro / Sitio</label>
-              <select
-                value={carroCodigo}
-                onChange={e => {
-                  const codigo = e.target.value;
-                  setCarroCodigo(codigo);
-                  // Al cambiar de carro se selecciona automáticamente su ubicación (sigue siendo editable).
-                  const nuevaUbicacion = ubicacionDeCarro(codigo);
-                  if (nuevaUbicacion) setUbicacion(nuevaUbicacion);
-                }}
-                className="w-full p-2 border border-[#DCE1E6] rounded-md text-sm bg-white"
-              >
-                {CARRO_OPCIONES.map(c => <option key={c} value={c}>{ubicacionDeCarro(c) ? `${c} — ${ubicacionDeCarro(c)}` : c}</option>)}
-              </select>
+              {config.listaDeCarros ? (
+                <select
+                  value={carroCodigo}
+                  onChange={e => {
+                    const codigo = e.target.value;
+                    setCarroCodigo(codigo);
+                    // Al cambiar de carro se selecciona automáticamente su ubicación (sigue siendo editable).
+                    const nuevaUbicacion = ubicacionDeCarro(codigo);
+                    if (nuevaUbicacion) setUbicacion(nuevaUbicacion);
+                  }}
+                  className="w-full p-2 border border-[#DCE1E6] rounded-md text-sm bg-white"
+                >
+                  {CARRO_OPCIONES.map(c => <option key={c} value={c}>{ubicacionDeCarro(c) ? `${c} — ${ubicacionDeCarro(c)}` : c}</option>)}
+                </select>
+              ) : (
+                <input
+                  type="text"
+                  value={carroCodigo}
+                  onChange={e => setCarroCodigo(e.target.value)}
+                  placeholder="Código o nombre del carro / sitio"
+                  className="w-full p-2 border border-[#DCE1E6] rounded-md text-sm"
+                />
+              )}
             </div>
             <div className="md:col-span-2">
               <label className="block text-xs text-[#6B6B6B] font-bold mb-1">Ubicación (opcional, portada)</label>
@@ -855,8 +877,9 @@ export default function InformeFallaCarro({ onBack, borradorInicial = null }: In
               <label className="block text-xs text-[#6B6B6B] font-bold mb-1">Creado por — seleccionar de la lista (igual que en el Informe Diario)</label>
               <select value={personalParaCreado} onChange={e => { setPersonalParaCreado(e.target.value); aplicarPersonalCreado(e.target.value); }} className="w-full p-2 border border-[#DCE1E6] rounded-md text-sm bg-white">
                 <option value="">-- Seleccionar supervisor / técnico --</option>
-                <optgroup label="Equipo A">{PERSONAL_EQUIPO_A.map(p => <option key={p.nombre} value={opcionPersonal(p)}>{p.nombre} - {p.cargo}</option>)}</optgroup>
-                <optgroup label="Equipo B">{PERSONAL_EQUIPO_B.map(p => <option key={p.nombre} value={opcionPersonal(p)}>{p.nombre} - {p.cargo}</option>)}</optgroup>
+                {equiposPersonal.map(eq => (
+                  <optgroup key={eq.etiqueta} label={eq.etiqueta}>{eq.personas.map(p => <option key={p.nombre} value={opcionPersonal(p)}>{p.nombre} - {p.cargo}</option>)}</optgroup>
+                ))}
               </select>
             </div>
             <div>
@@ -905,8 +928,9 @@ export default function InformeFallaCarro({ onBack, borradorInicial = null }: In
               <label className="block text-xs text-[#6B6B6B] font-bold mb-1">Seleccionar técnico de la lista (igual que en el Informe Diario)</label>
               <select value={personalParaTecnico} onChange={e => { setPersonalParaTecnico(e.target.value); aplicarPersonalTecnico(e.target.value); }} className="w-full p-2 border border-[#DCE1E6] rounded-md text-sm bg-white">
                 <option value="">-- Seleccionar supervisor / técnico --</option>
-                <optgroup label="Equipo A">{PERSONAL_EQUIPO_A.map(p => <option key={p.nombre} value={opcionPersonal(p)}>{p.nombre} - {p.cargo}</option>)}</optgroup>
-                <optgroup label="Equipo B">{PERSONAL_EQUIPO_B.map(p => <option key={p.nombre} value={opcionPersonal(p)}>{p.nombre} - {p.cargo}</option>)}</optgroup>
+                {equiposPersonal.map(eq => (
+                  <optgroup key={eq.etiqueta} label={eq.etiqueta}>{eq.personas.map(p => <option key={p.nombre} value={opcionPersonal(p)}>{p.nombre} - {p.cargo}</option>)}</optgroup>
+                ))}
               </select>
             </div>
           </div>

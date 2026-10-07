@@ -17,13 +17,14 @@ import { type Vista } from '../../app/rutas';
 import { type BorradorEntry, upsertBorrador, contarFotos } from '../../datos/borradoresDiario';
 
 import { hoyLocalISO } from '../../datos/fechas';
-import { VERTIV_TITLE, VERTIV_CARROS, VERTIV_CARROS_FLAT, VERTIV_ITEMS } from '../../datos/plantillaWord';
+import { VERTIV_TITLE, VERTIV_CARROS, VERTIV_ITEMS } from '../../datos/plantillaWord';
 import { letraDeFecha } from '../../datos/turnos';
 import { resolveImageBytes } from '../../lib/imagenes';
 import { mapaFotosSubidas, aplicarFotosSubidas } from '../../lib/storage';
 
 import type { Dispatch, SetStateAction, RefObject } from 'react';
-import { BLUE, type BorradorLocal, type CvApi, type CvMat, DECORACIONES_MENSUALES, DEFAULT_ACTIVIDADES_DIA, DEFAULT_ACTIVIDADES_NOCHE, DEFAULT_EVIDENCIAS_NOCHE, DEFAULT_PERSONAL, EVIDENCIAS_CON_TAMANO_FOTOGRAFICO_SOLICITADO, EVIDENCIAS_EXCLUIDAS_DIA, type EvidenceBlock, INDICADORES_BULLETS, INDICADORES_INTRO, LS_KEY_ACT_DIA, LS_KEY_ACT_NOCHE, LS_KEY_DRAFT, LS_KEY_PERSONAL, MESES, OBS_FINAL_BULLETS, ORANGE, PREFIJO_MANTENCION_CARRO, type PersonalItem, type ScannerTarget, ensureActividadesDiaPermanentes, formatFechaEvidencia, getActividadesGuardadas, getCreadorPorDefecto, getDefaultPersonal, getPersonalGuardado, lsKeyPersonal, urlToBase64 } from './constantes';
+import { BLUE, type BorradorLocal, type CvApi, type CvMat, DECORACIONES_MENSUALES, DEFAULT_ACTIVIDADES_DIA, DEFAULT_ACTIVIDADES_NOCHE, DEFAULT_EVIDENCIAS_NOCHE, EVIDENCIAS_CON_TAMANO_FOTOGRAFICO_SOLICITADO, EVIDENCIAS_EXCLUIDAS_DIA, type EvidenceBlock, INDICADORES_BULLETS, INDICADORES_INTRO, MESES, OBS_FINAL_BULLETS, ORANGE, PREFIJO_MANTENCION_CARRO, type PersonalItem, type ScannerTarget, formatFechaEvidencia, getActividadesGuardadas, getCreadorPorDefecto, getDefaultPersonal, getPersonalGuardado, lsKeyActividades, lsKeyBorradorLocal, lsKeyPersonal, urlToBase64, vertivVacio } from './constantes';
+import { CONFIG_DIVISION, type Division } from '../../datos/divisiones';
 import { useDragReorder } from './useDragReorder';
 
 export interface OpcionesInformeDiario {
@@ -31,6 +32,8 @@ export interface OpcionesInformeDiario {
   view: Vista | null;
   setBorradores: Dispatch<SetStateAction<BorradorEntry[]>>;
   borradoresRef: RefObject<BorradorEntry[]>;
+  /** División con la que se trabaja: define faena, firmas, personal y si existe el bloque Vertiv. */
+  division: Division;
 }
 
 /**
@@ -38,13 +41,14 @@ export interface OpcionesInformeDiario {
  * y generación del Word). Vive en App —no en la pantalla— para que el informe en curso se conserve
  * al ir y volver de otras pantallas, y para que el Panel/Borradores puedan abrir o descargar informes.
  */
-export function useInformeDiario({ view, setBorradores, borradoresRef }: OpcionesInformeDiario) {
+export function useInformeDiario({ view, setBorradores, borradoresRef, division }: OpcionesInformeDiario) {
+  const config = CONFIG_DIVISION[division];
   // Estados de datos generales
   const [turno, setTurno] = useState<'dia' | 'noche'>('dia');
 
   const [fecha, setFecha] = useState<string>(() => hoyLocalISO());
 
-  const [faena, setFaena] = useState<string>('Minera Rajo Inca');
+  const [faena, setFaena] = useState<string>(config.faena);
 
   const [letraTurno, setLetraTurno] = useState<string>('A');
 
@@ -54,15 +58,15 @@ export function useInformeDiario({ view, setBorradores, borradoresRef }: Opcione
 
   const [servicio, setServicio] = useState<string>(LINEA_SERVICIO);
 
-  const [creadoNombre, setCreadoNombre] = useState<string>('Max Diaz Cornejo');
+  const [creadoNombre, setCreadoNombre] = useState<string>(config.diario.creadorPorDefecto.A.nombre);
 
-  const [creadoCargo, setCreadoCargo] = useState<string>('Supervisor');
+  const [creadoCargo, setCreadoCargo] = useState<string>(config.diario.creadorPorDefecto.A.cargo);
 
-  const [revisadoText, setRevisadoText] = useState<string>('Juan Morata\nJuan Saavedra');
+  const [revisadoText, setRevisadoText] = useState<string>(config.diario.revisadoText);
 
-  const [autorizadoNombre, setAutorizadoNombre] = useState<string>('Cesar Orellana');
+  const [autorizadoNombre, setAutorizadoNombre] = useState<string>(config.diario.autorizado.nombre);
 
-  const [autorizadoCargo, setAutorizadoCargo] = useState<string>('ADC');
+  const [autorizadoCargo, setAutorizadoCargo] = useState<string>(config.diario.autorizado.cargo);
 
   // Imagen / Logos
   const [logoDataUrl, setLogoDataUrl] = useState<string | null>(null);
@@ -80,9 +84,9 @@ export function useInformeDiario({ view, setBorradores, borradoresRef }: Opcione
 
   // Evidencia fotográfica del bloque fijo "Verificación de la Gestión en Planta Rectificadora Vertiv" (solo Turno Noche).
   // Cada Carro y cada ítem de monitoreo tiene su propia foto, igual que en la plantilla de referencia.
-  const [vertivCarroPhotos, setVertivCarroPhotos] = useState<(string | null)[]>(() => VERTIV_CARROS_FLAT.map(() => null));
+  const [vertivCarroPhotos, setVertivCarroPhotos] = useState<(string | null)[]>(() => vertivVacio(division).carros);
 
-  const [vertivItemPhotos, setVertivItemPhotos] = useState<(string | null)[]>(() => VERTIV_ITEMS.map(() => null));
+  const [vertivItemPhotos, setVertivItemPhotos] = useState<(string | null)[]>(() => vertivVacio(division).items);
   
 
   // UI States
@@ -135,20 +139,10 @@ export function useInformeDiario({ view, setBorradores, borradoresRef }: Opcione
 
   // Carga inicial y conversión de imágenes por defecto
   useEffect(() => {
-    try {
-      const rawPersonal = localStorage.getItem(LS_KEY_PERSONAL);
-      setPersonal(rawPersonal ? JSON.parse(rawPersonal) : DEFAULT_PERSONAL);
-    } catch {
-      setPersonal(DEFAULT_PERSONAL);
-    }
+    setPersonal(getPersonalGuardado('A', division));
 
     // El turno inicial es 'dia', así que cargamos su plantilla de actividades correspondiente.
-    try {
-      const rawActDia = localStorage.getItem(LS_KEY_ACT_DIA);
-      setActividades(rawActDia ? ensureActividadesDiaPermanentes(JSON.parse(rawActDia)) : DEFAULT_ACTIVIDADES_DIA);
-    } catch {
-      setActividades(DEFAULT_ACTIVIDADES_DIA);
-    }
+    setActividades(getActividadesGuardadas('dia', division));
 
     // Cargar o inicializar Logo y Portada predeterminados
     const initImages = async () => {
@@ -174,7 +168,7 @@ export function useInformeDiario({ view, setBorradores, borradoresRef }: Opcione
     };
 
     initImages();
-    void leerLocal<BorradorLocal>(LS_KEY_DRAFT).then(draft => {
+    void leerLocal<BorradorLocal>(lsKeyBorradorLocal(division)).then(draft => {
       draftLocalRef.current = draft;
       // Si ya se abrió un informe por enlace directo (/informe-diario/:id), no se pregunta por el respaldo local.
       if (draftDecisionMadeRef.current) return;
@@ -192,7 +186,7 @@ export function useInformeDiario({ view, setBorradores, borradoresRef }: Opcione
       console.error("No se pudo comprobar el contenido del borrador:", error);
       draftDecisionMadeRef.current = true;
     });
-  }, []);
+  }, [division]);
 
   const continueDraft = () => {
     try {
@@ -225,31 +219,31 @@ export function useInformeDiario({ view, setBorradores, borradoresRef }: Opcione
 
   function startNewReport(turnoElegido?: 'dia' | 'noche') {
     draftLocalRef.current = null;
-    void borrarLocal(LS_KEY_DRAFT);
+    void borrarLocal(lsKeyBorradorLocal(division));
     // El informe nuevo parte con la fecha de hoy y el turno de trabajo (A o B) que corresponde según el calendario 7x7.
     // Día o Noche no se deduce de la hora: si la persona lo eligió (Panel / Borradores) se usa ese; si no, se mantiene el turno que ya tenía seleccionado.
     const fechaTurno = hoyLocalISO();
     const turnoInicial: 'dia' | 'noche' = turnoElegido ?? turno;
     const letraHoy = letraDeFecha(fechaTurno);
-    const creador = getCreadorPorDefecto(letraHoy);
+    const creador = getCreadorPorDefecto(letraHoy, division);
     setTurno(turnoInicial);
     setFecha(fechaTurno);
-    setFaena('Minera Rajo Inca');
+    setFaena(config.faena);
     setLetraTurno(letraHoy);
     setContrato(N_CONTRATO);
     setVersion('1.1');
     setServicio(LINEA_SERVICIO);
     setCreadoNombre(creador.nombre);
     setCreadoCargo(creador.cargo);
-    setRevisadoText('Juan Morata\nJuan Saavedra');
-    setAutorizadoNombre('Cesar Orellana');
-    setAutorizadoCargo('ADC');
-    setPersonal(getPersonalGuardado(letraHoy));
-    setActividades(getActividadesGuardadas(turnoInicial));
+    setRevisadoText(config.diario.revisadoText);
+    setAutorizadoNombre(config.diario.autorizado.nombre);
+    setAutorizadoCargo(config.diario.autorizado.cargo);
+    setPersonal(getPersonalGuardado(letraHoy, division));
+    setActividades(getActividadesGuardadas(turnoInicial, division));
     setObservaciones([]);
     setEvidenceBlocks([]);
-    setVertivCarroPhotos(VERTIV_CARROS_FLAT.map(() => null));
-    setVertivItemPhotos(VERTIV_ITEMS.map(() => null));
+    setVertivCarroPhotos(vertivVacio(division).carros);
+    setVertivItemPhotos(vertivVacio(division).items);
     draftDecisionMadeRef.current = true;
     setDraftPromptOpen(false);
   }
@@ -263,7 +257,7 @@ export function useInformeDiario({ view, setBorradores, borradoresRef }: Opcione
 
     // Respaldo en este dispositivo (IndexedDB): si se cae la señal antes de subir a la nube, el informe no se pierde.
     const timeout = setTimeout(() => {
-      void guardarLocal(LS_KEY_DRAFT, {
+      void guardarLocal(lsKeyBorradorLocal(division), {
         turno,
         fecha,
         faena,
@@ -292,6 +286,7 @@ export function useInformeDiario({ view, setBorradores, borradoresRef }: Opcione
     }, 400);
     return () => clearTimeout(timeout);
   }, [
+    division,
     turno,
     fecha,
     faena,
@@ -346,6 +341,7 @@ export function useInformeDiario({ view, setBorradores, borradoresRef }: Opcione
       vertivCarroPhotos,
       vertivItemPhotos,
       savedAt: new Date().toISOString(),
+      division,
     };
 
     // Se guarda en Supabase recién cuando el informe tiene al menos una foto (o si ya estaba guardado, para no dejarlo desactualizado).
@@ -402,6 +398,7 @@ export function useInformeDiario({ view, setBorradores, borradoresRef }: Opcione
       if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current);
     };
   }, [
+    division,
     currentDraftId,
     turno,
     fecha,
@@ -514,7 +511,7 @@ export function useInformeDiario({ view, setBorradores, borradoresRef }: Opcione
 
   const persistPersonal = (newPersonal: PersonalItem[]) => {
     try {
-      localStorage.setItem(lsKeyPersonal(letraTurno), JSON.stringify(newPersonal));
+      localStorage.setItem(lsKeyPersonal(letraTurno, division), JSON.stringify(newPersonal));
     } catch (e) { console.error(e); }
   };
 
@@ -522,7 +519,7 @@ export function useInformeDiario({ view, setBorradores, borradoresRef }: Opcione
   // Las mantenciones por carro son solo de este informe, por eso no se guardan en la plantilla permanente.
   const persistActividades = (newActividades: string[], forTurno: 'dia' | 'noche' = turno) => {
     try {
-      const key = forTurno === 'dia' ? LS_KEY_ACT_DIA : LS_KEY_ACT_NOCHE;
+      const key = lsKeyActividades(forTurno, division);
       const plantilla = newActividades.filter(a => !a.startsWith(PREFIJO_MANTENCION_CARRO));
       localStorage.setItem(key, JSON.stringify(plantilla));
     } catch (e) { console.error(e); }
@@ -535,10 +532,10 @@ export function useInformeDiario({ view, setBorradores, borradoresRef }: Opcione
 
     let nextPersonal: PersonalItem[];
     try {
-      const raw = localStorage.getItem(lsKeyPersonal(nuevaLetra));
-      nextPersonal = raw ? JSON.parse(raw) : getDefaultPersonal(nuevaLetra);
+      const raw = localStorage.getItem(lsKeyPersonal(nuevaLetra, division));
+      nextPersonal = raw ? JSON.parse(raw) : getDefaultPersonal(nuevaLetra, division);
     } catch {
-      nextPersonal = getDefaultPersonal(nuevaLetra);
+      nextPersonal = getDefaultPersonal(nuevaLetra, division);
     }
     setPersonal(nextPersonal);
     setLetraTurno(nuevaLetra);
@@ -565,7 +562,7 @@ export function useInformeDiario({ view, setBorradores, borradoresRef }: Opcione
 
   const resetPersonal = () => {
     if (window.confirm(`¿Deseas restaurar la lista de personal por defecto del Turno ${letraTurno}?`)) {
-      const defaults = getDefaultPersonal(letraTurno);
+      const defaults = getDefaultPersonal(letraTurno, division);
       setPersonal(defaults);
       persistPersonal(defaults);
       showToast("Lista de personal restaurada.");
@@ -1086,6 +1083,7 @@ export function useInformeDiario({ view, setBorradores, borradoresRef }: Opcione
     vertivCarroPhotos,
     vertivItemPhotos,
     savedAt: '',
+    division,
   };
 
   // Generador Word en React. Sin argumento genera el informe abierto en el formulario;
@@ -1366,7 +1364,7 @@ export function useInformeDiario({ view, setBorradores, borradoresRef }: Opcione
         );
       }
 
-      const vertivBlock: (docx.Paragraph | docx.Table)[] = turno === 'noche' ? [
+      const vertivBlock: (docx.Paragraph | docx.Table)[] = turno === 'noche' && CONFIG_DIVISION[informe.division].vertiv ? [
         new Paragraph({ text: "", pageBreakBefore: true }),
         new Paragraph({
           keepNext: true,
@@ -1565,6 +1563,8 @@ export function useInformeDiario({ view, setBorradores, borradoresRef }: Opcione
   const decoracionMensual = DECORACIONES_MENSUALES[mesDeFecha];
 
   return {
+    division,
+    config,
     actividades,
     actividadesDrag,
     assignEvidenceFromClipboard,

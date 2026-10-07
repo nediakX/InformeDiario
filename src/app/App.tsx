@@ -57,7 +57,7 @@ function AppContenido() {
 
   useEffect(() => { vistaActualRef.current = view; }, [view]);
 
-  const { esAdmin } = useSesion();
+  const { esAdmin, division } = useSesion();
 
   // Pestaña (Día / Noche) que muestra la lista de Borradores; al volver desde un informe se deja la del turno de ese informe.
   const [borradoresTab, setBorradoresTab] = useState<'dia' | 'noche'>('dia');
@@ -72,7 +72,7 @@ function AppContenido() {
   useEffect(() => { borradoresRef.current = borradores; }, [borradores]);
 
   // Estado y lógica del Informe Diario (ver src/informes/diario/useInformeDiario.tsx).
-  const diario = useInformeDiario({ view, setBorradores, borradoresRef });
+  const diario = useInformeDiario({ view, setBorradores, borradoresRef, division });
   const { turno, currentDraftId, setCurrentDraftId, flushSyncRef, generarDocumento, showToast, startNewReport, cargarBorrador } = diario;
 
   /** Cambia de pantalla. Si se sale del Informe Diario, primero guarda lo pendiente. */
@@ -100,19 +100,19 @@ function AppContenido() {
 
   // Carga los borradores compartidos desde la nube y se suscribe a cambios de otros dispositivos.
   useEffect(() => {
-    void fetchBorradores().then(setBorradores);
-    return subscribeBorradores(setBorradores);
-  }, []);
+    void fetchBorradores(division).then(setBorradores);
+    return subscribeBorradores(division, setBorradores);
+  }, [division]);
 
   useEffect(() => {
-    void fetchBorradoresOtros('mantenimiento').then(setBorradoresMantenimiento);
-    return subscribeBorradoresOtros('mantenimiento', setBorradoresMantenimiento);
-  }, []);
+    void fetchBorradoresOtros('mantenimiento', division).then(setBorradoresMantenimiento);
+    return subscribeBorradoresOtros('mantenimiento', division, setBorradoresMantenimiento);
+  }, [division]);
 
   useEffect(() => {
-    void fetchBorradoresOtros('falla').then(setBorradoresFalla);
-    return subscribeBorradoresOtros('falla', setBorradoresFalla);
-  }, []);
+    void fetchBorradoresOtros('falla', division).then(setBorradoresFalla);
+    return subscribeBorradoresOtros('falla', division, setBorradoresFalla);
+  }, [division]);
 
   // Navegación: Mantenimiento / Falla — "Nuevo informe" o "Continuar" un borrador guardado.
   const goToNuevoMantenimiento = () => {
@@ -163,14 +163,14 @@ function AppContenido() {
   // Limpieza única: una versión anterior guardó en Supabase borradores vacíos por cada día del turno.
   // Ahora esos días se muestran como pendientes sin ocupar la base de datos, así que se eliminan los vacíos sin editar.
   useEffect(() => {
-    fetchBorradores()
+    fetchBorradores(division)
       .then(lista => {
         const sobrantes = lista.filter(esSemillaSinEditar).map(b => b.id);
         if (!sobrantes.length) return undefined;
-        return deleteBorradores(sobrantes).then(() => fetchBorradores().then(setBorradores));
+        return deleteBorradores(sobrantes).then(() => fetchBorradores(division).then(setBorradores));
       })
       .catch(error => console.error("No se pudieron limpiar los borradores vacíos:", error));
-  }, []);
+  }, [division]);
 
   // Lista que ve el usuario: lo guardado en Supabase + los 7 días del turno que toca hoy (Día y Noche) que aún no tienen fotos.
   const hoy = hoyLocalISO();
@@ -182,11 +182,11 @@ function AppContenido() {
     const virtuales: BorradorEntry[] = [];
     semana.dias.forEach(fecha => {
       TURNOS_AUTOMATICOS.forEach(turno => {
-        if (!existentes.has(`${fecha}|${semana.letra}|${turno}`)) virtuales.push(crearBorradorAutomatico(fecha, semana.letra, turno));
+        if (!existentes.has(`${fecha}|${semana.letra}|${turno}`)) virtuales.push(crearBorradorAutomatico(fecha, semana.letra, turno, division));
       });
     });
     return [...guardados, ...virtuales];
-  }, [borradores, hoy]);
+  }, [borradores, hoy, division]);
 
   // Informes de hoy (Día y Noche) del turno de trabajo (A o B) que corresponde; sirven para "Continuar" en el Panel.
   // No se asume Día o Noche según la hora: cada persona elige con cuál trabajar.

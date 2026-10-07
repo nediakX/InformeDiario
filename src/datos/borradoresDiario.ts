@@ -1,6 +1,7 @@
 // Informe Diario: tipos y sincronización en la nube (Supabase) de los borradores compartidos.
 
 import { supabase, BORRADORES_TABLE } from '../lib/supabase';
+import type { Division } from './divisiones';
 import { borrarCarpetaFotos, uploadPhotoIfNeeded } from '../lib/storage';
 
 export interface PersonalItemLike {
@@ -39,6 +40,8 @@ export interface BorradorEntry {
   vertivCarroPhotos: (string | null)[];
   vertivItemPhotos: (string | null)[];
   savedAt: string;
+  /** División a la que pertenece el informe. */
+  division: Division;
 }
 
 export const LS_KEY_BORRADORES = "psinet_borradores_v1";
@@ -66,6 +69,7 @@ export type BorradorRow = {
   vertiv_carro_photos: (string | null)[] | null;
   vertiv_item_photos: (string | null)[] | null;
   saved_at: string;
+  division?: Division | null;
 };
 
 export const rowToEntry = (row: BorradorRow): BorradorEntry => ({
@@ -89,6 +93,7 @@ export const rowToEntry = (row: BorradorRow): BorradorEntry => ({
   vertivCarroPhotos: row.vertiv_carro_photos ?? [],
   vertivItemPhotos: row.vertiv_item_photos ?? [],
   savedAt: row.saved_at,
+  division: row.division ?? 'el_salvador',
 });
 
 const entryToRow = (entry: BorradorEntry) => ({
@@ -112,13 +117,15 @@ const entryToRow = (entry: BorradorEntry) => ({
   vertiv_carro_photos: entry.vertivCarroPhotos,
   vertiv_item_photos: entry.vertivItemPhotos,
   saved_at: entry.savedAt,
+  division: entry.division,
 });
 
-/** Trae todos los borradores compartidos desde la nube (todos los dispositivos ven lo mismo). */
-export async function fetchBorradores(): Promise<BorradorEntry[]> {
+/** Trae los borradores compartidos de una división (todos los dispositivos ven lo mismo). */
+export async function fetchBorradores(division: Division): Promise<BorradorEntry[]> {
   const { data, error } = await supabase
     .from(BORRADORES_TABLE)
     .select("*")
+    .eq("division", division)
     .order("fecha", { ascending: true });
   if (error) {
     console.error("No se pudieron cargar los borradores desde la nube:", error);
@@ -154,13 +161,13 @@ export async function deleteBorrador(id: string): Promise<void> {
 }
 
 /** Escucha cambios en tiempo real: cuando alguien crea/edita/borra un borrador en otro dispositivo, refresca la lista. */
-export function subscribeBorradores(onChange: (list: BorradorEntry[]) => void): () => void {
+export function subscribeBorradores(division: Division, onChange: (list: BorradorEntry[]) => void): () => void {
   // Nombre único por suscripción: dos vistas (Dashboard/App e Informe de Cierre) pueden
   // estar montadas a la vez, y reusar el mismo topic hace fallar el segundo `.subscribe()`.
   const channel = supabase
     .channel(`borradores-sync-${Math.random().toString(36).slice(2)}`)
-    .on("postgres_changes", { event: "*", schema: "public", table: BORRADORES_TABLE }, () => {
-      void fetchBorradores().then(onChange);
+    .on("postgres_changes", { event: "*", schema: "public", table: BORRADORES_TABLE, filter: `division=eq.${division}` }, () => {
+      void fetchBorradores(division).then(onChange);
     })
     .subscribe();
   return () => { void supabase.removeChannel(channel); };

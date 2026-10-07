@@ -1,4 +1,5 @@
 import { supabase, BORRADORES_OTROS_TABLE } from '../lib/supabase';
+import type { Division } from './divisiones';
 import { type EstadoBorrador } from './borradoresDiario';
 import { borrarCarpetaFotos, subirFotosEnObjeto } from '../lib/storage';
 
@@ -20,6 +21,8 @@ export interface BorradorOtroEntry<T = Record<string, unknown>> {
   fecha: string;
   datos: T;
   savedAt: string;
+  /** División a la que pertenece el informe. */
+  division: Division;
 }
 
 export type BorradorOtroRow = {
@@ -29,6 +32,7 @@ export type BorradorOtroRow = {
   fecha: string;
   datos: Record<string, unknown> | null;
   saved_at: string;
+  division?: Division | null;
 };
 
 export const rowToOtroEntry = (row: BorradorOtroRow): BorradorOtroEntry => ({
@@ -38,6 +42,7 @@ export const rowToOtroEntry = (row: BorradorOtroRow): BorradorOtroEntry => ({
   fecha: row.fecha,
   datos: row.datos ?? {},
   savedAt: row.saved_at,
+  division: row.division ?? 'el_salvador',
 });
 
 const otroEntryToRow = (entry: BorradorOtroEntry): BorradorOtroRow => ({
@@ -47,14 +52,16 @@ const otroEntryToRow = (entry: BorradorOtroEntry): BorradorOtroRow => ({
   fecha: entry.fecha,
   datos: entry.datos,
   saved_at: entry.savedAt,
+  division: entry.division,
 });
 
 /** Trae los borradores compartidos de un tipo (mantenimiento o falla), del más reciente al más antiguo. */
-export async function fetchBorradoresOtros(tipo: TipoInformeOtro): Promise<BorradorOtroEntry[]> {
+export async function fetchBorradoresOtros(tipo: TipoInformeOtro, division: Division): Promise<BorradorOtroEntry[]> {
   const { data, error } = await supabase
     .from(BORRADORES_OTROS_TABLE)
     .select("*")
     .eq("tipo", tipo)
+    .eq("division", division)
     .order("saved_at", { ascending: false });
   if (error) {
     console.error(`No se pudieron cargar los borradores de ${tipo} desde la nube:`, error);
@@ -82,11 +89,12 @@ export async function deleteBorradorOtro(id: string): Promise<void> {
 }
 
 /** Escucha cambios en tiempo real de un tipo (mantenimiento o falla) y refresca la lista. */
-export function subscribeBorradoresOtros(tipo: TipoInformeOtro, onChange: (list: BorradorOtroEntry[]) => void): () => void {
+export function subscribeBorradoresOtros(tipo: TipoInformeOtro, division: Division, onChange: (list: BorradorOtroEntry[]) => void): () => void {
   const channel = supabase
     .channel(`borradores-otros-sync-${tipo}-${Math.random().toString(36).slice(2)}`)
     .on("postgres_changes", { event: "*", schema: "public", table: BORRADORES_OTROS_TABLE, filter: `tipo=eq.${tipo}` }, () => {
-      void fetchBorradoresOtros(tipo).then(onChange);
+      // Realtime admite un solo filtro (tipo); la división se filtra al volver a pedir la lista.
+      void fetchBorradoresOtros(tipo, division).then(onChange);
     })
     .subscribe();
   return () => { void supabase.removeChannel(channel); };

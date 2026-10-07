@@ -10,6 +10,7 @@ import { type BorradorEntry, savedAtSemilla } from '../../datos/borradoresDiario
 
 import { VERTIV_CARROS_FLAT, VERTIV_ITEMS } from '../../datos/plantillaWord';
 import { idBorradorAutomatico } from '../../datos/turnos';
+import { CONFIG_DIVISION, type Division } from '../../datos/divisiones';
 
 // Tipos de datos
 export interface PersonalItem {
@@ -94,8 +95,13 @@ export const DEFAULT_PERSONAL_B: PersonalItem[] = [
   { nombre: "Camilo Andrés Pailapan Hormazabal", cargo: "Supervisor de Operaciones" }
 ];
 
-export const getDefaultPersonal = (letra: string): PersonalItem[] =>
-  letra === 'B' ? DEFAULT_PERSONAL_B : DEFAULT_PERSONAL;
+/** Dotación por defecto de cada turno. Andina parte vacía: se agrega desde "Personal sugerido". */
+export const getDefaultPersonal = (letra: string, division: Division = 'el_salvador'): PersonalItem[] =>
+  // Otras divisiones parten con todo su personal (el de la división, p. ej. los 7 de Andina) y
+  // cada turno quita a quien no corresponda; la lista queda guardada por turno en este equipo.
+  division !== 'el_salvador'
+    ? CONFIG_DIVISION[division].personalSugerido.map(p => ({ ...p }))
+    : letra === 'B' ? DEFAULT_PERSONAL_B : DEFAULT_PERSONAL;
 
 export const DEFAULT_ACTIVIDADES_DIA: string[] = [
   "Registro de Reunión Inicio de Turno.",
@@ -218,26 +224,32 @@ export const BLUE = "156082";
 export const ORANGE = "ED7D31";
 export const LS_KEY_PERSONAL = "psinet_personal_v6"; // Turno A (clave original, se mantiene)
 export const LS_KEY_PERSONAL_B = "psinet_personal_b_v1"; // Turno B
-export const lsKeyPersonal = (letra: string) => (letra === 'B' ? LS_KEY_PERSONAL_B : LS_KEY_PERSONAL);
+// Cada división guarda lo suyo en el dispositivo (El Salvador conserva las claves originales).
+const conSufijo = (clave: string, division: Division) => clave + CONFIG_DIVISION[division].sufijoLocal;
+export const lsKeyPersonal = (letra: string, division: Division = 'el_salvador') =>
+  conSufijo(letra === 'B' ? LS_KEY_PERSONAL_B : LS_KEY_PERSONAL, division);
 export const LS_KEY_ACT_DIA = "psinet_actividades_dia_v6";
 export const LS_KEY_ACT_NOCHE = "psinet_actividades_noche_v6";
+export const lsKeyActividades = (turno: 'dia' | 'noche', division: Division = 'el_salvador') =>
+  conSufijo(turno === 'dia' ? LS_KEY_ACT_DIA : LS_KEY_ACT_NOCHE, division);
 export const LS_KEY_DRAFT = "psinet_informe_borrador_v1";
+export const lsKeyBorradorLocal = (division: Division = 'el_salvador') => conSufijo(LS_KEY_DRAFT, division);
 // Forma del respaldo local del informe en curso (campos del formulario + fotos).
 export type BorradorLocal = Partial<Omit<BorradorEntry, 'id' | 'evidenceBlocks'>> & { evidenceBlocks?: EvidenceBlock[] };
 
 // Personal y actividades "vigentes" de cada turno (lo guardado en este dispositivo o, si no hay, los valores por defecto).
-export const getPersonalGuardado = (letra: string): PersonalItem[] => {
+export const getPersonalGuardado = (letra: string, division: Division = 'el_salvador'): PersonalItem[] => {
   try {
-    const raw = localStorage.getItem(lsKeyPersonal(letra));
-    return raw ? JSON.parse(raw) : getDefaultPersonal(letra);
+    const raw = localStorage.getItem(lsKeyPersonal(letra, division));
+    return raw ? JSON.parse(raw) : getDefaultPersonal(letra, division);
   } catch {
-    return getDefaultPersonal(letra);
+    return getDefaultPersonal(letra, division);
   }
 };
 
-export const getActividadesGuardadas = (turno: 'dia' | 'noche'): string[] => {
+export const getActividadesGuardadas = (turno: 'dia' | 'noche', division: Division = 'el_salvador'): string[] => {
   try {
-    const raw = localStorage.getItem(turno === 'dia' ? LS_KEY_ACT_DIA : LS_KEY_ACT_NOCHE);
+    const raw = localStorage.getItem(lsKeyActividades(turno, division));
     if (turno === 'dia') return raw ? ensureActividadesDiaPermanentes(JSON.parse(raw)) : DEFAULT_ACTIVIDADES_DIA;
     return raw ? JSON.parse(raw) : DEFAULT_ACTIVIDADES_NOCHE;
   } catch {
@@ -245,34 +257,43 @@ export const getActividadesGuardadas = (turno: 'dia' | 'noche'): string[] => {
   }
 };
 
-export const getCreadorPorDefecto = (letra: string) =>
-  letra === 'B' ? CREADO_POR_OPTIONS_B[0] : { nombre: 'Max Diaz Cornejo', cargo: 'Supervisor' };
+export const getCreadorPorDefecto = (letra: string, division: Division = 'el_salvador') =>
+  CONFIG_DIVISION[division].diario.creadorPorDefecto[letra === 'B' ? 'B' : 'A'];
+
+/** Fotos del bloque Vertiv vacías (solo en divisiones que lo tienen). */
+export const vertivVacio = (division: Division) => ({
+  carros: CONFIG_DIVISION[division].vertiv ? VERTIV_CARROS_FLAT.map(() => null) : [],
+  items: CONFIG_DIVISION[division].vertiv ? VERTIV_ITEMS.map(() => null) : [],
+});
 
 // Borrador "virtual" de un día del turno: existe solo en pantalla (no en Supabase) hasta que el informe
 // tenga al menos una foto. Al abrirlo, el Informe Diario arma las evidencias a partir de las actividades.
-export const crearBorradorAutomatico = (fecha: string, letra: 'A' | 'B', turno: 'dia' | 'noche'): BorradorEntry => {
-  const creador = getCreadorPorDefecto(letra);
+export const crearBorradorAutomatico = (fecha: string, letra: 'A' | 'B', turno: 'dia' | 'noche', division: Division = 'el_salvador'): BorradorEntry => {
+  const creador = getCreadorPorDefecto(letra, division);
+  const config = CONFIG_DIVISION[division];
+  const vertiv = vertivVacio(division);
   return {
-    id: idBorradorAutomatico(fecha, letra, turno),
+    id: idBorradorAutomatico(fecha, letra, turno, division),
     turno,
     fecha,
-    faena: 'Minera Rajo Inca',
+    faena: config.faena,
     letraTurno: letra,
     contrato: N_CONTRATO,
     version: '1.1',
     servicio: LINEA_SERVICIO,
     creadoNombre: creador.nombre,
     creadoCargo: creador.cargo,
-    revisadoText: 'Juan Morata\nJuan Saavedra',
-    autorizadoNombre: 'Cesar Orellana',
-    autorizadoCargo: 'ADC',
-    personal: getPersonalGuardado(letra),
-    actividades: getActividadesGuardadas(turno),
+    revisadoText: config.diario.revisadoText,
+    autorizadoNombre: config.diario.autorizado.nombre,
+    autorizadoCargo: config.diario.autorizado.cargo,
+    personal: getPersonalGuardado(letra, division),
+    actividades: getActividadesGuardadas(turno, division),
     observaciones: [],
     evidenceBlocks: [],
-    vertivCarroPhotos: VERTIV_CARROS_FLAT.map(() => null),
-    vertivItemPhotos: VERTIV_ITEMS.map(() => null),
+    vertivCarroPhotos: vertiv.carros,
+    vertivItemPhotos: vertiv.items,
     savedAt: savedAtSemilla(fecha),
+    division,
   };
 };
 

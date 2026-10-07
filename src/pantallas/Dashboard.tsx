@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { FileText, FileStack, FolderOpen, ArrowRight, CalendarDays, Bell, FilePlus, Sun, Moon, Wrench, AlertTriangle, Construction, Printer, LogOut, ShieldCheck, UserRound } from 'lucide-react';
 import { useSesion, nombreVisible } from '../auth/sesion';
+import { CONFIG_DIVISION } from '../datos/divisiones';
+import SelectorDivision from '../componentes/SelectorDivision';
 import logoPsinet from "../assets/logo_psinet.jpg";
 import logoEdificio from "../assets/LogoEdificio.png";
 import { type BorradorEntry, estadoBorrador, contarFotos } from '../datos/borradoresDiario';
@@ -40,7 +42,7 @@ export default function Dashboard({
   borradoresMantenimiento = [], borradoresFalla = [],
   onNuevoMantenimiento, onAbrirMantenimiento, onNuevaFalla, onAbrirFalla, onVerBorradores,
 }: DashboardProps) {
-  const { perfil, esAdmin, pendientesAprobacion, cerrarSesion } = useSesion();
+  const { perfil, esAdmin, pendientesAprobacion, cerrarSesion, division } = useSesion();
   const [modalInformeOpen, setModalInformeOpen] = useState(false);
   const [modalMantenimientoOpen, setModalMantenimientoOpen] = useState(false);
   const [modalFallaOpen, setModalFallaOpen] = useState(false);
@@ -92,7 +94,7 @@ export default function Dashboard({
                 Panel de Informes
               </div>
               <div className="site-header__meta text-xs truncate">
-                DSAL / Reportes de turno
+                {CONFIG_DIVISION[division].sigla} / Reportes de turno
               </div>
             </div>
           </div>
@@ -122,6 +124,7 @@ export default function Dashboard({
           <h1 className="font-display font-bold text-2xl text-[#0E4660]">¿Qué necesitas hacer hoy?</h1>
           <p className="text-sm text-gray-500 mt-1">Selecciona una opción para continuar.</p>
           <div className="flex flex-wrap items-center gap-2 mt-3">
+            <SelectorDivision />
             <span className="inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full bg-[#FFF3CD] text-[#856404]">
               <CalendarDays size={14} />
               Hoy: Turno {semanaHoy.letra} · día {diaDelTurno} de {DIAS_POR_TURNO} ({formatDiaMes(semanaHoy.inicio)} – {formatDiaMes(semanaHoy.fin)})
@@ -138,6 +141,17 @@ export default function Dashboard({
                 </span>
                 <Bell size={12} />
                 {pendientesCount} informe{pendientesCount === 1 ? '' : 's'} diario{pendientesCount === 1 ? '' : 's'} en borrador por completar
+              </button>
+            )}
+            {/* Primer día o últimos dos días de la semana de turno: recordatorio para imprimir el kit de formularios. */}
+            {(diaDelTurno === 1 || diaDelTurno >= DIAS_POR_TURNO - 1) && (
+              <button
+                type="button"
+                onClick={() => onNavigate('impresion')}
+                className="inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full bg-[#0E4660] text-white hover:bg-[#0a3549] transition-colors"
+              >
+                <Printer size={12} />
+                {diaDelTurno === 1 ? 'Imprimir el kit de formularios de esta semana' : 'Preparar el kit de formularios de la próxima semana'}
               </button>
             )}
           </div>

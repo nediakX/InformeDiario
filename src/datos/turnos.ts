@@ -1,4 +1,5 @@
 import { DIA_MS, isoToUtc, sumarDias } from './fechas';
+import type { Division } from './divisiones';
 
 // ---------------------------------------------------------------------------------------
 // Calendario de turnos 7x7 (Turno A / Turno B) e informes automáticos
@@ -76,5 +77,6 @@ export function uuidDeterministico(seed: string): string {
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-5${hex.slice(13, 16)}-${"89ab"[parseInt(hex[16], 16) % 4]}${hex.slice(17, 20)}-${hex.slice(20, 32)}`;
 }
 
-export const idBorradorAutomatico = (fecha: string, letra: string, turno: 'dia' | 'noche') =>
-  uuidDeterministico(`psinet-auto|${fecha}|${letra}|${turno}`);
+export const idBorradorAutomatico = (fecha: string, letra: string, turno: 'dia' | 'noche', division: Division = 'el_salvador') =>
+  // El Salvador conserva su semilla original (así siguen coincidiendo los informes ya guardados).
+  uuidDeterministico(division === 'el_salvador' ? `psinet-auto|${fecha}|${letra}|${turno}` : `psinet-auto|${division}|${fecha}|${letra}|${turno}`);

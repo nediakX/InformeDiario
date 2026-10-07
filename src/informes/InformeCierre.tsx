@@ -16,6 +16,8 @@ import { type BorradorOtroEntry, fetchBorradoresOtros, upsertBorradorOtro, delet
 import { formatFechaLarga, formatFechaPunto } from '../datos/fechas';
 import { BLUE, ORANGE } from '../datos/plantillaWord';
 import { semanaDeFecha } from '../datos/turnos';
+import { configDivision, type Firmante } from '../datos/divisiones';
+import { useSesion } from '../auth/sesion';
 import { dataUrlToUint8Array, resolveImageBytes, urlToBase64 } from '../lib/imagenes';
 import { uploadPhotoIfNeeded } from '../lib/storage';
 
@@ -47,19 +49,6 @@ const COMENTARIOS_FINALES: string[] = [
   'EXTREMAR LAS MEDIDAS DE SEGURIDAD.',
 ];
 
-const CREADO_POR_OPTIONS: { nombre: string; cargo: string }[] = [
-  { nombre: "Max Diaz Cornejo.", cargo: "Supervisor" },
-  { nombre: "Patricio Santana.", cargo: "Supervisor de Operaciones" },
-  { nombre: "Nicolas Bahamondes.", cargo: "Tecnico Lider" },
-];
-
-// Supervisores del Turno B (mismos que en el Informe Diario).
-const CREADO_POR_OPTIONS_B: { nombre: string; cargo: string }[] = [
-  { nombre: "Luis Humberto Fernández Ortega", cargo: "Supervisor de Operaciones" },
-  { nombre: "Camilo Andrés Pailapan Hormazabal", cargo: "Supervisor de Operaciones" },
-];
-
-const CREADO_POR_ALL = [...CREADO_POR_OPTIONS, ...CREADO_POR_OPTIONS_B];
 
 // ---------------------------------------------------------------------------------------
 // Sincronización entre dispositivos
@@ -68,7 +57,7 @@ const CREADO_POR_ALL = [...CREADO_POR_OPTIONS, ...CREADO_POR_OPTIONS_B];
 // tabla borradores_otros con tipo 'cierre' y un id fijo. Así, lo que se avanza en el PC aparece en
 // el celular (y al revés), en tiempo real. Las fotos se suben al bucket de evidencias.
 // La columna id es de tipo uuid, así que el id fijo del cierre compartido debe ser un UUID válido.
-const CIERRE_DRAFT_ID = '00000000-0000-4000-8000-00000000c1e2';
+// Cada división tiene su propio cierre en curso (configDivision(d).cierre.borradorId).
 
 interface DatosCierre {
   creadoNombre: string;
@@ -80,7 +69,7 @@ interface DatosCierre {
 }
 
 /** Deja los datos (venga de la nube o del estado local) siempre con la misma forma y el mismo orden de claves. */
-const normalizarDatosCierre = (raw: unknown): DatosCierre => {
+const normalizarDatosCierre = (raw: unknown, creadorPorDefecto: Firmante): DatosCierre => {
   const d = (raw ?? {}) as Record<string, unknown>;
   const str = (v: unknown, def: string) => (typeof v === 'string' ? v : def);
   const foto = (v: unknown): string | null => (typeof v === 'string' && v ? v : null);
@@ -106,8 +95,8 @@ const normalizarDatosCierre = (raw: unknown): DatosCierre => {
   const pendientes = strArr(d.actividadesPendientes);
 
   return {
-    creadoNombre: str(d.creadoNombre, CREADO_POR_OPTIONS[0].nombre),
-    creadoCargo: str(d.creadoCargo, CREADO_POR_OPTIONS[0].cargo),
+    creadoNombre: str(d.creadoNombre, creadorPorDefecto.nombre),
+    creadoCargo: str(d.creadoCargo, creadorPorDefecto.cargo),
     selectedIds: strArr(d.selectedIds),
     actividadesPendientes: pendientes.length ? pendientes : [''],
     seccionesImagenes: secciones,
@@ -116,21 +105,31 @@ const normalizarDatosCierre = (raw: unknown): DatosCierre => {
 };
 
 export default function InformeCierre({ onBack }: InformeCierreProps) {
+  const { division } = useSesion();
+  const config = configDivision(division);
+  const CREADO_POR_OPTIONS = config.cierre.creadoPor.A;
+  const CREADO_POR_OPTIONS_B = config.cierre.creadoPor.B;
+  const CREADO_POR_ALL = [...CREADO_POR_OPTIONS, ...CREADO_POR_OPTIONS_B];
+  const CIERRE_DRAFT_ID = config.cierre.borradorId;
+  const creadorPorDefecto = CREADO_POR_OPTIONS[0];
   const [borradores, setBorradores] = useState<BorradorEntry[]>([]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const preseleccionadoRef = useRef(false);
-  const [creadoNombre, setCreadoNombre] = useState(CREADO_POR_OPTIONS[0].nombre);
-  const [creadoCargo, setCreadoCargo] = useState(CREADO_POR_OPTIONS[0].cargo);
+  const [creadoNombre, setCreadoNombre] = useState(creadorPorDefecto.nombre);
+  const [creadoCargo, setCreadoCargo] = useState(creadorPorDefecto.cargo);
 
   // Datos fijos del cierre (ya no se editan en el formulario).
-  const faena = 'Minera Rajo Inca';
+  const faena = config.faena;
   const contrato = N_CONTRATO;
   const version = '1';
-  const revisadoText = 'Juan Saavedra\nJuan Morata';
-  const autorizadoNombre = 'Cesar Orellana';
-  const autorizadoCargo = 'ADC';
-  // La letra de turno sigue al supervisor elegido en "Creado por".
-  const letraTurno = CREADO_POR_OPTIONS_B.some(o => o.nombre === creadoNombre) ? 'B' : 'A';
+  const revisadoText = config.cierre.revisadoText;
+  const autorizadoNombre = config.cierre.autorizado.nombre;
+  const autorizadoCargo = config.cierre.autorizado.cargo;
+  // La letra de turno sigue al supervisor elegido en "Creado por". Si la división no separa a sus
+  // supervisores por turno (Andina), se toma de los días incluidos en el cierre.
+  const letraTurno = CREADO_POR_OPTIONS_B.length
+    ? (CREADO_POR_OPTIONS_B.some(o => o.nombre === creadoNombre) ? 'B' : 'A')
+    : (borradores.find(b => selectedIds.includes(b.id))?.letraTurno ?? 'A');
   const [actividadesPendientes, setActividadesPendientes] = useState<string[]>(['']);
   const [seccionesImagenes, setSeccionesImagenes] = useState<SeccionImagenes[]>(DEFAULT_SECCIONES_IMAGENES);
   const [camionetas, setCamionetas] = useState<CamionetaEntry[]>([{ id: uid(), placa: '', antes: null, despues: null }]);
@@ -143,9 +142,9 @@ export default function InformeCierre({ onBack }: InformeCierreProps) {
 
   // Carga los borradores compartidos desde la nube y se suscribe a cambios de otros dispositivos.
   useEffect(() => {
-    void fetchBorradores().then(setBorradores);
-    return subscribeBorradores(setBorradores);
-  }, []);
+    void fetchBorradores(division).then(setBorradores);
+    return subscribeBorradores(division, setBorradores);
+  }, [division]);
 
   // --- Cierre en curso compartido entre dispositivos (PC, celular, etc.) ---
   const [cierreCargado, setCierreCargado] = useState(false);
@@ -168,7 +167,7 @@ export default function InformeCierre({ onBack }: InformeCierreProps) {
   };
 
   const limpiarLocal = () => {
-    const vacio = normalizarDatosCierre({});
+    const vacio = normalizarDatosCierre({}, creadorPorDefecto);
     preseleccionadoRef.current = true; // no volver a preseleccionar días automáticamente
     ultimoSnapshotRef.current = JSON.stringify(vacio);
     ultimoSavedAtRef.current = null;
@@ -179,11 +178,11 @@ export default function InformeCierre({ onBack }: InformeCierreProps) {
   useEffect(() => {
     let cancelado = false;
 
-    void fetchBorradoresOtros('cierre').then(lista => {
+    void fetchBorradoresOtros('cierre', division).then(lista => {
       if (cancelado) return;
       const guardado = lista.find(b => b.id === CIERRE_DRAFT_ID);
       if (guardado) {
-        const datos = normalizarDatosCierre(guardado.datos);
+        const datos = normalizarDatosCierre(guardado.datos, creadorPorDefecto);
         if (datos.selectedIds.length) preseleccionadoRef.current = true;
         ultimoSnapshotRef.current = JSON.stringify(datos);
         ultimoSavedAtRef.current = guardado.savedAt;
@@ -194,7 +193,7 @@ export default function InformeCierre({ onBack }: InformeCierreProps) {
     });
 
     // Cambios hechos desde otro dispositivo: se aplican aquí, salvo que este equipo esté guardando algo propio.
-    const desuscribir = subscribeBorradoresOtros('cierre', lista => {
+    const desuscribir = subscribeBorradoresOtros('cierre', division, lista => {
       if (guardadoPendienteRef.current || guardandoRef.current) return;
       const remoto = lista.find(b => b.id === CIERRE_DRAFT_ID);
       if (!remoto) {
@@ -203,7 +202,7 @@ export default function InformeCierre({ onBack }: InformeCierreProps) {
         return;
       }
       if (remoto.savedAt === ultimoSavedAtRef.current) return;
-      const datos = normalizarDatosCierre(remoto.datos);
+      const datos = normalizarDatosCierre(remoto.datos, creadorPorDefecto);
       const snapshot = JSON.stringify(datos);
       if (snapshot === ultimoSnapshotRef.current) return;
       preseleccionadoRef.current = true;
@@ -223,7 +222,7 @@ export default function InformeCierre({ onBack }: InformeCierreProps) {
     if (!cierreCargado || subiendoFotos > 0) return;
     const snapshot = JSON.stringify(normalizarDatosCierre({
       creadoNombre, creadoCargo, selectedIds, actividadesPendientes, seccionesImagenes, camionetas,
-    }));
+    }, creadorPorDefecto));
     if (snapshot === ultimoSnapshotRef.current) return;
 
     guardadoPendienteRef.current = true;
@@ -235,6 +234,7 @@ export default function InformeCierre({ onBack }: InformeCierreProps) {
       const entry: BorradorOtroEntry = {
         id: CIERRE_DRAFT_ID,
         tipo: 'cierre',
+        division,
         titulo: `Informe de Cierre — ${creadoNombre}`,
         fecha: savedAt.slice(0, 10),
         savedAt,
@@ -827,16 +827,18 @@ export default function InformeCierre({ onBack }: InformeCierreProps) {
               }}
               className="w-full p-2 border border-[#DCE1E6] rounded-md text-sm"
             >
-              <optgroup label="Turno A">
+              <optgroup label={CREADO_POR_OPTIONS_B.length ? 'Turno A' : 'Supervisores'}>
                 {CREADO_POR_OPTIONS.map(option => (
                   <option key={option.nombre} value={option.nombre}>{option.nombre}</option>
                 ))}
               </optgroup>
-              <optgroup label="Turno B">
-                {CREADO_POR_OPTIONS_B.map(option => (
-                  <option key={option.nombre} value={option.nombre}>{option.nombre}</option>
-                ))}
-              </optgroup>
+              {CREADO_POR_OPTIONS_B.length > 0 && (
+                <optgroup label="Turno B">
+                  {CREADO_POR_OPTIONS_B.map(option => (
+                    <option key={option.nombre} value={option.nombre}>{option.nombre}</option>
+                  ))}
+                </optgroup>
+              )}
             </select>
           </div>
         </details>

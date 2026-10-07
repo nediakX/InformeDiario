@@ -1,13 +1,14 @@
 // Controla el acceso a la app: sin sesión → login/registro; cuenta no aprobada → pantalla de
 // estado; cuenta aprobada → la app. Las políticas de la base de datos aplican la misma regla, así
 // que aunque alguien saltara esta pantalla no podría leer ni modificar informes.
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 import Acceso from './Acceso';
 import EstadoCuenta from './EstadoCuenta';
 import NuevaContrasena from './NuevaContrasena';
 import { SesionContext, type Perfil, type SesionValor } from './sesion';
+import { divisionDeFaena, esDivision, type Division } from '../datos/divisiones';
 import { registrarActividad } from '../lib/actividad';
 import { marcarSalida } from '../lib/presencia';
 import './auth.css';
@@ -94,9 +95,21 @@ export default function AuthGate({ children }: { children: ReactNode }) {
     setPerfilDe(null);
   }, []);
 
+  // División de trabajo: la de la cuenta; un administrador puede elegir la otra (se recuerda en el dispositivo).
+  const CLAVE_DIVISION = 'psinet_division_admin';
+  const divisionPropia: Division = divisionDeFaena(perfil?.faena);
+  const [divisionAdmin, setDivisionAdmin] = useState<Division | null>(() => {
+    try { const v = localStorage.getItem(CLAVE_DIVISION); return esDivision(v) ? v : null; } catch { return null; }
+  });
+  const division: Division = esAdmin && divisionAdmin ? divisionAdmin : divisionPropia;
+  const setDivision = useCallback((d: Division) => {
+    setDivisionAdmin(d);
+    try { localStorage.setItem(CLAVE_DIVISION, d); } catch { /* sin almacenamiento local */ }
+  }, []);
+
   const valor = useMemo<SesionValor | null>(() => (
-    session && perfil ? { session, perfil, esAdmin, pendientesAprobacion, cerrarSesion } : null
-  ), [session, perfil, esAdmin, pendientesAprobacion, cerrarSesion]);
+    session && perfil ? { session, perfil, esAdmin, pendientesAprobacion, cerrarSesion, division, divisionPropia, setDivision } : null
+  ), [session, perfil, esAdmin, pendientesAprobacion, cerrarSesion, division, divisionPropia, setDivision]);
 
   if (!sesionCargada) return <Cargando texto="CARGANDO…" />;
   if (recuperando && session) return <NuevaContrasena onListo={() => setRecuperando(false)} />;
@@ -106,5 +119,11 @@ export default function AuthGate({ children }: { children: ReactNode }) {
     return <EstadoCuenta perfil={perfil} onRevisar={() => cargarPerfil(session.user.id)} onCerrarSesion={cerrarSesion} />;
   }
 
-  return <SesionContext.Provider value={valor}>{children}</SesionContext.Provider>;
+  // Al cambiar de división la app se monta de nuevo: listas, formularios y suscripciones parten
+  // limpios con los datos de la división elegida.
+  return (
+    <SesionContext.Provider value={valor}>
+      <Fragment key={division}>{children}</Fragment>
+    </SesionContext.Provider>
+  );
 }

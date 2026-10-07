@@ -6,6 +6,7 @@ import { type BorradorOtroRow, type BorradorOtroEntry, rowToOtroEntry, contarFot
 import { hoyLocalISO, sumarDias } from '../datos/fechas';
 import { letraDeFecha, semanaDeFecha, TURNOS_AUTOMATICOS } from '../datos/turnos';
 import type { Perfil } from '../auth/sesion';
+import type { Division } from '../datos/divisiones';
 
 export type Periodo = 'semana' | '30' | '90';
 
@@ -39,10 +40,11 @@ export interface DatosAdmin {
   perfiles: Perfil[];
 }
 
-export async function cargarDatosAdmin(rango: Rango): Promise<DatosAdmin> {
+/** Informes de la división elegida (los indicadores se ven por división) y todas las cuentas. */
+export async function cargarDatosAdmin(rango: Rango, division: Division): Promise<DatosAdmin> {
   const [diarios, otros, perfiles] = await Promise.all([
-    supabase.from(BORRADORES_TABLE).select('*').gte('fecha', rango.desde).lte('fecha', rango.hasta),
-    supabase.from(BORRADORES_OTROS_TABLE).select('*').gte('fecha', rango.desde).lte('fecha', rango.hasta),
+    supabase.from(BORRADORES_TABLE).select('*').eq('division', division).gte('fecha', rango.desde).lte('fecha', rango.hasta),
+    supabase.from(BORRADORES_OTROS_TABLE).select('*').eq('division', division).gte('fecha', rango.desde).lte('fecha', rango.hasta),
     supabase.from('perfiles').select('*').order('created_at', { ascending: false }),
   ]);
   const error = diarios.error ?? otros.error ?? perfiles.error;

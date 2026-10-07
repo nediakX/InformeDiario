@@ -1,12 +1,13 @@
 // Sesión del usuario y su perfil (estado de aprobación y rol), compartidos con toda la app.
 import { createContext, useContext } from 'react';
 import type { Session } from '@supabase/supabase-js';
+import type { Division } from '../datos/divisiones';
 
 export type EstadoCuenta = 'pendiente' | 'aprobado' | 'rechazado';
 export type Faena = 'rajo_inca' | 'andina';
 
 export const FAENAS: { valor: Faena; etiqueta: string }[] = [
-  { valor: 'rajo_inca', etiqueta: 'Minera Rajo Inca (División El Salvador)' },
+  { valor: 'rajo_inca', etiqueta: 'División El Salvador' },
   { valor: 'andina', etiqueta: 'División Andina' },
 ];
 
@@ -34,6 +35,12 @@ export interface SesionValor {
   /** Cuentas esperando aprobación (solo se calcula para administradores). */
   pendientesAprobacion: number;
   cerrarSesion: () => Promise<void>;
+  /** División con la que se está trabajando: la de la cuenta, o la que eligió un administrador. */
+  division: Division;
+  /** División de la cuenta (según la faena del registro). */
+  divisionPropia: Division;
+  /** Solo administradores: cambia la división de trabajo (recarga las listas de la app). */
+  setDivision: (d: Division) => void;
 }
 
 export const SesionContext = createContext<SesionValor | null>(null);

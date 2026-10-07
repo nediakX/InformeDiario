@@ -13,6 +13,8 @@ import { fileToDataUrl, uid } from '../lib/fotos';
 import { type BorradorOtroEntry, upsertBorradorOtro, deleteBorradorOtro } from '../datos/borradoresOtros';
 import { hoyLocalISO, formatFechaLarga } from '../datos/fechas';
 import { BLUE, ORANGE } from '../datos/plantillaWord';
+import { configDivision } from '../datos/divisiones';
+import { useSesion } from '../auth/sesion';
 import { mapaFotosSubidas, aplicarFotosSubidas } from '../lib/storage';
 import { cargarDocx, logosInforme, resolverImagenes, bytesDeImagen, precargarGeneracionWord } from '../lib/docxRecursos';
 
@@ -136,20 +138,25 @@ const ubicacionDeSitio = (sitio: string) => UBICACION_POR_CARRO[sitio.trim().rep
 const withIds = <T,>(items: T[]): (T & { id: string })[] => items.map(item => ({ ...item, id: uid() }));
 
 export default function InformeMantenimiento({ onBack, borradorInicial = null }: InformeMantenimientoProps) {
+  const { division } = useSesion();
+  const config = configDivision(division).mantenimiento;
+  // El Salvador elige el sitio de la lista de carros; otras divisiones lo escriben a mano.
+  const sitioInicial = config.listaDeSitios ? SITIO_OPCIONES[0] : '';
+
   // --- Datos generales / portada ---
   const [fecha, setFecha] = useState<string>(() => hoyLocalISO());
-  const [creadoNombre, setCreadoNombre] = useState("Ricardo Riquelme.");
-  const [creadoCargo, setCreadoCargo] = useState("Ingeniero Electromecánico");
-  const [revisadoText, setRevisadoText] = useState("Jefe de Turno\nJuan Saavedra\nLuis Fernandez\nSupervisor de Operación");
-  const [sitio, setSitio] = useState(SITIO_OPCIONES[0]);
+  const [creadoNombre, setCreadoNombre] = useState(config.creado.nombre);
+  const [creadoCargo, setCreadoCargo] = useState(config.creado.cargo);
+  const [revisadoText, setRevisadoText] = useState(config.revisadoText);
+  const [sitio, setSitio] = useState(sitioInicial);
   const [modeloGenerador, setModeloGenerador] = useState("Cummins C17D5");
 
   // --- Tabla REGISTRO ---
-  const [cliente, setCliente] = useState("División El Salvador Codelco");
-  const [area, setArea] = useState(() => ubicacionDeSitio(SITIO_OPCIONES[0]));
-  const [minera, setMinera] = useState("El Salvador Rajo Inca");
+  const [cliente, setCliente] = useState(config.cliente);
+  const [area, setArea] = useState(() => ubicacionDeSitio(sitioInicial));
+  const [minera, setMinera] = useState(config.minera);
   const [tipoServicio, setTipoServicio] = useState("Mantenimiento preventivo Generador");
-  const [ejecutante, setEjecutante] = useState("Ricardo Riquelme");
+  const [ejecutante, setEjecutante] = useState(config.ejecutante);
 
   // --- Descripción ---
   const [descripcionTexto, setDescripcionTexto] = useState(
@@ -254,6 +261,7 @@ export default function InformeMantenimiento({ onBack, borradorInicial = null }:
     const entry: BorradorOtroEntry = {
       id: currentDraftId,
       tipo: 'mantenimiento',
+      division,
       titulo: sitio.trim() ? `${sitio.trim()}${modeloGenerador.trim() ? ` — ${modeloGenerador.trim()}` : ''}` : 'Mantenimiento sin sitio',
       fecha,
       savedAt: new Date().toISOString(),
@@ -289,7 +297,7 @@ export default function InformeMantenimiento({ onBack, borradorInicial = null }:
     }, 800);
     return () => clearTimeout(timeout);
   }, [
-    currentDraftId, fecha, creadoNombre, creadoCargo, revisadoText, sitio, modeloGenerador,
+    division, currentDraftId, fecha, creadoNombre, creadoCargo, revisadoText, sitio, modeloGenerador,
     cliente, area, minera, tipoServicio, ejecutante,
     descripcionTexto, componentes, trabajos, fotos,
     horasPlan, repuestos, filtros, horometro, cantidadPartidas,
@@ -860,19 +868,29 @@ export default function InformeMantenimiento({ onBack, borradorInicial = null }:
             </div>
             <div>
               <label className="block text-xs text-[#6B6B6B] font-bold mb-1">Sitio / Nombre emplazamiento</label>
-              <select
-                value={sitio}
-                onChange={e => {
-                  const nuevoSitio = e.target.value;
-                  setSitio(nuevoSitio);
-                  // Al cambiar de sitio se selecciona automáticamente su ubicación en "Área" (sigue siendo editable).
-                  const nuevaUbicacion = ubicacionDeSitio(nuevoSitio);
-                  if (nuevaUbicacion) setArea(nuevaUbicacion);
-                }}
-                className="w-full p-2 border border-[#DCE1E6] rounded-md text-sm bg-white"
-              >
-                {SITIO_OPCIONES.map(s => <option key={s} value={s}>{ubicacionDeSitio(s) ? `${s} — ${ubicacionDeSitio(s)}` : s}</option>)}
-              </select>
+              {config.listaDeSitios ? (
+                <select
+                  value={sitio}
+                  onChange={e => {
+                    const nuevoSitio = e.target.value;
+                    setSitio(nuevoSitio);
+                    // Al cambiar de sitio se selecciona automáticamente su ubicación en "Área" (sigue siendo editable).
+                    const nuevaUbicacion = ubicacionDeSitio(nuevoSitio);
+                    if (nuevaUbicacion) setArea(nuevaUbicacion);
+                  }}
+                  className="w-full p-2 border border-[#DCE1E6] rounded-md text-sm bg-white"
+                >
+                  {SITIO_OPCIONES.map(s => <option key={s} value={s}>{ubicacionDeSitio(s) ? `${s} — ${ubicacionDeSitio(s)}` : s}</option>)}
+                </select>
+              ) : (
+                <input
+                  type="text"
+                  value={sitio}
+                  onChange={e => setSitio(e.target.value)}
+                  placeholder="Nombre del sitio o emplazamiento"
+                  className="w-full p-2 border border-[#DCE1E6] rounded-md text-sm"
+                />
+              )}
             </div>
             <div>
               <label className="block text-xs text-[#6B6B6B] font-bold mb-1">Creado por — Nombre</label>

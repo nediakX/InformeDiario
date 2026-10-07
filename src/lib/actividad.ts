@@ -4,7 +4,7 @@
 import { supabase } from './supabase';
 
 export type TipoActividad =
-  | 'inicio_sesion' | 'cierre_sesion' | 'word_generado' | 'fotos_limpiadas'
+  | 'inicio_sesion' | 'cierre_sesion' | 'word_generado' | 'fotos_limpiadas' | 'impresion_generada'
   // Estos los registra la base de datos sola (triggers):
   | 'informe_creado' | 'informe_eliminado' | 'cuenta_registrada'
   | 'cuenta_aprobado' | 'cuenta_rechazado' | 'cuenta_pendiente' | 'admin_otorgado' | 'admin_quitado';
