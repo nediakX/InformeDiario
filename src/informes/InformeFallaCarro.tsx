@@ -8,7 +8,7 @@ import {
 import logoPsinet from "../assets/logo_psinet.jpg";
 import logoEdificio from "../assets/LogoEdificio.png";
 import VisorFoto, { copiarImagenAlPortapapel } from '../componentes/VisorFoto';
-import { CARRO_OPCIONES, UBICACION_POR_CARRO, N_CONTRATO, LINEA_SERVICIO } from '../datos/catalogos';
+import { N_CONTRATO, LINEA_SERVICIO } from '../datos/catalogos';
 import { fileToDataUrl, uid } from '../lib/fotos';
 import { type BorradorOtroEntry, upsertBorradorOtro, deleteBorradorOtro } from '../datos/borradoresOtros';
 import { hoyLocalISO, formatFechaLarga } from '../datos/fechas';
@@ -50,9 +50,8 @@ const LINEA_SERVICIO_FIJA = LINEA_SERVICIO;
 // --- Listado de carros / sitios ---
 const carroDisplay = (codigo: string) => `Carro ${codigo.replace(/_/g, " ")}`;
 
-// Ubicación física de cada carro: al elegir el carro se rellena sola la "Ubicación" de la portada.
-// (Códigos completos de referencia: O&M_LTE_CMM_03, O&M_LTE_CMF_09, O&M_MMOO 01, etc.)
-const ubicacionDeCarro = (codigo: string) => UBICACION_POR_CARRO[codigo] ?? "";
+// Ubicación física de cada carro (según la división, ver datos/divisiones.ts): al elegir el carro se
+// rellena sola la "Ubicación" de la portada. (Ref. El Salvador: O&M_LTE_CMM_03, O&M_LTE_CMF_09, O&M_MMOO 01, etc.)
 
 // --- Personal sugerido — mismo listado que usa el Informe Diario (supervisores, técnicos, líder técnico) ---
 const PERSONAL_EQUIPO_A: PersonalItem[] = [
@@ -277,8 +276,9 @@ export default function InformeFallaCarro({ onBack, borradorInicial = null }: In
   const REVISADO_TEXT_FIJO = config.revisadoText;
   const AUTORIZADO_NOMBRE_FIJO = config.autorizado.nombre;
   const AUTORIZADO_CARGO_FIJO = config.autorizado.cargo;
-  // El Salvador elige el carro de su lista; otras divisiones lo escriben a mano.
-  const carroInicial = config.listaDeCarros ? CARRO_OPCIONES[0] : '';
+  const { carros: CARRO_OPCIONES, ubicacionPorCarro } = configDivision(division);
+  const ubicacionDeCarro = (codigo: string) => ubicacionPorCarro[codigo] ?? "";
+  const carroInicial = CARRO_OPCIONES[0];
   const equiposPersonal = config.equipos.length
     ? config.equipos
     : [{ etiqueta: 'Equipo A', personas: PERSONAL_EQUIPO_A }, { etiqueta: 'Equipo B', personas: PERSONAL_EQUIPO_B }];
@@ -844,29 +844,19 @@ export default function InformeFallaCarro({ onBack, borradorInicial = null }: In
             </div>
             <div>
               <label className="block text-xs text-[#6B6B6B] font-bold mb-1">Carro / Sitio</label>
-              {config.listaDeCarros ? (
-                <select
-                  value={carroCodigo}
-                  onChange={e => {
-                    const codigo = e.target.value;
-                    setCarroCodigo(codigo);
-                    // Al cambiar de carro se selecciona automáticamente su ubicación (sigue siendo editable).
-                    const nuevaUbicacion = ubicacionDeCarro(codigo);
-                    if (nuevaUbicacion) setUbicacion(nuevaUbicacion);
-                  }}
-                  className="w-full p-2 border border-[#DCE1E6] rounded-md text-sm bg-white"
-                >
-                  {CARRO_OPCIONES.map(c => <option key={c} value={c}>{ubicacionDeCarro(c) ? `${c} — ${ubicacionDeCarro(c)}` : c}</option>)}
-                </select>
-              ) : (
-                <input
-                  type="text"
-                  value={carroCodigo}
-                  onChange={e => setCarroCodigo(e.target.value)}
-                  placeholder="Código o nombre del carro / sitio"
-                  className="w-full p-2 border border-[#DCE1E6] rounded-md text-sm"
-                />
-              )}
+              <select
+                value={carroCodigo}
+                onChange={e => {
+                  const codigo = e.target.value;
+                  setCarroCodigo(codigo);
+                  // Al cambiar de carro se selecciona automáticamente su ubicación (sigue siendo editable).
+                  const nuevaUbicacion = ubicacionDeCarro(codigo);
+                  if (nuevaUbicacion) setUbicacion(nuevaUbicacion);
+                }}
+                className="w-full p-2 border border-[#DCE1E6] rounded-md text-sm bg-white"
+              >
+                {CARRO_OPCIONES.map(c => <option key={c} value={c}>{ubicacionDeCarro(c) ? `${c} — ${ubicacionDeCarro(c)}` : c}</option>)}
+              </select>
             </div>
             <div className="md:col-span-2">
               <label className="block text-xs text-[#6B6B6B] font-bold mb-1">Ubicación (opcional, portada)</label>

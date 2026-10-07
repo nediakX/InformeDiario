@@ -5,6 +5,8 @@
 // firmas (creado / revisado / autorizado por), personal sugerido y si existe el bloque Vertiv.
 // Los valores de El Salvador son exactamente los que ya usaban los informes (no cambian sus Word).
 
+import { CARRO_OPCIONES, UBICACION_POR_CARRO } from './catalogos';
+
 export type Division = 'el_salvador' | 'andina';
 
 export const DIVISIONES: Division[] = ['el_salvador', 'andina'];
@@ -23,12 +25,18 @@ export interface ConfigDivision {
   sigla: string;           // "DSAL"
   /** Texto "Faena" de los informes. */
   faena: string;
+  /** Ciudad desde la que se traslada el personal (tarea 1.1.1 "Traslado desde … hacia … y viceversa"). */
+  origenTraslado: string;
   /** Sufijo de las claves guardadas en el dispositivo (El Salvador mantiene las claves de siempre). */
   sufijoLocal: string;
   /** Bloque fijo "Verificación de la Gestión en Planta Rectificadora Vertiv" del Turno Noche. */
   vertiv: boolean;
   /** Personas que no son de la dotación de un turno pero se agregan seguido (jefaturas, administración). */
   personalSugerido: Firmante[];
+  /** Carros / sitios LTE de la división (listas desplegables de Falla, Mantenimiento y "Mantenimiento" del Informe Diario). */
+  carros: string[];
+  /** Ubicación en faena de cada carro (se completa sola al elegirlo). */
+  ubicacionPorCarro: Record<string, string>;
   diario: {
     revisadoText: string;
     autorizado: Firmante;
@@ -48,8 +56,6 @@ export interface ConfigDivision {
     revisadoText: string;
     creado: Firmante;
     ejecutante: string;
-    /** true = los sitios se eligen de la lista de carros; false = se escriben a mano. */
-    listaDeSitios: boolean;
   };
   falla: {
     revisadoText: string;
@@ -57,11 +63,12 @@ export interface ConfigDivision {
     creado: Firmante;
     tecnico: string;
     equipos: { etiqueta: string; personas: Firmante[] }[];
-    listaDeCarros: boolean;
   };
 }
 
 // --- Andina -------------------------------------------------------------------------------
+// Carros LTE de División Andina.
+const ANDINA_CARROS: string[] = ['SUR_SUR', 'CONGRESO', 'CHIVATO', 'DLN', 'MORRENA', 'TRES_ESQUINAS', 'PIPA', '3700'];
 const ANDINA_ADMINISTRADOR: Firmante = { nombre: 'Cesar Enrique Orellana Martinez', cargo: 'Administrador de contrato' };
 const ANDINA_JEFE_TURNO: Firmante = { nombre: 'Dennis William Gatica Martinez', cargo: 'Jefe Turno' };
 const ANDINA_INGENIERO: Firmante = { nombre: 'Luciano Salvador Olmos Torres', cargo: 'Ingeniero especialista RAN, CORE, EPC' };
@@ -91,6 +98,9 @@ export const CONFIG_DIVISION: Record<Division, ConfigDivision> = {
     nombreCorto: 'El Salvador',
     sigla: 'DSAL',
     faena: 'Minera Rajo Inca',
+    origenTraslado: 'El Salvador',
+    carros: CARRO_OPCIONES,
+    ubicacionPorCarro: UBICACION_POR_CARRO,
     sufijoLocal: '',
     vertiv: true,
     personalSugerido: [
@@ -126,7 +136,6 @@ export const CONFIG_DIVISION: Record<Division, ConfigDivision> = {
       revisadoText: 'Jefe de Turno\nJuan Saavedra\nLuis Fernandez\nSupervisor de Operación',
       creado: { nombre: 'Ricardo Riquelme.', cargo: 'Ingeniero Electromecánico' },
       ejecutante: 'Ricardo Riquelme',
-      listaDeSitios: true,
     },
     falla: {
       revisadoText: 'Juan Saavedra.\nJuan Morata.',
@@ -134,7 +143,6 @@ export const CONFIG_DIVISION: Record<Division, ConfigDivision> = {
       creado: { nombre: 'Max Diaz.', cargo: 'Supervisor de Operaciones' },
       tecnico: 'Max Diaz.',
       equipos: [], // El Salvador usa sus listas de Equipo A / Equipo B (en el formulario de falla)
-      listaDeCarros: true,
     },
   },
   andina: {
@@ -143,6 +151,9 @@ export const CONFIG_DIVISION: Record<Division, ConfigDivision> = {
     nombreCorto: 'Andina',
     sigla: 'DAND',
     faena: 'División Andina',
+    origenTraslado: 'Los Andes',
+    carros: ANDINA_CARROS,
+    ubicacionPorCarro: {},
     sufijoLocal: '_andina',
     vertiv: false,
     personalSugerido: ANDINA_PERSONAL,
@@ -164,7 +175,6 @@ export const CONFIG_DIVISION: Record<Division, ConfigDivision> = {
       revisadoText: `Jefe de Turno\n${ANDINA_JEFE_TURNO.nombre}\n${ANDINA_SUPERVISORES[0].nombre}\nSupervisor de Operaciones`,
       creado: ANDINA_SUPERVISORES[0],
       ejecutante: '',
-      listaDeSitios: false,
     },
     falla: {
       revisadoText: `${ANDINA_JEFE_TURNO.nombre}.\n${ANDINA_INGENIERO.nombre}.`,
@@ -172,7 +182,6 @@ export const CONFIG_DIVISION: Record<Division, ConfigDivision> = {
       creado: ANDINA_SUPERVISORES[0],
       tecnico: ANDINA_SUPERVISORES[0].nombre,
       equipos: [{ etiqueta: 'División Andina', personas: ANDINA_PERSONAL }],
-      listaDeCarros: false,
     },
   },
 };

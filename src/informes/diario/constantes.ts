@@ -189,12 +189,8 @@ export const PERSONAL_SUGERIDO_OTROS: PersonalItem[] = [
 
 ];
 
-// Carros a los que se les puede hacer mantenimiento preventivo (actividad sugerida "Mantenimiento").
-export const CARROS_MANTENCION: string[] = [
-  "LTE_CMF_01", "LTE_CMF_02", "LTE_CMF_04", "LTE_CMF_08", "LTE_CMF_09",
-  "LTE_CMM_03", "LTE_CMM_05", "LTE_CMM_06", "LTE_CMM_07", "LTE_CMM_10",
-  "LTE_11", "MMOO_01",
-];
+// Los carros a los que se les puede hacer mantenimiento preventivo (actividad sugerida "Mantenimiento")
+// son los de la división: configDivision(d).carros (datos/divisiones.ts).
 
 // Valor de la actividad sugerida que abre el selector de carro.
 export const ACTIVIDAD_SUGERIDA_MANTENCION = "Mantenimiento";

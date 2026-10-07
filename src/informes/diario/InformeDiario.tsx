@@ -5,11 +5,11 @@ import logoPsinet from "../../assets/logo_psinet.jpg";
 import logoEdificio from "../../assets/LogoEdificio.png";
 
 import VisorFoto from '../../componentes/VisorFoto';
-import { GRUPOS_TAREAS } from '../../datos/catalogos';
+import { gruposTareas } from '../../datos/catalogos';
 
 import { VERTIV_CARROS_FLAT, VERTIV_ITEMS } from '../../datos/plantillaWord';
 
-import { ACTIVIDAD_SUGERIDA_MANTENCION, CARROS_MANTENCION, getDefaultPersonal } from './constantes';
+import { ACTIVIDAD_SUGERIDA_MANTENCION, getDefaultPersonal } from './constantes';
 import { creadoPorDiario } from '../../datos/divisiones';
 import type { InformeDiarioEstado } from './useInformeDiario';
 
@@ -327,7 +327,7 @@ export default function InformeDiario({ d, volverABorradores, goToNewInforme }: 
                 <option value="Orden y Limpieza de Bodega">Orden y Limpieza de Bodega</option>
               </optgroup>
               {/* Tareas de la actividad (listado del cliente, en src/catalogos.ts). Se inserta solo el nombre de la tarea. */}
-              {GRUPOS_TAREAS.map(grupo => (
+              {gruposTareas(config).map(grupo => (
                 <optgroup key={grupo.titulo} label={grupo.titulo}>
                   {grupo.tareas.map(t => (
                     <option key={`${grupo.titulo}-${t.codigo}`} value={t.tarea}>{t.codigo} · {t.tarea}</option>
@@ -677,7 +677,7 @@ export default function InformeDiario({ d, volverABorradores, goToNewInforme }: 
             <h2 id="mantencion-title" className="text-lg font-bold text-[#0E4660]">Mantenimiento preventivo</h2>
             <p className="text-sm text-gray-600">Selecciona el carro al que se le realizará la mantención.</p>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-              {CARROS_MANTENCION.map(carro => (
+              {config.carros.map(carro => (
                 <button
                   key={carro}
                   type="button"

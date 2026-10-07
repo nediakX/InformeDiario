@@ -30,7 +30,7 @@ export const UBICACION_POR_CARRO: Record<string, string> = {
 // ---------------------------------------------------------------------------------------
 // Tareas de la actividad (listado entregado por el cliente). Aparecen en "Actividades
 // sugeridas" del Informe Diario, agrupadas por su número; al insertarlas se agrega solo el
-// nombre de la tarea.
+// nombre de la tarea. {ORIGEN} y {DIVISION} se reemplazan según la división (ver gruposTareas).
 // ---------------------------------------------------------------------------------------
 export interface TareaActividad { codigo: string; tarea: string }
 
@@ -38,7 +38,7 @@ export const GRUPOS_TAREAS: { titulo: string; tareas: TareaActividad[] }[] = [
   {
     titulo: "Tareas 1.1",
     tareas: [
-      { codigo: "1.1.1", tarea: "Traslado desde Los Andes hacia DAND y viceversa" },
+      { codigo: "1.1.1", tarea: "Traslado desde {ORIGEN} hacia {DIVISION} y viceversa" },
       { codigo: "1.1.2", tarea: "Circulación area industrial" },
       { codigo: "1.1.3", tarea: "Circulación area mina" },
     ],
@@ -99,3 +99,14 @@ export const GRUPOS_TAREAS: { titulo: string; tareas: TareaActividad[] }[] = [
     ],
   },
 ];
+
+/** Tareas del cliente con los datos de la división: p. ej. "Traslado desde Los Andes hacia DAND y viceversa" (Andina)
+ *  o "Traslado desde El Salvador hacia DSAL y viceversa" (El Salvador). */
+export const gruposTareas = (division: { origenTraslado: string; sigla: string }) =>
+  GRUPOS_TAREAS.map(grupo => ({
+    ...grupo,
+    tareas: grupo.tareas.map(t => ({
+      ...t,
+      tarea: t.tarea.replace('{ORIGEN}', division.origenTraslado).replace('{DIVISION}', division.sigla),
+    })),
+  }));

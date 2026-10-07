@@ -8,7 +8,6 @@ import {
 import logoPsinet from "../assets/logo_psinet.jpg";
 import logoEdificio from "../assets/LogoEdificio.png";
 import VisorFoto, { copiarImagenAlPortapapel } from '../componentes/VisorFoto';
-import { CARRO_OPCIONES, UBICACION_POR_CARRO } from '../datos/catalogos';
 import { fileToDataUrl, uid } from '../lib/fotos';
 import { type BorradorOtroEntry, upsertBorradorOtro, deleteBorradorOtro } from '../datos/borradoresOtros';
 import { hoyLocalISO, formatFechaLarga } from '../datos/fechas';
@@ -128,20 +127,18 @@ const DEFAULT_FILTROS: Omit<FiltroItem, 'id'>[] = [
   { nombre: "FILTRO DE COMBUSTIBLE", estado: "OK", tipo: "FS01275", observaciones: "Filtro nuevo" },
 ];
 
-// --- Listado de carros / sitios (mismo listado que usa el Informe de Falla) ---
-const SITIO_OPCIONES: string[] = CARRO_OPCIONES.map(c => c.replace(/_/g, " "));
-
-// Ubicación física de cada carro (misma tabla que el Informe de Falla). Al elegir el sitio se
-// rellena sola el campo "Área" del REGISTRO. (Ref.: O&M_LTE_CMM_03, O&M_LTE_CMF_09, O&M_MMOO 01, etc.)
-const ubicacionDeSitio = (sitio: string) => UBICACION_POR_CARRO[sitio.trim().replace(/\s+/g, "_")] ?? "";
 
 const withIds = <T,>(items: T[]): (T & { id: string })[] => items.map(item => ({ ...item, id: uid() }));
 
 export default function InformeMantenimiento({ onBack, borradorInicial = null }: InformeMantenimientoProps) {
   const { division } = useSesion();
   const config = configDivision(division).mantenimiento;
-  // El Salvador elige el sitio de la lista de carros; otras divisiones lo escriben a mano.
-  const sitioInicial = config.listaDeSitios ? SITIO_OPCIONES[0] : '';
+  // Listado de carros / sitios de la división (el mismo que usa el Informe de Falla). Al elegir el
+  // sitio se rellena sola el campo "Área" del REGISTRO con su ubicación, si se conoce.
+  const { carros, ubicacionPorCarro } = configDivision(division);
+  const SITIO_OPCIONES: string[] = carros.map(c => c.replace(/_/g, " "));
+  const ubicacionDeSitio = (sitio: string) => ubicacionPorCarro[sitio.trim().replace(/\s+/g, "_")] ?? "";
+  const sitioInicial = SITIO_OPCIONES[0];
 
   // --- Datos generales / portada ---
   const [fecha, setFecha] = useState<string>(() => hoyLocalISO());
@@ -868,29 +865,19 @@ export default function InformeMantenimiento({ onBack, borradorInicial = null }:
             </div>
             <div>
               <label className="block text-xs text-[#6B6B6B] font-bold mb-1">Sitio / Nombre emplazamiento</label>
-              {config.listaDeSitios ? (
-                <select
-                  value={sitio}
-                  onChange={e => {
-                    const nuevoSitio = e.target.value;
-                    setSitio(nuevoSitio);
-                    // Al cambiar de sitio se selecciona automáticamente su ubicación en "Área" (sigue siendo editable).
-                    const nuevaUbicacion = ubicacionDeSitio(nuevoSitio);
-                    if (nuevaUbicacion) setArea(nuevaUbicacion);
-                  }}
-                  className="w-full p-2 border border-[#DCE1E6] rounded-md text-sm bg-white"
-                >
-                  {SITIO_OPCIONES.map(s => <option key={s} value={s}>{ubicacionDeSitio(s) ? `${s} — ${ubicacionDeSitio(s)}` : s}</option>)}
-                </select>
-              ) : (
-                <input
-                  type="text"
-                  value={sitio}
-                  onChange={e => setSitio(e.target.value)}
-                  placeholder="Nombre del sitio o emplazamiento"
-                  className="w-full p-2 border border-[#DCE1E6] rounded-md text-sm"
-                />
-              )}
+              <select
+                value={sitio}
+                onChange={e => {
+                  const nuevoSitio = e.target.value;
+                  setSitio(nuevoSitio);
+                  // Al cambiar de sitio se selecciona automáticamente su ubicación en "Área" (sigue siendo editable).
+                  const nuevaUbicacion = ubicacionDeSitio(nuevoSitio);
+                  if (nuevaUbicacion) setArea(nuevaUbicacion);
+                }}
+                className="w-full p-2 border border-[#DCE1E6] rounded-md text-sm bg-white"
+              >
+                {SITIO_OPCIONES.map(s => <option key={s} value={s}>{ubicacionDeSitio(s) ? `${s} — ${ubicacionDeSitio(s)}` : s}</option>)}
+              </select>
             </div>
             <div>
               <label className="block text-xs text-[#6B6B6B] font-bold mb-1">Creado por — Nombre</label>
