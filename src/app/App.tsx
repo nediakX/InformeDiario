@@ -24,6 +24,7 @@ import InformeDiario from '../informes/diario/InformeDiario';
 import BotonSubir from '../componentes/BotonSubir';
 
 // Pantallas que no se usan al abrir la app: se descargan recién cuando se entra a ellas.
+import ErrorPantalla from '../componentes/ErrorPantalla';
 const InformeCierre = lazy(() => import('../informes/InformeCierre'));
 const InformeMantenimiento = lazy(() => import('../informes/InformeMantenimiento'));
 const InformeFallaCarro = lazy(() => import('../informes/InformeFallaCarro'));
@@ -32,13 +33,15 @@ const ChecklistCamioneta = lazy(() => import('../informes/checklist/ChecklistCam
 const PanelAdmin = lazy(() => import('../admin/PanelAdmin'));
 
 const CargandoPantalla = ({ children }: { children: ReactNode }) => (
-  <Suspense fallback={
-    <div className="min-h-screen flex items-center justify-center gap-2 text-sm text-slate-500">
-      <Loader2 className="animate-spin" size={18} /> Cargando…
-    </div>
-  }>
-    {children}
-  </Suspense>
+  <ErrorPantalla>
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center gap-2 text-sm text-slate-500">
+        <Loader2 className="animate-spin" size={18} /> Cargando…
+      </div>
+    }>
+      {children}
+    </Suspense>
+  </ErrorPantalla>
 );
 
 function AppContenido() {
