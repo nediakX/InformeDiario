@@ -33,6 +33,8 @@ export interface ConfigDivision {
   vertiv: boolean;
   /** Personas que no son de la dotación de un turno pero se agregan seguido (jefaturas, administración). */
   personalSugerido: Firmante[];
+  /** Dotación por defecto de cada turno (El Salvador usa sus listas de siempre, en constantes.ts). */
+  personalPorTurno?: { A: Firmante[]; B: Firmante[] };
   /** Carros / sitios LTE de la división (listas desplegables de Falla, Mantenimiento y "Mantenimiento" del Informe Diario). */
   carros: string[];
   /** Ubicación en faena de cada carro (se completa sola al elegirlo). */
@@ -79,13 +81,42 @@ const ANDINA_UBICACIONES: Record<string, string> = {
 const ANDINA_ADMINISTRADOR: Firmante = { nombre: 'Cesar Enrique Orellana Martinez', cargo: 'Administrador de contrato' };
 const ANDINA_JEFE_TURNO: Firmante = { nombre: 'Dennis William Gatica Martinez', cargo: 'Jefe Turno' };
 const ANDINA_INGENIERO: Firmante = { nombre: 'Luciano Salvador Olmos Torres', cargo: 'Ingeniero especialista RAN, CORE, EPC' };
-const ANDINA_SUPERVISORES: Firmante[] = [
-  { nombre: 'Oscar Fabian Acuña Solis', cargo: 'Supervisor de Operaciones' },
-  { nombre: 'Guillermo Arturo Soto Alvarado', cargo: 'Supervisor de Operaciones' },
-  { nombre: 'Jose Luis Arévalo Guerra', cargo: 'Supervisor de Operaciones' },
-  { nombre: 'Maikol Peña Gavidia', cargo: 'Supervisor de Operaciones' },
+const SUPERVISOR = 'Supervisor de Operaciones';
+const TEC_TELECOM = 'Técnico en telecomunicaciones';
+const ANDINA_OSCAR: Firmante = { nombre: 'Oscar Fabian Acuña Solis', cargo: SUPERVISOR };
+// Organigrama División Andina LTE: columna izquierda = Turno A, columna derecha = Turno B.
+const ANDINA_TURNO_A: Firmante[] = [
+  { nombre: 'Guillermo Arturo Soto Alvarado', cargo: SUPERVISOR },
+  { nombre: 'Jose Luis Arévalo Guerra', cargo: SUPERVISOR },
+  { nombre: 'Vicente Vasquez', cargo: 'Líder Técnico' },
+  { nombre: 'Cristopher Mercado', cargo: TEC_TELECOM },
+  { nombre: 'Diego Salinas', cargo: TEC_TELECOM },
+  { nombre: 'Felipe Sandoval', cargo: TEC_TELECOM },
+  { nombre: 'Diego Diaz', cargo: TEC_TELECOM },
+  { nombre: 'Sebastián Burgos', cargo: 'Técnico eléctrico' },
 ];
-const ANDINA_PERSONAL: Firmante[] = [ANDINA_ADMINISTRADOR, ANDINA_JEFE_TURNO, ...ANDINA_SUPERVISORES, ANDINA_INGENIERO];
+const ANDINA_TURNO_B: Firmante[] = [
+  ANDINA_OSCAR,
+  { nombre: 'Maikol Peña Gavidia', cargo: SUPERVISOR },
+  { nombre: 'Luis Navarrete', cargo: 'Líder Técnico' },
+  { nombre: 'Mario Espinosa', cargo: TEC_TELECOM },
+  { nombre: 'Carlos Cisternas', cargo: TEC_TELECOM },
+  { nombre: 'Nicolas Jamen', cargo: TEC_TELECOM },
+  { nombre: 'Leonardo Toro', cargo: TEC_TELECOM },
+  { nombre: 'Victor Ñanco', cargo: 'Técnico eléctrico' },
+];
+// Quienes pueden figurar como "Creado por" en cada turno.
+const ANDINA_CREADORES_A: Firmante[] = ANDINA_TURNO_A.slice(0, 2);
+const ANDINA_CREADORES_B: Firmante[] = ANDINA_TURNO_B.slice(0, 3); // Oscar, Maikol y Luis Navarrete (Líder Técnico)
+// Jefaturas y personal 4x3 / SSOMA: no pertenecen a un turno, se agregan desde "Personal sugerido".
+const ANDINA_SUGERIDO: Firmante[] = [
+  ANDINA_ADMINISTRADOR,
+  ANDINA_JEFE_TURNO,
+  ANDINA_INGENIERO,
+  { nombre: 'Cristobal Higueras', cargo: 'Electromecánico' },
+  { nombre: 'Rodrigo Ponce', cargo: 'Experto en SSOMA' },
+  { nombre: 'Rodrigo Mancilla', cargo: 'Experto en SSOMA' },
+];
 
 // --- El Salvador (valores originales de cada informe) ---------------------------------------
 const ES_SUPERVISORES_A: Firmante[] = [
@@ -165,32 +196,37 @@ export const CONFIG_DIVISION: Record<Division, ConfigDivision> = {
     sitiosReportabilidad: 'SUR SUR, CONGRESO, CHIVATO, DNL, MORRENA, TRES ESQUINAS, PIPA y 3700',
     sufijoLocal: '_andina',
     vertiv: false,
-    personalSugerido: ANDINA_PERSONAL,
+    personalSugerido: ANDINA_SUGERIDO,
+    personalPorTurno: { A: ANDINA_TURNO_A, B: ANDINA_TURNO_B },
     diario: {
       revisadoText: `${ANDINA_INGENIERO.nombre}\n${ANDINA_JEFE_TURNO.nombre}`,
       autorizado: ANDINA_ADMINISTRADOR,
-      creadoPor: { A: ANDINA_SUPERVISORES, B: ANDINA_SUPERVISORES },
-      creadorPorDefecto: { A: ANDINA_SUPERVISORES[0], B: ANDINA_SUPERVISORES[0] },
+      creadoPor: { A: ANDINA_CREADORES_A, B: ANDINA_CREADORES_B },
+      creadorPorDefecto: { A: ANDINA_CREADORES_A[0], B: ANDINA_OSCAR },
     },
     cierre: {
       revisadoText: `${ANDINA_JEFE_TURNO.nombre}\n${ANDINA_INGENIERO.nombre}`,
       autorizado: ANDINA_ADMINISTRADOR,
-      creadoPor: { A: ANDINA_SUPERVISORES, B: [] },
+      creadoPor: { A: ANDINA_CREADORES_A, B: ANDINA_CREADORES_B },
       borradorId: '00000000-0000-4000-8000-0000000a0d1e',
     },
     mantenimiento: {
       cliente: 'División Andina Codelco',
       minera: 'División Andina',
-      revisadoText: `Jefe de Turno\n${ANDINA_JEFE_TURNO.nombre}\n${ANDINA_SUPERVISORES[0].nombre}\nSupervisor de Operaciones`,
-      creado: ANDINA_SUPERVISORES[0],
+      revisadoText: `Jefe de Turno\n${ANDINA_JEFE_TURNO.nombre}\n${ANDINA_OSCAR.nombre}\nSupervisor de Operaciones`,
+      creado: ANDINA_OSCAR,
       ejecutante: '',
     },
     falla: {
       revisadoText: `${ANDINA_JEFE_TURNO.nombre}.\n${ANDINA_INGENIERO.nombre}.`,
       autorizado: { nombre: `${ANDINA_ADMINISTRADOR.nombre}.`, cargo: ANDINA_ADMINISTRADOR.cargo },
-      creado: ANDINA_SUPERVISORES[0],
-      tecnico: ANDINA_SUPERVISORES[0].nombre,
-      equipos: [{ etiqueta: 'División Andina', personas: ANDINA_PERSONAL }],
+      creado: ANDINA_OSCAR,
+      tecnico: ANDINA_OSCAR.nombre,
+      equipos: [
+        { etiqueta: 'Turno A', personas: ANDINA_TURNO_A },
+        { etiqueta: 'Turno B', personas: ANDINA_TURNO_B },
+        { etiqueta: 'Jefaturas y apoyo', personas: ANDINA_SUGERIDO },
+      ],
     },
   },
 };

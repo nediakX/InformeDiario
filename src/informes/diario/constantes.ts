@@ -95,13 +95,21 @@ export const DEFAULT_PERSONAL_B: PersonalItem[] = [
   { nombre: "Camilo Andrés Pailapan Hormazabal", cargo: "Supervisor de Operaciones" }
 ];
 
-/** Dotación por defecto de cada turno. Andina parte vacía: se agrega desde "Personal sugerido". */
-export const getDefaultPersonal = (letra: string, division: Division = 'el_salvador'): PersonalItem[] =>
-  // Otras divisiones parten con todo su personal (el de la división, p. ej. los 7 de Andina) y
-  // cada turno quita a quien no corresponda; la lista queda guardada por turno en este equipo.
-  division !== 'el_salvador'
-    ? CONFIG_DIVISION[division].personalSugerido.map(p => ({ ...p }))
-    : letra === 'B' ? DEFAULT_PERSONAL_B : DEFAULT_PERSONAL;
+/** Dotación por defecto de cada turno (la de la división; El Salvador usa sus listas de siempre). */
+export const getDefaultPersonal = (letra: string, division: Division = 'el_salvador'): PersonalItem[] => {
+  const porTurno = CONFIG_DIVISION[division].personalPorTurno;
+  if (division !== 'el_salvador' && porTurno) return (letra === 'B' ? porTurno.B : porTurno.A).map(p => ({ ...p }));
+  return letra === 'B' ? DEFAULT_PERSONAL_B : DEFAULT_PERSONAL;
+};
+
+// Lista que usó Andina antes de tener su dotación por turno: si quedó guardada tal cual en un
+// equipo, se reemplaza por la dotación del turno.
+const ANDINA_LISTA_ANTIGUA = [
+  'Cesar Enrique Orellana Martinez', 'Dennis William Gatica Martinez', 'Oscar Fabian Acuña Solis',
+  'Guillermo Arturo Soto Alvarado', 'Jose Luis Arévalo Guerra', 'Maikol Peña Gavidia', 'Luciano Salvador Olmos Torres',
+];
+const esListaAntiguaAndina = (lista: PersonalItem[]) =>
+  lista.length === ANDINA_LISTA_ANTIGUA.length && lista.every((p, i) => p.nombre === ANDINA_LISTA_ANTIGUA[i]);
 
 export const DEFAULT_ACTIVIDADES_DIA: string[] = [
   "Registro de Reunión Inicio de Turno.",
@@ -248,7 +256,9 @@ export type BorradorLocal = Partial<Omit<BorradorEntry, 'id' | 'evidenceBlocks'>
 export const getPersonalGuardado = (letra: string, division: Division = 'el_salvador'): PersonalItem[] => {
   try {
     const raw = localStorage.getItem(lsKeyPersonal(letra, division));
-    return raw ? JSON.parse(raw) : getDefaultPersonal(letra, division);
+    if (!raw) return getDefaultPersonal(letra, division);
+    const guardado = JSON.parse(raw) as PersonalItem[];
+    return division === 'andina' && esListaAntiguaAndina(guardado) ? getDefaultPersonal(letra, division) : guardado;
   } catch {
     return getDefaultPersonal(letra, division);
   }
