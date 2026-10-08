@@ -100,6 +100,7 @@ const ANDINA_TURNO_A: Firmante[] = [
   { nombre: 'Diego Salinas', cargo: TEC_TELECOM },
   { nombre: 'Felipe Sandoval', cargo: TEC_TELECOM },
   { nombre: 'Diego Diaz', cargo: TEC_TELECOM },
+  { nombre: 'Carlos Cisternas', cargo: TEC_TELECOM },
   { nombre: 'Sebastián Burgos', cargo: 'Técnico eléctrico' },
 ];
 const ANDINA_TURNO_B: Firmante[] = [
@@ -107,7 +108,6 @@ const ANDINA_TURNO_B: Firmante[] = [
   { nombre: 'Maikol Peña Gavidia', cargo: SUPERVISOR },
   { nombre: 'Luis Navarrete', cargo: 'Líder Técnico' },
   { nombre: 'Mario Espinosa', cargo: TEC_TELECOM },
-  { nombre: 'Carlos Cisternas', cargo: TEC_TELECOM },
   { nombre: 'Nicolas Jamen', cargo: TEC_TELECOM },
   { nombre: 'Leonardo Toro', cargo: TEC_TELECOM },
   { nombre: 'Victor Ñanco', cargo: 'Técnico eléctrico' },

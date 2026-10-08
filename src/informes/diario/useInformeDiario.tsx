@@ -21,6 +21,7 @@ import { hoyLocalISO } from '../../datos/fechas';
 import { VERTIV_TITLE, VERTIV_CARROS, VERTIV_ITEMS } from '../../datos/plantillaWord';
 import { letraDeFecha } from '../../datos/turnos';
 import { resolveImageBytes } from '../../lib/imagenes';
+import { ajustarImagenes } from '../../lib/ajusteImagenes';
 import { mapaFotosSubidas, aplicarFotosSubidas } from '../../lib/storage';
 
 import type { Dispatch, SetStateAction, RefObject } from 'react';
@@ -986,7 +987,7 @@ export function useInformeDiario({ view, setBorradores, borradoresRef, division 
       const header = new Header({
         children: [
           new Table({
-            width: { size: 100, type: WidthType.PERCENTAGE },
+            width: { size: 9360, type: WidthType.DXA },
             layout: TableLayoutType.FIXED,
             columnWidths: [2059, 4493, 2808],
             borders: cellBorders("000000"),
@@ -994,7 +995,7 @@ export function useInformeDiario({ view, setBorradores, borradoresRef, division 
               new TableRow({
                 children: [
                   new TableCell({
-                    width: { size: 22, type: WidthType.PERCENTAGE },
+                    width: { size: 2059, type: WidthType.DXA },
                     rowSpan: 3,
                     borders: cellBorders("000000"),
                     margins: headerCellMargins,
@@ -1007,7 +1008,7 @@ export function useInformeDiario({ view, setBorradores, borradoresRef, division 
                     })],
                   }),
                   new TableCell({
-                    width: { size: 48, type: WidthType.PERCENTAGE },
+                    width: { size: 4493, type: WidthType.DXA },
                     borders: cellBorders("000000"),
                     margins: headerCellMargins,
                     verticalAlign: VerticalAlign.CENTER,
@@ -1016,7 +1017,7 @@ export function useInformeDiario({ view, setBorradores, borradoresRef, division 
                     ],
                   }),
                   new TableCell({
-                    width: { size: 30, type: WidthType.PERCENTAGE },
+                    width: { size: 2808, type: WidthType.DXA },
                     borders: cellBorders("000000"),
                     margins: headerCellMargins,
                     verticalAlign: VerticalAlign.CENTER,
@@ -1030,7 +1031,7 @@ export function useInformeDiario({ view, setBorradores, borradoresRef, division 
               new TableRow({
                 children: [
                   new TableCell({
-                    width: { size: 48, type: WidthType.PERCENTAGE },
+                    width: { size: 4493, type: WidthType.DXA },
                     rowSpan: 2,
                     borders: cellBorders("000000"),
                     margins: headerCellMargins,
@@ -1040,7 +1041,7 @@ export function useInformeDiario({ view, setBorradores, borradoresRef, division 
                     ],
                   }),
                   new TableCell({
-                    width: { size: 30, type: WidthType.PERCENTAGE },
+                    width: { size: 2808, type: WidthType.DXA },
                     borders: cellBorders("000000"),
                     margins: headerCellMargins,
                     verticalAlign: VerticalAlign.CENTER,
@@ -1053,7 +1054,7 @@ export function useInformeDiario({ view, setBorradores, borradoresRef, division 
               new TableRow({
                 children: [
                   new TableCell({
-                    width: { size: 30, type: WidthType.PERCENTAGE },
+                    width: { size: 2808, type: WidthType.DXA },
                     borders: cellBorders("000000"),
                     margins: headerCellMargins,
                     verticalAlign: VerticalAlign.CENTER,
@@ -1093,7 +1094,7 @@ export function useInformeDiario({ view, setBorradores, borradoresRef, division 
       );
 
       const coverTable = new Table({
-        width: { size: 100, type: WidthType.PERCENTAGE },
+        width: { size: 9360, type: WidthType.DXA },
         layout: TableLayoutType.FIXED,
         columnWidths: [7000, 2360],
         borders: noBorders(),
@@ -1152,13 +1153,13 @@ export function useInformeDiario({ view, setBorradores, borradoresRef, division 
           cantSplit: false,
           children: [
             new TableCell({
-              width: { size: 50, type: WidthType.PERCENTAGE },
+              width: { size: 4680, type: WidthType.DXA },
               borders: cellBorders(),
               margins: { top: 100, bottom: 100, left: 100, right: 100 },
               children: [await buildEvidenceImgParagraph(leftPhoto, 280, 190)],
             }),
             new TableCell({
-              width: { size: 50, type: WidthType.PERCENTAGE },
+              width: { size: 4680, type: WidthType.DXA },
               borders: cellBorders(),
               margins: { top: 100, bottom: 100, left: 100, right: 100 },
               children: [await buildEvidenceImgParagraph(rightPhoto, 280, 190)],
@@ -1170,13 +1171,13 @@ export function useInformeDiario({ view, setBorradores, borradoresRef, division 
           cantSplit: false,
           children: [
             new TableCell({
-              width: { size: 50, type: WidthType.PERCENTAGE },
+              width: { size: 4680, type: WidthType.DXA },
               borders: cellBorders(),
               margins: { top: 60, bottom: 60, left: 80, right: 80 },
               children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: leftTitle, bold: true, size: 22, font: "Arial" })] })],
             }),
             new TableCell({
-              width: { size: 50, type: WidthType.PERCENTAGE },
+              width: { size: 4680, type: WidthType.DXA },
               borders: cellBorders(),
               margins: { top: 60, bottom: 60, left: 80, right: 80 },
               children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: rightTitle, bold: true, size: 22, font: "Arial" })] })],
@@ -1191,7 +1192,7 @@ export function useInformeDiario({ view, setBorradores, borradoresRef, division 
         itemPages.push(
           new Paragraph({ text: "", pageBreakBefore: true }),
           new Table({
-            width: { size: 100, type: WidthType.PERCENTAGE },
+            width: { size: 9360, type: WidthType.DXA },
             layout: TableLayoutType.FIXED,
             columnWidths: [9360],
             rows: [
@@ -1224,7 +1225,7 @@ export function useInformeDiario({ view, setBorradores, borradoresRef, division 
           children: [new TextRun({ text: VERTIV_TITLE, color: BLUE, size: 26, font: "Arial", bold: true })],
         }),
         new Table({
-          width: { size: 100, type: WidthType.PERCENTAGE },
+          width: { size: 9360, type: WidthType.DXA },
           layout: TableLayoutType.FIXED,
           columnWidths: [4680, 4680],
           rows: carroTableRows,
@@ -1236,7 +1237,49 @@ export function useInformeDiario({ view, setBorradores, borradoresRef, division 
         const usablePhotos = block.photos.filter((p): p is string => Boolean(p));
         if (usablePhotos.length === 0) return [];
 
-        const colWidth = Math.floor(100 / usablePhotos.length);
+        // Andina: cada imagen se dimensiona según su formato (vertical / horizontal), de a 2 por fila
+        // y repartidas en las hojas que hagan falta. El Salvador mantiene su formato de siempre.
+        if (informe.division === 'andina') {
+          const hojas = await ajustarImagenes(usablePhotos);
+          const leyenda = () => new TableRow({
+            children: [new TableCell({
+              columnSpan: 2,
+              width: { size: 9360, type: WidthType.DXA },
+              borders: cellBorders(),
+              children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: block.title, bold: true, size: 20, font: "Arial" })] })],
+            })],
+          });
+          return (await Promise.all(hojas.map(async hoja => {
+            const filas = await Promise.all(hoja.filas.map(async fila => new TableRow({
+              cantSplit: true,
+              children: await Promise.all(fila.map(async img => {
+                const { bytes, type } = await resolveImageBytes(img.src);
+                return new TableCell({
+                  width: { size: fila.length === 1 ? 9360 : 4680, type: WidthType.DXA },
+                  ...(fila.length === 1 ? { columnSpan: 2 } : {}),
+                  verticalAlign: VerticalAlign.CENTER,
+                  borders: cellBorders(),
+                  margins: { top: 100, bottom: 100, left: 100, right: 100 },
+                  children: [new Paragraph({
+                    alignment: AlignmentType.CENTER,
+                    children: [new ImageRun({ data: bytes, transformation: { width: img.anchoPx, height: img.altoPx }, type })],
+                  })],
+                });
+              })),
+            })));
+            return [
+              new Paragraph({ text: "", pageBreakBefore: true }),
+              new Table({
+                width: { size: 9360, type: WidthType.DXA },
+                layout: TableLayoutType.FIXED,
+                columnWidths: [4680, 4680],
+                rows: [...filas, leyenda()],
+              }),
+            ];
+          }))).flat();
+        }
+
+        const colWidth = Math.floor(9360 / usablePhotos.length);
         const isMantenimiento = block.title.startsWith("Registro de mantenimiento de GG.");
         const hasRequestedPhotoSize = EVIDENCIAS_CON_TAMANO_FOTOGRAFICO_SOLICITADO.has(block.title.trim().toLocaleLowerCase());
         const normalizedTitle = block.title.trim().toLocaleLowerCase();
@@ -1266,7 +1309,7 @@ export function useInformeDiario({ view, setBorradores, borradoresRef, division 
         const cells = await Promise.all(orientedPhotos.map(async dataUrl => {
           const { bytes, type } = await resolveImageBytes(dataUrl);
           return new TableCell({
-            width: { size: colWidth, type: WidthType.PERCENTAGE },
+            width: { size: colWidth, type: WidthType.DXA },
             borders: cellBorders(),
             margins: { top: 100, bottom: 100, left: 100, right: 100 },
             children: [new Paragraph({
@@ -1289,7 +1332,7 @@ export function useInformeDiario({ view, setBorradores, borradoresRef, division 
         return [
           new Paragraph({ text: "", pageBreakBefore: true }),
           new Table({
-            width: { size: 100, type: WidthType.PERCENTAGE },
+            width: { size: 9360, type: WidthType.DXA },
             layout: TableLayoutType.FIXED,
             columnWidths: usablePhotos.map(() => evidenceColumnWidth),
             rows: [new TableRow({ children: cells }), captionRow],
@@ -1316,7 +1359,7 @@ export function useInformeDiario({ view, setBorradores, borradoresRef, division 
       ] : [];
 
       const personalTable = new Table({
-        width: { size: 100, type: WidthType.PERCENTAGE },
+        width: { size: 9360, type: WidthType.DXA },
         layout: TableLayoutType.FIXED,
         columnWidths: [3900, 5460],
         borders: noBorders(),

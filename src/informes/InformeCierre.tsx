@@ -19,6 +19,7 @@ import { semanaDeFecha } from '../datos/turnos';
 import { configDivision, type Firmante } from '../datos/divisiones';
 import { useSesion } from '../auth/sesion';
 import { dataUrlToUint8Array, resolveImageBytes, urlToBase64 } from '../lib/imagenes';
+import { ajustarImagenes } from '../lib/ajusteImagenes';
 import { uploadPhotoIfNeeded } from '../lib/storage';
 import { esErrorDeRed } from '../lib/conexion';
 
@@ -485,7 +486,7 @@ export default function InformeCierre({ onBack }: InformeCierreProps) {
       const header = new Header({
         children: [
           new Table({
-            width: { size: 100, type: WidthType.PERCENTAGE },
+            width: { size: 9360, type: WidthType.DXA },
             layout: TableLayoutType.FIXED,
             columnWidths: [2059, 4493, 2808],
             borders: cellBorders("000000"),
@@ -493,14 +494,14 @@ export default function InformeCierre({ onBack }: InformeCierreProps) {
               new TableRow({
                 children: [
                   new TableCell({
-                    width: { size: 22, type: WidthType.PERCENTAGE },
+                    width: { size: 2059, type: WidthType.DXA },
                     borders: cellBorders("000000"),
                     margins: { top: 100, bottom: 100, left: 150, right: 150 },
                     verticalAlign: VerticalAlign.CENTER,
                     children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new ImageRun({ data: logoBytes, transformation: { width: 110, height: 36 }, type: logoType })] })],
                   }),
                   new TableCell({
-                    width: { size: 48, type: WidthType.PERCENTAGE },
+                    width: { size: 4493, type: WidthType.DXA },
                     borders: cellBorders("000000"),
                     margins: { top: 100, bottom: 100, left: 150, right: 150 },
                     verticalAlign: VerticalAlign.CENTER,
@@ -510,7 +511,7 @@ export default function InformeCierre({ onBack }: InformeCierreProps) {
                     ],
                   }),
                   new TableCell({
-                    width: { size: 30, type: WidthType.PERCENTAGE },
+                    width: { size: 2808, type: WidthType.DXA },
                     borders: cellBorders("000000"),
                     margins: { top: 100, bottom: 100, left: 150, right: 150 },
                     verticalAlign: VerticalAlign.CENTER,
@@ -539,7 +540,7 @@ export default function InformeCierre({ onBack }: InformeCierreProps) {
       ];
 
       const coverTable = new Table({
-        width: { size: 100, type: WidthType.PERCENTAGE },
+        width: { size: 9360, type: WidthType.DXA },
         layout: TableLayoutType.FIXED,
         columnWidths: [7000, 2360],
         borders: noBorders(),
@@ -579,7 +580,7 @@ export default function InformeCierre({ onBack }: InformeCierreProps) {
         : `Este documento detalla las actividades realizadas durante el Turno ${letraTurno} en ${faena}.`;
 
       const personalTable = new Table({
-        width: { size: 100, type: WidthType.PERCENTAGE },
+        width: { size: 9360, type: WidthType.DXA },
         layout: TableLayoutType.FIXED,
         columnWidths: [3900, 5460],
         borders: noBorders(),
@@ -640,19 +641,49 @@ export default function InformeCierre({ onBack }: InformeCierreProps) {
           : [new Paragraph({ children: [new TextRun({ text: "Sin actividades pendientes.", italics: true, color: "999999", font: "Arial" })] })]),
       ];
 
-      const seccionesImg: (docx.Paragraph | docx.Table)[] = seccionesResueltas.flatMap(seccion => {
+      const seccionesImg: (docx.Paragraph | docx.Table)[] = (await Promise.all(seccionesResueltas.map(async (seccion): Promise<(docx.Paragraph | docx.Table)[]> => {
         const usablePhotos = seccion.photos.filter((p): p is string => Boolean(p));
         if (!seccion.title.trim() && usablePhotos.length === 0) return [];
+
+        // Andina: cada imagen se dimensiona según su formato (ver lib/ajusteImagenes.ts).
+        if (division === 'andina' && usablePhotos.length) {
+          const titulo = new Paragraph({ heading: HeadingLevel.HEADING_1, children: [new TextRun({ text: `${seccionNum++}) ${seccion.title || "Imágenes"}`, color: BLUE, size: 26, font: "Arial", bold: true })] });
+          // El título de la sección ocupa parte de la primera hoja: se deja algo menos de alto.
+          const hojas = await ajustarImagenes(usablePhotos, { altoHoja: 490 });
+          return (await Promise.all(hojas.map(async (hoja, h) => {
+            const filas = await Promise.all(hoja.filas.map(async fila => new TableRow({
+              cantSplit: true,
+              children: await Promise.all(fila.map(async img => {
+                const { bytes, type } = await resolveImageBytes(img.src);
+                return new TableCell({
+                  width: { size: fila.length === 1 ? 9360 : 4680, type: WidthType.DXA },
+                  ...(fila.length === 1 ? { columnSpan: 2 } : {}),
+                  verticalAlign: VerticalAlign.CENTER,
+                  borders: cellBorders(),
+                  margins: { top: 100, bottom: 100, left: 100, right: 100 },
+                  children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new ImageRun({ data: bytes, transformation: { width: img.anchoPx, height: img.altoPx }, type })] })],
+                });
+              })),
+            })));
+            return [
+              new Paragraph({ text: "", pageBreakBefore: true }),
+              ...(h === 0 ? [titulo] : []),
+              new Table({ width: { size: 9360, type: WidthType.DXA }, layout: TableLayoutType.FIXED, columnWidths: [4680, 4680], rows: filas }),
+            ];
+          }))).flat();
+        }
         const rows: docx.TableRow[] = [];
         for (let i = 0; i < usablePhotos.length; i += 2) {
           const pair = usablePhotos.slice(i, i + 2);
-          const colWidth = Math.floor(100 / pair.length);
+          const colWidth = Math.floor(9360 / pair.length);
           rows.push(new TableRow({
             children: pair.map(photo => {
               const bytes = dataUrlToUint8Array(photo);
               const type = photo.startsWith("data:image/png") ? "png" : "jpg";
               return new TableCell({
-                width: { size: colWidth, type: WidthType.PERCENTAGE },
+                width: { size: colWidth, type: WidthType.DXA },
+                // Una sola foto en la fila: ocupa las 2 columnas (en iOS si no se indica queda angosta).
+                ...(pair.length === 1 ? { columnSpan: 2 } : {}),
                 borders: cellBorders(),
                 margins: { top: 100, bottom: 100, left: 100, right: 100 },
                 children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new ImageRun({ data: bytes, transformation: { width: pair.length === 1 ? 500 : 280, height: pair.length === 1 ? 375 : 210 }, type })] })],
@@ -663,9 +694,9 @@ export default function InformeCierre({ onBack }: InformeCierreProps) {
         return [
           new Paragraph({ text: "", pageBreakBefore: true }),
           new Paragraph({ heading: HeadingLevel.HEADING_1, children: [new TextRun({ text: `${seccionNum++}) ${seccion.title || "Imágenes"}`, color: BLUE, size: 26, font: "Arial", bold: true })] }),
-          ...(usablePhotos.length ? [new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, layout: TableLayoutType.FIXED, columnWidths: [4680, 4680], rows })] : [new Paragraph({ children: [new TextRun({ text: "(Sin imágenes cargadas)", italics: true, color: "999999", font: "Arial" })] })]),
+          ...(usablePhotos.length ? [new Table({ width: { size: 9360, type: WidthType.DXA }, layout: TableLayoutType.FIXED, columnWidths: [4680, 4680], rows })] : [new Paragraph({ children: [new TextRun({ text: "(Sin imágenes cargadas)", italics: true, color: "999999", font: "Arial" })] })]),
         ];
-      });
+      }))).flat();
 
       const camionetasValidas = camionetasResueltas.filter(c => c.placa.trim() || c.antes || c.despues);
       const seccionCamionetas: (docx.Paragraph | docx.Table)[] = camionetasValidas.length ? [
@@ -673,7 +704,7 @@ export default function InformeCierre({ onBack }: InformeCierreProps) {
         new Paragraph({ heading: HeadingLevel.HEADING_1, children: [new TextRun({ text: `${seccionNum++}) Camionetas`, color: BLUE, size: 26, font: "Arial", bold: true })] }),
         ...camionetasValidas.flatMap(c => [
           new Table({
-            width: { size: 100, type: WidthType.PERCENTAGE },
+            width: { size: 9360, type: WidthType.DXA },
             layout: TableLayoutType.FIXED,
             columnWidths: [4680, 4680],
             rows: [

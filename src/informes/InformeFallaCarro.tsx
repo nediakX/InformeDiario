@@ -553,7 +553,7 @@ export default function InformeFallaCarro({ onBack, borradorInicial = null }: In
       const header = new Header({
         children: [
           new Table({
-            width: { size: 100, type: WidthType.PERCENTAGE },
+            width: { size: 9360, type: WidthType.DXA },
             layout: TableLayoutType.FIXED,
             columnWidths: [2059, 4493, 2808],
             borders: cellBorders("000000"),
@@ -561,7 +561,7 @@ export default function InformeFallaCarro({ onBack, borradorInicial = null }: In
               new TableRow({
                 children: [
                   new TableCell({
-                    width: { size: 22, type: WidthType.PERCENTAGE },
+                    width: { size: 2059, type: WidthType.DXA },
                     borders: cellBorders("000000"),
                     margins: headerCellMargins,
                     verticalAlign: VerticalAlign.CENTER,
@@ -571,7 +571,7 @@ export default function InformeFallaCarro({ onBack, borradorInicial = null }: In
                     })],
                   }),
                   new TableCell({
-                    width: { size: 48, type: WidthType.PERCENTAGE },
+                    width: { size: 4493, type: WidthType.DXA },
                     borders: cellBorders("000000"),
                     margins: headerCellMargins,
                     verticalAlign: VerticalAlign.CENTER,
@@ -581,7 +581,7 @@ export default function InformeFallaCarro({ onBack, borradorInicial = null }: In
                     ],
                   }),
                   new TableCell({
-                    width: { size: 30, type: WidthType.PERCENTAGE },
+                    width: { size: 2808, type: WidthType.DXA },
                     borders: cellBorders("000000"),
                     margins: headerCellMargins,
                     verticalAlign: VerticalAlign.CENTER,
@@ -631,7 +631,7 @@ export default function InformeFallaCarro({ onBack, borradorInicial = null }: In
       ];
 
       const coverTable = new Table({
-        width: { size: 100, type: WidthType.PERCENTAGE },
+        width: { size: 9360, type: WidthType.DXA },
         layout: TableLayoutType.FIXED,
         columnWidths: [6360, 3000],
         borders: noBorders(),
@@ -644,8 +644,9 @@ export default function InformeFallaCarro({ onBack, borradorInicial = null }: In
               margins: { left: 260, top: 100, bottom: 100, right: 100 },
               children: [
                 new Table({
-                  width: { size: 100, type: WidthType.PERCENTAGE },
+                  width: { size: 2640, type: WidthType.DXA },
                   layout: TableLayoutType.FIXED,
+                  columnWidths: [2640],
                   borders: cellBorders("000000"),
                   rows: [new TableRow({ children: [new TableCell({ borders: cellBorders("000000"), margins: { top: 100, bottom: 100, left: 120, right: 120 }, children: cajaFirmas })] })],
                 }),
@@ -708,7 +709,7 @@ export default function InformeFallaCarro({ onBack, borradorInicial = null }: In
         }
 
         if (rows.length === 0) return null;
-        return new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, layout: TableLayoutType.FIXED, columnWidths: [4680, 4680], borders: cellBorders(), rows });
+        return new Table({ width: { size: 9360, type: WidthType.DXA }, layout: TableLayoutType.FIXED, columnWidths: [4680, 4680], borders: cellBorders(), rows });
       };
 
       const fotoBlocks: (docx.Paragraph | docx.Table)[] = [

@@ -428,7 +428,7 @@ export default function InformeMantenimiento({ onBack, borradorInicial = null }:
       const header = new Header({
         children: [
           new Table({
-            width: { size: 100, type: WidthType.PERCENTAGE },
+            width: { size: 9360, type: WidthType.DXA },
             layout: TableLayoutType.FIXED,
             columnWidths: [2059, 4493, 2808],
             borders: cellBorders("000000"),
@@ -436,7 +436,7 @@ export default function InformeMantenimiento({ onBack, borradorInicial = null }:
               new TableRow({
                 children: [
                   new TableCell({
-                    width: { size: 22, type: WidthType.PERCENTAGE },
+                    width: { size: 2059, type: WidthType.DXA },
                     borders: cellBorders("000000"),
                     margins: headerCellMargins,
                     verticalAlign: VerticalAlign.CENTER,
@@ -446,7 +446,7 @@ export default function InformeMantenimiento({ onBack, borradorInicial = null }:
                     })],
                   }),
                   new TableCell({
-                    width: { size: 48, type: WidthType.PERCENTAGE },
+                    width: { size: 4493, type: WidthType.DXA },
                     borders: cellBorders("000000"),
                     margins: headerCellMargins,
                     verticalAlign: VerticalAlign.CENTER,
@@ -456,7 +456,7 @@ export default function InformeMantenimiento({ onBack, borradorInicial = null }:
                     ],
                   }),
                   new TableCell({
-                    width: { size: 30, type: WidthType.PERCENTAGE },
+                    width: { size: 2808, type: WidthType.DXA },
                     borders: cellBorders("000000"),
                     margins: headerCellMargins,
                     verticalAlign: VerticalAlign.CENTER,
@@ -498,7 +498,7 @@ export default function InformeMantenimiento({ onBack, borradorInicial = null }:
       ];
 
       const coverTable = new Table({
-        width: { size: 100, type: WidthType.PERCENTAGE },
+        width: { size: 9360, type: WidthType.DXA },
         layout: TableLayoutType.FIXED,
         columnWidths: [7000, 2360],
         borders: noBorders(),
@@ -533,7 +533,7 @@ export default function InformeMantenimiento({ onBack, borradorInicial = null }:
       });
 
       const registroTable = new Table({
-        width: { size: 100, type: WidthType.PERCENTAGE },
+        width: { size: 9360, type: WidthType.DXA },
         layout: TableLayoutType.FIXED,
         columnWidths: [3200, 6160],
         borders: cellBorders(),
@@ -598,7 +598,7 @@ export default function InformeMantenimiento({ onBack, borradorInicial = null }:
         }
         const cells = await Promise.all(pair.map(p => buildFotoCell(p, Math.floor(9360 / pair.length))));
         fotoBlocks.push(new Table({
-          width: { size: 100, type: WidthType.PERCENTAGE },
+          width: { size: 9360, type: WidthType.DXA },
           layout: TableLayoutType.FIXED,
           columnWidths: pair.map(() => Math.floor(9360 / pair.length)),
           rows: [new TableRow({ cantSplit: false, children: cells })],
@@ -608,7 +608,7 @@ export default function InformeMantenimiento({ onBack, borradorInicial = null }:
 
       // --- 4. Programa de mantenimiento ---
       const repuestosTable = new Table({
-        width: { size: 100, type: WidthType.PERCENTAGE },
+        width: { size: 9360, type: WidthType.DXA },
         layout: TableLayoutType.FIXED,
         columnWidths: [3120, 3120, 3120],
         borders: cellBorders(),
@@ -633,7 +633,7 @@ export default function InformeMantenimiento({ onBack, borradorInicial = null }:
       });
 
       const datosNodoTable = new Table({
-        width: { size: 100, type: WidthType.PERCENTAGE }, layout: TableLayoutType.FIXED, columnWidths: [3200, 6160], borders: cellBorders(),
+        width: { size: 9360, type: WidthType.DXA }, layout: TableLayoutType.FIXED, columnWidths: [3200, 6160], borders: cellBorders(),
         rows: [
           infoRow("Nombre de sitio", sitio),
           infoRow("Nombre ejecutante", ejecutante),
@@ -642,7 +642,7 @@ export default function InformeMantenimiento({ onBack, borradorInicial = null }:
       });
 
       const filtrosTable = new Table({
-        width: { size: 100, type: WidthType.PERCENTAGE },
+        width: { size: 9360, type: WidthType.DXA },
         layout: TableLayoutType.FIXED,
         columnWidths: [2500, 1500, 2000, 3360],
         borders: cellBorders(),
@@ -658,7 +658,7 @@ export default function InformeMantenimiento({ onBack, borradorInicial = null }:
       });
 
       const horasNivelesTable = new Table({
-        width: { size: 100, type: WidthType.PERCENTAGE }, layout: TableLayoutType.FIXED, columnWidths: [3200, 6160], borders: cellBorders(),
+        width: { size: 9360, type: WidthType.DXA }, layout: TableLayoutType.FIXED, columnWidths: [3200, 6160], borders: cellBorders(),
         rows: [
           infoRow("Horómetro", horometro),
           infoRow("Cantidad de partidas", cantidadPartidas),
@@ -669,7 +669,7 @@ export default function InformeMantenimiento({ onBack, borradorInicial = null }:
       });
 
       const bateriaTable = new Table({
-        width: { size: 100, type: WidthType.PERCENTAGE }, layout: TableLayoutType.FIXED, columnWidths: [3200, 6160], borders: cellBorders(),
+        width: { size: 9360, type: WidthType.DXA }, layout: TableLayoutType.FIXED, columnWidths: [3200, 6160], borders: cellBorders(),
         rows: [
           infoRow("Cantidad de baterías", cantidadBaterias),
           infoRow("Capacidad batería A/HR", capacidadBateria),
@@ -679,7 +679,7 @@ export default function InformeMantenimiento({ onBack, borradorInicial = null }:
       });
 
       const verificacionesTable = new Table({
-        width: { size: 100, type: WidthType.PERCENTAGE },
+        width: { size: 9360, type: WidthType.DXA },
         layout: TableLayoutType.FIXED,
         columnWidths: [4160, 1600, 3600],
         borders: cellBorders(),
@@ -702,7 +702,7 @@ export default function InformeMantenimiento({ onBack, borradorInicial = null }:
         (horasProximaMantencion ? ` y su próxima mantención se realizará a las ${horasProximaMantencion} horas, de acuerdo con lo indicado por el fabricante.` : ".");
 
       const planTable = new Table({
-        width: { size: 100, type: WidthType.PERCENTAGE },
+        width: { size: 9360, type: WidthType.DXA },
         layout: TableLayoutType.FIXED,
         columnWidths: [4160, 2600, 2600],
         borders: cellBorders(),
@@ -722,7 +722,7 @@ export default function InformeMantenimiento({ onBack, borradorInicial = null }:
       });
 
       const proximoTable = new Table({
-        width: { size: 100, type: WidthType.PERCENTAGE }, layout: TableLayoutType.FIXED, columnWidths: [3200, 6160], borders: cellBorders(),
+        width: { size: 9360, type: WidthType.DXA }, layout: TableLayoutType.FIXED, columnWidths: [3200, 6160], borders: cellBorders(),
         rows: [
           infoRow("Fecha próximo mantenimiento", fechaProximoMantenimiento ? formatFechaLarga(fechaProximoMantenimiento) : "—"),
           infoRow("Horómetro estimado", horasProximaMantencion),

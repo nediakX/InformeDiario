@@ -43,10 +43,8 @@ export function cargarImagen(src: string): Promise<HTMLImageElement> {
 /** Lienzo con la imagen, achicada si es muy grande (el procesamiento es más rápido y la calidad sobra). */
 export function lienzoDesdeImagen(img: HTMLImageElement, ladoMaximo = 2000): HTMLCanvasElement {
   const escala = Math.min(1, ladoMaximo / Math.max(img.naturalWidth, img.naturalHeight));
-  const canvas = document.createElement('canvas');
-  canvas.width = Math.round(img.naturalWidth * escala);
-  canvas.height = Math.round(img.naturalHeight * escala);
-  canvas.getContext('2d')?.drawImage(img, 0, 0, canvas.width, canvas.height);
+  const canvas = nuevoLienzo(img.naturalWidth * escala, img.naturalHeight * escala);
+  contexto(canvas).drawImage(img, 0, 0, canvas.width, canvas.height);
   return canvas;
 }
 
@@ -71,10 +69,15 @@ export function esquinasPorDefecto(ancho: number, alto: number): Esquinas {
 export async function detectarHoja(canvas: HTMLCanvasElement): Promise<Esquinas | null> {
   const cv = await cargarOpenCv();
   // Se trabaja en una copia chica: más rápido y menos ruido.
+  // (Se achica con el lienzo antes de pasarla a OpenCV: en iOS su memoria es muy limitada.)
   const escala = Math.min(1, 800 / Math.max(canvas.width, canvas.height));
-  const src = cv.imread(canvas);
-  const chica = new cv.Mat();
-  cv.resize(src, chica, new cv.Size(Math.round(canvas.width * escala), Math.round(canvas.height * escala)), 0, 0, cv.INTER_AREA);
+  const reducido = nuevoLienzo(canvas.width * escala, canvas.height * escala);
+  const rctx = contexto(reducido);
+  rctx.imageSmoothingQuality = 'high';
+  rctx.drawImage(canvas, 0, 0, reducido.width, reducido.height);
+  const src = cv.imread(reducido);
+  liberarLienzo(reducido);
+  const chica = src.clone();
   const gris = new cv.Mat(); const borroso = new cv.Mat(); const bordes = new cv.Mat(); const umbral = new cv.Mat();
   const contornos = new cv.MatVector(); const jerarquia = new cv.Mat();
   const kernel = cv.Mat.ones(5, 5, cv.CV_8U);
@@ -118,26 +121,136 @@ export async function detectarHoja(canvas: HTMLCanvasElement): Promise<Esquinas 
   return ordenar(puntos.map(p => ({ x: p.x + (cx - p.x) * 0.012, y: p.y + (cy - p.y) * 0.012 })));
 }
 
+// --- Utilidades de lienzo ------------------------------------------------------------------------
+// En iOS (Safari) hay un tope de memoria para lienzos y para OpenCV (WebAssembly). Por eso el
+// enderezado y el filtro se hacen en JavaScript puro, y los lienzos que ya no se usan se liberan.
+
+function contexto(canvas: HTMLCanvasElement): CanvasRenderingContext2D {
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  if (!ctx) throw new Error('El navegador no entregó memoria para la imagen');
+  return ctx;
+}
+
+function nuevoLienzo(ancho: number, alto: number): HTMLCanvasElement {
+  const lienzo = document.createElement('canvas');
+  lienzo.width = Math.max(1, Math.round(ancho));
+  lienzo.height = Math.max(1, Math.round(alto));
+  return lienzo;
+}
+
+/** Libera la memoria de un lienzo (clave en iOS, donde se acumula hasta fallar). */
+export function liberarLienzo(canvas: HTMLCanvasElement | null | undefined) {
+  if (!canvas) return;
+  canvas.width = 0;
+  canvas.height = 0;
+}
+
+/** Resuelve A·x = b (8×8) por eliminación de Gauss con pivoteo. */
+function resolver(a: number[][], b: number[]): number[] {
+  const n = b.length;
+  const m = a.map((fila, i) => [...fila, b[i]]);
+  for (let c = 0; c < n; c++) {
+    let piv = c;
+    for (let f = c + 1; f < n; f++) if (Math.abs(m[f][c]) > Math.abs(m[piv][c])) piv = f;
+    [m[c], m[piv]] = [m[piv], m[c]];
+    if (Math.abs(m[c][c]) < 1e-12) throw new Error('Esquinas inválidas');
+    for (let f = 0; f < n; f++) {
+      if (f === c) continue;
+      const k = m[f][c] / m[c][c];
+      for (let j = c; j <= n; j++) m[f][j] -= k * m[c][j];
+    }
+  }
+  return m.map((fila, i) => fila[n] / fila[i]);
+}
+
+/** Homografía que lleva los puntos "desde" a los puntos "hacia". */
+function homografia(desde: Punto[], hacia: Punto[]): number[] {
+  const a: number[][] = []; const b: number[] = [];
+  for (let i = 0; i < 4; i++) {
+    const { x, y } = desde[i]; const { x: u, y: v } = hacia[i];
+    a.push([x, y, 1, 0, 0, 0, -u * x, -u * y]); b.push(u);
+    a.push([0, 0, 0, x, y, 1, -v * x, -v * y]); b.push(v);
+  }
+  return [...resolver(a, b), 1];
+}
+
 /** Endereza la hoja: devuelve un lienzo con solo el documento, visto de frente. */
 export async function enderezar(canvas: HTMLCanvasElement, esquinas: Esquinas): Promise<HTMLCanvasElement> {
-  const cv = await cargarOpenCv();
   const [tl, tr, br, bl] = esquinas;
   const dist = (a: Punto, b: Punto) => Math.hypot(a.x - b.x, a.y - b.y);
-  const ancho = Math.round(Math.max(dist(tl, tr), dist(bl, br)));
-  const alto = Math.round(Math.max(dist(tl, bl), dist(tr, br)));
-  const src = cv.imread(canvas);
-  const origen = cv.matFromArray(4, 1, cv.CV_32FC2, [tl.x, tl.y, tr.x, tr.y, br.x, br.y, bl.x, bl.y]);
-  const destino = cv.matFromArray(4, 1, cv.CV_32FC2, [0, 0, ancho, 0, ancho, alto, 0, alto]);
-  const m = cv.getPerspectiveTransform(origen, destino);
-  const salida = new cv.Mat();
-  try {
-    cv.warpPerspective(src, salida, m, new cv.Size(ancho, alto), cv.INTER_LINEAR, cv.BORDER_REPLICATE);
-    const lienzo = document.createElement('canvas');
-    cv.imshow(lienzo, salida);
-    return lienzo;
-  } finally {
-    [src, origen, destino, m, salida].forEach(x => x.delete());
+  let ancho = Math.max(dist(tl, tr), dist(bl, br));
+  let alto = Math.max(dist(tl, bl), dist(tr, br));
+  // Tope de tamaño: suficiente para leer bien en el Word y liviano para el teléfono.
+  const tope = Math.min(1, 2000 / Math.max(ancho, alto));
+  ancho = Math.max(1, Math.round(ancho * tope));
+  alto = Math.max(1, Math.round(alto * tope));
+
+  // Se mapea cada píxel del resultado a la foto original (bilineal).
+  const h = homografia([{ x: 0, y: 0 }, { x: ancho, y: 0 }, { x: ancho, y: alto }, { x: 0, y: alto }], esquinas);
+  const sw = canvas.width; const sh = canvas.height;
+  const origen = contexto(canvas).getImageData(0, 0, sw, sh).data;
+  const salida = nuevoLienzo(ancho, alto);
+  const ctx = contexto(salida);
+  const imagen = ctx.createImageData(ancho, alto);
+  const d = imagen.data;
+  let o = 0;
+  for (let v = 0; v < alto; v++) {
+    const vy = v + 0.5;
+    for (let u = 0; u < ancho; u++) {
+      const ux = u + 0.5;
+      const w = h[6] * ux + h[7] * vy + 1;
+      let x = (h[0] * ux + h[1] * vy + h[2]) / w - 0.5;
+      let y = (h[3] * ux + h[4] * vy + h[5]) / w - 0.5;
+      if (x < 0) x = 0; else if (x > sw - 1) x = sw - 1;
+      if (y < 0) y = 0; else if (y > sh - 1) y = sh - 1;
+      const x0 = x | 0; const y0 = y | 0;
+      const x1 = x0 + 1 < sw ? x0 + 1 : x0; const y1 = y0 + 1 < sh ? y0 + 1 : y0;
+      const fx = x - x0; const fy = y - y0;
+      const p00 = (y0 * sw + x0) * 4; const p10 = (y0 * sw + x1) * 4;
+      const p01 = (y1 * sw + x0) * 4; const p11 = (y1 * sw + x1) * 4;
+      for (let c = 0; c < 3; c++) {
+        const arriba = origen[p00 + c] + (origen[p10 + c] - origen[p00 + c]) * fx;
+        const abajo = origen[p01 + c] + (origen[p11 + c] - origen[p01 + c]) * fx;
+        d[o + c] = arriba + (abajo - arriba) * fy;
+      }
+      d[o + 3] = 255;
+      o += 4;
+    }
   }
+  ctx.putImageData(imagen, 0, 0);
+  return salida;
+}
+
+/** Máximo (dilatación) separable con ventana 2r+1, sobre un plano de ancho×alto. */
+function maximo(plano: Float32Array, ancho: number, alto: number, r: number): Float32Array {
+  const tmp = new Float32Array(plano.length); const out = new Float32Array(plano.length);
+  for (let y = 0; y < alto; y++) for (let x = 0; x < ancho; x++) {
+    let m = 0;
+    for (let k = Math.max(0, x - r); k <= Math.min(ancho - 1, x + r); k++) { const val = plano[y * ancho + k]; if (val > m) m = val; }
+    tmp[y * ancho + x] = m;
+  }
+  for (let y = 0; y < alto; y++) for (let x = 0; x < ancho; x++) {
+    let m = 0;
+    for (let k = Math.max(0, y - r); k <= Math.min(alto - 1, y + r); k++) { const val = tmp[k * ancho + x]; if (val > m) m = val; }
+    out[y * ancho + x] = m;
+  }
+  return out;
+}
+
+/** Promedio (desenfoque de caja) separable con ventana 2r+1. */
+function caja(plano: Float32Array, ancho: number, alto: number, r: number): Float32Array {
+  const tmp = new Float32Array(plano.length); const out = new Float32Array(plano.length);
+  for (let y = 0; y < alto; y++) for (let x = 0; x < ancho; x++) {
+    let s = 0; let n = 0;
+    for (let k = Math.max(0, x - r); k <= Math.min(ancho - 1, x + r); k++) { s += plano[y * ancho + k]; n++; }
+    tmp[y * ancho + x] = s / n;
+  }
+  for (let y = 0; y < alto; y++) for (let x = 0; x < ancho; x++) {
+    let s = 0; let n = 0;
+    for (let k = Math.max(0, y - r); k <= Math.min(alto - 1, y + r); k++) { s += tmp[k * ancho + x]; n++; }
+    out[y * ancho + x] = s / n;
+  }
+  return out;
 }
 
 /**
@@ -148,55 +261,62 @@ export async function enderezar(canvas: HTMLCanvasElement, esquinas: Esquinas): 
  */
 export async function aplicarFiltro(canvas: HTMLCanvasElement, filtro: FiltroEscaneo): Promise<HTMLCanvasElement> {
   if (filtro === 'original') return canvas;
-  const cv = await cargarOpenCv();
-  const src = cv.imread(canvas);
-  const base = new cv.Mat();
-  const planos = new cv.MatVector();
-  const resultado = new cv.MatVector();
-  const tamano = new cv.Size(canvas.width, canvas.height);
-  const kernel = cv.Mat.ones(7, 7, cv.CV_8U);
-  const temporales: Cv[] = [];
-  try {
-    if (filtro === 'documento') cv.cvtColor(src, base, cv.COLOR_RGBA2GRAY);
-    else cv.cvtColor(src, base, cv.COLOR_RGBA2RGB);
-    cv.split(base, planos);
-    const escala = Math.min(1, 500 / Math.max(canvas.width, canvas.height));
-    const chico = new cv.Size(Math.max(1, Math.round(canvas.width * escala)), Math.max(1, Math.round(canvas.height * escala)));
-    for (let i = 0; i < planos.size(); i++) {
-      const plano = planos.get(i);
-      const reducido = new cv.Mat(); const fondo = new cv.Mat(); const fondoGrande = new cv.Mat(); const limpio = new cv.Mat();
-      temporales.push(plano, reducido, fondo, fondoGrande, limpio);
-      cv.resize(plano, reducido, chico, 0, 0, cv.INTER_AREA);
-      cv.dilate(reducido, fondo, kernel);           // borra el texto: queda solo el papel
-      cv.medianBlur(fondo, fondo, 21);              // suaviza: sombras y luz despareja
-      cv.resize(fondo, fondoGrande, tamano, 0, 0, cv.INTER_LINEAR);
-      cv.divide(plano, fondoGrande, limpio, 255);   // papel → blanco parejo
-      // Contraste: el gris claro pasa a blanco y el texto se oscurece.
-      limpio.convertTo(limpio, -1, filtro === 'documento' ? 1.35 : 1.15, filtro === 'documento' ? -70 : -25);
-      resultado.push_back(limpio);
+  const ancho = canvas.width; const alto = canvas.height;
+  const pixeles = contexto(canvas).getImageData(0, 0, ancho, alto);
+  const d = pixeles.data;
+  const gris = filtro === 'documento';
+
+  // Copia chica para estimar el fondo del papel.
+  const escala = Math.min(1, 500 / Math.max(ancho, alto));
+  const cw = Math.max(1, Math.round(ancho * escala)); const ch = Math.max(1, Math.round(alto * escala));
+  const chico = nuevoLienzo(cw, ch);
+  const cctx = contexto(chico);
+  cctx.drawImage(canvas, 0, 0, cw, ch);
+  const cd = cctx.getImageData(0, 0, cw, ch).data;
+  const canales = gris ? 1 : 3;
+  const fondos: Float32Array[] = [];
+  for (let c = 0; c < canales; c++) {
+    const plano = new Float32Array(cw * ch);
+    for (let i = 0; i < cw * ch; i++) {
+      const p = i * 4;
+      plano[i] = gris ? 0.299 * cd[p] + 0.587 * cd[p + 1] + 0.114 * cd[p + 2] : cd[p + c];
     }
-    const unido = new cv.Mat();
-    temporales.push(unido);
-    cv.merge(resultado, unido);
-    const lienzo = document.createElement('canvas');
-    cv.imshow(lienzo, unido);
-    return lienzo;
-  } finally {
-    [src, base, planos, resultado, kernel, ...temporales].forEach(x => { try { x.delete(); } catch { /* ya liberado */ } });
+    // Borra el texto (máximo) y suaviza sombras y luz despareja (dos pasadas de caja).
+    fondos.push(caja(caja(maximo(plano, cw, ch, 3), cw, ch, 10), cw, ch, 10));
   }
+  liberarLienzo(chico);
+
+  const ganancia = gris ? 1.35 : 1.15; const desplazamiento = gris ? -70 : -25;
+  const sx = (cw - 1) / Math.max(1, ancho - 1); const sy = (ch - 1) / Math.max(1, alto - 1);
+  for (let y = 0; y < alto; y++) {
+    const fy = y * sy; const y0 = fy | 0; const y1 = Math.min(ch - 1, y0 + 1); const ty = fy - y0;
+    for (let x = 0; x < ancho; x++) {
+      const fx = x * sx; const x0 = fx | 0; const x1 = Math.min(cw - 1, x0 + 1); const tx = fx - x0;
+      const p = (y * ancho + x) * 4;
+      const lum = 0.299 * d[p] + 0.587 * d[p + 1] + 0.114 * d[p + 2];
+      for (let c = 0; c < 3; c++) {
+        const f = fondos[gris ? 0 : c];
+        const a = f[y0 * cw + x0] + (f[y0 * cw + x1] - f[y0 * cw + x0]) * tx;
+        const b = f[y1 * cw + x0] + (f[y1 * cw + x1] - f[y1 * cw + x0]) * tx;
+        const fondo = Math.max(1, a + (b - a) * ty);
+        const valor = gris ? lum : d[p + c];
+        const limpio = Math.min(255, (valor * 255) / fondo);
+        d[p + c] = limpio * ganancia + desplazamiento; // Uint8Clamped recorta a 0–255
+      }
+    }
+  }
+  const salida = nuevoLienzo(ancho, alto);
+  contexto(salida).putImageData(pixeles, 0, 0);
+  return salida;
 }
 
 /** Gira el lienzo 90° a la derecha. */
 export function rotar90(canvas: HTMLCanvasElement): HTMLCanvasElement {
-  const lienzo = document.createElement('canvas');
-  lienzo.width = canvas.height;
-  lienzo.height = canvas.width;
-  const ctx = lienzo.getContext('2d');
-  if (ctx) {
-    ctx.translate(lienzo.width, 0);
-    ctx.rotate(Math.PI / 2);
-    ctx.drawImage(canvas, 0, 0);
-  }
+  const lienzo = nuevoLienzo(canvas.height, canvas.width);
+  const ctx = contexto(lienzo);
+  ctx.translate(lienzo.width, 0);
+  ctx.rotate(Math.PI / 2);
+  ctx.drawImage(canvas, 0, 0);
   return lienzo;
 }
 
@@ -204,12 +324,13 @@ export function rotar90(canvas: HTMLCanvasElement): HTMLCanvasElement {
 export function aJpeg(canvas: HTMLCanvasElement, ladoMaximo = 1800, calidad = 0.85): string {
   const escala = Math.min(1, ladoMaximo / Math.max(canvas.width, canvas.height));
   if (escala === 1) return canvas.toDataURL('image/jpeg', calidad);
-  const lienzo = document.createElement('canvas');
-  lienzo.width = Math.round(canvas.width * escala);
-  lienzo.height = Math.round(canvas.height * escala);
-  const ctx = lienzo.getContext('2d');
-  if (ctx) { ctx.imageSmoothingQuality = 'high'; ctx.drawImage(canvas, 0, 0, lienzo.width, lienzo.height); }
-  return lienzo.toDataURL('image/jpeg', calidad);
+  const lienzo = nuevoLienzo(canvas.width * escala, canvas.height * escala);
+  const ctx = contexto(lienzo);
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(canvas, 0, 0, lienzo.width, lienzo.height);
+  const url = lienzo.toDataURL('image/jpeg', calidad);
+  liberarLienzo(lienzo);
+  return url;
 }
 
 /**
@@ -220,8 +341,12 @@ export async function enderezarAutomatico(dataUrl: string): Promise<string> {
   try {
     const lienzo = lienzoDesdeImagen(await cargarImagen(dataUrl));
     const esquinas = await detectarHoja(lienzo);
-    if (!esquinas) return dataUrl;
-    return (await enderezar(lienzo, esquinas)).toDataURL('image/jpeg', 0.92);
+    if (!esquinas) { liberarLienzo(lienzo); return dataUrl; }
+    const recto = await enderezar(lienzo, esquinas);
+    liberarLienzo(lienzo);
+    const url = recto.toDataURL('image/jpeg', 0.92);
+    liberarLienzo(recto);
+    return url;
   } catch {
     return dataUrl;
   }

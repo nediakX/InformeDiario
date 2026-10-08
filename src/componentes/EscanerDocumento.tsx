@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } f
 import { Camera, ImageUp, Loader2, RotateCw, Crop, Check, X, ScanLine } from 'lucide-react';
 import {
   aJpeg, aplicarFiltro, cargarImagen, cargarOpenCv, detectarHoja, enderezar, esquinasPorDefecto,
-  lienzoDesdeImagen, rotar90, type Esquinas, type FiltroEscaneo,
+  liberarLienzo, lienzoDesdeImagen, rotar90, type Esquinas, type FiltroEscaneo,
 } from '../lib/escaner';
 import './escaner.css';
 
@@ -65,7 +65,16 @@ export default function EscanerDocumento({ onUsar, onCancelar }: {
     };
   }, [etapa]);
 
+  // Al cerrar el escáner se libera la memoria de las imágenes (en iOS se acumula hasta fallar).
+  useEffect(() => () => {
+    liberarLienzo(capturaRef.current);
+    liberarLienzo(enderezadoRef.current);
+  }, []);
+
   const prepararAjuste = async (lienzo: HTMLCanvasElement) => {
+    liberarLienzo(capturaRef.current);
+    liberarLienzo(enderezadoRef.current);
+    enderezadoRef.current = null;
     capturaRef.current = lienzo;
     setCapturaUrl(lienzo.toDataURL('image/jpeg', 0.9));
     setTamano({ w: lienzo.width, h: lienzo.height });
@@ -93,7 +102,9 @@ export default function EscanerDocumento({ onUsar, onCancelar }: {
     const escala = Math.min(1, 2000 / Math.max(video.videoWidth, video.videoHeight));
     lienzo.width = Math.round(video.videoWidth * escala);
     lienzo.height = Math.round(video.videoHeight * escala);
-    lienzo.getContext('2d')?.drawImage(video, 0, 0, lienzo.width, lienzo.height);
+    const ctx = lienzo.getContext('2d');
+    if (!ctx) { setMensaje('El teléfono no tiene memoria libre para la foto. Cierra otras pestañas e intenta de nuevo.'); return; }
+    ctx.drawImage(video, 0, 0, lienzo.width, lienzo.height);
     void prepararAjuste(lienzo);
   };
 
@@ -114,6 +125,7 @@ export default function EscanerDocumento({ onUsar, onCancelar }: {
     try {
       const final = await aplicarFiltro(lienzo, f);
       setResultado(aJpeg(final));
+      if (final !== lienzo) liberarLienzo(final);
     } catch (error) {
       console.error('No se pudo aplicar el filtro de escaneo:', error);
       setResultado(aJpeg(lienzo));
@@ -127,14 +139,17 @@ export default function EscanerDocumento({ onUsar, onCancelar }: {
     setOcupado(true);
     setMensaje('Enderezando y limpiando el documento…');
     try {
+      // Se deja respirar a la interfaz para que se vea el mensaje antes del cálculo.
+      await new Promise(r => setTimeout(r, 30));
       const recto = await enderezar(capturaRef.current, esquinas);
+      liberarLienzo(enderezadoRef.current);
       enderezadoRef.current = recto;
       setEtapa('resultado');
       setMensaje('Elige cómo quieres el documento y úsalo.');
       await generar(recto, filtro);
     } catch (error) {
       console.error('No se pudo enderezar el documento:', error);
-      setMensaje('No se pudo procesar la imagen. Intenta capturarla de nuevo.');
+      setMensaje('No se pudo procesar la imagen. Cierra otras pestañas o elige la foto desde la galería e intenta de nuevo.');
       setOcupado(false);
     }
   };
@@ -146,11 +161,15 @@ export default function EscanerDocumento({ onUsar, onCancelar }: {
 
   const girar = () => {
     if (!enderezadoRef.current) return;
-    enderezadoRef.current = rotar90(enderezadoRef.current);
+    const anterior = enderezadoRef.current;
+    enderezadoRef.current = rotar90(anterior);
+    liberarLienzo(anterior);
     void generar(enderezadoRef.current, filtro);
   };
 
   const volverACapturar = () => {
+    liberarLienzo(capturaRef.current); capturaRef.current = null;
+    liberarLienzo(enderezadoRef.current); enderezadoRef.current = null;
     setEsquinas(null); setCapturaUrl(null); setResultado(null);
     setMensaje('Encuadra la hoja completa sobre un fondo que contraste y captura.');
     setEtapa('camara');
