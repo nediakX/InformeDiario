@@ -11,6 +11,7 @@ import VisorFoto, { copiarImagenAlPortapapel } from '../componentes/VisorFoto';
 import { N_CONTRATO, LINEA_SERVICIO } from '../datos/catalogos';
 import { fileToDataUrl, uid } from '../lib/fotos';
 import { type BorradorOtroEntry, upsertBorradorOtro, deleteBorradorOtro } from '../datos/borradoresOtros';
+import { borrandose, registrarDeshacer, reinsertar } from '../lib/deshacer';
 import { hoyLocalISO, formatFechaLarga } from '../datos/fechas';
 import { BLUE, ORANGE } from '../datos/plantillaWord';
 import { configDivision } from '../datos/divisiones';
@@ -335,6 +336,8 @@ export default function InformeFallaCarro({ onBack, borradorInicial = null }: In
   // --- Borrador en la nube (compartido con el equipo, igual que Informe Diario) ---
   const borradorCargadoRef = useRef(false);
   const yaGuardadoEnNubeRef = useRef(false);
+  // Tras "Borrar borrador" no se vuelve a guardar solo hasta que se edite algo (si no, se guardaría al tiro una copia).
+  const pausarAutoguardadoRef = useRef(false);
   const [currentDraftId, setCurrentDraftId] = useState<string>(() => borradorInicial?.id ?? crypto.randomUUID());
   const [hayBorrador, setHayBorrador] = useState(false);
   const [borradorGuardadoEn, setBorradorGuardadoEn] = useState<string | null>(null);
@@ -397,6 +400,7 @@ export default function InformeFallaCarro({ onBack, borradorInicial = null }: In
       },
     };
     const tieneFotos = grupos.some(g => g.fotos.some(f => f.photo));
+    if (pausarAutoguardadoRef.current) { pausarAutoguardadoRef.current = false; return; }
     if (!tieneFotos && !yaGuardadoEnNubeRef.current) return;
 
     const timeout = setTimeout(() => {
@@ -431,14 +435,26 @@ export default function InformeFallaCarro({ onBack, borradorInicial = null }: In
     setHayBorrador(false);
     setBorradorGuardadoEn(null);
     yaGuardadoEnNubeRef.current = false;
+    const guardadoEnPrevio = borradorGuardadoEn;
+    pausarAutoguardadoRef.current = true;
     setCurrentDraftId(crypto.randomUUID());
-    if (habiaEnNube) {
-      deleteBorradorOtro(idPrevio).catch(error => {
-        console.error("No se pudo eliminar el borrador en la nube:", error);
-        showToast("No se pudo eliminar el borrador en la nube.", true);
-      });
-    }
-    showToast("Borrador eliminado.");
+    if (habiaEnNube) borrandose.add(idPrevio);
+    // El borrado en la nube espera unos segundos: mientras, se puede deshacer (ver lib/deshacer).
+    registrarDeshacer("Se eliminó el borrador", () => {
+      borrandose.delete(idPrevio);
+      setCurrentDraftId(idPrevio);
+      yaGuardadoEnNubeRef.current = habiaEnNube;
+      setHayBorrador(habiaEnNube);
+      setBorradorGuardadoEn(guardadoEnPrevio);
+    }, () => {
+      if (!habiaEnNube) return;
+      deleteBorradorOtro(idPrevio)
+        .catch(error => {
+          console.error("No se pudo eliminar el borrador en la nube:", error);
+          showToast("No se pudo eliminar el borrador en la nube.", true);
+        })
+        .finally(() => borrandose.delete(idPrevio));
+    });
   };
 
   const showToast = (text: string, isError = false) => {
@@ -475,18 +491,32 @@ export default function InformeFallaCarro({ onBack, borradorInicial = null }: In
   const updateListItem = (setter: Dispatch<SetStateAction<string[]>>, i: number, value: string) =>
     setter(prev => prev.map((v, idx) => (idx === i ? value : v)));
   const addListItem = (setter: Dispatch<SetStateAction<string[]>>) => setter(prev => [...prev, ""]);
-  const removeListItem = (setter: Dispatch<SetStateAction<string[]>>, i: number) =>
+  const removeListItem = (setter: Dispatch<SetStateAction<string[]>>, i: number, lista: string[]) => {
+    const quitado = lista[i];
     setter(prev => prev.filter((_, idx) => idx !== i));
+    if (quitado !== undefined) registrarDeshacer(`Se quitó «${quitado.trim().slice(0, 40) || 'una línea vacía'}»`, () => setter(prev => reinsertar(prev, i, quitado)));
+  };
 
   // --- Grupos del registro fotográfico ---
   const addGrupo = () => setGrupos(prev => [...prev, nuevoGrupo()]);
-  const removeGrupo = (id: string) => setGrupos(prev => prev.filter(g => g.id !== id));
+  const removeGrupo = (id: string) => {
+    const indice = grupos.findIndex(g => g.id === id);
+    const quitado = grupos[indice];
+    setGrupos(prev => prev.filter(g => g.id !== id));
+    if (quitado) registrarDeshacer('Se eliminó un bloque del registro fotográfico', () => setGrupos(prev => prev.some(g => g.id === id) ? prev : reinsertar(prev, indice, quitado)));
+  };
   const updateGrupo = (id: string, patch: Partial<RegistroGrupo>) =>
     setGrupos(prev => prev.map(g => (g.id === id ? { ...g, ...patch } : g)));
   const addFotoAGrupo = (grupoId: string) =>
     setGrupos(prev => prev.map(g => (g.id === grupoId && g.fotos.length < 4 ? { ...g, fotos: [...g.fotos, { id: uid(), photo: null }] } : g)));
-  const removeFotoDeGrupo = (grupoId: string, fotoId: string) =>
+  const removeFotoDeGrupo = (grupoId: string, fotoId: string) => {
+    const grupo = grupos.find(g => g.id === grupoId);
+    const indice = grupo?.fotos.findIndex(f => f.id === fotoId) ?? -1;
+    const quitada = grupo?.fotos[indice];
     setGrupos(prev => prev.map(g => (g.id === grupoId ? { ...g, fotos: g.fotos.filter(f => f.id !== fotoId) } : g)));
+    if (quitada) registrarDeshacer(quitada.photo ? 'Se eliminó una foto' : 'Se quitó un espacio de foto', () => setGrupos(prev => prev.map(g => (
+      g.id === grupoId && !g.fotos.some(f => f.id === fotoId) ? { ...g, fotos: reinsertar(g.fotos, indice, quitada) } : g))));
+  };
   const asignarFoto = async (grupoId: string, fotoId: string, file: File) => {
     const dataUrl = await fileToDataUrl(file);
     setGrupos(prev => prev.map(g => (g.id === grupoId
@@ -950,7 +980,7 @@ export default function InformeFallaCarro({ onBack, borradorInicial = null }: In
             {notificacionPuntos.map((p, i) => (
               <div key={i} className="flex gap-2">
                 <input type="text" value={p} onChange={e => updateListItem(setNotificacionPuntos, i, e.target.value)} className="flex-1 p-2 border border-[#DCE1E6] rounded-md text-sm" />
-                <button type="button" onClick={() => removeListItem(setNotificacionPuntos, i)} className="bg-red-50 text-red-700 p-2 rounded-md hover:bg-red-100"><Trash2 size={15} /></button>
+                <button type="button" onClick={() => removeListItem(setNotificacionPuntos, i, notificacionPuntos)} className="bg-red-50 text-red-700 p-2 rounded-md hover:bg-red-100"><Trash2 size={15} /></button>
               </div>
             ))}
           </div>
@@ -973,7 +1003,7 @@ export default function InformeFallaCarro({ onBack, borradorInicial = null }: In
             {hallazgos.map((h, i) => (
               <div key={i} className="flex gap-2">
                 <textarea value={h} onChange={e => updateListItem(setHallazgos, i, e.target.value)} rows={2} className="flex-1 p-2 border border-[#DCE1E6] rounded-md text-sm" />
-                <button type="button" onClick={() => removeListItem(setHallazgos, i)} className="bg-red-50 text-red-700 p-2 rounded-md hover:bg-red-100 self-start"><Trash2 size={15} /></button>
+                <button type="button" onClick={() => removeListItem(setHallazgos, i, hallazgos)} className="bg-red-50 text-red-700 p-2 rounded-md hover:bg-red-100 self-start"><Trash2 size={15} /></button>
               </div>
             ))}
           </div>
@@ -984,7 +1014,7 @@ export default function InformeFallaCarro({ onBack, borradorInicial = null }: In
             {accionesSolucion.map((a, i) => (
               <div key={i} className="flex gap-2">
                 <textarea value={a} onChange={e => updateListItem(setAccionesSolucion, i, e.target.value)} rows={2} className="flex-1 p-2 border border-[#DCE1E6] rounded-md text-sm" />
-                <button type="button" onClick={() => removeListItem(setAccionesSolucion, i)} className="bg-red-50 text-red-700 p-2 rounded-md hover:bg-red-100 self-start"><Trash2 size={15} /></button>
+                <button type="button" onClick={() => removeListItem(setAccionesSolucion, i, accionesSolucion)} className="bg-red-50 text-red-700 p-2 rounded-md hover:bg-red-100 self-start"><Trash2 size={15} /></button>
               </div>
             ))}
           </div>

@@ -34,6 +34,7 @@ export default function InformeDiario({ d, volverABorradores, goToNewInforme }: 
     cerrarModalMantencion,
     clearVertivCarroPhoto,
     clearVertivItemPhoto,
+    handleRemoveObservacion,
     closeDocumentScanner,
     confirmRemovePhotoSlot,
     confirmScannedDocument,
@@ -469,7 +470,7 @@ export default function InformeDiario({ d, volverABorradores, goToNewInforme }: 
                     }} className="w-full p-1.5 border border-[#DCE1E6] rounded" />
                   </td>
                   <td className="w-[10%] p-1 text-right">
-                    <button onClick={() => setObservaciones(observaciones.filter((_, idx) => idx !== i))} className="bg-red-50 text-red-700 px-2 py-1 rounded text-xs hover:bg-red-100">Quitar</button>
+                    <button onClick={() => handleRemoveObservacion(i)} className="bg-red-50 text-red-700 px-2 py-1 rounded text-xs hover:bg-red-100">Quitar</button>
                   </td>
                 </tr>
               ))}

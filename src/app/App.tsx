@@ -9,14 +9,19 @@ import Dashboard from '../pantallas/Dashboard';
 import Borradores from '../pantallas/Borradores';
 
 import { useSesion } from '../auth/sesion';
+import { borrandose, cerrarDeshacer, registrarDeshacer, sinBorrandose } from '../lib/deshacer';
 import { leerRuta, rutaDe, esTipoBorradores, esPestanaAdmin, NOMBRE_PANTALLA, type Vista, type TipoBorradores } from './rutas';
 import { usePresencia } from '../lib/presencia';
 
-import { type BorradorEntry, fetchBorradores, subscribeBorradores, deleteBorrador, deleteBorradores, esSemillaSinEditar, estadoBorrador } from '../datos/borradoresDiario';
-import { type BorradorOtroEntry, fetchBorradoresOtros, subscribeBorradoresOtros, deleteBorradorOtro } from '../datos/borradoresOtros';
-import { hoyLocalISO } from '../datos/fechas';
+import { type BorradorEntry, fetchBorradores, subscribeBorradores, deleteBorrador, deleteBorradores, esSemillaSinEditar, estadoBorrador, upsertBorrador } from '../datos/borradoresDiario';
+import { type BorradorOtroEntry, fetchBorradoresOtros, subscribeBorradoresOtros, deleteBorradorOtro, upsertBorradorOtro } from '../datos/borradoresOtros';
+import { formatFechaLarga, hoyLocalISO } from '../datos/fechas';
+import { configDivision } from '../datos/divisiones';
+import type { ResultadoImportacion } from '../importar';
+import type { DescripcionImportacion } from '../componentes/ImportadorWord';
+import { DIAS_CHECKLIST, clavePatente, fechasChecklist } from '../informes/checklist/catalogo';
 
-import { semanaDeFecha, letraDeFecha, TURNOS_AUTOMATICOS } from '../datos/turnos';
+import { semanaDeFecha, letraDeFecha, TURNOS_AUTOMATICOS, uuidDeterministico } from '../datos/turnos';
 
 import { crearBorradorAutomatico } from '../informes/diario/constantes';
 import { useInformeDiario } from '../informes/diario/useInformeDiario';
@@ -31,6 +36,7 @@ const InformeFallaCarro = lazy(() => import('../informes/InformeFallaCarro'));
 const ImpresionRapida = lazy(() => import('../pantallas/ImpresionRapida'));
 const ChecklistCamioneta = lazy(() => import('../informes/checklist/ChecklistCamioneta'));
 const PanelAdmin = lazy(() => import('../admin/PanelAdmin'));
+const ImportadorWord = lazy(() => import('../componentes/ImportadorWord'));
 
 const CargandoPantalla = ({ children }: { children: ReactNode }) => (
   <ErrorPantalla>
@@ -60,6 +66,8 @@ function AppContenido() {
   const vistaActualRef = useRef(view);
 
   useEffect(() => { vistaActualRef.current = view; }, [view]);
+  // Al cambiar de pantalla, lo borrado en la anterior ya no se puede deshacer (los borrados en la nube pendientes se completan).
+  useEffect(() => () => cerrarDeshacer(), [view, ruta.param]);
 
   const { esAdmin, division } = useSesion();
 
@@ -105,18 +113,21 @@ function AppContenido() {
 
   // Carga los borradores compartidos desde la nube y se suscribe a cambios de otros dispositivos.
   useEffect(() => {
-    void fetchBorradores(division).then(setBorradores);
-    return subscribeBorradores(division, setBorradores);
+    const aplicar = (lista: BorradorEntry[]) => setBorradores(sinBorrandose(lista));
+    void fetchBorradores(division).then(aplicar);
+    return subscribeBorradores(division, aplicar);
   }, [division]);
 
   useEffect(() => {
-    void fetchBorradoresOtros('mantenimiento', division).then(setBorradoresMantenimiento);
-    return subscribeBorradoresOtros('mantenimiento', division, setBorradoresMantenimiento);
+    const aplicar = (lista: BorradorOtroEntry[]) => setBorradoresMantenimiento(sinBorrandose(lista));
+    void fetchBorradoresOtros('mantenimiento', division).then(aplicar);
+    return subscribeBorradoresOtros('mantenimiento', division, aplicar);
   }, [division]);
 
   useEffect(() => {
-    void fetchBorradoresOtros('falla', division).then(setBorradoresFalla);
-    return subscribeBorradoresOtros('falla', division, setBorradoresFalla);
+    const aplicar = (lista: BorradorOtroEntry[]) => setBorradoresFalla(sinBorrandose(lista));
+    void fetchBorradoresOtros('falla', division).then(aplicar);
+    return subscribeBorradoresOtros('falla', division, aplicar);
   }, [division]);
 
   useEffect(() => {
@@ -165,13 +176,31 @@ function AppContenido() {
 
   const fallaDeRuta = view === 'falla-carro' ? borradorOtroDeRuta(borradoresFalla, fallaAAbrir) : null;
 
+  // Se quita de la lista al tiro, pero el borrado en la nube espera unos segundos: así se puede deshacer.
   const handleDeleteBorradorOtro = (id: string) => {
+    const mant = borradoresMantenimiento.find(b => b.id === id);
+    const falla = borradoresFalla.find(b => b.id === id);
+    borrandose.add(id);
     setBorradoresMantenimiento(prev => prev.filter(b => b.id !== id));
     setBorradoresFalla(prev => prev.filter(b => b.id !== id));
-    deleteBorradorOtro(id).catch(error => {
-      console.error("No se pudo eliminar el borrador en la nube:", error);
-      showToast("No se pudo eliminar el borrador en la nube.", true);
-    });
+    const reponer = (lista: BorradorOtroEntry[], entry: BorradorOtroEntry | undefined) =>
+      entry && !lista.some(b => b.id === entry.id) ? [entry, ...lista].sort((a, b) => b.savedAt.localeCompare(a.savedAt)) : lista;
+    registrarDeshacer(
+      `Se eliminó el borrador${(mant ?? falla)?.titulo ? ` «${(mant ?? falla)?.titulo}»` : ''}`,
+      () => {
+        borrandose.delete(id);
+        setBorradoresMantenimiento(prev => reponer(prev, mant));
+        setBorradoresFalla(prev => reponer(prev, falla));
+      },
+      () => {
+        deleteBorradorOtro(id)
+          .catch(error => {
+            console.error("No se pudo eliminar el borrador en la nube:", error);
+            showToast("No se pudo eliminar el borrador en la nube.", true);
+          })
+          .finally(() => borrandose.delete(id));
+      },
+    );
   };
 
   // Limpieza única: una versión anterior guardó en Supabase borradores vacíos por cada día del turno.
@@ -267,12 +296,26 @@ function AppContenido() {
     setView('borradores', 'diario');
   };
 
+  // Se quita de la lista al tiro, pero el borrado en la nube espera unos segundos: así se puede deshacer.
   const handleDeleteBorrador = (id: string) => {
+    const borrado = borradores.find(b => b.id === id);
+    borrandose.add(id);
     setBorradores(prev => prev.filter(b => b.id !== id));
-    deleteBorrador(id).catch(error => {
-      console.error("No se pudo eliminar el borrador en la nube:", error);
-      showToast("No se pudo eliminar el borrador en la nube.", true);
-    });
+    registrarDeshacer(
+      borrado ? `Se eliminó el informe del ${borrado.fecha.split('-').reverse().join('/')} (${borrado.turno === 'dia' ? 'Día' : 'Noche'})` : 'Se eliminó el informe',
+      () => {
+        borrandose.delete(id);
+        if (borrado) setBorradores(prev => prev.some(b => b.id === id) ? prev : [...prev, borrado].sort((a, b) => a.fecha.localeCompare(b.fecha)));
+      },
+      () => {
+        deleteBorrador(id)
+          .catch(error => {
+            console.error("No se pudo eliminar el borrador en la nube:", error);
+            showToast("No se pudo eliminar el borrador en la nube.", true);
+          })
+          .finally(() => borrandose.delete(id));
+      },
+    );
   };
 
   // Descarga el Word de un informe finalizado directamente desde la lista de Borradores.
@@ -284,8 +327,112 @@ function AppContenido() {
     if (!ok) window.alert("No se pudo generar el documento. Intenta nuevamente.");
   };
 
+  // --- Importar informe desde Word (recuperar un informe borrado) -------------------------------
+  const [importadorAbierto, setImportadorAbierto] = useState(false);
+  const [checklistFechaInicial, setChecklistFechaInicial] = useState<string | null>(null);
+  const ddmm = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
+
+  /** Informe Diario ya guardado para el mismo día, turno (A/B) y jornada (Día/Noche). */
+  const diarioExistente = (e: BorradorEntry) =>
+    borradores.find(b => b.fecha === e.fecha && b.letraTurno === e.letraTurno && b.turno === e.turno && !esSemillaSinEditar(b));
+
+  const describirImportacion = (r: ResultadoImportacion): DescripcionImportacion => {
+    switch (r.tipo) {
+      case 'diario': {
+        const e = r.entry;
+        return {
+          detalles: [
+            `${formatFechaLarga(e.fecha)} · ${e.turno === 'dia' ? 'Turno Día' : 'Turno Noche'} · Turno ${e.letraTurno}`,
+            `${e.personal.length} personas · ${e.actividades.filter(a => a.trim()).length} actividades · ${e.observaciones.length} ${e.observaciones.length === 1 ? 'observación' : 'observaciones'}`,
+          ],
+          aviso: diarioExistente(e) ? 'Ya hay un informe guardado para ese día y turno: se reemplazará por el contenido del Word.' : undefined,
+        };
+      }
+      case 'cierre':
+        return {
+          detalles: [`Creado por: ${r.datos.creadoNombre || '—'}`, `${r.datos.seccionesImagenes.length} secciones de imágenes · ${r.datos.actividadesPendientes.filter(a => a.trim()).length} actividades pendientes`],
+          aviso: 'Reemplazará el cierre en curso de la división (las actividades de cada día se toman de los Informes Diarios).',
+        };
+      case 'mantenimiento':
+      case 'falla':
+        return { detalles: [r.titulo, formatFechaLarga(r.fecha)] };
+      case 'checklist': {
+        const fechas = fechasChecklist(r.datos.semanaInicio);
+        const id = uuidDeterministico(`checklist|${division}|${r.datos.semanaInicio}|${clavePatente(r.datos.patente)}`);
+        return {
+          detalles: [`Camioneta ${r.datos.patente}${r.datos.marca ? ` · ${r.datos.marca} ${r.datos.modelo}` : ''}`, `Semana del ${ddmm(fechas[0])} al ${ddmm(fechas[DIAS_CHECKLIST - 1])} · Turno ${r.datos.letra}`, `Conductor: ${r.datos.conductor || '—'}`],
+          aviso: checklistsCamioneta.some(c => c.id === id) ? 'Ya hay un checklist de esa camioneta para esa semana: se reemplazará por el del Word.' : undefined,
+        };
+      }
+    }
+  };
+
+  const guardarImportacion = async (r: ResultadoImportacion) => {
+    const savedAt = new Date().toISOString();
+    switch (r.tipo) {
+      case 'diario': {
+        const existente = diarioExistente(r.entry);
+        const guardado = await upsertBorrador({ ...r.entry, id: existente?.id ?? r.entry.id, savedAt });
+        setBorradores(prev => [...prev.filter(b => b.id !== guardado.id), guardado].sort((a, b) => a.fecha.localeCompare(b.fecha)));
+        openBorradorEntry(guardado);
+        showToast('Informe importado desde el Word.');
+        return;
+      }
+      case 'mantenimiento':
+      case 'falla': {
+        const guardado = await upsertBorradorOtro({ id: crypto.randomUUID(), tipo: r.tipo, division, titulo: r.titulo, fecha: r.fecha, savedAt, datos: r.datos });
+        if (r.tipo === 'mantenimiento') {
+          setBorradoresMantenimiento(prev => [guardado, ...prev.filter(b => b.id !== guardado.id)]);
+          goToAbrirMantenimiento(guardado);
+        } else {
+          setBorradoresFalla(prev => [guardado, ...prev.filter(b => b.id !== guardado.id)]);
+          goToAbrirFalla(guardado);
+        }
+        return;
+      }
+      case 'cierre': {
+        await upsertBorradorOtro({
+          id: configDivision(division).cierre.borradorId, tipo: 'cierre', division,
+          titulo: `Informe de Cierre — ${r.datos.creadoNombre}`, fecha: savedAt.slice(0, 10), savedAt,
+          datos: r.datos as unknown as Record<string, unknown>,
+        });
+        setView('cierre');
+        return;
+      }
+      case 'checklist': {
+        const d = r.datos;
+        const fechas = fechasChecklist(d.semanaInicio);
+        const guardado = await upsertBorradorOtro({
+          id: uuidDeterministico(`checklist|${division}|${d.semanaInicio}|${clavePatente(d.patente)}`),
+          tipo: 'checklist_camioneta', division,
+          titulo: `Camioneta ${d.patente.toUpperCase()} · Turno ${d.letra} · ${ddmm(fechas[0])} al ${ddmm(fechas[DIAS_CHECKLIST - 1])}`,
+          fecha: d.semanaInicio, savedAt, datos: d as unknown as Record<string, unknown>,
+        });
+        setChecklistsCamioneta(prev => [guardado, ...prev.filter(c => c.id !== guardado.id)]);
+        // El checklist se abre en esa camioneta y esa semana.
+        try { localStorage.setItem(`psinet_checklist_patente${configDivision(division).sufijoLocal}`, d.patente.toUpperCase()); } catch { /* sin almacenamiento */ }
+        setChecklistFechaInicial(d.semanaInicio);
+        setView('checklist');
+        return;
+      }
+    }
+  };
+
+  const modalImportar = importadorAbierto ? (
+    <Suspense fallback={null}>
+      <ImportadorWord
+        division={division}
+        esAdmin={esAdmin}
+        describir={describirImportacion}
+        guardar={guardarImportacion}
+        onCerrar={() => setImportadorAbierto(false)}
+      />
+    </Suspense>
+  ) : null;
+
   if (view === 'dashboard') {
     return (
+      <>
       <Dashboard
         borradorCount={borradores.filter(b => !esSemillaSinEditar(b)).length}
         pendientesCount={informesPorCompletar}
@@ -302,12 +449,16 @@ function AppContenido() {
         onNuevaFalla={goToNuevaFalla}
         onAbrirFalla={goToAbrirFalla}
         onVerBorradores={tipo => setView('borradores', tipo)}
+        onImportar={() => setImportadorAbierto(true)}
       />
+      {modalImportar}
+      </>
     );
   }
 
   if (view === 'borradores') {
     return (
+      <>
       <Borradores
         tipoTab={borradoresTipoTab}
         onTipoTabChange={tipo => navigate(rutaDe('borradores', tipo), { replace: true })}
@@ -327,7 +478,10 @@ function AppContenido() {
         onNuevaFalla={goToNuevaFalla}
         onAbrirFalla={goToAbrirFalla}
         onDeleteOtro={handleDeleteBorradorOtro}
+        onImportar={() => setImportadorAbierto(true)}
       />
+      {modalImportar}
+      </>
     );
   }
 
@@ -344,7 +498,7 @@ function AppContenido() {
   }
 
   if (view === 'checklist') {
-    return <CargandoPantalla><ChecklistCamioneta onBack={() => setView('dashboard')} /></CargandoPantalla>;
+    return <CargandoPantalla><ChecklistCamioneta onBack={() => setView('dashboard')} fechaInicial={checklistFechaInicial} /></CargandoPantalla>;
   }
 
   if (view === 'impresion') {

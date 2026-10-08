@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ArrowLeft, Trash2, FolderOpen, CalendarDays, Users, Camera, Plus, Cloud, Sun, Moon, History, Download, Loader2, Wrench, AlertTriangle, FileText } from 'lucide-react';
+import { ArrowLeft, Trash2, FolderOpen, CalendarDays, Users, Camera, Plus, Cloud, Sun, Moon, History, Download, Loader2, Wrench, AlertTriangle, FileText, FileUp } from 'lucide-react';
 import SelectorDivision from '../componentes/SelectorDivision';
 import logoPsinet from "../assets/logo_psinet.jpg";
 import logoEdificio from "../assets/LogoEdificio.png";
@@ -34,6 +34,8 @@ interface BorradoresProps {
   onNuevaFalla: () => void;
   onAbrirFalla: (entry: BorradorOtroEntry) => void;
   onDeleteOtro: (id: string) => void;
+  /** Abre "Importar informe desde Word" (recuperar un informe borrado). */
+  onImportar: () => void;
 }
 
 const porFechaAsc = (a: BorradorEntry, b: BorradorEntry) => a.fecha.localeCompare(b.fecha);
@@ -50,7 +52,7 @@ export default function Borradores({
   borradores, tab, onTabChange, onOpen, onDelete, onBack, onNew, onDownload, descargandoId,
   tipoTab, onTipoTabChange,
   borradoresMantenimiento = [], borradoresFalla = [],
-  onNuevoMantenimiento, onAbrirMantenimiento, onNuevaFalla, onAbrirFalla, onDeleteOtro,
+  onNuevoMantenimiento, onAbrirMantenimiento, onNuevaFalla, onAbrirFalla, onDeleteOtro, onImportar,
 }: BorradoresProps) {
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [confirmDeleteOtro, setConfirmDeleteOtro] = useState<{ id: string; onConfirm: () => void } | null>(null);
@@ -234,6 +236,9 @@ export default function Borradores({
             <ArrowLeft size={14} /> Volver al menú
           </button>
           <SelectorDivision className="mr-auto" />
+          <button type="button" onClick={onImportar} className="btn-outline text-[#0E4660] px-3 py-1.5 rounded-md text-xs font-bold hover:bg-[#d5e7f8] flex items-center gap-1.5" title="Recuperar un informe borrado desde su Word">
+            <FileUp size={14} /> Importar desde Word
+          </button>
           {tipoTab === 'diario' ? (
             <button type="button" onClick={() => setNuevoOpen(true)} className="bg-[#0E4660] text-white px-3 py-1.5 rounded-md text-xs font-bold hover:bg-[#0a3549] flex items-center gap-1.5">
               <Plus size={14} /> Nuevo informe diario

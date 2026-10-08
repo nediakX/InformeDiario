@@ -10,6 +10,7 @@ import logoEdificio from "../assets/LogoEdificio.png";
 import VisorFoto, { copiarImagenAlPortapapel } from '../componentes/VisorFoto';
 import { fileToDataUrl, uid } from '../lib/fotos';
 import { type BorradorOtroEntry, upsertBorradorOtro, deleteBorradorOtro } from '../datos/borradoresOtros';
+import { borrandose, registrarDeshacer, reinsertar } from '../lib/deshacer';
 import { hoyLocalISO, formatFechaLarga } from '../datos/fechas';
 import { BLUE, ORANGE } from '../datos/plantillaWord';
 import { configDivision } from '../datos/divisiones';
@@ -198,6 +199,8 @@ export default function InformeMantenimiento({ onBack, borradorInicial = null }:
   // --- Borrador en la nube (compartido con el equipo, igual que Informe Diario) ---
   const borradorCargadoRef = useRef(false);
   const yaGuardadoEnNubeRef = useRef(false);
+  // Tras "Borrar borrador" no se vuelve a guardar solo hasta que se edite algo (si no, se guardaría al tiro una copia).
+  const pausarAutoguardadoRef = useRef(false);
   const [currentDraftId, setCurrentDraftId] = useState<string>(() => borradorInicial?.id ?? crypto.randomUUID());
   const [hayBorrador, setHayBorrador] = useState(false);
   const [borradorGuardadoEn, setBorradorGuardadoEn] = useState<string | null>(null);
@@ -273,6 +276,7 @@ export default function InformeMantenimiento({ onBack, borradorInicial = null }:
       },
     };
     const tieneFotos = fotos.some(f => f.photo);
+    if (pausarAutoguardadoRef.current) { pausarAutoguardadoRef.current = false; return; }
     if (!tieneFotos && !yaGuardadoEnNubeRef.current) return;
 
     const timeout = setTimeout(() => {
@@ -309,14 +313,26 @@ export default function InformeMantenimiento({ onBack, borradorInicial = null }:
     setHayBorrador(false);
     setBorradorGuardadoEn(null);
     yaGuardadoEnNubeRef.current = false;
+    const guardadoEnPrevio = borradorGuardadoEn;
+    pausarAutoguardadoRef.current = true;
     setCurrentDraftId(crypto.randomUUID());
-    if (habiaEnNube) {
-      deleteBorradorOtro(idPrevio).catch(error => {
-        console.error("No se pudo eliminar el borrador en la nube:", error);
-        showToast("No se pudo eliminar el borrador en la nube.", true);
-      });
-    }
-    showToast("Borrador eliminado.");
+    if (habiaEnNube) borrandose.add(idPrevio);
+    // El borrado en la nube espera unos segundos: mientras, se puede deshacer (ver lib/deshacer).
+    registrarDeshacer("Se eliminó el borrador", () => {
+      borrandose.delete(idPrevio);
+      setCurrentDraftId(idPrevio);
+      yaGuardadoEnNubeRef.current = habiaEnNube;
+      setHayBorrador(habiaEnNube);
+      setBorradorGuardadoEn(guardadoEnPrevio);
+    }, () => {
+      if (!habiaEnNube) return;
+      deleteBorradorOtro(idPrevio)
+        .catch(error => {
+          console.error("No se pudo eliminar el borrador en la nube:", error);
+          showToast("No se pudo eliminar el borrador en la nube.", true);
+        })
+        .finally(() => borrandose.delete(idPrevio));
+    });
   };
 
   const showToast = (text: string, isError = false) => {
@@ -333,15 +349,23 @@ export default function InformeMantenimiento({ onBack, borradorInicial = null }:
   const updateListItem = (setter: Dispatch<SetStateAction<string[]>>, i: number, value: string) =>
     setter(prev => prev.map((v, idx) => (idx === i ? value : v)));
   const addListItem = (setter: Dispatch<SetStateAction<string[]>>) => setter(prev => [...prev, ""]);
-  const removeListItem = (setter: Dispatch<SetStateAction<string[]>>, i: number) =>
+  const removeListItem = (setter: Dispatch<SetStateAction<string[]>>, i: number, lista: string[]) => {
+    const quitado = lista[i];
     setter(prev => prev.filter((_, idx) => idx !== i));
+    if (quitado !== undefined) registrarDeshacer(`Se quitó «${quitado.trim().slice(0, 40) || 'una línea vacía'}»`, () => setter(prev => reinsertar(prev, i, quitado)));
+  };
 
   // --- Fotos ---
   const updateFoto = (id: string, patch: Partial<FotoItem>) =>
     setFotos(prev => prev.map(f => (f.id === id ? { ...f, ...patch } : f)));
   const assignFoto = async (id: string, file: File) => updateFoto(id, { photo: await fileToDataUrl(file) });
   const addFoto = () => setFotos(prev => [...prev, { id: uid(), section: "", caption: "", description: "", photo: null }]);
-  const removeFoto = (id: string) => setFotos(prev => prev.filter(f => f.id !== id));
+  const removeFoto = (id: string) => {
+    const indice = fotos.findIndex(f => f.id === id);
+    const quitada = fotos[indice];
+    setFotos(prev => prev.filter(f => f.id !== id));
+    if (quitada) registrarDeshacer(`Se eliminó la foto «${quitada.caption || 'sin leyenda'}»`, () => setFotos(prev => prev.some(f => f.id === id) ? prev : reinsertar(prev, indice, quitada)));
+  };
 
   // Tras pegar una foto, selecciona automáticamente la siguiente casilla (o crea una nueva al final
   // si ya no quedan) para poder seguir pegando con Ctrl+V de corrido, sin volver a hacer clic cada vez.
@@ -384,8 +408,12 @@ export default function InformeMantenimiento({ onBack, borradorInicial = null }:
   // --- Repuestos / plan preventivo / filtros / verificaciones ---
   const updateRow = <T extends { id: string }>(setter: Dispatch<SetStateAction<T[]>>, id: string, patch: Partial<T>) =>
     setter(prev => prev.map(r => (r.id === id ? { ...r, ...patch } : r)));
-  const removeRow = <T extends { id: string }>(setter: Dispatch<SetStateAction<T[]>>, id: string) =>
+  const removeRow = <T extends { id: string }>(setter: Dispatch<SetStateAction<T[]>>, id: string, lista: T[]) => {
+    const indice = lista.findIndex(r => r.id === id);
+    const quitada = lista[indice];
     setter(prev => prev.filter(r => r.id !== id));
+    if (quitada) registrarDeshacer('Se quitó una fila de la tabla', () => setter(prev => prev.some(r => r.id === id) ? prev : reinsertar(prev, indice, quitada)));
+  };
 
   const addRepuesto = () => setRepuestos(prev => [...prev, { id: uid(), parte: "", cantidad: "", detalle: "" }]);
   const addPlanItem = () => setPlanPreventivo(prev => [...prev, { id: uid(), detalle: "", cantidad: "", parte: "" }]);
@@ -913,7 +941,7 @@ export default function InformeMantenimiento({ onBack, borradorInicial = null }:
             {componentes.map((c, i) => (
               <div key={i} className="flex gap-2">
                 <input type="text" value={c} onChange={e => updateListItem(setComponentes, i, e.target.value)} className="flex-1 p-2 border border-[#DCE1E6] rounded-md text-sm" />
-                <button type="button" onClick={() => removeListItem(setComponentes, i)} className="bg-red-50 text-red-700 p-2 rounded-md hover:bg-red-100"><Trash2 size={15} /></button>
+                <button type="button" onClick={() => removeListItem(setComponentes, i, componentes)} className="bg-red-50 text-red-700 p-2 rounded-md hover:bg-red-100"><Trash2 size={15} /></button>
               </div>
             ))}
           </div>
@@ -924,7 +952,7 @@ export default function InformeMantenimiento({ onBack, borradorInicial = null }:
             {trabajos.map((t, i) => (
               <div key={i} className="flex gap-2">
                 <input type="text" value={t} onChange={e => updateListItem(setTrabajos, i, e.target.value)} className="flex-1 p-2 border border-[#DCE1E6] rounded-md text-sm" />
-                <button type="button" onClick={() => removeListItem(setTrabajos, i)} className="bg-red-50 text-red-700 p-2 rounded-md hover:bg-red-100"><Trash2 size={15} /></button>
+                <button type="button" onClick={() => removeListItem(setTrabajos, i, trabajos)} className="bg-red-50 text-red-700 p-2 rounded-md hover:bg-red-100"><Trash2 size={15} /></button>
               </div>
             ))}
           </div>
@@ -1006,7 +1034,7 @@ export default function InformeMantenimiento({ onBack, borradorInicial = null }:
                 <input type="text" value={r.parte} onChange={e => updateRow(setRepuestos, r.id, { parte: e.target.value })} placeholder="N° parte" className="p-2 border border-[#DCE1E6] rounded-md text-sm" />
                 <input type="text" value={r.cantidad} onChange={e => updateRow(setRepuestos, r.id, { cantidad: e.target.value })} placeholder="Cantidad" className="p-2 border border-[#DCE1E6] rounded-md text-sm" />
                 <input type="text" value={r.detalle} onChange={e => updateRow(setRepuestos, r.id, { detalle: e.target.value })} placeholder="Detalle" className="p-2 border border-[#DCE1E6] rounded-md text-sm" />
-                <button type="button" onClick={() => removeRow(setRepuestos, r.id)} className="bg-red-50 text-red-700 p-2 rounded-md hover:bg-red-100"><Trash2 size={15} /></button>
+                <button type="button" onClick={() => removeRow(setRepuestos, r.id, repuestos)} className="bg-red-50 text-red-700 p-2 rounded-md hover:bg-red-100"><Trash2 size={15} /></button>
               </div>
             ))}
           </div>
@@ -1078,7 +1106,7 @@ export default function InformeMantenimiento({ onBack, borradorInicial = null }:
                 <input type="text" value={p.detalle} onChange={e => updateRow(setPlanPreventivo, p.id, { detalle: e.target.value })} placeholder="Detalle" className="p-2 border border-[#DCE1E6] rounded-md text-sm" />
                 <input type="text" value={p.cantidad} onChange={e => updateRow(setPlanPreventivo, p.id, { cantidad: e.target.value })} placeholder="Cantidad" className="p-2 border border-[#DCE1E6] rounded-md text-sm" />
                 <input type="text" value={p.parte} onChange={e => updateRow(setPlanPreventivo, p.id, { parte: e.target.value })} placeholder="N° parte" className="p-2 border border-[#DCE1E6] rounded-md text-sm" />
-                <button type="button" onClick={() => removeRow(setPlanPreventivo, p.id)} className="bg-red-50 text-red-700 p-2 rounded-md hover:bg-red-100"><Trash2 size={15} /></button>
+                <button type="button" onClick={() => removeRow(setPlanPreventivo, p.id, planPreventivo)} className="bg-red-50 text-red-700 p-2 rounded-md hover:bg-red-100"><Trash2 size={15} /></button>
               </div>
             ))}
           </div>

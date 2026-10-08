@@ -17,6 +17,7 @@ import { configDivision } from '../../datos/divisiones';
 import { hoyLocalISO, sumarDias, formatDiaMes } from '../../datos/fechas';
 import { semanaDeFecha, uuidDeterministico } from '../../datos/turnos';
 import { type BorradorOtroEntry, fetchBorradoresOtros, subscribeBorradoresOtros, upsertBorradorOtro } from '../../datos/borradoresOtros';
+import { registrarDeshacer } from '../../lib/deshacer';
 import { registrarActividad } from '../../lib/actividad';
 import {
   SECCIONES, DIAS_CHECKLIST, INICIALES_DIA, ETIQUETAS_DIA, fechasChecklist, checklistVacio, normalizarChecklist,
@@ -28,11 +29,12 @@ import './checklist.css';
 const TIPO = 'checklist_camioneta' as const;
 const ddmm = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
 
-export default function ChecklistCamioneta({ onBack }: { onBack: () => void }) {
+/** fechaInicial: semana a mostrar al abrir (ej: un checklist recién importado de otra semana). */
+export default function ChecklistCamioneta({ onBack, fechaInicial = null }: { onBack: () => void; fechaInicial?: string | null }) {
   const { division, perfil } = useSesion();
   const config = configDivision(division);
   const hoy = hoyLocalISO();
-  const [fechaRef, setFechaRef] = useState(hoy);
+  const [fechaRef, setFechaRef] = useState(fechaInicial ?? hoy);
   const semana = useMemo(() => semanaDeFecha(fechaRef), [fechaRef]);
   const [lista, setLista] = useState<BorradorOtroEntry[] | null>(null);
 
@@ -306,6 +308,15 @@ function FormularioChecklist({ id, division, conductores, entrada, base, hoy, on
 
   const limpiarDia = () => {
     if (!window.confirm(`¿Borrar las marcas del ${ETIQUETAS_DIA[dia].toLowerCase()} ${ddmm(fechas[dia])}?`)) return;
+    // Para "Deshacer": se guarda lo que tenía ese día (marcas, respuestas y firma).
+    const d0 = datos;
+    const diaLimpio = dia;
+    registrarDeshacer(`Se borraron las marcas del ${ETIQUETAS_DIA[dia].toLowerCase()} ${ddmm(fechas[dia])}`, () => cambiar(d => {
+      const marcas = Object.fromEntries(Object.entries(d.marcas).map(([k, v]) => { const n = [...v]; n[diaLimpio] = d0.marcas[k]?.[diaLimpio] ?? ''; return [k, n]; }));
+      const ap = (actual: Respuesta[], antes: Respuesta[]) => { const n = [...actual]; n[diaLimpio] = antes[diaLimpio]; return n; };
+      const firmas = [...d.firmas]; firmas[diaLimpio] = d0.firmas[diaLimpio];
+      return { ...d, marcas, firmas, aptitudes: { alcohol: ap(d.aptitudes.alcohol, d0.aptitudes.alcohol), aptitud: ap(d.aptitudes.aptitud, d0.aptitudes.aptitud), medicamento: ap(d.aptitudes.medicamento, d0.aptitudes.medicamento) } };
+    }));
     cambiar(d => {
       const marcas = Object.fromEntries(Object.entries(d.marcas).map(([k, v]) => { const n = [...v]; n[dia] = ''; return [k, n]; }));
       const ap = (arr: Respuesta[]) => { const n = [...arr]; n[dia] = ''; return n; };

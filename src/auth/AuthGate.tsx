@@ -13,6 +13,7 @@ import { registrarActividad } from '../lib/actividad';
 import { marcarSalida } from '../lib/presencia';
 import { esErrorDeRed, hayConexion, suscribirConexion } from '../lib/conexion';
 import IndicadorConexion from '../componentes/IndicadorConexion';
+import BarraDeshacer from '../componentes/BarraDeshacer';
 import './auth.css';
 
 // --- Modo sin conexión ----------------------------------------------------------------------
@@ -176,6 +177,7 @@ export default function AuthGate({ children }: { children: ReactNode }) {
     <SesionContext.Provider value={valor}>
       <IndicadorConexion />
       <Fragment key={division}>{children}</Fragment>
+      <BarraDeshacer />
     </SesionContext.Provider>
   );
 }

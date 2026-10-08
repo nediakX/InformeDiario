@@ -20,6 +20,7 @@ import { configDivision, type Firmante } from '../datos/divisiones';
 import { useSesion } from '../auth/sesion';
 import { dataUrlToUint8Array, resolveImageBytes, urlToBase64 } from '../lib/imagenes';
 import { ajustarImagenes } from '../lib/ajusteImagenes';
+import { registrarDeshacer, reinsertar, borrandose } from '../lib/deshacer';
 import { uploadPhotoIfNeeded } from '../lib/storage';
 import { esErrorDeRed } from '../lib/conexion';
 
@@ -160,6 +161,7 @@ export default function InformeCierre({ onBack }: InformeCierreProps) {
   const ultimoSavedAtRef = useRef<string | null>(null);  // para ignorar el "eco" de nuestro propio guardado
   const guardadoPendienteRef = useRef(false);            // hay un guardado programado (debounce)
   const guardandoRef = useRef(false);                    // hay un guardado en curso
+  const borradoCanceladoRef = useRef(false);             // "Cierre nuevo" pendiente de borrar, ya reemplazado por un guardado
 
   const aplicarDatos = (datos: DatosCierre) => {
     setCreadoNombre(datos.creadoNombre);
@@ -228,6 +230,8 @@ export default function InformeCierre({ onBack }: InformeCierreProps) {
 
     guardadoPendienteRef.current = true;
     const timeout = setTimeout(() => {
+      // Cierre nuevo con un borrado del anterior aún pendiente: este guardado lo reemplaza.
+      if (borrandose.has(CIERRE_DRAFT_ID)) { borrandose.delete(CIERRE_DRAFT_ID); borradoCanceladoRef.current = true; }
       guardadoPendienteRef.current = false;
       guardandoRef.current = true;
       setSincronizando(true);
@@ -279,12 +283,30 @@ export default function InformeCierre({ onBack }: InformeCierreProps) {
 
   const nuevoCierre = () => {
     if (!window.confirm('¿Empezar un cierre nuevo? Se borrará el cierre en curso (textos y fotos) en todos los dispositivos.')) return;
+    // Se puede deshacer: el borrado en la nube espera unos segundos (ver lib/deshacer).
+    const anterior = normalizarDatosCierre({
+      creadoNombre, creadoCargo, selectedIds, actividadesPendientes, seccionesImagenes, camionetas,
+    }, creadorPorDefecto);
+    const savedAtAnterior = ultimoSavedAtRef.current;
+    borrandose.add(CIERRE_DRAFT_ID);
+    borradoCanceladoRef.current = false;
     limpiarLocal();
-    deleteBorradorOtro(CIERRE_DRAFT_ID).catch(error => {
-      console.error('No se pudo eliminar el cierre en la nube:', error);
-      showToast('No se pudo eliminar el cierre en la nube.', true);
+    registrarDeshacer('Se borró el cierre en curso', () => {
+      borrandose.delete(CIERRE_DRAFT_ID);
+      // Se reponen los datos; el autoguardado los vuelve a dejar en la nube.
+      ultimoSavedAtRef.current = savedAtAnterior;
+      setUltimoGuardadoEn(savedAtAnterior);
+      aplicarDatos(anterior);
+    }, () => {
+      // Si ya se empezó a llenar el cierre nuevo (mismo id), se guardó encima: no hay que borrarlo.
+      if (borradoCanceladoRef.current) return;
+      deleteBorradorOtro(CIERRE_DRAFT_ID)
+        .catch(error => {
+          console.error('No se pudo eliminar el cierre en la nube:', error);
+          showToast('No se pudo eliminar el cierre en la nube.', true);
+        })
+        .finally(() => borrandose.delete(CIERRE_DRAFT_ID));
     });
-    showToast('Cierre nuevo listo.');
   };
 
   // (Los días incluidos se calculan solos a partir de la semana de turno elegida: ver diasSeleccionados.)
@@ -376,13 +398,27 @@ export default function InformeCierre({ onBack }: InformeCierreProps) {
 
   const addPendiente = () => setActividadesPendientes(prev => [...prev, '']);
   const updatePendiente = (i: number, value: string) => setActividadesPendientes(prev => prev.map((v, idx) => idx === i ? value : v));
-  const removePendiente = (i: number) => setActividadesPendientes(prev => prev.filter((_, idx) => idx !== i));
+  const removePendiente = (i: number) => {
+    const quitada = actividadesPendientes[i];
+    setActividadesPendientes(prev => prev.filter((_, idx) => idx !== i));
+    if (quitada !== undefined) registrarDeshacer('Se quitó una actividad pendiente', () => setActividadesPendientes(prev => reinsertar(prev, i, quitada)));
+  };
 
   const addSeccionImagenes = () => setSeccionesImagenes(prev => [...prev, { id: uid(), title: '', photos: [null] }]);
-  const removeSeccionImagenes = (id: string) => setSeccionesImagenes(prev => prev.filter(s => s.id !== id));
+  const removeSeccionImagenes = (id: string) => {
+    const indice = seccionesImagenes.findIndex(s => s.id === id);
+    const quitada = seccionesImagenes[indice];
+    setSeccionesImagenes(prev => prev.filter(s => s.id !== id));
+    if (quitada) registrarDeshacer(`Se eliminó la sección «${quitada.title || 'Imágenes'}»`, () => setSeccionesImagenes(prev => prev.some(s => s.id === id) ? prev : reinsertar(prev, indice, quitada)));
+  };
   const updateSeccionTitle = (id: string, title: string) => setSeccionesImagenes(prev => prev.map(s => s.id === id ? { ...s, title } : s));
   const addFotoASeccion = (id: string) => setSeccionesImagenes(prev => prev.map(s => s.id === id ? { ...s, photos: [...s.photos, null] } : s));
-  const removeFotoDeSeccion = (id: string, photoIndex: number) => setSeccionesImagenes(prev => prev.map(s => s.id === id ? { ...s, photos: s.photos.filter((_, i) => i !== photoIndex) } : s));
+  const removeFotoDeSeccion = (id: string, photoIndex: number) => {
+    const foto = seccionesImagenes.find(s => s.id === id)?.photos[photoIndex] ?? null;
+    setSeccionesImagenes(prev => prev.map(s => s.id === id ? { ...s, photos: s.photos.filter((_, i) => i !== photoIndex) } : s));
+    registrarDeshacer(foto ? 'Se eliminó una foto' : 'Se quitó un espacio de foto', () =>
+      setSeccionesImagenes(prev => prev.map(s => s.id === id ? { ...s, photos: reinsertar(s.photos, photoIndex, foto) } : s)));
+  };
   const assignFotoSeccion = async (file: File, id: string, photoIndex: number) => {
     try {
       const dataUrl = await fileToDataUrl(file);
@@ -397,7 +433,12 @@ export default function InformeCierre({ onBack }: InformeCierreProps) {
   };
 
   const addCamioneta = () => setCamionetas(prev => [...prev, { id: uid(), placa: '', antes: null, despues: null }]);
-  const removeCamioneta = (id: string) => setCamionetas(prev => prev.filter(c => c.id !== id));
+  const removeCamioneta = (id: string) => {
+    const indice = camionetas.findIndex(c => c.id === id);
+    const quitada = camionetas[indice];
+    setCamionetas(prev => prev.filter(c => c.id !== id));
+    if (quitada) registrarDeshacer(`Se quitó la camioneta${quitada.placa ? ` ${quitada.placa}` : ''}`, () => setCamionetas(prev => prev.some(c => c.id === id) ? prev : reinsertar(prev, indice, quitada)));
+  };
   const updateCamionetaPlaca = (id: string, placa: string) => setCamionetas(prev => prev.map(c => c.id === id ? { ...c, placa } : c));
   const assignCamionetaFoto = async (file: File, id: string, cual: 'antes' | 'despues') => {
     try {

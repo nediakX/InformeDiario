@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ClipboardCheck, FileStack, FolderOpen, ChevronRight, Bell, FilePlus, Sun, Moon, Wrench, AlertTriangle, Printer, LogOut, ShieldCheck, UserRound, type LucideIcon } from 'lucide-react';
+import { ClipboardCheck, FileStack, FolderOpen, ChevronRight, Bell, FilePlus, Sun, Moon, Wrench, AlertTriangle, Printer, LogOut, ShieldCheck, UserRound, FileUp, type LucideIcon } from 'lucide-react';
 import { useSesion, nombreVisible } from '../auth/sesion';
 import { CONFIG_DIVISION } from '../datos/divisiones';
 import './dashboard.css';
@@ -61,6 +61,8 @@ interface DashboardProps {
   onAbrirFalla: (entry: BorradorOtroEntry) => void;
   /** Lleva a la pantalla de Borradores ya en la pestaña del tipo indicado. */
   onVerBorradores: (tipo: TipoBorradorTab) => void;
+  /** Abre "Importar informe desde Word" (recuperar un informe borrado). */
+  onImportar: () => void;
 }
 
 const ESTADO_OTRO_LABEL: Record<'pendiente' | 'iniciado' | 'finalizado', string> = {
@@ -70,7 +72,7 @@ const ESTADO_OTRO_LABEL: Record<'pendiente' | 'iniciado' | 'finalizado', string>
 export default function Dashboard({
   onNavigate, borradorCount, pendientesCount = 0, informesHoy = [], onAbrirInforme, onNuevoInforme,
   borradoresMantenimiento = [], borradoresFalla = [], checklistsCamioneta = [], borradoresSemana = [],
-  onNuevoMantenimiento, onAbrirMantenimiento, onNuevaFalla, onAbrirFalla, onVerBorradores,
+  onNuevoMantenimiento, onAbrirMantenimiento, onNuevaFalla, onAbrirFalla, onVerBorradores, onImportar,
 }: DashboardProps) {
   const { perfil, esAdmin, pendientesAprobacion, cerrarSesion, division } = useSesion();
   const checklistHoy = estadoChecklistDelDia(checklistsCamioneta, hoyLocalISO(), CONFIG_DIVISION[division].camionetas.length);
@@ -270,6 +272,8 @@ export default function Dashboard({
               tono={diaDelTurno === 1 || diaDelTurno >= DIAS_POR_TURNO - 1 ? 'aviso' : undefined} />
             <Tarea icono={FolderOpen} color="#55636B" titulo="Borradores" onClick={() => onNavigate('borradores')}
               estado={`${borradorCount} informe${borradorCount === 1 ? '' : 's'} guardado${borradorCount === 1 ? '' : 's'}`} />
+            <Tarea icono={FileUp} color="#0E7C86" titulo="Recuperar informe desde Word" onClick={onImportar}
+              estado="Vuelve a crear un informe borrado a partir de su Word" />
             <Tarea icono={Wrench} color="#55636B" titulo="Mantenimiento de generador" onClick={() => setModalMantenimientoOpen(true)}
               estado={borradoresMantenimiento.length ? `${borradoresMantenimiento.length} borrador${borradoresMantenimiento.length === 1 ? '' : 'es'}` : 'Sin borradores'}
               etiqueta="En desarrollo" />

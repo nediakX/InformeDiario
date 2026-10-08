@@ -22,6 +22,7 @@ import { VERTIV_TITLE, VERTIV_CARROS, VERTIV_ITEMS } from '../../datos/plantilla
 import { letraDeFecha } from '../../datos/turnos';
 import { resolveImageBytes } from '../../lib/imagenes';
 import { ajustarImagenes } from '../../lib/ajusteImagenes';
+import { registrarDeshacer, reinsertar } from '../../lib/deshacer';
 import { mapaFotosSubidas, aplicarFotosSubidas } from '../../lib/storage';
 
 import type { Dispatch, SetStateAction, RefObject } from 'react';
@@ -546,9 +547,18 @@ export function useInformeDiario({ view, setBorradores, borradoresRef, division 
   };
 
   const handleRemovePersonal = (index: number) => {
+    const quitado = personal[index];
     const updated = personal.filter((_, i) => i !== index);
     setPersonal(updated);
     persistPersonal(updated);
+    if (!quitado) return;
+    registrarDeshacer(`Se quitó a ${quitado.nombre.trim() || 'una persona'} del personal`, () => {
+      setPersonal(actual => {
+        const restaurado = reinsertar(actual, index, quitado);
+        persistPersonal(restaurado);
+        return restaurado;
+      });
+    });
   };
 
   const handleUpdatePersonal = (index: number, field: 'nombre' | 'cargo', value: string) => {
@@ -559,10 +569,14 @@ export function useInformeDiario({ view, setBorradores, borradoresRef, division 
 
   const resetPersonal = () => {
     if (window.confirm(`¿Deseas restaurar la lista de personal por defecto del Turno ${letraTurno}?`)) {
+      const anterior = personal;
       const defaults = getDefaultPersonal(letraTurno, division);
       setPersonal(defaults);
       persistPersonal(defaults);
-      showToast("Lista de personal restaurada.");
+      registrarDeshacer("Se restauró la lista de personal por defecto", () => {
+        setPersonal(anterior);
+        persistPersonal(anterior);
+      });
     }
   };
 
@@ -580,9 +594,33 @@ export function useInformeDiario({ view, setBorradores, borradoresRef, division 
   };
 
   const handleRemoveActividad = (index: number) => {
+    const quitada = actividades[index];
+    // Las fotos del bloque de esa actividad también se recuperan al deshacer.
+    const bloqueAnterior = evidenceBlocks.find(b => b.isActivity && b.title === quitada);
     const updated = actividades.filter((_, i) => i !== index);
     setActividades(updated);
     persistActividades(updated);
+    if (quitada === undefined) return;
+    registrarDeshacer(`Se quitó la actividad «${quitada.trim() || 'sin texto'}»`, () => {
+      setActividades(actual => {
+        const restauradas = reinsertar(actual, index, quitada);
+        persistActividades(restauradas);
+        return restauradas;
+      });
+      if (bloqueAnterior?.photos.some(Boolean)) {
+        // El bloque se vuelve a crear al reponer la actividad; luego se le devuelven sus fotos.
+        setTimeout(() => setEvidenceBlocks(actual => actual.map(b => (
+          b.isActivity && b.title === quitada && !b.photos.some(Boolean) ? { ...b, photos: bloqueAnterior.photos, photoCount: bloqueAnterior.photos.length } : b
+        ))), 0);
+      }
+    });
+  };
+
+  const handleRemoveObservacion = (index: number) => {
+    const quitada = observaciones[index];
+    setObservaciones(actual => actual.filter((_, i) => i !== index));
+    if (quitada === undefined) return;
+    registrarDeshacer('Se quitó una observación', () => setObservaciones(actual => reinsertar(actual, index, quitada)));
   };
 
   // Reordenar arrastrando: Personal y Actividades se guardan solos (persistPersonal/persistActividades) al soltar.
@@ -594,9 +632,13 @@ export function useInformeDiario({ view, setBorradores, borradoresRef, division 
     const defaults = turno === 'dia' ? DEFAULT_ACTIVIDADES_DIA : actividadesNoche(division);
     const label = turno === 'dia' ? 'Turno Día' : 'Turno Noche';
     if (window.confirm(`¿Deseas restaurar la lista de actividades por defecto de ${label}?`)) {
+      const anteriores = actividades;
       setActividades(defaults);
       persistActividades(defaults);
-      showToast("Lista de actividades restaurada.");
+      registrarDeshacer("Se restauró la lista de actividades por defecto", () => {
+        setActividades(anteriores);
+        persistActividades(anteriores);
+      });
     }
   };
 
@@ -616,7 +658,17 @@ export function useInformeDiario({ view, setBorradores, borradoresRef, division 
   // Handlers Evidencias
   const assignFileToSlot = (file: File, blockIndex: number, photoIndex: number) => {
     if (!file || !file.type.startsWith("image/")) return;
+    const bloque = evidenceBlocks[blockIndex];
+    const anterior = bloque?.photos[photoIndex] ?? null;
     void comprimirImagen(file).then(sourceImage => {
+      if (anterior && bloque) {
+        registrarDeshacer('Se reemplazó una foto', () => setEvidenceBlocks(actual => actual.map(b => {
+          if (b.id !== bloque.id) return b;
+          const fotos = [...b.photos];
+          fotos[photoIndex] = anterior;
+          return { ...b, photos: fotos };
+        })));
+      }
       setEvidenceBlocks(prev => prev.map((b, bi) => {
         if (bi !== blockIndex) return b;
         const newPhotos = [...b.photos];
@@ -635,6 +687,18 @@ export function useInformeDiario({ view, setBorradores, borradoresRef, division 
   };
 
   const handleRemovePhotoSlot = (blockIndex: number, photoIndex: number) => {
+    const bloque = evidenceBlocks[blockIndex];
+    if (bloque) {
+      const foto = bloque.photos[photoIndex] ?? null;
+      registrarDeshacer(foto ? `Se eliminó una foto de «${bloque.title}»` : `Se quitó un espacio de foto de «${bloque.title}»`, () => {
+        setEvidenceBlocks(actual => {
+          const i = actual.findIndex(b => b.id === bloque.id);
+          if (i < 0) return reinsertar(actual, blockIndex, bloque);
+          const photos = reinsertar(actual[i].photos, photoIndex, foto);
+          return actual.map((b, k) => k === i ? { ...b, photos, photoCount: photos.length } : b);
+        });
+      });
+    }
     setEvidenceBlocks(prev => prev.flatMap((block, bi) => {
       if (bi !== blockIndex) return [block];
 
@@ -673,6 +737,8 @@ export function useInformeDiario({ view, setBorradores, borradoresRef, division 
   };
 
   const clearVertivCarroPhoto = (idx: number) => {
+    const anterior = vertivCarroPhotos[idx];
+    if (anterior) registrarDeshacer('Se eliminó una foto de Vertiv (carro)', () => setVertivCarroPhotos(actual => actual.map((f, i) => i === idx ? anterior : f)));
     setVertivCarroPhotos(prev => {
       const updated = [...prev];
       updated[idx] = null;
@@ -814,6 +880,8 @@ export function useInformeDiario({ view, setBorradores, borradoresRef, division 
   };
 
   const clearVertivItemPhoto = (idx: number) => {
+    const anterior = vertivItemPhotos[idx];
+    if (anterior) registrarDeshacer('Se eliminó una foto de Vertiv', () => setVertivItemPhotos(actual => actual.map((f, i) => i === idx ? anterior : f)));
     setVertivItemPhotos(prev => {
       const updated = [...prev];
       updated[idx] = null;
@@ -1475,6 +1543,7 @@ export function useInformeDiario({ view, setBorradores, borradoresRef, division 
     clearSelectedEvidenceSlot,
     clearVertivCarroPhoto,
     clearVertivItemPhoto,
+    handleRemoveObservacion,
     closeDocumentScanner,
     confirmRemovePhotoSlot,
     confirmScannedDocument,

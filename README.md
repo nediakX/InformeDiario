@@ -61,6 +61,20 @@ documentos fotografiados. Publicado en Vercel.
   el formato del registro queda idéntico. Si cambia el formato, se reemplaza ese archivo
   (y, si cambian filas o columnas, las posiciones en `src/informes/checklist/catalogo.ts`).
 
+## Recuperar informes desde Word y Deshacer
+
+- **Importar desde Word** (Panel → "Recuperar informe desde Word", o el botón "Importar desde Word" en Borradores):
+  se elige el `.docx` que se descargó de la app y se vuelve a crear el borrador con sus textos, personal,
+  actividades, observaciones y fotos (cada foto en su bloque). Sirve para Informe Diario, Cierre,
+  Mantenimiento de Generador, Falla de Carro y Checklist de Camioneta (`src/importar/`). Reconoce la
+  división del informe; si es de otra, pide cambiar de división. Un Informe Diario reemplaza al del mismo
+  día y turno; el Cierre reemplaza al cierre en curso.
+- **Deshacer**: todo lo que se borra (fotos, actividades, personal, observaciones, filas, secciones,
+  borradores completos, "Cierre nuevo", "Limpiar" del checklist) muestra una barra con **Deshacer**
+  (también Ctrl+Z fuera de los campos de texto). Los borradores eliminados se borran de la nube recién
+  20 segundos después (o al salir de la pantalla), así se pueden recuperar con todas sus fotos
+  (`src/lib/deshacer.ts`, `src/componentes/BarraDeshacer.tsx`).
+
 ## Modo sin conexión
 
 - La app se instala sola en el dispositivo la primera vez que se abre con señal (service worker) y después
