@@ -10,10 +10,11 @@
 //   /falla/:id?                Informe de Falla — Carro (sin id = nuevo)
 //   /checklist-camioneta       Checklist diario de la camioneta
 //   /impresion                 Impresión Rápida
+//   /perfil                    Mi perfil (datos, contraseña y firma)
 //   /admin/:pestana?           Panel de administración (resumen | en-linea | usuarios | actividad | sistema)
 //   /login, /registro          Acceso (solo sin sesión)
 
-export type Vista = 'dashboard' | 'diario' | 'borradores' | 'cierre' | 'mantenimiento' | 'falla-carro' | 'checklist' | 'impresion' | 'admin';
+export type Vista = 'dashboard' | 'diario' | 'borradores' | 'cierre' | 'mantenimiento' | 'falla-carro' | 'checklist' | 'impresion' | 'admin' | 'perfil';
 export type TipoBorradores = 'diario' | 'mantenimiento' | 'falla';
 export type PestanaAdmin = 'resumen' | 'en-linea' | 'usuarios' | 'actividad' | 'sistema';
 
@@ -28,6 +29,7 @@ export const NOMBRE_PANTALLA: Record<Vista, string> = {
   checklist: 'Checklist de Camioneta',
   impresion: 'Impresión Rápida',
   admin: 'Panel de administración',
+  perfil: 'Mi perfil',
 };
 
 const BASE: Record<Vista, string> = {
@@ -40,6 +42,7 @@ const BASE: Record<Vista, string> = {
   checklist: '/checklist-camioneta',
   impresion: '/impresion',
   admin: '/admin',
+  perfil: '/perfil',
 };
 
 /** URL de una pantalla; `param` es el id del informe, el tipo de borradores o la pestaña de administración. */
@@ -60,7 +63,7 @@ export function leerRuta(pathname: string): RutaLeida {
   if (resto.length) return { vista: null, param: null };
   const vista = (Object.keys(BASE) as Vista[]).find(v => v !== 'dashboard' && BASE[v] === `/${primera}`) ?? null;
   if (!vista) return { vista: null, param: null };
-  if (segunda && (vista === 'cierre' || vista === 'impresion' || vista === 'checklist')) return { vista: null, param: null };
+  if (segunda && (vista === 'cierre' || vista === 'impresion' || vista === 'checklist' || vista === 'perfil')) return { vista: null, param: null };
   return { vista, param: segunda };
 }
 

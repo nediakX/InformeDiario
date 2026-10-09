@@ -135,15 +135,15 @@ export default function Actividad({ perfiles }: { perfiles: Perfil[] }) {
         <p className="viz-empty">No hay eventos con estos filtros.</p>
       ) : (
         <div className="viz-table-wrap">
-          <table className="viz-table">
+          <table className="viz-table viz-table--tarjetas">
             <thead><tr><th>Fecha</th><th>Usuario</th><th>Acción</th><th>Detalle</th></tr></thead>
             <tbody>
               {visibles.map(f => (
                 <tr key={f.id}>
-                  <td className="whitespace-nowrap">{fechaHora(f.creado_at)}</td>
-                  <td>{nombre(f.usuario_id)}</td>
-                  <td><span className={`pill pill--evento-${TIPOS[f.tipo]?.grupo ?? 'sistema'}`}>{TIPOS[f.tipo]?.etiqueta ?? f.tipo}</span></td>
-                  <td className="max-w-[340px] truncate" title={f.detalle}>{f.detalle || '—'}</td>
+                  <td className="whitespace-nowrap" data-label="Fecha">{fechaHora(f.creado_at)}</td>
+                  <td data-label="Usuario">{nombre(f.usuario_id)}</td>
+                  <td data-label="Acción"><span className={`pill pill--evento-${TIPOS[f.tipo]?.grupo ?? 'sistema'}`}>{TIPOS[f.tipo]?.etiqueta ?? f.tipo}</span></td>
+                  <td className="max-w-[340px] truncate celda-detalle" data-label="Detalle" title={f.detalle}>{f.detalle || '—'}</td>
                 </tr>
               ))}
             </tbody>

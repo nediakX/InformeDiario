@@ -5,7 +5,7 @@
 // muestra "Se eliminó … · Deshacer" y también responde a Ctrl+Z (fuera de los campos de texto).
 //
 // Borrados en la nube (un borrador completo): no se ejecutan al instante. Se oculta el borrador y
-// el borrado real (`confirmar`) se hace pasados unos segundos, o al salir de la pantalla / cerrar la
+// el borrado real (`confirmar`) se hace pasados 15 segundos, o al salir de la pantalla / cerrar la
 // app. Mientras tanto se puede deshacer sin perder nada (ni siquiera las fotos guardadas en la nube).
 
 import { useSyncExternalStore } from 'react';
@@ -19,8 +19,8 @@ export interface AccionDeshacer {
   registradaEn: number;
 }
 
-/** Tiempo para deshacer un borrado en la nube antes de que se haga definitivo. */
-export const ESPERA_BORRADO_NUBE = 20_000;
+/** Tiempo para deshacer (la barra desaparece y el borrado en la nube se hace definitivo). */
+export const ESPERA_DESHACER = 15_000;
 const MAXIMO_EN_PILA = 30;
 
 let pila: AccionDeshacer[] = [];
@@ -47,12 +47,16 @@ function ejecutarConfirmacion(accion: AccionDeshacer) {
  * Registra algo que se acaba de borrar.
  * @param mensaje Texto corto: "Se eliminó la foto".
  * @param deshacer Cómo volver a dejarlo como estaba.
- * @param confirmar (opcional) Borrado definitivo, que se ejecuta pasados ESPERA_BORRADO_NUBE ms si no se deshace.
+ * @param confirmar (opcional) Borrado definitivo, que se ejecuta pasados ESPERA_DESHACER ms si no se deshace.
  */
 export function registrarDeshacer(mensaje: string, deshacer: () => void, confirmar?: () => void): void {
   const accion: AccionDeshacer = { id: siguienteId++, mensaje, deshacer, confirmar, registradaEn: Date.now() };
   pila = [...pila, accion];
-  if (confirmar) temporizadores.set(accion.id, setTimeout(() => { ejecutarConfirmacion(accion); avisar(); }, ESPERA_BORRADO_NUBE));
+  // Pasados 15 s ya no se puede deshacer: se quita de la pila (y el borrado pendiente se completa).
+  temporizadores.set(accion.id, setTimeout(() => {
+    if (accion.confirmar) ejecutarConfirmacion(accion); else quitar(accion.id);
+    avisar();
+  }, ESPERA_DESHACER));
   // Si la pila crece demasiado, lo más antiguo ya no se puede deshacer (y si tenía un borrado pendiente, se hace).
   while (pila.length > MAXIMO_EN_PILA) {
     const vieja = pila[0];

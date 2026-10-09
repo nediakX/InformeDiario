@@ -71,9 +71,20 @@ documentos fotografiados. Publicado en Vercel.
   día y turno; el Cierre reemplaza al cierre en curso.
 - **Deshacer**: todo lo que se borra (fotos, actividades, personal, observaciones, filas, secciones,
   borradores completos, "Cierre nuevo", "Limpiar" del checklist) muestra una barra con **Deshacer**
-  (también Ctrl+Z fuera de los campos de texto). Los borradores eliminados se borran de la nube recién
-  20 segundos después (o al salir de la pantalla), así se pueden recuperar con todas sus fotos
+  (también Ctrl+Z fuera de los campos de texto). La barra desaparece a los 15 segundos; los borradores
+  eliminados se borran de la nube recién entonces (o al salir de la pantalla), así se pueden recuperar con todas sus fotos
   (`src/lib/deshacer.ts`, `src/componentes/BarraDeshacer.tsx`).
+
+## Cuadro Vertiv y Mi perfil
+
+- **Cuadro Vertiv** (Informe Diario de Turno Día, El Salvador): sección opcional, cerrada por defecto, con
+  una captura "Status Vertiv LTE_…" por sitio. En el Word va en una hoja horizontal aparte (tabla 4 × 3,
+  como el cuadro de referencia); si no tiene capturas no se incluye.
+- **Mi perfil** (`/perfil`, tocando tu nombre en el panel): cada usuario corrige su nombre y RUT, cambia
+  su contraseña y sube su firma. La firma se limpia sola (fondo transparente) y se pone en el Checklist
+  de Camioneta, en el cuadro "Firma y Nombre Conductor" de cada día en que figura como conductor.
+  Requiere correr `supabase/schema.sql` (columna `perfiles.firma` y funciones `actualizar_mi_perfil`
+  y `firmas_division`).
 
 ## Modo sin conexión
 

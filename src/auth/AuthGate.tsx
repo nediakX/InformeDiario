@@ -159,9 +159,13 @@ export default function AuthGate({ children }: { children: ReactNode }) {
     try { localStorage.setItem(CLAVE_DIVISION, d); } catch { /* sin almacenamiento local */ }
   }, []);
 
+  const recargarPerfil = useCallback(async () => {
+    if (userId) await cargarPerfil(userId);
+  }, [userId, cargarPerfil]);
+
   const valor = useMemo<SesionValor | null>(() => (
-    session && perfil ? { session, perfil, esAdmin, pendientesAprobacion, cerrarSesion, division, divisionPropia, setDivision } : null
-  ), [session, perfil, esAdmin, pendientesAprobacion, cerrarSesion, division, divisionPropia, setDivision]);
+    session && perfil ? { session, perfil, esAdmin, pendientesAprobacion, cerrarSesion, division, divisionPropia, setDivision, recargarPerfil } : null
+  ), [session, perfil, esAdmin, pendientesAprobacion, cerrarSesion, division, divisionPropia, setDivision, recargarPerfil]);
 
   if (!sesionCargada) return <Cargando texto="CARGANDO…" />;
   if (recuperando && session) return <NuevaContrasena onListo={() => setRecuperando(false)} />;

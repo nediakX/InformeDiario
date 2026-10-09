@@ -45,24 +45,24 @@ export default function EnLinea({ perfiles, filas, ahora }: { perfiles: Perfil[]
         subtitulo="Se actualiza solo. La app avisa cada minuto que sigue abierta y en qué pantalla está."
       >
         <div className="viz-table-wrap">
-          <table className="viz-table">
+          <table className="viz-table viz-table--tarjetas">
             <thead>
               <tr><th>Usuario</th><th>Estado</th><th>Pantalla</th><th>Dispositivo</th><th>Conectado desde</th><th>Última actividad</th></tr>
             </thead>
             <tbody>
               {lista.map(({ perfil: p, fila, estado }) => (
                 <tr key={p.id} className={estado === 'desconectado' ? 'fila-atenuada' : undefined}>
-                  <td>
+                  <td className="celda-titulo">
                     <div className="font-semibold">{p.nombre || p.email}</div>
                     <div className="text-xs text-gray-500">{etiquetaFaena(p.faena)}</div>
                   </td>
-                  <td><PuntoConexion estado={estado} /></td>
-                  <td>{estado === 'desconectado' ? '—' : fila?.pantalla ?? '—'}</td>
-                  <td><IconoDispositivo dispositivo={fila?.dispositivo ?? null} /></td>
-                  <td className="whitespace-nowrap">
+                  <td data-label="Estado"><PuntoConexion estado={estado} /></td>
+                  <td data-label="Pantalla">{estado === 'desconectado' ? '—' : fila?.pantalla ?? '—'}</td>
+                  <td data-label="Dispositivo"><IconoDispositivo dispositivo={fila?.dispositivo ?? null} /></td>
+                  <td className="whitespace-nowrap" data-label="Conectado desde">
                     {estado === 'desconectado' || !fila ? '—' : new Date(fila.conectado_desde).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })}
                   </td>
-                  <td className="whitespace-nowrap">{haceCuanto(fila?.ultimo_visto ?? p.ultimo_acceso, ahora)}</td>
+                  <td className="whitespace-nowrap" data-label="Última actividad">{haceCuanto(fila?.ultimo_visto ?? p.ultimo_acceso, ahora)}</td>
                 </tr>
               ))}
             </tbody>

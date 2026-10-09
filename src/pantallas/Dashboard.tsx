@@ -39,7 +39,7 @@ function Tarea({ icono: Icono, color, titulo, estado, tono, etiqueta, onClick }:
 }
 
 interface DashboardProps {
-  onNavigate: (view: 'borradores' | 'cierre' | 'checklist' | 'impresion' | 'admin') => void;
+  onNavigate: (view: 'borradores' | 'cierre' | 'checklist' | 'impresion' | 'admin' | 'perfil') => void;
   /** Informes de hoy (Día y Noche), guardados o todavía pendientes: la persona elige con cuál trabajar. */
   informesHoy?: BorradorEntry[];
   onAbrirInforme: (entry: BorradorEntry) => void;
@@ -162,11 +162,11 @@ export default function Dashboard({
           </div>
           <div className="dash-cuenta">
             <SelectorDivision />
-            <span className="dash-usuario" title={perfil.email}>
+            <button type="button" className="dash-usuario dash-usuario--boton" title={`Mi perfil · ${perfil.email}`} onClick={() => onNavigate('perfil')}>
               <UserRound size={14} aria-hidden="true" />
               <span className="truncate">{nombreVisible(perfil)}</span>
               {esAdmin && <span className="dash-usuario__rol">Admin</span>}
-            </span>
+            </button>
             <button
               type="button"
               onClick={() => { if (window.confirm('¿Cerrar sesión en este dispositivo?')) void cerrarSesion(); }}

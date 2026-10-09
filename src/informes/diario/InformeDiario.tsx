@@ -1,6 +1,6 @@
 
 
-import { ChevronDown, Trash2, ClipboardList, Users, ListChecks, BatteryCharging, MessageSquare, Camera, Loader2, ArrowLeft, Plus, GripVertical, Copy } from 'lucide-react';
+import { ChevronDown, Trash2, ClipboardList, Users, ListChecks, BatteryCharging, MessageSquare, Camera, Loader2, ArrowLeft, Plus, GripVertical, Copy, LayoutGrid, X as Cerrar } from 'lucide-react';
 import logoPsinet from "../../assets/logo_psinet.jpg";
 import logoEdificio from "../../assets/LogoEdificio.png";
 
@@ -8,7 +8,7 @@ import VisorFoto from '../../componentes/VisorFoto';
 import { gruposTareas } from '../../datos/catalogos';
 import EscanerDocumento from '../../componentes/EscanerDocumento';
 
-import { VERTIV_CARROS_FLAT, VERTIV_ITEMS } from '../../datos/plantillaWord';
+import { VERTIV_CARROS_FLAT, VERTIV_ITEMS, CUADRO_VERTIV_SITIOS, leyendaCuadroVertiv } from '../../datos/plantillaWord';
 
 import { ACTIVIDAD_SUGERIDA_MANTENCION, getDefaultPersonal } from './constantes';
 import { creadoPorDiario } from '../../datos/divisiones';
@@ -50,6 +50,9 @@ export default function InformeDiario({ d, volverABorradores, goToNewInforme }: 
     generarDocumento,
     handleAddActividad,
     handleAddGenericBlock,
+    indiceCuadroVertiv,
+    asegurarCuadroVertiv,
+    limpiarFotoCuadroVertiv,
     handleAddPersonal,
     handleAddPhotoSlot,
     handleCopiarFoto,
@@ -497,7 +500,7 @@ export default function InformeDiario({ d, volverABorradores, goToNewInforme }: 
           </p>
 
           <div className="space-y-3">
-            {evidenceBlocks.map((block, bi) => (
+            {evidenceBlocks.map((block, bi) => block.cuadroVertiv ? null : (
               <div key={block.id} className="border border-dashed border-[#DCE1E6] rounded-lg p-3 bg-[#fafbfc]">
                 <div className="flex items-center gap-2 mb-2">
                   <input
@@ -574,6 +577,56 @@ export default function InformeDiario({ d, volverABorradores, goToNewInforme }: 
             + Agregar bloque extra de evidencia
           </button>
         </details>
+
+        {/* Cuadro Vertiv (opcional, solo Turno Día): queda cerrado hasta que se necesite */}
+        {turno === 'dia' && config.vertiv && (
+          <details className="panel p-5" onToggle={e => { if ((e.currentTarget as HTMLDetailsElement).open) asegurarCuadroVertiv(); }}>
+            <summary className="panel__summary font-display font-bold text-lg">
+              <LayoutGrid size={18} className="panel__summary-icon" strokeWidth={2.2} />
+              Cuadro Vertiv <span className="text-xs font-sans font-normal text-gray-500 ml-1">(opcional)</span>
+              {indiceCuadroVertiv >= 0 && evidenceBlocks[indiceCuadroVertiv].photos.some(Boolean) && (
+                <span className="ml-2 text-[11px] font-sans font-bold px-2 py-0.5 rounded-full bg-[#e6f6e6] text-[#006300]">
+                  {evidenceBlocks[indiceCuadroVertiv].photos.filter(Boolean).length} de {CUADRO_VERTIV_SITIOS.length}
+                </span>
+              )}
+              <ChevronDown size={16} className="panel__summary-chevron" />
+            </summary>
+            <p className="text-xs text-gray-500 mb-3">
+              Captura del estado de la planta Vertiv de cada sitio. En el Word va en una hoja horizontal aparte (4 × 3), con la leyenda
+              «Status Vertiv …» bajo cada captura. Si no cargas ninguna, el cuadro no se incluye. También soporta <strong>Ctrl + V</strong>.
+            </p>
+            {indiceCuadroVertiv >= 0 && (
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                {CUADRO_VERTIV_SITIOS.map((sitio, i) => {
+                  const src = evidenceBlocks[indiceCuadroVertiv].photos[i] ?? null;
+                  const seleccionada = selectedEvidenceSlot?.blockIndex === indiceCuadroVertiv && selectedEvidenceSlot.photoIndex === i;
+                  return (
+                    <div
+                      key={sitio}
+                      onClick={() => handleSelectEvidenceSlot(indiceCuadroVertiv, i)}
+                      className={`photo-slot relative border-2 border-dashed rounded-md p-1.5 bg-white cursor-pointer text-center ${seleccionada ? 'border-[#0E4660] ring-2 ring-[#0E4660]/20' : 'border-gray-300'}`}
+                      title="Haz clic aquí y luego pega una imagen con Ctrl+V"
+                    >
+                      {src && (
+                        <button type="button" onClick={e => { e.stopPropagation(); limpiarFotoCuadroVertiv(i); }}
+                          className="absolute top-0.5 right-0.5 bg-red-600 text-white rounded-full w-5 h-5 flex items-center justify-center z-10" aria-label={`Quitar captura de ${sitio}`}>
+                          <Cerrar size={12} />
+                        </button>
+                      )}
+                      <div className="aspect-[16/10] rounded bg-gray-100 overflow-hidden mb-1 flex items-center justify-center">
+                        {src
+                          ? <img src={src} alt={leyendaCuadroVertiv(sitio)} className="w-full h-full object-contain cursor-zoom-in" onClick={e => { e.stopPropagation(); setFotoAmpliada(src); }} />
+                          : <span className="text-[10px] text-gray-400">Pega o carga la captura</span>}
+                      </div>
+                      <span className="block text-[11px] font-bold text-[#0E4660] mb-1">{leyendaCuadroVertiv(sitio)}</span>
+                      <input type="file" accept="image/*" onChange={e => { const f = e.target.files?.[0]; if (f) assignFileToSlot(f, indiceCuadroVertiv, i); e.target.value = ''; }} className="text-[10px] w-full" aria-label={`Cargar captura de ${sitio}`} />
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </details>
+        )}
 
         {/* Action Button */}
         <div className="action-zone">

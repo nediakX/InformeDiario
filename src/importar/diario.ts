@@ -3,7 +3,7 @@
 import type { Division } from '../datos/divisiones';
 import type { BorradorEntry, EvidenceBlockLike } from '../datos/borradoresDiario';
 import { idBorradorAutomatico, letraDeFecha } from '../datos/turnos';
-import { VERTIV_CARROS_FLAT, VERTIV_ITEMS, VERTIV_TITLE } from '../datos/plantillaWord';
+import { CUADRO_VERTIV_ID, CUADRO_VERTIV_SITIOS, VERTIV_CARROS_FLAT, VERTIV_ITEMS, VERTIV_TITLE, leyendaCuadroVertiv } from '../datos/plantillaWord';
 import { crearBorradorAutomatico, DEFAULT_EVIDENCIAS_NOCHE } from '../informes/diario/constantes';
 import { fechaDesdeTexto, normalizar, type Bloque, type DocumentoLeido, type Tabla } from './leerDocx';
 import { esFilaLeyenda, fotosDeCeldas, prepararFotos } from './comun';
@@ -87,6 +87,7 @@ export async function importarDiario(doc: DocumentoLeido, division: Division): P
   const bloquesFotos: { title: string; photos: (string | null)[] }[] = [];
   const inicioEvidencia = Math.max(iObs, bloques.findIndex(b => esTitulo(b, /^Actividades Diarias/i)));
   let enVertiv = false;
+  let cuadroVertiv: (string | null)[] | null = null;
   for (const b of bloques.slice(inicioEvidencia + 1)) {
     if (b.tipo === 'p') {
       if (b.texto === VERTIV_TITLE) enVertiv = true;
@@ -94,6 +95,17 @@ export async function importarDiario(doc: DocumentoLeido, division: Division): P
     }
     if (b === portada || b === tablaPersonal) continue;
     const filas = b.filas;
+    // Cuadro Vertiv (hoja horizontal): filas de capturas y filas "Status Vertiv LTE_…".
+    if (filas.some(f => f.some(c => /^Status Vertiv /i.test(c.textos.join(' ').trim())))) {
+      cuadroVertiv = CUADRO_VERTIV_SITIOS.map(() => null);
+      for (let r = 0; r + 1 < filas.length; r += 2) {
+        filas[r + 1].forEach((celda, k) => {
+          const idx = CUADRO_VERTIV_SITIOS.findIndex(sitio => leyendaCuadroVertiv(sitio) === celda.textos.join(' ').trim());
+          if (idx >= 0 && cuadroVertiv) cuadroVertiv[idx] = filas[r][k]?.imagenes[0] ?? null;
+        });
+      }
+      continue;
+    }
     // Bloque Vertiv por carro: filas de fotos y filas con el nombre de cada carro, de a pares.
     const nombresCarros = filas.flat().map(c => c.textos.join(' ').trim()).filter(t => VERTIV_CARROS_FLAT.includes(t));
     if (enVertiv && nombresCarros.length >= 2) {
@@ -133,6 +145,11 @@ export async function importarDiario(doc: DocumentoLeido, division: Division): P
     } else {
       evidenceBlocks.push({ id: `extra_importado_${n}`, title: bloque.title, isActivity: false, ...comun });
     }
+  }
+
+  if (cuadroVertiv?.some(Boolean)) {
+    const photos = await prepararFotos(cuadroVertiv);
+    evidenceBlocks.push({ id: CUADRO_VERTIV_ID, title: 'Cuadro Vertiv', isActivity: false, cuadroVertiv: true, photos, photoCount: photos.length });
   }
 
   return {

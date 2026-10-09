@@ -18,7 +18,7 @@ import { type Vista } from '../../app/rutas';
 import { type BorradorEntry, upsertBorrador, contarFotos } from '../../datos/borradoresDiario';
 
 import { hoyLocalISO } from '../../datos/fechas';
-import { VERTIV_TITLE, VERTIV_CARROS, VERTIV_ITEMS } from '../../datos/plantillaWord';
+import { VERTIV_TITLE, VERTIV_CARROS, VERTIV_ITEMS, CUADRO_VERTIV_ID, CUADRO_VERTIV_SITIOS, leyendaCuadroVertiv } from '../../datos/plantillaWord';
 import { letraDeFecha } from '../../datos/turnos';
 import { resolveImageBytes } from '../../lib/imagenes';
 import { ajustarImagenes, encajarSinDeformar, medirImagen } from '../../lib/ajusteImagenes';
@@ -912,6 +912,26 @@ export function useInformeDiario({ view, setBorradores, borradoresRef, division 
     closeDocumentScanner();
   };
 
+  // --- Cuadro Vertiv (Turno Día, opcional) ------------------------------------------------------
+  // Vive como un bloque especial dentro de evidenceBlocks (así se guarda, sincroniza y sube sus fotos
+  // igual que el resto), pero no se muestra en "Evidencia fotográfica" ni cuenta para el avance.
+  const indiceCuadroVertiv = evidenceBlocks.findIndex(b => b.cuadroVertiv);
+  const asegurarCuadroVertiv = () => setEvidenceBlocks(prev => (prev.some(b => b.cuadroVertiv) ? prev : [
+    ...prev,
+    { id: CUADRO_VERTIV_ID, title: 'Cuadro Vertiv', photoCount: CUADRO_VERTIV_SITIOS.length, photos: CUADRO_VERTIV_SITIOS.map(() => null), isActivity: false, cuadroVertiv: true },
+  ]));
+  const limpiarFotoCuadroVertiv = (i: number) => {
+    const anterior = evidenceBlocks[indiceCuadroVertiv]?.photos[i] ?? null;
+    const poner = (valor: string | null) => setEvidenceBlocks(prev => prev.map(b => {
+      if (!b.cuadroVertiv) return b;
+      const photos = [...b.photos];
+      photos[i] = valor;
+      return { ...b, photos };
+    }));
+    poner(null);
+    if (anterior) registrarDeshacer(`Se quitó la foto de ${leyendaCuadroVertiv(CUADRO_VERTIV_SITIOS[i])}`, () => poner(anterior));
+  };
+
   const handleAddGenericBlock = () => {
     const count = genericCounter + 1;
     setGenericCounter(count);
@@ -1031,7 +1051,7 @@ export function useInformeDiario({ view, setBorradores, borradoresRef, division 
       const {
         Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell,
         Header, ImageRun, WidthType, BorderStyle, AlignmentType,
-        HeadingLevel, VerticalAlign, TableLayoutType,
+        HeadingLevel, VerticalAlign, TableLayoutType, PageOrientation, HeightRule,
       } = await import('docx'); // se descarga solo al generar el Word (la app abre más rápido)
 
       const cellBorders = (color?: string) => {
@@ -1303,7 +1323,53 @@ export function useInformeDiario({ view, setBorradores, borradoresRef, division 
         ...itemPages,
       ] : [];
 
-      const evidenceContent = (await Promise.all(evidenceBlocks.map(async block => {
+      // Cuadro Vertiv (Turno Día): hoja horizontal con una tabla de 4 × 3 (captura + "Status Vertiv …"),
+      // igual al formato de referencia. Solo se agrega si tiene al menos una foto.
+      const fotosCuadro = turno === 'dia' ? (evidenceBlocks.find(b => b.cuadroVertiv)?.photos ?? []) : [];
+      const seccionCuadroVertiv = fotosCuadro.some(Boolean) ? await (async () => {
+        const COLUMNAS = 4;
+        const ANCHO_COL = 3483;
+        const borde = { style: BorderStyle.SINGLE, size: 4, color: "000000" };
+        const bordes = { top: borde, bottom: borde, left: borde, right: borde };
+        const celdaFoto = async (foto: string | null) => {
+          if (!foto) return new TableCell({ width: { size: ANCHO_COL, type: WidthType.DXA }, borders: bordes, verticalAlign: VerticalAlign.CENTER, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "(Sin captura)", italics: true, color: "999999", size: 18, font: "Arial" })] })] });
+          const { bytes, type } = await resolveImageBytes(foto);
+          // Captura lo más grande posible dentro de la celda, sin deformarla (≈ 153 × 93 pt).
+          const m = await medirImagen(foto);
+          const escala = Math.min(204 / m.ancho, 124 / m.alto);
+          const t = { ancho: Math.round(m.ancho * escala), alto: Math.round(m.alto * escala) };
+          return new TableCell({
+            width: { size: ANCHO_COL, type: WidthType.DXA }, borders: bordes, verticalAlign: VerticalAlign.CENTER,
+            margins: { top: 60, bottom: 60, left: 60, right: 60 },
+            children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new ImageRun({ data: bytes, transformation: { width: t.ancho, height: t.alto }, type })] })],
+          });
+        };
+        const filas: docx.TableRow[] = [];
+        for (let i = 0; i < CUADRO_VERTIV_SITIOS.length; i += COLUMNAS) {
+          const sitios = CUADRO_VERTIV_SITIOS.slice(i, i + COLUMNAS);
+          filas.push(new TableRow({ height: { value: 2095, rule: HeightRule.ATLEAST }, cantSplit: true, children: await Promise.all(sitios.map((_, k) => celdaFoto(fotosCuadro[i + k] ?? null))) }));
+          filas.push(new TableRow({
+            height: { value: 387, rule: HeightRule.ATLEAST }, cantSplit: true,
+            children: sitios.map(sitio => new TableCell({ width: { size: ANCHO_COL, type: WidthType.DXA }, borders: bordes, children: [new Paragraph({ children: [new TextRun({ text: leyendaCuadroVertiv(sitio), font: "Arial", size: 22 })] })] })),
+          }));
+        }
+        return {
+          properties: {
+            page: {
+              size: { width: 12240, height: 15840, orientation: PageOrientation.LANDSCAPE },
+              // Igual al cuadro de referencia: la tabla parte ~1,7 cm desde el borde superior.
+              margin: { top: 975, right: 1417, bottom: 1701, left: 1417 },
+            },
+          },
+          // Hoja sin el encabezado de las demás (igual que el cuadro de referencia).
+          headers: { default: new Header({ children: [new Paragraph({ text: "" })] }) },
+          children: [
+            new Table({ width: { size: ANCHO_COL * COLUMNAS, type: WidthType.DXA }, layout: TableLayoutType.FIXED, alignment: AlignmentType.CENTER, columnWidths: Array(COLUMNAS).fill(ANCHO_COL), rows: filas }),
+          ],
+        };
+      })() : null;
+
+      const evidenceContent = (await Promise.all(evidenceBlocks.filter(b => !b.cuadroVertiv).map(async block => {
         const usablePhotos = block.photos.filter((p): p is string => Boolean(p));
         if (usablePhotos.length === 0) return [];
 
@@ -1484,6 +1550,7 @@ export function useInformeDiario({ view, setBorradores, borradoresRef, division 
               ...finalPageContent,
             ],
           },
+          ...(seccionCuadroVertiv ? [seccionCuadroVertiv] : []),
         ],
       });
 
@@ -1578,6 +1645,9 @@ export function useInformeDiario({ view, setBorradores, borradoresRef, division 
     genericCounter,
     handleAddActividad,
     handleAddGenericBlock,
+    indiceCuadroVertiv,
+    asegurarCuadroVertiv,
+    limpiarFotoCuadroVertiv,
     handleAddPersonal,
     handleAddPhotoSlot,
     handleCopiarFoto,

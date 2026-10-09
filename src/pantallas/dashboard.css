@@ -16,6 +16,8 @@
 }
 .dash-usuario svg { color: var(--brand-blue); flex: none; }
 .dash-usuario__rol { flex: none; font-size: 0.66rem; font-weight: 700; color: var(--brand-blue); background: #e3edf3; border-radius: 999px; padding: 1px 7px; }
+.dash-usuario--boton { cursor: pointer; }
+.dash-usuario--boton:hover { border-color: var(--brand-blue); color: var(--brand-blue); }
 .dash-salir { font-weight: 700; color: var(--brand-blue); cursor: pointer; }
 .dash-salir:hover { border-color: var(--brand-blue); }
 

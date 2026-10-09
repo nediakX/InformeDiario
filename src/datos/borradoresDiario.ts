@@ -18,6 +18,8 @@ export interface EvidenceBlockLike {
   isFixed?: boolean;
   actIndex?: number;
   photoCount?: number;
+  /** Bloque especial "Cuadro Vertiv" (Turno Día): no cuenta para el avance del informe. */
+  cuadroVertiv?: boolean;
 }
 
 export interface BorradorEntry {
@@ -208,7 +210,8 @@ export const esSemillaSinEditar = (entry: BorradorEntry) =>
 
 /** Fotos del informe: total de espacios y cuántos están llenos. Vertiv (12 carros + 7 ítems) solo cuenta en Turno Noche. */
 export const contarFotos = (entry: BorradorEntry) => {
-  const bloques = entry.evidenceBlocks;
+  // El Cuadro Vertiv es opcional: no cuenta para saber si el informe está completo.
+  const bloques = entry.evidenceBlocks.filter(b => !b.cuadroVertiv);
   let total = bloques.reduce((n, b) => n + b.photos.length, 0);
   let llenas = bloques.reduce((n, b) => n + b.photos.filter(Boolean).length, 0);
   if (entry.turno === 'noche') {

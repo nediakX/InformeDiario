@@ -1,11 +1,9 @@
-// Barra flotante "Deshacer": aparece cuando se borra algo (foto, actividad, persona, borrador…).
-// Al principio muestra qué se borró; después de unos segundos queda como un botón pequeño
-// mientras haya algo que se pueda restaurar. También funciona con Ctrl+Z (o ⌘+Z).
+// Barra flotante "Deshacer": aparece cuando se borra algo (foto, actividad, persona, borrador…)
+// y desaparece sola a los 15 segundos (después ya no se puede deshacer). También funciona con
+// Ctrl+Z (o ⌘+Z) mientras está visible.
 import { useEffect, useState } from 'react';
 import { Undo2, X } from 'lucide-react';
 import { deshacerUltimo, useDeshacer } from '../lib/deshacer';
-
-const SEGUNDOS_EXPANDIDA = 8_000;
 
 const esCampoDeTexto = (el: Element | null) =>
   !!el && (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement || el instanceof HTMLSelectElement || (el as HTMLElement).isContentEditable);
@@ -26,12 +24,6 @@ export default function BarraDeshacer() {
     setAvisoVisto(aviso.en);
     setAvisoVisible(aviso.en);
   }
-
-  useEffect(() => {
-    if (expandidaId === null) return;
-    const t = setTimeout(() => setExpandidaId(null), SEGUNDOS_EXPANDIDA);
-    return () => clearTimeout(t);
-  }, [expandidaId]);
 
   useEffect(() => {
     if (avisoVisible === null) return;
@@ -59,20 +51,14 @@ export default function BarraDeshacer() {
     );
   }
 
-  const expandida = expandidaId === ultima.id;
-  if (!expandida) {
-    return (
-      <button type="button" className="barra-deshacer barra-deshacer--mini" onClick={() => deshacerUltimo()} title={`Deshacer: ${ultima.mensaje}`} aria-label={`Deshacer: ${ultima.mensaje}`}>
-        <Undo2 size={16} aria-hidden="true" /> Deshacer{cantidad > 1 ? ` (${cantidad})` : ''}
-      </button>
-    );
-  }
+  // Se ocultó a mano: vuelve a aparecer con el próximo borrado.
+  if (expandidaId !== ultima.id) return null;
 
   return (
     <div className="barra-deshacer" role="status">
       <span className="barra-deshacer__texto">{ultima.mensaje}</span>
       <button type="button" className="barra-deshacer__accion" onClick={() => deshacerUltimo()}>
-        <Undo2 size={16} aria-hidden="true" /> Deshacer
+        <Undo2 size={16} aria-hidden="true" /> Deshacer{cantidad > 1 ? ` (${cantidad})` : ''}
       </button>
       <button type="button" className="barra-deshacer__cerrar" onClick={() => setExpandidaId(null)} aria-label="Ocultar">
         <X size={16} />

@@ -3,6 +3,9 @@
 // así el formato, logos, dibujos de la camioneta y textos quedan idénticos al registro original.
 import plantillaUrl from '../../assets/plantillas/checklist_camioneta.docx?url';
 import { DIAS_CHECKLIST, TODOS_LOS_ITEMS, fechasChecklist, type DatosChecklist, type Marca } from './catalogo';
+import { medirImagen } from '../../lib/ajusteImagenes';
+import { mismaPersona } from '../../lib/firma';
+import type { FirmaPersona } from '../../datos/perfil';
 
 const W = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
 const XML_NS = 'http://www.w3.org/XML/1998/namespace';
@@ -14,7 +17,11 @@ const fechaCorta = (iso: string) => {
   return `${d}/${m}/${a}`;
 };
 
-export async function generarChecklistWord(datos: DatosChecklist): Promise<Blob> {
+/**
+ * @param firmas Firmas de las personas de la división (Mi perfil). La de cada conductor se pone en el
+ *   cuadro "Firma y Nombre Conductor" del día en que figura, sobre su nombre.
+ */
+export async function generarChecklistWord(datos: DatosChecklist, firmas: FirmaPersona[] = []): Promise<Blob> {
   const [{ default: JSZip }, respuesta] = await Promise.all([import('jszip'), fetch(plantillaUrl)]);
   if (!respuesta.ok) throw new Error('No se pudo cargar la plantilla del checklist.');
   const zip = await JSZip.loadAsync(await respuesta.arrayBuffer());
@@ -192,6 +199,54 @@ export async function generarChecklistWord(datos: DatosChecklist): Promise<Blob>
 
   // Firma y nombre del conductor de cada día.
   for (let dia = 0; dia < DIAS_CHECKLIST; dia++) escribir(celda(5, 1, 1 + dia), datos.firmas[dia], { centrado: true, tamano: 16 });
+
+  // Firma (imagen) de cada conductor que tenga una cargada en su perfil: va sobre su nombre, ajustada
+  // al cuadro del día (≈ 57 × 30 pt) sin deformarse.
+  const relsArchivo = zip.file('word/_rels/document.xml.rels');
+  if (firmas.length && relsArchivo) {
+    const rels = new DOMParser().parseFromString(await relsArchivo.async('string'), 'application/xml');
+    const relsRaiz = rels.documentElement;
+    const RELS_NS = 'http://schemas.openxmlformats.org/package/2006/relationships';
+    const idPorFirma = new Map<string, string>();
+    let docPrId = 9100;
+    for (let dia = 0; dia < DIAS_CHECKLIST; dia++) {
+      const nombre = datos.firmas[dia]?.trim();
+      const persona = nombre ? firmas.find(f => mismaPersona(f.nombre, nombre)) : undefined;
+      if (!persona) continue;
+      let rid = idPorFirma.get(persona.firma);
+      if (!rid) {
+        rid = `rIdFirmaConductor${idPorFirma.size + 1}`;
+        const archivoFirma = `firma_conductor_${idPorFirma.size + 1}.png`;
+        zip.file(`word/media/${archivoFirma}`, persona.firma.split(',')[1] ?? '', { base64: true });
+        const rel = rels.createElementNS(RELS_NS, 'Relationship');
+        rel.setAttribute('Id', rid);
+        rel.setAttribute('Type', 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image');
+        rel.setAttribute('Target', `media/${archivoFirma}`);
+        relsRaiz.appendChild(rel);
+        idPorFirma.set(persona.firma, rid);
+      }
+      const m = await medirImagen(persona.firma);
+      const proporcion = m.ancho / m.alto;
+      const anchoPt = Math.min(57, 30 * proporcion);
+      const altoPt = anchoPt / proporcion;
+      const cx = Math.round(anchoPt * 12700);
+      const cy = Math.round(altoPt * 12700);
+      const id = docPrId++;
+      const xml = `<w:p xmlns:w="${W}" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">`
+        + `<w:pPr><w:spacing w:before="0" w:after="0" w:line="240" w:lineRule="auto"/><w:jc w:val="center"/></w:pPr>`
+        + `<w:r><w:drawing><wp:inline distT="0" distB="0" distL="0" distR="0"><wp:extent cx="${cx}" cy="${cy}"/><wp:docPr id="${id}" name="Firma ${id}"/>`
+        + `<wp:cNvGraphicFramePr><a:graphicFrameLocks noChangeAspect="1"/></wp:cNvGraphicFramePr>`
+        + `<a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:pic><pic:nvPicPr><pic:cNvPr id="${id}" name="firma.png"/><pic:cNvPicPr/></pic:nvPicPr>`
+        + `<pic:blipFill><a:blip r:embed="${rid}"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill>`
+        + `<pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${cx}" cy="${cy}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr></pic:pic></a:graphicData></a:graphic>`
+        + `</wp:inline></w:drawing></w:r></w:p>`;
+      const parrafo = doc.importNode(new DOMParser().parseFromString(xml, 'application/xml').documentElement, true);
+      const tc = celda(5, 1, 1 + dia);
+      sinMargenes(tc);
+      tc.insertBefore(parrafo, primerParrafo(tc));
+    }
+    zip.file('word/_rels/document.xml.rels', new XMLSerializer().serializeToString(rels));
+  }
 
   // Observaciones: sobre la primera línea "____" que sigue al título.
   if (datos.observaciones.trim()) {

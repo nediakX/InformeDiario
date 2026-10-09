@@ -18,6 +18,7 @@ import { hoyLocalISO, sumarDias, formatDiaMes } from '../../datos/fechas';
 import { semanaDeFecha, uuidDeterministico } from '../../datos/turnos';
 import { type BorradorOtroEntry, fetchBorradoresOtros, subscribeBorradoresOtros, upsertBorradorOtro } from '../../datos/borradoresOtros';
 import { registrarDeshacer } from '../../lib/deshacer';
+import { firmasDivision } from '../../datos/perfil';
 import { registrarActividad } from '../../lib/actividad';
 import {
   SECCIONES, DIAS_CHECKLIST, INICIALES_DIA, ETIQUETAS_DIA, fechasChecklist, checklistVacio, normalizarChecklist,
@@ -336,7 +337,8 @@ function FormularioChecklist({ id, division, conductores, entrada, base, hoy, on
   const generarWord = async () => {
     setGenerando(true);
     try {
-      const blob = await generarChecklistWord(datos);
+      // Firmas cargadas en «Mi perfil»: cada una va en el cuadro del día de ese conductor.
+      const blob = await generarChecklistWord(datos, await firmasDivision(division));
       const nombre = nombreArchivoChecklist(datos);
       saveAs(blob, nombre);
       void registrarActividad('word_generado', nombre, id);

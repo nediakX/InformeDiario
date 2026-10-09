@@ -566,3 +566,113 @@
   cursor: pointer;
 }
 .select-division:disabled { opacity: 0.6; cursor: wait; }
+
+/* --- Celular: pestañas en una fila, encabezados apilados y tablas como tarjetas --- */
+@media (max-width: 640px) {
+  .admin-tabs {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 0;
+    overflow: visible;
+  }
+  .admin-tab {
+    flex-direction: column;
+    gap: 3px;
+    min-width: 0;
+    padding: 8px 2px 9px;
+    font-size: 12.5px;
+    letter-spacing: 0.02em;
+    line-height: 1.1;
+    text-align: center;
+  }
+  .admin-tab .admin-badge {
+    position: absolute;
+    top: 3px;
+    left: calc(50% + 6px);
+    min-width: 16px;
+    padding: 0 4px;
+    font-size: 10px;
+    line-height: 15px;
+  }
+
+  .viz-card { padding: 14px; }
+  .viz-card__header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+  .viz-card__header > .btn-mini { align-self: flex-start; }
+
+  /* Filtros: a lo ancho; si no caben en una línea, pasan a la siguiente (no se cortan) */
+  .segmented {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2px;
+    max-width: 100%;
+  }
+  .segmented button {
+    flex: 1 1 auto;
+    padding: 7px 10px;
+    white-space: nowrap;
+  }
+  .admin-filters { width: 100%; }
+  .admin-filters .segmented { width: 100%; }
+  .filtro-select,
+  .filtro-busqueda {
+    flex: 1 1 100%;
+    width: 100%;
+    max-width: none;
+    height: 38px;
+  }
+
+  /* Tablas → tarjetas: cada fila es un bloque con "Etiqueta: valor" */
+  .viz-table--tarjetas thead { display: none; }
+  .viz-table--tarjetas,
+  .viz-table--tarjetas tbody,
+  .viz-table--tarjetas tr,
+  .viz-table--tarjetas td { display: block; width: 100%; }
+  .viz-table--tarjetas tr {
+    margin-bottom: 10px;
+    padding: 10px 12px;
+    border: 1px solid var(--gridline);
+    border-radius: 10px;
+    background: #fff;
+  }
+  .viz-table--tarjetas tr:last-child { margin-bottom: 0; }
+  .viz-table--tarjetas td,
+  .viz-table--tarjetas tr:last-child td {
+    display: grid;
+    grid-template-columns: 112px minmax(0, 1fr);
+    align-items: center;
+    justify-items: start;
+    gap: 8px;
+    padding: 5px 0;
+    border: 0;
+    white-space: normal;
+  }
+  .viz-table--tarjetas td::before {
+    content: attr(data-label);
+    color: var(--text-muted);
+    font-size: 12px;
+    font-weight: 600;
+  }
+  .viz-table--tarjetas tr > td.celda-titulo,
+  .viz-table--tarjetas tr > td.celda-acciones {
+    display: block;
+  }
+  .viz-table--tarjetas tr > td.celda-titulo { padding: 0 0 6px; margin-bottom: 4px; border-bottom: 1px solid var(--gridline); font-size: 14px; }
+  .viz-table--tarjetas td.celda-titulo::before,
+  .viz-table--tarjetas td.celda-acciones::before { content: none; }
+  .viz-table--tarjetas tr > td.celda-acciones { padding-top: 8px; }
+  .viz-table--tarjetas td.celda-acciones > div { justify-content: flex-start; }
+  .viz-table--tarjetas td.celda-acciones .btn-mini { flex: 1 1 auto; justify-content: center; min-height: 34px; }
+  .viz-table--tarjetas td.celda-detalle {
+    max-width: none;
+    overflow: visible;
+    text-overflow: clip;
+    white-space: normal;
+    word-break: break-word;
+  }
+  .viz-table--tarjetas td > * { min-width: 0; }
+  .viz-table--tarjetas .select-division { width: 100%; padding: 7px 8px; font-size: 13px; }
+}

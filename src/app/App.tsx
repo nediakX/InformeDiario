@@ -37,6 +37,7 @@ const ImpresionRapida = lazy(() => import('../pantallas/ImpresionRapida'));
 const ChecklistCamioneta = lazy(() => import('../informes/checklist/ChecklistCamioneta'));
 const PanelAdmin = lazy(() => import('../admin/PanelAdmin'));
 const ImportadorWord = lazy(() => import('../componentes/ImportadorWord'));
+const Perfil = lazy(() => import('../pantallas/Perfil'));
 
 const CargandoPantalla = ({ children }: { children: ReactNode }) => (
   <ErrorPantalla>
@@ -499,6 +500,10 @@ function AppContenido() {
 
   if (view === 'checklist') {
     return <CargandoPantalla><ChecklistCamioneta onBack={() => setView('dashboard')} fechaInicial={checklistFechaInicial} /></CargandoPantalla>;
+  }
+
+  if (view === 'perfil') {
+    return <CargandoPantalla><Perfil onBack={() => setView('dashboard')} /></CargandoPantalla>;
   }
 
   if (view === 'impresion') {

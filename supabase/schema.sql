@@ -199,11 +199,6 @@ create table if not exists public.borradores (
   updated_at timestamptz not null default now()
 );
 
--- Columnas que las bases creadas con versiones anteriores pueden no tener ("create table if not
--- exists" no agrega columnas a una tabla que ya existe).
-alter table public.borradores add column if not exists saved_at timestamptz not null default now();
-alter table public.borradores add column if not exists updated_at timestamptz not null default now();
-
 -- División a la que pertenece cada informe (los existentes son de El Salvador).
 alter table public.borradores add column if not exists division text not null default 'el_salvador'
   check (division in ('el_salvador', 'andina'));
@@ -279,12 +274,6 @@ create table if not exists public.borradores_otros (
   saved_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-
--- Columnas que las bases creadas con versiones anteriores pueden no tener.
-alter table public.borradores_otros add column if not exists titulo text;
-alter table public.borradores_otros add column if not exists datos jsonb not null default '{}';
-alter table public.borradores_otros add column if not exists saved_at timestamptz not null default now();
-alter table public.borradores_otros add column if not exists updated_at timestamptz not null default now();
 
 -- Tipos de informe admitidos (se actualiza en bases creadas con versiones anteriores).
 alter table public.borradores_otros drop constraint if exists borradores_otros_tipo_check;
@@ -599,3 +588,57 @@ begin
   end if;
 end $$;
 
+
+-- ===========================================================================
+-- Mi perfil: cada usuario edita su nombre, RUT y firma (la firma se pone en el checklist)
+-- ===========================================================================
+alter table public.perfiles add column if not exists firma text;
+
+-- El usuario no puede actualizar su fila directamente (solo un administrador): esta función
+-- cambia únicamente sus propios datos personales, nunca el estado, el rol ni la división.
+create or replace function public.actualizar_mi_perfil(p_nombre text, p_rut text, p_firma text default null, p_borrar_firma boolean default false)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if auth.uid() is null then
+    raise exception 'Sin sesión';
+  end if;
+  if p_firma is not null and length(p_firma) > 600000 then
+    raise exception 'firma demasiado grande';
+  end if;
+  if p_firma is not null and p_firma not like 'data:image/png;base64,%' then
+    raise exception 'firma inválida';
+  end if;
+  update public.perfiles
+     set nombre = coalesce(nullif(trim(p_nombre), ''), nombre),
+         rut = nullif(trim(coalesce(p_rut, '')), ''),
+         firma = case when p_borrar_firma then null when p_firma is not null then p_firma else firma end
+   where id = auth.uid();
+end;
+$$;
+
+revoke all on function public.actualizar_mi_perfil(text, text, text, boolean) from public, anon;
+grant execute on function public.actualizar_mi_perfil(text, text, text, boolean) to authenticated;
+
+-- Firmas de las personas de una división (nombre + firma), para el checklist de camioneta.
+-- Solo para usuarios aprobados que pueden ver esa división; no expone ningún otro dato.
+create or replace function public.firmas_division(p_division text)
+returns table (nombre text, firma text)
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select p.nombre, p.firma
+    from public.perfiles p
+   where public.puede_ver_division(p_division)
+     and p.estado = 'aprobado'
+     and p.firma is not null
+     and (case p.faena when 'andina' then 'andina' else 'el_salvador' end) = p_division;
+$$;
+
+revoke all on function public.firmas_division(text) from public, anon;
+grant execute on function public.firmas_division(text) to authenticated;

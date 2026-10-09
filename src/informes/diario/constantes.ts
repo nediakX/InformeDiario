@@ -26,6 +26,8 @@ export interface EvidenceBlock {
   isActivity: boolean;
   isFixed?: boolean;
   actIndex?: number;
+  /** Bloque especial "Cuadro Vertiv" (Turno Día, opcional): va en su propia hoja horizontal. */
+  cuadroVertiv?: boolean;
 }
 
 export type ScannerTarget =

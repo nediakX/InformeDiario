@@ -19,6 +19,15 @@ export const VERTIV_CARROS: [string, string][] = [
 
 export const VERTIV_CARROS_FLAT: string[] = VERTIV_CARROS.flat();
 
+// "Cuadro Vertiv" (opcional, Informe Diario de Turno Día): una captura del estado de la planta
+// Vertiv de cada sitio, en una hoja horizontal de 4 × 3 con la leyenda "Status Vertiv LTE_…".
+export const CUADRO_VERTIV_ID = 'cuadro_vertiv';
+export const CUADRO_VERTIV_SITIOS: string[] = VERTIV_CARROS_FLAT.map(carro => {
+  const codigo = carro.replace(/^Carro\s+/i, '').trim().replace(/\s+/g, '_');
+  return codigo.startsWith('LTE_') ? codigo : `LTE_${codigo}`;
+});
+export const leyendaCuadroVertiv = (sitio: string) => `Status Vertiv ${sitio}`;
+
 export const VERTIV_ITEMS: string[] = [
   "Estado de Vertiv ICMP (administración remota)",
   "E-Nodos B ICMP Response Time (Latencia).",

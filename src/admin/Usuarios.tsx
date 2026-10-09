@@ -83,7 +83,7 @@ export default function Usuarios({ perfiles, onCambio, presencia, ahora }: {
         <p className="viz-empty">No hay cuentas en esta categoría.</p>
       ) : (
         <div className="viz-table-wrap">
-          <table className="viz-table">
+          <table className="viz-table viz-table--tarjetas">
             <thead>
               <tr><th>Nombre</th><th>RUT</th><th>División</th><th>Estado</th><th>Conexión</th><th>Último acceso</th><th>Registro</th><th aria-label="Acciones" /></tr>
             </thead>
@@ -93,12 +93,12 @@ export default function Usuarios({ perfiles, onCambio, presencia, ahora }: {
                 const deshabilitado = ocupado === p.id;
                 return (
                   <tr key={p.id}>
-                    <td>
+                    <td className="celda-titulo">
                       <div className="font-semibold">{p.nombre || '—'} {soyYo && <span className="text-xs text-gray-500">(tú)</span>}</div>
                       <div className="text-xs text-gray-500 break-all">{p.email}</div>
                     </td>
-                    <td className="whitespace-nowrap">{p.rut || '—'}</td>
-                    <td>
+                    <td className="whitespace-nowrap" data-label="RUT">{p.rut || '—'}</td>
+                    <td data-label="División">
                       <select
                         aria-label={`División de ${p.nombre || p.email}`}
                         className="select-division"
@@ -116,16 +116,16 @@ export default function Usuarios({ perfiles, onCambio, presencia, ahora }: {
                         {FAENAS.map(f => <option key={f.valor} value={f.valor}>{f.etiqueta}</option>)}
                       </select>
                     </td>
-                    <td>
+                    <td data-label="Estado">
                       <div className="flex flex-wrap gap-1">
                         <span className={`pill pill--${p.estado}`}>{ETIQUETA_ESTADO[p.estado]}</span>
                         {p.es_admin && <span className="pill pill--admin"><ShieldCheck size={12} aria-hidden="true" /> Admin</span>}
                       </div>
                     </td>
-                    <td>{p.estado === 'aprobado' ? <PuntoConexion estado={estadoConexion(presenciaPorUsuario.get(p.id), ahora)} /> : '—'}</td>
-                    <td className="whitespace-nowrap">{fecha(p.ultimo_acceso)}</td>
-                    <td className="whitespace-nowrap">{fecha(p.created_at)}</td>
-                    <td>
+                    <td data-label="Conexión">{p.estado === 'aprobado' ? <PuntoConexion estado={estadoConexion(presenciaPorUsuario.get(p.id), ahora)} /> : '—'}</td>
+                    <td className="whitespace-nowrap" data-label="Último acceso">{fecha(p.ultimo_acceso)}</td>
+                    <td className="whitespace-nowrap" data-label="Registro">{fecha(p.created_at)}</td>
+                    <td className="celda-acciones">
                       <div className="flex flex-wrap justify-end gap-1.5">
                         {p.estado !== 'aprobado' && (
                           <button type="button" className="btn-mini btn-mini--ok" disabled={deshabilitado}

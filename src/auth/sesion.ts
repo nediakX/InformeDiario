@@ -26,6 +26,8 @@ export interface Perfil {
   aprobado_at: string | null;
   ultimo_acceso: string | null;
   created_at: string;
+  /** Firma del usuario (PNG con fondo transparente, en dataURL). Se pone en el checklist de camioneta. */
+  firma?: string | null;
 }
 
 export interface SesionValor {
@@ -41,6 +43,8 @@ export interface SesionValor {
   divisionPropia: Division;
   /** Solo administradores: cambia la división de trabajo (recarga las listas de la app). */
   setDivision: (d: Division) => void;
+  /** Vuelve a leer el perfil (después de editarlo en "Mi perfil"). */
+  recargarPerfil: () => Promise<void>;
 }
 
 export const SesionContext = createContext<SesionValor | null>(null);
