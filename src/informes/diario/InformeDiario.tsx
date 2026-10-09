@@ -583,7 +583,7 @@ export default function InformeDiario({ d, volverABorradores, goToNewInforme }: 
           <details className="panel p-5" onToggle={e => { if ((e.currentTarget as HTMLDetailsElement).open) asegurarCuadroVertiv(); }}>
             <summary className="panel__summary font-display font-bold text-lg">
               <LayoutGrid size={18} className="panel__summary-icon" strokeWidth={2.2} />
-              Cuadro Vertiv <span className="text-xs font-sans font-normal text-gray-500 ml-1">(opcional)</span>
+              6. Cuadro Vertiv <span className="text-xs font-sans font-normal text-gray-500 ml-1">(opcional)</span>
               {indiceCuadroVertiv >= 0 && evidenceBlocks[indiceCuadroVertiv].photos.some(Boolean) && (
                 <span className="ml-2 text-[11px] font-sans font-bold px-2 py-0.5 rounded-full bg-[#e6f6e6] text-[#006300]">
                   {evidenceBlocks[indiceCuadroVertiv].photos.filter(Boolean).length} de {CUADRO_VERTIV_SITIOS.length}
