@@ -21,7 +21,7 @@ import { hoyLocalISO } from '../../datos/fechas';
 import { VERTIV_TITLE, VERTIV_CARROS, VERTIV_ITEMS } from '../../datos/plantillaWord';
 import { letraDeFecha } from '../../datos/turnos';
 import { resolveImageBytes } from '../../lib/imagenes';
-import { ajustarImagenes } from '../../lib/ajusteImagenes';
+import { ajustarImagenes, encajarSinDeformar, medirImagen } from '../../lib/ajusteImagenes';
 import { registrarDeshacer, reinsertar } from '../../lib/deshacer';
 import { mapaFotosSubidas, aplicarFotosSubidas } from '../../lib/storage';
 
@@ -1209,7 +1209,9 @@ export function useInformeDiario({ view, setBorradores, borradoresRef, division 
           return new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "(Sin evidencia cargada)", italics: true, color: "999999", size: 18, font: "Arial" })] });
         }
         const { bytes, type } = await resolveImageBytes(photo);
-        return new Paragraph({ alignment: AlignmentType.CENTER, children: [new ImageRun({ data: bytes, transformation: { width, height }, type })] });
+        // Si la imagen no tiene la forma del recuadro, se ajusta a su forma real (no se estira).
+        const t = encajarSinDeformar(await medirImagen(photo), { ancho: width, alto: height });
+        return new Paragraph({ alignment: AlignmentType.CENTER, children: [new ImageRun({ data: bytes, transformation: { width: t.ancho, height: t.alto }, type })] });
       };
 
       const carroTableRows: docx.TableRow[] = [];
@@ -1376,13 +1378,19 @@ export function useInformeDiario({ view, setBorradores, borradoresRef, division 
           : usablePhotos;
         const cells = await Promise.all(orientedPhotos.map(async dataUrl => {
           const { bytes, type } = await resolveImageBytes(dataUrl);
+          // Recuadro de siempre; si la foto no tiene esa forma (ej: horizontal en un recuadro vertical)
+          // se ajusta a su forma real. Una foto sola en su bloque puede usar el ancho de la hoja.
+          const espacio = orientedPhotos.length === 1
+            ? { ancho: 610, alto: Math.max(imageHeight, 456) }
+            : { ancho: Math.max(imageWidth, Math.floor((colWidth / 20 - 10) / 0.75)), alto: imageHeight };
+          const tam = encajarSinDeformar(await medirImagen(dataUrl), { ancho: imageWidth, alto: imageHeight }, espacio);
           return new TableCell({
             width: { size: colWidth, type: WidthType.DXA },
             borders: cellBorders(),
             margins: { top: 100, bottom: 100, left: 100, right: 100 },
             children: [new Paragraph({
               alignment: AlignmentType.CENTER,
-              children: [new ImageRun({ data: bytes, transformation: { width: imageWidth, height: imageHeight }, type })],
+              children: [new ImageRun({ data: bytes, transformation: { width: tam.ancho, height: tam.alto }, type })],
             })],
           });
         }));

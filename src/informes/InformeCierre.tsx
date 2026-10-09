@@ -19,7 +19,7 @@ import { semanaDeFecha } from '../datos/turnos';
 import { configDivision, type Firmante } from '../datos/divisiones';
 import { useSesion } from '../auth/sesion';
 import { dataUrlToUint8Array, resolveImageBytes, urlToBase64 } from '../lib/imagenes';
-import { ajustarImagenes } from '../lib/ajusteImagenes';
+import { ajustarImagenes, encajarSinDeformar, medirImagen } from '../lib/ajusteImagenes';
 import { registrarDeshacer, reinsertar, borrandose } from '../lib/deshacer';
 import { uploadPhotoIfNeeded } from '../lib/storage';
 import { esErrorDeRed } from '../lib/conexion';
@@ -518,7 +518,8 @@ export default function InformeCierre({ onBack }: InformeCierreProps) {
         }
         const bytes = dataUrlToUint8Array(photo);
         const type = photo.startsWith("data:image/png") ? "png" : "jpg";
-        return new Paragraph({ alignment: AlignmentType.CENTER, children: [new ImageRun({ data: bytes, transformation: { width, height }, type })] });
+        const t = encajar(photo, { ancho: width, alto: height });
+        return new Paragraph({ alignment: AlignmentType.CENTER, children: [new ImageRun({ data: bytes, transformation: { width: t.ancho, height: t.alto }, type })] });
       };
 
       const fechaEncabezado = rangoFechas ? formatFechaLarga(rangoFechas.fin) : formatFechaLarga(new Date().toISOString().split("T")[0]);
@@ -672,6 +673,16 @@ export default function InformeCierre({ onBack }: InformeCierreProps) {
       const aDataUrl = async (p: string | null) => (p && p.startsWith('http') ? await urlToBase64(p) : p);
       const seccionesResueltas = await Promise.all(seccionesImagenes.map(async s => ({ ...s, photos: await Promise.all(s.photos.map(aDataUrl)) })));
       const camionetasResueltas = await Promise.all(camionetas.map(async c => ({ ...c, antes: await aDataUrl(c.antes), despues: await aDataUrl(c.despues) })));
+      // Tamaño real de cada foto: si no tiene la forma de su recuadro, se ajusta para no estirarla.
+      const medidas = new Map(await Promise.all(
+        [...seccionesResueltas.flatMap(sec => sec.photos), ...camionetasResueltas.flatMap(c => [c.antes, c.despues])]
+          .filter((p): p is string => Boolean(p))
+          .map(async p => [p, await medirImagen(p)] as const),
+      ));
+      const encajar = (photo: string, caja: { ancho: number; alto: number }, espacio?: { ancho: number; alto: number }) => {
+        const m = medidas.get(photo);
+        return m ? encajarSinDeformar(m, caja, espacio) : caja;
+      };
 
       const pendientesFiltradas = actividadesPendientes.filter(a => a.trim());
       const seccion3: docx.Paragraph[] = [
@@ -727,7 +738,12 @@ export default function InformeCierre({ onBack }: InformeCierreProps) {
                 ...(pair.length === 1 ? { columnSpan: 2 } : {}),
                 borders: cellBorders(),
                 margins: { top: 100, bottom: 100, left: 100, right: 100 },
-                children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new ImageRun({ data: bytes, transformation: { width: pair.length === 1 ? 500 : 280, height: pair.length === 1 ? 375 : 210 }, type })] })],
+                children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [(() => {
+                  const t = pair.length === 1
+                    ? encajar(photo, { ancho: 500, alto: 375 }, { ancho: 610, alto: 480 })
+                    : encajar(photo, { ancho: 280, alto: 210 });
+                  return new ImageRun({ data: bytes, transformation: { width: t.ancho, height: t.alto }, type });
+                })()] })],
               });
             }),
           }));

@@ -125,3 +125,25 @@ export async function ajustarImagenes(fuentes: string[], opciones?: OpcionesAjus
   const medidas = await Promise.all(fuentes.map(medirImagen));
   return distribuirImagenes(medidas, opciones);
 }
+
+/**
+ * El Salvador: cada bloque usa un recuadro fijo para sus fotos. Si la foto tiene casi la misma forma
+ * que el recuadro (diferencia ≤ 15 %), se deja el recuadro tal cual (el Word sale igual que siempre).
+ * Si no (una foto horizontal en un recuadro vertical, una franja muy ancha…), se ajusta a su forma
+ * real dentro del espacio disponible, para que no salga estirada.
+ *
+ * @param img Tamaño real de la imagen.
+ * @param caja Recuadro de siempre (px de docx).
+ * @param espacio Espacio máximo disponible en la celda (px de docx); por defecto, el mismo recuadro.
+ */
+export function encajarSinDeformar(
+  img: { ancho: number; alto: number },
+  caja: { ancho: number; alto: number },
+  espacio: { ancho: number; alto: number } = caja,
+): { ancho: number; alto: number } {
+  const rImg = img.ancho / img.alto;
+  const rCaja = caja.ancho / caja.alto;
+  if (Math.abs(Math.log(rImg / rCaja)) <= Math.log(1.15)) return caja;
+  const escala = Math.min(espacio.ancho / img.ancho, espacio.alto / img.alto);
+  return { ancho: Math.round(img.ancho * escala), alto: Math.round(img.alto * escala) };
+}
