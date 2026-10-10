@@ -20,6 +20,7 @@ import { creadoPorDiario } from '../datos/divisiones';
 import { DOCUMENTOS } from '../impresion/plantillas';
 import { generarKit, type SeleccionDocumento } from '../impresion/generarKit';
 import { personalDelTurno, guardarRut, type PersonaImpresion } from '../impresion/personal';
+import { TRABAJADORES, buscarTrabajador } from '../datos/trabajadores';
 
 interface ImpresionRapidaProps {
   onBack: () => void;
@@ -260,7 +261,19 @@ export default function ImpresionRapida({ onBack }: ImpresionRapidaProps) {
               return (
                 <div key={i} className={`grid gap-2 items-center border rounded-md p-2 sm:grid-cols-[auto_1.3fr_0.8fr_1fr_auto] ${p.incluir ? 'border-[#DCE1E6] bg-white' : 'border-dashed border-[#DCE1E6] bg-gray-50 opacity-60'}`}>
                   <input type="checkbox" checked={p.incluir} onChange={e => actualizarPersona(i, { incluir: e.target.checked })} aria-label={`Incluir a ${p.nombre || 'persona'}`} className="w-4 h-4 accent-[#0E4660]" />
-                  <input value={p.nombre} onChange={e => actualizarPersona(i, { nombre: e.target.value })} placeholder="Nombre" className="border border-[#DCE1E6] rounded-md p-1.5 text-sm min-w-0" aria-label="Nombre" />
+                  <input
+                    value={p.nombre}
+                    list="trabajadores-impresion"
+                    onChange={e => {
+                      const nombre = e.target.value;
+                      // Al elegir a alguien del listado se completan solos su RUT y cargo.
+                      const t = TRABAJADORES[division].find(x => x.nombre === nombre) ?? (p.rut.trim() ? null : buscarTrabajador(nombre, division));
+                      actualizarPersona(i, t ? { nombre, rut: p.rut.trim() || t.rut, cargo: p.cargo.trim() || t.cargo } : { nombre });
+                    }}
+                    placeholder="Nombre"
+                    className="border border-[#DCE1E6] rounded-md p-1.5 text-sm min-w-0"
+                    aria-label="Nombre"
+                  />
                   <input
                     value={p.rut}
                     onChange={e => actualizarPersona(i, { rut: formatearRut(e.target.value) })}
@@ -301,6 +314,9 @@ export default function ImpresionRapida({ onBack }: ImpresionRapidaProps) {
               }}
               className="block w-full sm:w-80 mt-1 border border-[#DCE1E6] rounded-md p-1.5 text-sm"
             />
+            <datalist id="trabajadores-impresion">
+              {TRABAJADORES[division].map(t => <option key={t.rut} value={t.nombre}>{t.rut} · {t.cargo}</option>)}
+            </datalist>
             <datalist id="supervisores-impresion">
               {CREADO_POR_ALL.map(c => <option key={c.nombre} value={c.nombre} />)}
             </datalist>

@@ -19,11 +19,21 @@ export async function actualizarMiPerfil(c: CambiosPerfil): Promise<void> {
     p_firma: c.firma ?? null,
     p_borrar_firma: c.firma === null,
   });
-  if (error) {
-    if (/perfiles_rut_unico|duplicate key/i.test(error.message)) throw new Error('Ese RUT ya está registrado en otra cuenta.');
-    if (/firma demasiado grande/i.test(error.message)) throw new Error('La imagen de la firma es demasiado grande.');
-    throw error;
+  if (error) throw new Error(mensajeErrorPerfil(error));
+}
+
+/** Explica el error de la base de datos en palabras simples (y deja el detalle técnico al final). */
+function mensajeErrorPerfil(error: { message: string; code?: string }): string {
+  const m = error.message ?? '';
+  if (/perfiles_rut_unico|duplicate key/i.test(m)) return 'Ese RUT ya está registrado en otra cuenta.';
+  if (/firma demasiado grande/i.test(m)) return 'La imagen de la firma es demasiado grande. Prueba con una foto más pequeña.';
+  if (/firma inv[aá]lida/i.test(m)) return 'La firma no se pudo procesar. Vuelve a subir la imagen.';
+  // Supabase todavía no tiene la función / columna nueva: falta correr supabase/schema.sql.
+  if (error.code === 'PGRST202' || /could not find the function|actualizar_mi_perfil|column .*firma.* does not exist|schema cache/i.test(m)) {
+    return 'La base de datos aún no está actualizada para guardar el perfil y la firma. Un administrador debe correr '
+      + 'el archivo supabase/schema.sql en Supabase (SQL Editor → pegar → Run) y luego volver a intentar.';
   }
+  return `No se pudieron guardar los datos (${m || 'error desconocido'}).`;
 }
 
 export async function cambiarContrasena(nueva: string): Promise<void> {

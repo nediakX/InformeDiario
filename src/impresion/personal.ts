@@ -4,6 +4,7 @@
 import { getPersonalGuardado } from '../informes/diario/constantes';
 import { CONFIG_DIVISION, type Division } from '../datos/divisiones';
 import type { Persona } from './plantillas';
+import { buscarTrabajador } from '../datos/trabajadores';
 
 const CLAVE_RUTS = 'psinet_ruts_personal_v1';
 
@@ -52,7 +53,8 @@ export function personalDelTurno(
     return {
       nombre,
       cargo: limpiar(p.cargo),
-      rut: ruts[normalizarNombre(nombre)] || rutDesdeCuentas(nombre, cuentas),
+      // RUT: el que se escribió en este equipo; si no, el del listado oficial de trabajadores; si no, el de su cuenta.
+      rut: ruts[normalizarNombre(nombre)] || buscarTrabajador(nombre, division)?.rut || rutDesdeCuentas(nombre, cuentas),
       incluir: true,
     };
   });

@@ -28,6 +28,8 @@ export interface EvidenceBlock {
   actIndex?: number;
   /** Bloque especial "Cuadro Vertiv" (Turno Día, opcional): va en su propia hoja horizontal. */
   cuadroVertiv?: boolean;
+  /** Hojas del Checklist de Camioneta enviadas a este bloque, por patente (para reemplazarlas al actualizar). */
+  checklistFotos?: Record<string, string[]>;
 }
 
 export type ScannerTarget =

@@ -271,6 +271,18 @@ const construirGruposEstandar = (t: TextosGenerados, carro: string): RegistroGru
   ];
 };
 
+/** ["Max Diaz", "Carlos Moll", "José Escobar"] → "Max Diaz, Carlos Moll y José Escobar". */
+const unirNombres = (nombres: string[]) => {
+  const lista = nombres.map(n => n.trim().replace(/\.+$/, '')).filter(Boolean);
+  if (lista.length <= 1) return nombres.find(n => n.trim())?.trim() ?? '';
+  return `${lista.slice(0, -1).join(', ')} y ${lista[lista.length - 1]}`;
+};
+/** Inverso de unirNombres (para informes guardados antes, con un solo texto). */
+const separarNombres = (texto: string) => {
+  const partes = texto.split(/\s*,\s*|\s+y\s+/).map(t => t.trim()).filter(Boolean);
+  return partes.length ? partes : [texto];
+};
+
 export default function InformeFallaCarro({ onBack, borradorInicial = null }: InformeFallaCarroProps) {
   const { division } = useSesion();
   const config = configDivision(division).falla;
@@ -299,7 +311,10 @@ export default function InformeFallaCarro({ onBack, borradorInicial = null }: In
   const [horaAlarma, setHoraAlarma] = useState("07:49");
   const [horaRespuesta, setHoraRespuesta] = useState("10:15");
   const [horaOperativo, setHoraOperativo] = useState("11:40");
-  const [tecnicoRespuesta, setTecnicoRespuesta] = useState(config.tecnico);
+  // Personas que participaron en la atención (1° asistencia / tiempo de respuesta). En los textos
+  // se escriben juntas: "Max Diaz, Carlos Moll y José Escobar".
+  const [tecnicos, setTecnicos] = useState<string[]>([config.tecnico]);
+  const tecnicoRespuesta = unirNombres(tecnicos);
   const [tipoFalla, setTipoFalla] = useState(FALLAS_COMUNES[0].id);
 
   const datosAutoActuales = (): DatosAuto => ({
@@ -322,6 +337,18 @@ export default function InformeFallaCarro({ onBack, borradorInicial = null }: In
   // --- Verificación Final ---
   const [verificacionTexto, setVerificacionTexto] = useState(textosIniciales.verificacionTexto);
   const [verificacionCheckItem, setVerificacionCheckItem] = useState(textosIniciales.verificacionCheckItem);
+
+  // Al agregar o quitar participantes, el "Tiempo de respuesta; …" de la notificación se actualiza solo.
+  const [nombresEnTextos, setNombresEnTextos] = useState(tecnicoRespuesta);
+  if (nombresEnTextos !== tecnicoRespuesta) {
+    const anterior = nombresEnTextos;
+    setNombresEnTextos(tecnicoRespuesta);
+    if (anterior.trim()) {
+      const reemplazar = (t: string) => t.split(`respuesta; ${anterior}`).join(`respuesta; ${tecnicoRespuesta || '—'}`);
+      setNotificacionPuntos(prev => prev.map(reemplazar));
+      setDescripcionTexto(reemplazar);
+    }
+  }
 
   // --- C. Registro fotográfico ---
   // Los 8 recuadros estándar del informe de referencia: vista general, origen de la alarma, alarmas
@@ -358,7 +385,8 @@ export default function InformeFallaCarro({ onBack, borradorInicial = null }: In
       if (typeof d.horaAlarma === 'string') setHoraAlarma(d.horaAlarma);
       if (typeof d.horaRespuesta === 'string') setHoraRespuesta(d.horaRespuesta);
       if (typeof d.horaOperativo === 'string') setHoraOperativo(d.horaOperativo);
-      if (typeof d.tecnicoRespuesta === 'string') setTecnicoRespuesta(d.tecnicoRespuesta);
+      if (Array.isArray(d.tecnicos)) setTecnicos((d.tecnicos as unknown[]).filter((t): t is string => typeof t === 'string'));
+      else if (typeof d.tecnicoRespuesta === 'string') setTecnicos(separarNombres(d.tecnicoRespuesta));
       if (typeof d.tipoFalla === 'string') setTipoFalla(d.tipoFalla);
       if (typeof d.descripcionTexto === 'string') setDescripcionTexto(d.descripcionTexto);
       if (typeof d.notificacionIntro === 'string') setNotificacionIntro(d.notificacionIntro);
@@ -393,7 +421,7 @@ export default function InformeFallaCarro({ onBack, borradorInicial = null }: In
       savedAt: new Date().toISOString(),
       datos: {
         fecha, carroCodigo, ubicacion, creadoNombre, creadoCargo,
-        horaAlarma, horaRespuesta, horaOperativo, tecnicoRespuesta, tipoFalla,
+        horaAlarma, horaRespuesta, horaOperativo, tecnicoRespuesta, tecnicos, tipoFalla,
         descripcionTexto, notificacionIntro, notificacionPuntos, notificacionCheckItem,
         solucionIntro, hallazgos, accionesSolucion,
         verificacionTexto, verificacionCheckItem, grupos,
@@ -423,7 +451,7 @@ export default function InformeFallaCarro({ onBack, borradorInicial = null }: In
     return () => clearTimeout(timeout);
   }, [
     division, currentDraftId, fecha, carroCodigo, ubicacion, creadoNombre, creadoCargo,
-    horaAlarma, horaRespuesta, horaOperativo, tecnicoRespuesta, tipoFalla,
+    horaAlarma, horaRespuesta, horaOperativo, tecnicoRespuesta, tecnicos, tipoFalla,
     descripcionTexto, notificacionIntro, notificacionPuntos, notificacionCheckItem,
     solucionIntro, hallazgos, accionesSolucion,
     verificacionTexto, verificacionCheckItem, grupos,
@@ -537,11 +565,23 @@ export default function InformeFallaCarro({ onBack, borradorInicial = null }: In
     setCreadoNombre(n); setCreadoCargo(c);
     setPersonalParaCreado("");
   };
+  // Desde la lista se AGREGA un participante (si la única casilla está vacía, la ocupa).
   const aplicarPersonalTecnico = (valor: string) => {
     if (!valor) return;
     const [n] = valor.split("|");
-    setTecnicoRespuesta(n);
+    setTecnicos(prev => {
+      if (prev.some(t => t.trim().toLowerCase() === n.trim().toLowerCase())) return prev;
+      const conNombre = prev.filter(t => t.trim());
+      return [...conNombre, n];
+    });
     setPersonalParaTecnico("");
+  };
+  const cambiarTecnico = (i: number, valor: string) => setTecnicos(prev => prev.map((t, k) => (k === i ? valor : t)));
+  const agregarTecnico = () => setTecnicos(prev => [...prev, ""]);
+  const quitarTecnico = (i: number) => {
+    const quitado = tecnicos[i];
+    setTecnicos(prev => (prev.length > 1 ? prev.filter((_, k) => k !== i) : [""]));
+    if (quitado?.trim()) registrarDeshacer(`Se quitó a ${quitado.trim()} de los participantes`, () => setTecnicos(prev => (prev.length === 1 && !prev[0].trim() ? [quitado] : reinsertar(prev, i, quitado))));
   };
 
   // ---------------------------------------------------------------------------------------
@@ -945,12 +985,28 @@ export default function InformeFallaCarro({ onBack, borradorInicial = null }: In
               <label className="block text-xs text-[#6B6B6B] font-bold mb-1">Hora 100% operativo</label>
               <input type="time" value={horaOperativo} onChange={e => setHoraOperativo(e.target.value)} className="w-full p-2 border border-[#DCE1E6] rounded-md text-sm" />
             </div>
-            <div>
-              <label className="block text-xs text-[#6B6B6B] font-bold mb-1">Técnico (1° asistencia / tiempo de respuesta)</label>
-              <input type="text" value={tecnicoRespuesta} onChange={e => setTecnicoRespuesta(e.target.value)} className="w-full p-2 border border-[#DCE1E6] rounded-md text-sm" />
+            <div className="md:col-span-2">
+              <label className="block text-xs text-[#6B6B6B] font-bold mb-1">Participantes (1° asistencia / tiempo de respuesta)</label>
+              <div className="space-y-2">
+                {tecnicos.map((t, i) => (
+                  <div key={i} className="flex gap-2">
+                    <input type="text" value={t} onChange={e => cambiarTecnico(i, e.target.value)} placeholder={`Participante ${i + 1}`}
+                      aria-label={`Participante ${i + 1}`} className="flex-1 p-2 border border-[#DCE1E6] rounded-md text-sm" />
+                    {(tecnicos.length > 1 || t.trim()) && (
+                      <button type="button" onClick={() => quitarTecnico(i)} className="bg-red-50 text-red-700 p-2 rounded-md hover:bg-red-100" aria-label={`Quitar participante ${i + 1}`}><Trash2 size={15} /></button>
+                    )}
+                  </div>
+                ))}
+              </div>
+              <button type="button" onClick={agregarTecnico} className="mt-2 btn-outline text-[#0E4660] px-3 py-1.5 rounded-md text-xs font-bold hover:bg-[#d5e7f8] flex items-center gap-1.5">
+                <Plus size={14} /> Agregar participante
+              </button>
+              {tecnicos.filter(x => x.trim()).length > 1 && (
+                <p className="text-[11px] text-gray-500 mt-1">En el informe: «{tecnicoRespuesta}».</p>
+              )}
             </div>
             <div className="md:col-span-2">
-              <label className="block text-xs text-[#6B6B6B] font-bold mb-1">Seleccionar técnico de la lista (igual que en el Informe Diario)</label>
+              <label className="block text-xs text-[#6B6B6B] font-bold mb-1">Agregar participante desde la lista (igual que en el Informe Diario)</label>
               <select value={personalParaTecnico} onChange={e => { setPersonalParaTecnico(e.target.value); aplicarPersonalTecnico(e.target.value); }} className="w-full p-2 border border-[#DCE1E6] rounded-md text-sm bg-white">
                 <option value="">-- Seleccionar supervisor / técnico --</option>
                 {equiposPersonal.map(eq => (

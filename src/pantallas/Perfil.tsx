@@ -67,7 +67,7 @@ export default function Perfil({ onBack }: { onBack: () => void }) {
       setAvisoDatos({ texto: 'Datos guardados.' });
     } catch (error) {
       setAvisoDatos({
-        texto: esErrorDeRed(error) ? 'Sin conexión: los cambios del perfil se guardan cuando vuelva la señal. Inténtalo de nuevo con conexión.'
+        texto: esErrorDeRed(error) ? 'Sin conexión: no se pudieron guardar los datos. Inténtalo de nuevo cuando tengas señal.'
           : error instanceof Error ? error.message : 'No se pudieron guardar los datos.',
         error: true,
       });

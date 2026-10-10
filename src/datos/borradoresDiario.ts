@@ -20,6 +20,8 @@ export interface EvidenceBlockLike {
   photoCount?: number;
   /** Bloque especial "Cuadro Vertiv" (Turno Día): no cuenta para el avance del informe. */
   cuadroVertiv?: boolean;
+  /** Hojas del Checklist de Camioneta enviadas a este bloque, por patente (para reemplazarlas al actualizar). */
+  checklistFotos?: Record<string, string[]>;
 }
 
 export interface BorradorEntry {

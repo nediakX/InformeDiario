@@ -209,7 +209,10 @@ export const CONFIG_DIVISION: Record<Division, ConfigDivision> = {
     origenTraslado: 'Los Andes',
     carros: ANDINA_CARROS,
     ubicacionPorCarro: ANDINA_UBICACIONES,
-    camionetas: [], // aún sin camionetas fijas: se agregan con "Otra patente"
+    camionetas: [
+      // Datos fijos: se completan solos en el checklist de cada semana (las demás se agregan con "Otra patente").
+      { patente: 'TPGS-28', marca: 'Mitsubishi', modelo: 'L200 XRT', anio: '2024' },
+    ],
     conductores: { A: [], B: [] }, // aún sin lista: el nombre se escribe a mano
     sitiosReportabilidad: 'SUR SUR, CONGRESO, CHIVATO, DNL, MORRENA, TRES ESQUINAS, PIPA y 3700',
     sufijoLocal: '_andina',

@@ -4,10 +4,10 @@
 // miércoles a martes). Cada día se marca ✓ / X en cada ítem, las aptitudes del conductor y su
 // nombre; se guarda solo en la nube (y en el dispositivo si no hay señal) y se descarga en Word
 // con el mismo formato del registro oficial.
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowLeft, ChevronLeft, ChevronRight, CarFront, ClipboardCheck, UserRound, ShieldAlert,
-  Check, X, Copy, Eraser, Loader2, FileDown, Plus, NotebookPen,
+  Check, X, Copy, Eraser, Loader2, FileDown, Plus, NotebookPen, Eye, Send,
 } from 'lucide-react';
 import { saveAs } from 'file-saver';
 import logoPsinet from '../../assets/logo_psinet.jpg';
@@ -25,10 +25,24 @@ import {
   avanceDia, requiereAviso, clavePatente, type DatosChecklist, type Marca, type Respuesta,
 } from './catalogo';
 import { generarChecklistWord, nombreArchivoChecklist } from './word';
+import VistaPreviaDocx from '../../componentes/VistaPreviaDocx';
+import { enviarChecklistAlDiario } from './enviarDiario';
+import { esErrorDeRed } from '../../lib/conexion';
 import './checklist.css';
 
 const TIPO = 'checklist_camioneta' as const;
 const ddmm = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
+
+/** Huella del checklist: si no cambió, no se vuelven a enviar las hojas al Informe Diario. */
+const huella = (datos: DatosChecklist) => {
+  const t = JSON.stringify(datos);
+  let h = 0;
+  for (let i = 0; i < t.length; i++) h = (Math.imul(h, 31) + t.charCodeAt(i)) | 0;
+  return `${t.length}:${h}`;
+};
+const claveEnviado = (id: string, dia: number) => `psinet_checklist_diario_${id}_${dia}`;
+const leerLocal = (k: string) => { try { return localStorage.getItem(k); } catch { return null; } };
+const guardarLocal = (k: string, v: string) => { try { localStorage.setItem(k, v); } catch { /* sin almacenamiento */ } };
 
 /** fechaInicial: semana a mostrar al abrir (ej: un checklist recién importado de otra semana). */
 export default function ChecklistCamioneta({ onBack, fechaInicial = null }: { onBack: () => void; fechaInicial?: string | null }) {
@@ -206,7 +220,9 @@ function FormularioChecklist({ id, division, conductores, entrada, base, hoy, on
   const [guardando, setGuardando] = useState(false);
   const [guardadoEn, setGuardadoEn] = useState<string | null>(entrada?.savedAt ?? null);
   const [versionVista, setVersionVista] = useState<string | null>(entrada?.savedAt ?? null);
-  const [generando, setGenerando] = useState(false);
+  const [generando, setGenerando] = useState<'ver' | 'descargar' | null>(null);
+  const [vista, setVista] = useState<{ blob: Blob; nombre: string } | null>(null);
+  const cerrarVista = useCallback(() => setVista(null), []);
   const [aviso, setAviso] = useState<{ texto: string; error?: boolean } | null>(null);
 
   const fechas = useMemo(() => fechasChecklist(base.semanaInicio), [base.semanaInicio]);
@@ -222,9 +238,12 @@ function FormularioChecklist({ id, division, conductores, entrada, base, hoy, on
     }
   }
 
+  // Último día modificado: al quedar completo, sus hojas se guardan en el Informe Diario de esa fecha.
+  const [diaEditado, setDiaEditado] = useState<number | null>(null);
   const cambiar = (fn: (d: DatosChecklist) => DatosChecklist) => {
     setDatos(fn);
     setEdicion(n => n + 1);
+    setDiaEditado(dia);
   };
   const campo = <K extends keyof DatosChecklist>(clave: K, valor: DatosChecklist[K]) => cambiar(d => ({ ...d, [clave]: valor }));
 
@@ -334,22 +353,62 @@ function FormularioChecklist({ id, division, conductores, entrada, base, hoy, on
 
   const firmar = (valor: string) => cambiar(d => { const f = [...d.firmas]; f[dia] = valor; return { ...d, firmas: f }; });
 
-  const generarWord = async () => {
-    setGenerando(true);
+  const descargar = (blob: Blob, nombre: string) => {
+    saveAs(blob, nombre);
+    void registrarActividad('word_generado', nombre, id);
+    setAviso({ texto: 'Checklist descargado en Word.' });
+  };
+
+  /** ver = true: se abre la vista previa (y desde ahí se descarga); si no, se descarga directo. */
+  const generarWord = async (ver: boolean) => {
+    setGenerando(ver ? 'ver' : 'descargar');
     try {
       // Firmas cargadas en «Mi perfil»: cada una va en el cuadro del día de ese conductor.
       const blob = await generarChecklistWord(datos, await firmasDivision(division));
       const nombre = nombreArchivoChecklist(datos);
-      saveAs(blob, nombre);
-      void registrarActividad('word_generado', nombre, id);
-      setAviso({ texto: 'Checklist descargado en Word.' });
+      if (ver) setVista({ blob, nombre });
+      else descargar(blob, nombre);
     } catch (error) {
       console.error('No se pudo generar el checklist:', error);
       setAviso({ texto: 'No se pudo generar el Word del checklist.', error: true });
     } finally {
-      setGenerando(false);
+      setGenerando(null);
     }
   };
+
+  // --- Hojas del checklist → Informe Diario (Turno Día de la misma fecha) -----------------------
+  const [envio, setEnvio] = useState<{ dia: number; estado: 'enviando' | 'ok' | 'error'; texto?: string } | null>(null);
+  const enviandoRef = useRef(false);
+  const enviarAlDiario = async (d: number, datosEnvio: DatosChecklist) => {
+    if (enviandoRef.current) return;
+    enviandoRef.current = true;
+    setEnvio({ dia: d, estado: 'enviando' });
+    try {
+      const blob = await generarChecklistWord(datosEnvio, await firmasDivision(division));
+      await enviarChecklistAlDiario({ blob, patente: datosEnvio.patente, fecha: fechas[d], division });
+      guardarLocal(claveEnviado(id, d), huella(datosEnvio));
+      setEnvio({ dia: d, estado: 'ok' });
+    } catch (error) {
+      console.error('No se pudo guardar el checklist en el Informe Diario:', error);
+      setEnvio({
+        dia: d, estado: 'error',
+        texto: esErrorDeRed(error) ? 'Sin señal: no se pudieron guardar las hojas en el Informe Diario.' : 'No se pudieron guardar las hojas en el Informe Diario.',
+      });
+    } finally {
+      enviandoRef.current = false;
+    }
+  };
+
+  // Al completar (o corregir) un día ya guardado, sus 2 hojas se mandan solas al Informe Diario.
+  useEffect(() => {
+    if (sucio || diaEditado === null) return;
+    const a = avanceDia(datos, diaEditado);
+    if (a.hechos !== a.total || leerLocal(claveEnviado(id, diaEditado)) === huella(datos)) return;
+    const d = diaEditado;
+    const t = setTimeout(() => { setDiaEditado(null); void enviarAlDiario(d, datos); }, 1200);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sucio, diaEditado, datos, id]);
 
   const avance = avanceDia(datos, dia);
   const completo = avance.hechos === avance.total;
@@ -434,6 +493,22 @@ function FormularioChecklist({ id, division, conductores, entrada, base, hoy, on
             <button type="button" onClick={limpiarDia} className="checklist-accion"><Eraser size={14} /> Limpiar</button>
           </div>
         </div>
+        {completo && (
+          <div className={`checklist-diario ${envio?.dia === dia && envio.estado === 'error' ? 'checklist-diario--error' : ''}`} role="status">
+            {envio?.dia === dia && envio.estado === 'enviando' ? (
+              <span className="flex items-center gap-1.5"><Loader2 size={14} className="animate-spin" /> Guardando las 2 hojas en el Informe Diario del {ddmm(fechas[dia])}…</span>
+            ) : envio?.dia === dia && envio.estado === 'ok' ? (
+              <span className="flex items-center gap-1.5"><Check size={14} /> Hojas guardadas en el Informe Diario (Turno Día {ddmm(fechas[dia])}) · «Registro de Check List de Vehículo Liviano.»</span>
+            ) : envio?.dia === dia && envio.estado === 'error' ? (
+              <span>{envio.texto}</span>
+            ) : (
+              <span>Día completo. Sus 2 hojas van como imagen al Informe Diario del {ddmm(fechas[dia])} (Registro de Check List de Vehículo Liviano.).</span>
+            )}
+            <button type="button" disabled={envio?.estado === 'enviando'} onClick={() => void enviarAlDiario(dia, datos)} className="checklist-accion">
+              <Send size={14} /> {envio?.dia === dia && envio.estado === 'error' ? 'Reintentar' : envio?.dia === dia && envio.estado === 'ok' ? 'Volver a enviar' : 'Enviar al Informe Diario'}
+            </button>
+          </div>
+        )}
         <p className="text-xs text-gray-500 mb-4">Marca <strong>✓</strong> si está bien y <strong>X</strong> si está malo o falta. "Todo ✓" completa solo lo que esté vacío (no cambia las X).</p>
 
         <div className="space-y-5">
@@ -518,16 +593,33 @@ function FormularioChecklist({ id, division, conductores, entrada, base, hoy, on
         </div>
       </details>
 
-      <div className="action-zone">
+      <div className="action-zone flex flex-col sm:flex-row gap-2">
         <button
           type="button"
-          onClick={() => void generarWord()}
-          disabled={generando}
-          className="btn-primary-field w-full text-white py-3.5 px-6 font-bold text-base rounded-md disabled:!bg-[#9fb3bd] disabled:cursor-not-allowed flex items-center justify-center gap-2"
+          onClick={() => void generarWord(true)}
+          disabled={generando !== null}
+          className="btn-outline sm:w-2/5 text-[#0E4660] bg-white py-3.5 px-6 font-bold text-base rounded-md hover:bg-[#d5e7f8] disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
         >
-          {generando ? (<><Loader2 size={18} className="animate-spin" /> Generando checklist…</>) : (<><FileDown size={18} /> Descargar checklist en Word</>)}
+          {generando === 'ver' ? (<><Loader2 size={18} className="animate-spin" /> Preparando…</>) : (<><Eye size={18} /> Ver antes de descargar</>)}
+        </button>
+        <button
+          type="button"
+          onClick={() => void generarWord(false)}
+          disabled={generando !== null}
+          className="btn-primary-field flex-1 text-white py-3.5 px-6 font-bold text-base rounded-md disabled:!bg-[#9fb3bd] disabled:cursor-not-allowed flex items-center justify-center gap-2"
+        >
+          {generando === 'descargar' ? (<><Loader2 size={18} className="animate-spin" /> Generando checklist…</>) : (<><FileDown size={18} /> Descargar checklist en Word</>)}
         </button>
       </div>
+
+      {vista && (
+        <VistaPreviaDocx
+          blob={vista.blob}
+          titulo={vista.nombre}
+          onDescargar={() => descargar(vista.blob, vista.nombre)}
+          onCerrar={cerrarVista}
+        />
+      )}
 
       {aviso && (
         <div className={`toast-anim fixed bottom-5 left-1/2 -translate-x-1/2 ${aviso.error ? 'bg-red-800' : 'bg-[#0E4660]'} text-white py-3 px-5 rounded-lg text-sm shadow-lg z-50`}>

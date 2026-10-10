@@ -1587,7 +1587,8 @@ export function useInformeDiario({ view, setBorradores, borradoresRef, division 
     setAutorizadoNombre(entrySeleccionada.autorizadoNombre);
     setAutorizadoCargo(entrySeleccionada.autorizadoCargo);
     setPersonal(entrySeleccionada.personal);
-    setActividades(entrySeleccionada.actividades);
+    // Copia: así los bloques de evidencia se vuelven a armar desde las actividades aunque la lista sea la misma.
+    setActividades([...entrySeleccionada.actividades]);
     setObservaciones(entrySeleccionada.observaciones);
     setEvidenceBlocks(entrySeleccionada.evidenceBlocks as EvidenceBlock[]);
     setVertivCarroPhotos(entrySeleccionada.vertivCarroPhotos);
