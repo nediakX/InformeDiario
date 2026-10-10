@@ -97,7 +97,7 @@ const formatHora12 = (hhmm: string) => {
 // ---------------------------------------------------------------------------------------
 interface DatosAuto {
   codigo: string; carro: string; fecha: string;
-  horaAlarma: string; horaRespuesta: string; horaOperativo: string; tecnico: string;
+  horaAlarma: string; horaRespuesta: string; horaOperativo: string;
 }
 interface TextosGenerados {
   descripcionTexto: string;
@@ -142,7 +142,7 @@ const FALLAS_COMUNES: { id: string; label: string; build: (d: DatosAuto) => Text
         `Verificar Fuente de energía.`,
         `Tiempo de origen llamado de falla por NOC.`,
         `Horario ${formatHora12(d.horaAlarma)} – Sitio sin comunicación. -`,
-        `Tiempo de respuesta; ${d.tecnico || "—"}.`,
+        `Tiempo de respuesta; ${formatHora12(d.horaRespuesta)}.`,
       ],
       notificacionCheckItem: `Horario ${formatHora12(d.horaRespuesta)} – Sitio sin comunicación, verifica fuente de energía.`,
       solucionIntro: SOLUCION_INTRO_DEFECTO,
@@ -170,7 +170,7 @@ const FALLAS_COMUNES: { id: string; label: string; build: (d: DatosAuto) => Text
         `Verificar Fuente de energía.`,
         `Tiempo de origen llamado de falla por NOC.`,
         `Horario ${formatHora12(d.horaAlarma)} – GE Falla General. -`,
-        `Tiempo de respuesta; ${d.tecnico || "—"}.`,
+        `Tiempo de respuesta; ${formatHora12(d.horaRespuesta)}.`,
       ],
       notificacionCheckItem: `Horario ${formatHora12(d.horaRespuesta)} – Sitio sin comunicación, verifica fuente de energía.`,
       solucionIntro: SOLUCION_INTRO_DEFECTO,
@@ -204,7 +204,7 @@ const FALLAS_COMUNES: { id: string; label: string; build: (d: DatosAuto) => Text
         `Verificar Fuente de energía.`,
         `Tiempo de origen llamado de falla por NOC.`,
         `Horario ${formatHora12(d.horaAlarma)} – Sitio sin comunicación. -`,
-        `Tiempo de respuesta; ${d.tecnico || "—"} (1° asistencia en terreno).`,
+        `Tiempo de respuesta; ${formatHora12(d.horaRespuesta)} (1° asistencia en terreno).`,
       ],
       notificacionCheckItem: `Horario ${formatHora12(d.horaRespuesta)} – Sitio sin comunicación, verifica fuente de energía y se observa disyuntor general saltado (por sobre corriente).`,
       solucionIntro: SOLUCION_INTRO_DEFECTO,
@@ -233,7 +233,7 @@ const FALLAS_COMUNES: { id: string; label: string; build: (d: DatosAuto) => Text
         `Verificar Fuente de energía.`,
         `Tiempo de origen llamado de falla por NOC.`,
         `Horario ${formatHora12(d.horaAlarma)} – Sitio sin comunicación. -`,
-        `Tiempo de respuesta; ${d.tecnico || "—"}.`,
+        `Tiempo de respuesta; ${formatHora12(d.horaRespuesta)}.`,
       ],
       notificacionCheckItem: `Horario ${formatHora12(d.horaRespuesta)} – [detalle de la verificación en terreno].`,
       solucionIntro: SOLUCION_INTRO_DEFECTO,
@@ -318,7 +318,7 @@ export default function InformeFallaCarro({ onBack, borradorInicial = null }: In
   const [tipoFalla, setTipoFalla] = useState(FALLAS_COMUNES[0].id);
 
   const datosAutoActuales = (): DatosAuto => ({
-    codigo: carroCodigo, carro: carroDisplay(carroCodigo), fecha, horaAlarma, horaRespuesta, horaOperativo, tecnico: tecnicoRespuesta,
+    codigo: carroCodigo, carro: carroDisplay(carroCodigo), fecha, horaAlarma, horaRespuesta, horaOperativo,
   });
 
   const textosIniciales = FALLAS_COMUNES[0].build(datosAutoActuales());
@@ -338,15 +338,15 @@ export default function InformeFallaCarro({ onBack, borradorInicial = null }: In
   const [verificacionTexto, setVerificacionTexto] = useState(textosIniciales.verificacionTexto);
   const [verificacionCheckItem, setVerificacionCheckItem] = useState(textosIniciales.verificacionCheckItem);
 
-  // Al agregar o quitar participantes, el "Tiempo de respuesta; …" de la notificación se actualiza solo.
-  const [nombresEnTextos, setNombresEnTextos] = useState(tecnicoRespuesta);
-  if (nombresEnTextos !== tecnicoRespuesta) {
-    const anterior = nombresEnTextos;
-    setNombresEnTextos(tecnicoRespuesta);
+  // Al cambiar la hora de respuesta, el "Tiempo de respuesta; …" de la notificación se actualiza solo.
+  const horaRespuestaTexto = formatHora12(horaRespuesta);
+  const [horaEnTextos, setHoraEnTextos] = useState(horaRespuestaTexto);
+  if (horaEnTextos !== horaRespuestaTexto) {
+    const anterior = horaEnTextos;
+    setHoraEnTextos(horaRespuestaTexto);
     if (anterior.trim()) {
-      const reemplazar = (t: string) => t.split(`respuesta; ${anterior}`).join(`respuesta; ${tecnicoRespuesta || '—'}`);
+      const reemplazar = (t: string) => t.split(`respuesta; ${anterior}`).join(`respuesta; ${horaRespuestaTexto}`);
       setNotificacionPuntos(prev => prev.map(reemplazar));
-      setDescripcionTexto(reemplazar);
     }
   }
 
