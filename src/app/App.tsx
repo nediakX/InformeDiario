@@ -113,8 +113,11 @@ function AppContenido() {
   const [fallaInstancia, setFallaInstancia] = useState(0);
 
   // Carga los borradores compartidos desde la nube y se suscribe a cambios de otros dispositivos.
+  // Si otro equipo guardó el Informe Diario que está abierto aquí, sus fotos se suman al formulario.
+  const recibirListaRemotaRef = useRef(diario.recibirListaRemota);
+  useEffect(() => { recibirListaRemotaRef.current = diario.recibirListaRemota; });
   useEffect(() => {
-    const aplicar = (lista: BorradorEntry[]) => setBorradores(sinBorrandose(lista));
+    const aplicar = (lista: BorradorEntry[]) => { setBorradores(sinBorrandose(lista)); recibirListaRemotaRef.current(lista); };
     void fetchBorradores(division).then(aplicar);
     return subscribeBorradores(division, aplicar);
   }, [division]);

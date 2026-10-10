@@ -15,7 +15,8 @@ import { leerLocal, guardarLocal, borrarLocal } from '../../lib/almacenLocal';
 
 import { type Vista } from '../../app/rutas';
 
-import { type BorradorEntry, upsertBorrador, contarFotos } from '../../datos/borradoresDiario';
+import { type BorradorEntry, upsertBorrador, contarFotos, obtenerBorradorNube } from '../../datos/borradoresDiario';
+import { mezclarBloques, mezclarFotos, mismasFotos } from './mezclaFotos';
 
 import { hoyLocalISO } from '../../datos/fechas';
 import { VERTIV_TITLE, VERTIV_CARROS, VERTIV_ITEMS, CUADRO_VERTIV_ID, CUADRO_VERTIV_SITIOS, leyendaCuadroVertiv } from '../../datos/plantillaWord';
@@ -132,6 +133,35 @@ export function useInformeDiario({ view, setBorradores, borradoresRef, division 
   const avisoRespaldoRef = useRef(false);
 
   const [currentDraftId, setCurrentDraftId] = useState<string>(() => crypto.randomUUID());
+
+  // --- Mismo informe abierto en dos equipos --------------------------------------------------
+  // Versión de la nube sobre la que se está trabajando y versiones que guardó este equipo. Si llega
+  // (o se encuentra al guardar) una versión de otro equipo, sus fotos se suman a las de aquí en vez
+  // de borrarse al guardar.
+  const versionBaseRef = useRef(0);
+  const versionesPropiasRef = useRef(new Set<number>());
+  const tiempo = (iso: string) => new Date(iso).getTime() || 0;
+  const esDeOtroEquipo = (remoto: BorradorEntry) => {
+    // Lo que está en la nube es siempre lo último guardado: si no es la versión que se abrió ni una
+    // guardada aquí, la guardó otro equipo (no se comparan horas: los relojes de los equipos difieren).
+    const t = tiempo(remoto.savedAt);
+    return t !== versionBaseRef.current && !versionesPropiasRef.current.has(t);
+  };
+  const traerFotosDe = (remoto: BorradorEntry) => {
+    versionBaseRef.current = tiempo(remoto.savedAt);
+    setEvidenceBlocks(prev => { const m = mezclarBloques(prev, remoto.evidenceBlocks as EvidenceBlock[]); return mismasFotos(m, prev) ? prev : m; });
+    setVertivCarroPhotos(prev => mezclarFotos(prev, remoto.vertivCarroPhotos));
+    setVertivItemPhotos(prev => mezclarFotos(prev, remoto.vertivItemPhotos));
+  };
+  const vistaActualRef = useRef(view);
+  const idActualRef = useRef(currentDraftId);
+  useEffect(() => { vistaActualRef.current = view; idActualRef.current = currentDraftId; }, [view, currentDraftId]);
+  /** Lista que llegó de la nube (otro equipo guardó): si trae el informe abierto, se suman sus fotos. */
+  const recibirListaRemota = (lista: BorradorEntry[]) => {
+    if (vistaActualRef.current !== 'diario') return;
+    const remoto = lista.find(b => b.id === idActualRef.current);
+    if (remoto && esDeOtroEquipo(remoto)) traerFotosDe(remoto);
+  };
 
   const [fotoAmpliada, setFotoAmpliada] = useState<string | null>(null);
 
@@ -356,7 +386,23 @@ export function useInformeDiario({ view, setBorradores, borradoresRef, division 
     let fallos = 0;
     let cancelado = false; // hubo cambios nuevos: este guardado quedó viejo y no debe reintentarse
     const guardarEnNube = () => {
-      upsertBorrador(entry)
+      // Antes de guardar se revisa si otro equipo guardó este informe mientras tanto: sus fotos se
+      // suman a las de aquí (si no, al guardar se borrarían las fotos que agregó el otro).
+      obtenerBorradorNube(entry.id)
+        .then(remoto => {
+          if (!remoto || !esDeOtroEquipo(remoto)) return entry;
+          traerFotosDe(remoto);
+          return {
+            ...entry,
+            evidenceBlocks: mezclarBloques(entry.evidenceBlocks, remoto.evidenceBlocks),
+            vertivCarroPhotos: mezclarFotos(entry.vertivCarroPhotos, remoto.vertivCarroPhotos),
+            vertivItemPhotos: mezclarFotos(entry.vertivItemPhotos, remoto.vertivItemPhotos),
+          };
+        })
+        .then(aGuardar => {
+          versionesPropiasRef.current.add(tiempo(aGuardar.savedAt));
+          return upsertBorrador(aGuardar);
+        })
         .then(saved => {
           if (fallos > 0) showToast("Informe sincronizado con la nube.");
           setBorradores(prev => mezclar(prev, saved));
@@ -395,6 +441,8 @@ export function useInformeDiario({ view, setBorradores, borradoresRef, division 
       cancelado = true;
       if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current);
     };
+    // esDeOtroEquipo / traerFotosDe solo usan refs y setters: no hace falta repetir el guardado por ellos.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     division,
     currentDraftId,
@@ -437,6 +485,30 @@ export function useInformeDiario({ view, setBorradores, borradoresRef, division 
             isFixed: true,
           };
 
+      // Cada bloque de actividad se usa una sola vez: si hay actividades con el mismo nombre (ej: varias
+      // agregadas en blanco), cada una conserva su propio bloque y sus fotos, sin copiarse entre ellas.
+      const libres = prevBlocks.filter(b => b.isActivity);
+      const asignados = new Map<number, EvidenceBlock>();
+      const asignar = (coincide: (b: EvidenceBlock, titulo: string, indice: number) => boolean) => {
+        actividades.forEach((titulo, indice) => {
+          if (asignados.has(indice)) return;
+          const k = libres.findIndex(b => coincide(b, titulo, indice));
+          if (k >= 0) asignados.set(indice, libres.splice(k, 1)[0]);
+        });
+      };
+      asignar((b, t, i) => b.title === t && b.actIndex === i); // mismo nombre y lugar
+      asignar((b, t) => b.title === t);                        // se movió de lugar
+      asignar((b, _t, i) => b.actIndex === i);                 // se le cambió el nombre
+      const idsUsados = new Set<string>();
+      const tomarBloque = (_titulo: string, indice: number): EvidenceBlock | undefined => {
+        const bloque = asignados.get(indice);
+        if (!bloque) return undefined;
+        // Un id repetido (de un error anterior) se renueva para que cada bloque sea independiente.
+        const id = idsUsados.has(bloque.id) ? `act_${Date.now()}_${Math.random().toString(36).slice(2, 7)}__${indice}` : bloque.id;
+        idsUsados.add(id);
+        return id === bloque.id ? bloque : { ...bloque, id };
+      };
+
       if (turno === 'noche') {
         const fixedBlocks = DEFAULT_EVIDENCIAS_NOCHE.map((title, index) => {
           const existing = prevBlocks.find(block => block.isFixed && block.title === title);
@@ -454,8 +526,7 @@ export function useInformeDiario({ view, setBorradores, borradoresRef, division 
           .map((actText, index) => ({ actText, index }))
           .filter(({ actText }) => actText.trim() && !DEFAULT_ACTIVIDADES_NOCHE.includes(actText) && !actividadesNoche(division).includes(actText))
           .map(({ actText, index }) => {
-            const existing = prevBlocks.find(block => block.isActivity && block.title === actText)
-              ?? prevBlocks.find(block => block.isActivity && block.actIndex === index);
+            const existing = tomarBloque(actText, index);
             return existing
               ? { ...existing, title: actText, actIndex: index }
               : {
@@ -474,8 +545,7 @@ export function useInformeDiario({ view, setBorradores, borradoresRef, division 
       const newBlocks: EvidenceBlock[] = [];
       actividades.forEach((actText, idx) => {
         if (EVIDENCIAS_EXCLUIDAS_DIA.has(actText)) return;
-        const existing = prevBlocks.find(b => b.isActivity && b.title === actText)
-          ?? prevBlocks.find(b => b.isActivity && b.actIndex === idx);
+        const existing = tomarBloque(actText, idx);
         if (existing) {
           newBlocks.push({ ...existing, title: actText, actIndex: idx });
         } else {
@@ -1594,6 +1664,7 @@ export function useInformeDiario({ view, setBorradores, borradoresRef, division 
     setVertivCarroPhotos(entrySeleccionada.vertivCarroPhotos);
     setVertivItemPhotos(entrySeleccionada.vertivItemPhotos);
     setCurrentDraftId(entrySeleccionada.id);
+    versionBaseRef.current = tiempo(entrySeleccionada.savedAt);
     draftDecisionMadeRef.current = true;
     setDraftPromptOpen(false);
   };
@@ -1602,6 +1673,7 @@ export function useInformeDiario({ view, setBorradores, borradoresRef, division 
   const decoracionMensual = DECORACIONES_MENSUALES[mesDeFecha];
 
   return {
+    recibirListaRemota,
     division,
     config,
     actividades,

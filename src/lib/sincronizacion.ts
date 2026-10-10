@@ -46,8 +46,11 @@ let promesaSync: Promise<void> | null = null;
 interface EstadoSync { pendientes: number; sincronizando: boolean; conError: number }
 let estado: EstadoSync = { pendientes: 0, sincronizando: false, conError: 0 };
 const oyentes = new Set<() => void>();
+// Informes que se están guardando en línea en este momento: no se cuentan como "por subir" (si no,
+// el indicador parpadearía en cada guardado automático).
+const guardandoEnLinea = new Map<string, number>();
 function publicar() {
-  const items = [...cola.values()];
+  const items = [...cola.values()].filter(i => !guardandoEnLinea.has(i.clave));
   estado = { pendientes: items.length, sincronizando, conError: items.filter(i => i.ultimoError && !esMensajeDeRed(i.ultimoError)).length };
   oyentes.forEach(fn => fn());
 }
@@ -73,14 +76,19 @@ function cargarCola(): Promise<void> {
 
 const guardarIndice = () => guardarLocal(CLAVE_INDICE, [...cola.keys()]);
 
-async function ponerEnCola(op: Omit<OperacionPendiente, 'clave' | 'encoladoEn' | 'intentos'>): Promise<void> {
+let correlativo = 0;
+/** Deja el cambio en la cola (en el dispositivo) y devuelve su versión. */
+async function ponerEnCola(op: Omit<OperacionPendiente, 'clave' | 'encoladoEn' | 'intentos'>): Promise<string> {
   await cargarCola();
   const clave = claveCola(op.tabla, op.id);
-  const item: OperacionPendiente = { ...op, clave, encoladoEn: new Date().toISOString(), intentos: 0 };
+  // Fecha + correlativo: dos guardados en el mismo milisegundo siguen siendo versiones distintas.
+  const encoladoEn = `${new Date().toISOString()}#${String(++correlativo).padStart(6, '0')}`;
+  const item: OperacionPendiente = { ...op, clave, encoladoEn, intentos: 0 };
   cola.set(clave, item);
   await guardarLocal(claveItem(clave), item);
   await guardarIndice();
   publicar();
+  return encoladoEn;
 }
 
 /** Quita un informe de la cola. Si se indica la versión, solo se quita si no llegó otra más nueva mientras tanto. */
@@ -99,27 +107,53 @@ export function registrarEjecutor(tabla: TablaSync, ejecutor: Ejecutor) {
   ejecutores.set(tabla, ejecutor);
 }
 
+// Guardados en curso por informe: se hacen de a uno y en orden, para que uno viejo que tarda más
+// (subiendo fotos) no termine pisando en la nube a uno más nuevo.
+const enCurso = new Map<string, Promise<unknown>>();
+
 /**
- * Guarda en la nube; si no hay conexión, deja el cambio en la cola y devuelve el informe tal cual.
+ * Guarda en la nube. Antes de subir, el cambio queda guardado en este dispositivo (con sus fotos):
+ * si se recarga o se cierra la página mientras se suben las fotos, no se pierde y se termina de subir
+ * al volver a abrir la app. Sin conexión queda en la cola y se sube al volver la señal.
  * Cualquier otro error (permisos, datos) se lanza como siempre.
  */
 export async function guardarConCola<T>(tabla: TablaSync, id: string, entry: T, guardarEnNube: (e: T) => Promise<T>): Promise<T> {
   await cargarCola();
   const clave = claveCola(tabla, id);
-  // Si hay cambios anteriores de otros informes esperando, este se pone a la fila (respeta el orden).
-  if (!hayConexion()) {
-    await ponerEnCola({ tabla, tipo: 'guardar', id, entry });
-    return entry;
-  }
+  const enLinea = hayConexion();
+  if (enLinea) guardandoEnLinea.set(clave, (guardandoEnLinea.get(clave) ?? 0) + 1);
+  const terminar = () => {
+    if (!enLinea) return;
+    const n = (guardandoEnLinea.get(clave) ?? 1) - 1;
+    if (n > 0) guardandoEnLinea.set(clave, n); else guardandoEnLinea.delete(clave);
+    publicar();
+  };
+  let version: string;
   try {
-    const guardado = await guardarEnNube(entry);
-    await quitarDeCola(clave); // lo que hubiera en cola de este informe ya quedó superado
-    return guardado;
+    version = await ponerEnCola({ tabla, tipo: 'guardar', id, entry });
   } catch (error) {
-    if (!esErrorDeRed(error)) throw error;
-    await ponerEnCola({ tabla, tipo: 'guardar', id, entry });
-    return entry;
+    terminar();
+    throw error;
   }
+  if (!enLinea) return entry;
+
+  const anterior = enCurso.get(clave) ?? Promise.resolve();
+  const tarea: Promise<T> = anterior.catch(() => undefined).then(async () => {
+    // Mientras esperaba llegó un cambio más nuevo del mismo informe: este ya no hace falta subirlo.
+    if (cola.get(clave)?.encoladoEn !== version) return entry;
+    try {
+      const guardado = await guardarEnNube(entry);
+      await quitarDeCola(clave, version);
+      return guardado;
+    } catch (error) {
+      if (esErrorDeRed(error)) return entry; // queda en la cola y se reintenta solo
+      await quitarDeCola(clave, version);
+      throw error;
+    }
+  });
+  enCurso.set(clave, tarea);
+  void tarea.catch(() => undefined).finally(() => { if (enCurso.get(clave) === tarea) enCurso.delete(clave); terminar(); });
+  return tarea;
 }
 
 /** Elimina en la nube; sin conexión, la eliminación queda en cola (y reemplaza un guardado pendiente). */
@@ -188,6 +222,7 @@ export function sincronizar(): Promise<void> {
       for (const item of items) {
         const ejecutor = ejecutores.get(item.tabla);
         if (!ejecutor) continue;
+        if (enCurso.has(item.clave)) continue; // ese informe se está guardando ahora mismo
         try {
           if (item.tipo === 'guardar') await ejecutor.guardar(item.entry);
           else await ejecutor.eliminar(item.id);

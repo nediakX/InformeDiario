@@ -145,6 +145,17 @@ export async function fetchBorradores(division: Division): Promise<BorradorEntry
   );
 }
 
+/** Versión actual en la nube de un informe (null si no existe o no hay señal). */
+export async function obtenerBorradorNube(id: string): Promise<BorradorEntry | null> {
+  try {
+    const { data, error } = await supabase.from(BORRADORES_TABLE).select("*").eq("id", id).maybeSingle();
+    if (error || !data) return null;
+    return rowToEntry(data as BorradorRow);
+  } catch {
+    return null;
+  }
+}
+
 const uploadPhotoArray = (photos: (string | null)[], folder: string) =>
   Promise.all(photos.map(photo => uploadPhotoIfNeeded(photo, folder)));
 
