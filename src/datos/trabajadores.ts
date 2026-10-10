@@ -16,6 +16,7 @@ const EL_SALVADOR: Trabajador[] = [
   { nombre: 'Contreras Cortes Fernando', rut: '17.015.033-3', cargo: 'Técnico Telecomunicaciones' },
   { nombre: 'Barraza Gallardo Williams Vicente', rut: '20.946.216-8', cargo: 'Técnico Telecomunicaciones' },
   { nombre: 'Maximiliano Bahamondez', rut: '19.947.990-3', cargo: 'Técnico Telecomunicaciones' },
+  { nombre: 'Nicolás Bahamondes', rut: '19.349.310-6', cargo: 'Líder Técnico' },
   { nombre: 'Díaz Cornejo Max Andrés', rut: '14.352.176-1', cargo: 'Supervisor de Operaciones' },
   { nombre: 'Droguett Pasten Claudia Andrea', rut: '15.740.863-1', cargo: 'Experto SSO, S y MA' },
   { nombre: 'Escobar San Martín José Luis', rut: '17.472.034-7', cargo: 'Técnico Telecomunicaciones' },
