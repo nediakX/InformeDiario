@@ -115,9 +115,11 @@ function AppContenido() {
   // Carga los borradores compartidos desde la nube y se suscribe a cambios de otros dispositivos.
   // Si otro equipo guardó el Informe Diario que está abierto aquí, sus fotos se suman al formulario.
   const recibirListaRemotaRef = useRef(diario.recibirListaRemota);
+  // true cuando ya llegó la lista de informes guardados (de la nube, o la copia del equipo sin señal).
+  const [listaCargada, setListaCargada] = useState(false);
   useEffect(() => { recibirListaRemotaRef.current = diario.recibirListaRemota; });
   useEffect(() => {
-    const aplicar = (lista: BorradorEntry[]) => { setBorradores(sinBorrandose(lista)); recibirListaRemotaRef.current(lista); };
+    const aplicar = (lista: BorradorEntry[]) => { setBorradores(sinBorrandose(lista)); setListaCargada(true); recibirListaRemotaRef.current(lista); };
     void fetchBorradores(division).then(aplicar);
     return subscribeBorradores(division, aplicar);
   }, [division]);
@@ -268,13 +270,20 @@ function AppContenido() {
 
   // Navegación: abre un borrador existente (de otro día) para revisarlo o continuarlo.
   const openBorradorEntry = (entrySeleccionada: BorradorEntry, navegar = true) => {
+    // Recién abierta la app todavía no llega la lista de la nube: un informe de hoy aparece "vacío"
+    // (sin fotos) aunque ya esté guardado. Se espera la lista para abrir el guardado, no el vacío.
+    if (!listaCargada && esSemillaSinEditar(entrySeleccionada)) {
+      rutaDiarioAplicadaRef.current = null;
+      if (navegar) setView('diario', entrySeleccionada.id);
+      return;
+    }
     rutaDiarioAplicadaRef.current = entrySeleccionada.id;
     cargarBorrador(entrySeleccionada);
     if (navegar) setView('diario', entrySeleccionada.id);
   };
 
   useEffect(() => {
-    if (view !== 'diario' || !ruta.param || ruta.param === currentDraftId) return;
+    if (view !== 'diario' || !ruta.param || ruta.param === currentDraftId || !listaCargada) return;
     if (rutaDiarioAplicadaRef.current === ruta.param) return;
     const entry = borradoresVisibles.find(b => b.id === ruta.param);
     if (!entry) return;
@@ -283,7 +292,7 @@ function AppContenido() {
     // con algo externo (la lista que llega de la nube), por eso se hace en un efecto.
     openBorradorEntry(entry, false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [view, ruta.param, borradoresVisibles]);
+  }, [view, ruta.param, borradoresVisibles, listaCargada]);
 
   // Navegación: entra a "Generar Informe Diario" comenzando desde cero, con un nuevo borrador.
   const goToNewInforme = (turnoElegido?: 'dia' | 'noche') => {
@@ -527,6 +536,15 @@ function AppContenido() {
 
   // URL desconocida (o /admin sin permiso, o /login y /registro con la sesión ya iniciada): al panel principal.
   if (view !== 'diario') return <Navigate to="/" replace />;
+
+  // Esperando la lista de la nube para abrir el informe del enlace (así no se muestra vacío al recargar).
+  if (!listaCargada && ruta.param && ruta.param !== currentDraftId) {
+    return (
+      <div className="min-h-screen flex items-center justify-center gap-2 text-sm text-slate-500">
+        <Loader2 className="animate-spin" size={18} /> Cargando informe…
+      </div>
+    );
+  }
 
   return <InformeDiario d={diario} volverABorradores={volverABorradores} goToNewInforme={goToNewInforme} />;
 }

@@ -551,6 +551,46 @@ export default function InformeFallaCarro({ onBack, borradorInicial = null }: In
       ? { ...g, fotos: g.fotos.map(f => (f.id === fotoId ? { ...f, photo: dataUrl } : f)) }
       : g)));
   };
+  // --- Pegar fotos con Ctrl+V (igual que en el Informe Diario y Mantenimiento) ---
+  // Se pega en la casilla seleccionada (clic sobre ella) o, si no hay ninguna, en la primera vacía.
+  // Después queda seleccionada la siguiente, para pegar varias seguidas.
+  const [fotoSeleccionada, setFotoSeleccionada] = useState<{ grupoId: string; fotoId: string } | null>(null);
+  const gruposRef = useRef(grupos);
+  useEffect(() => { gruposRef.current = grupos; }, [grupos]);
+  const seleccionRef = useRef(fotoSeleccionada);
+  useEffect(() => { seleccionRef.current = fotoSeleccionada; }, [fotoSeleccionada]);
+  useEffect(() => {
+    const alPegar = (event: ClipboardEvent) => {
+      const item = Array.from(event.clipboardData?.items ?? []).find(i => i.type.startsWith('image/'));
+      const archivo = item?.getAsFile();
+      if (!archivo) return; // texto: se pega normal en el campo donde se esté escribiendo
+      const lista = gruposRef.current;
+      let destino = seleccionRef.current;
+      if (destino && !lista.some(g => g.id === destino!.grupoId && g.fotos.some(f => f.id === destino!.fotoId))) destino = null;
+      const elegida = !!destino; // la persona hizo clic en una casilla
+      if (!destino) {
+        const g = lista.find(gr => gr.fotos.some(f => !f.photo));
+        const f = g?.fotos.find(x => !x.photo);
+        if (g && f) destino = { grupoId: g.id, fotoId: f.id };
+      }
+      if (!destino) return;
+      event.preventDefault();
+      void asignarFoto(destino.grupoId, destino.fotoId, archivo);
+      // Siguiente casilla del mismo bloque (o una nueva, hasta 4 por bloque).
+      const grupo = lista.find(g => g.id === destino!.grupoId)!;
+      const i = grupo.fotos.findIndex(f => f.id === destino!.fotoId);
+      const siguiente = grupo.fotos[i + 1];
+      if (siguiente) setFotoSeleccionada({ grupoId: grupo.id, fotoId: siguiente.id });
+      else if (elegida && grupo.fotos.length < 4) {
+        const nueva = { id: uid(), photo: null };
+        setGrupos(prev => prev.map(g => (g.id === grupo.id && g.fotos.length < 4 ? { ...g, fotos: [...g.fotos, nueva] } : g)));
+        setFotoSeleccionada({ grupoId: grupo.id, fotoId: nueva.id });
+      } else setFotoSeleccionada(null);
+    };
+    document.addEventListener('paste', alPegar);
+    return () => document.removeEventListener('paste', alPegar);
+  }, []);
+
   const updateFotoCaption = (grupoId: string, fotoId: string, caption: string) =>
     setGrupos(prev => prev.map(g => (g.id === grupoId
       ? { ...g, fotos: g.fotos.map(f => (f.id === fotoId ? { ...f, caption } : f)) }
@@ -1110,7 +1150,12 @@ export default function InformeFallaCarro({ onBack, borradorInicial = null }: In
                 <label className="block text-[11px] text-[#6B6B6B] font-bold mb-1">Fotos ({grupo.fotos.length}/4)</label>
                 <div className="flex flex-wrap gap-2 mb-2">
                   {grupo.fotos.map(slot => (
-                    <div key={slot.id} className="photo-slot w-[130px] text-center text-[10px] text-gray-500 relative border-2 border-dashed border-gray-300 rounded-md p-1 bg-white">
+                    <div
+                      key={slot.id}
+                      onClick={() => setFotoSeleccionada({ grupoId: grupo.id, fotoId: slot.id })}
+                      title="Haz clic aquí y luego pega una imagen con Ctrl+V"
+                      className={`photo-slot w-[130px] text-center text-[10px] text-gray-500 relative border-2 border-dashed rounded-md p-1 bg-white cursor-pointer ${fotoSeleccionada?.fotoId === slot.id ? 'border-[#0E4660] ring-2 ring-[#0E4660]/20' : 'border-gray-300'}`}
+                    >
                       {slot.photo && (
                         <button
                           type="button"
@@ -1125,7 +1170,7 @@ export default function InformeFallaCarro({ onBack, borradorInicial = null }: In
                       <img
                         src={slot.photo || placeholderImg}
                         alt=""
-                        onClick={() => slot.photo && setFotoAmpliada(slot.photo)}
+                        onClick={e => { if (slot.photo) { e.stopPropagation(); setFotoAmpliada(slot.photo); } }}
                         className={`w-full h-[80px] object-cover rounded mb-1 bg-gray-100 ${slot.photo ? 'cursor-zoom-in' : ''}`}
                       />
                       <input type="file" accept="image/*" onChange={e => e.target.files?.[0] && asignarFoto(grupo.id, slot.id, e.target.files[0])} className="text-[9px] w-full mb-1" />
