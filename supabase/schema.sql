@@ -662,11 +662,21 @@ create table if not exists public.reportes_gg (
   nro_partidas integer,
   nivel_refrigerante text,
   nivel_aceite text,
-  temperatura_1 numeric,
-  temperatura_2 numeric,
+  temperatura numeric,
   creado_por uuid default auth.uid(),
   updated_at timestamptz not null default now()
 );
+
+-- Una sola temperatura: si la tabla se creó antes con dos columnas, se juntan en "temperatura".
+alter table public.reportes_gg add column if not exists temperatura numeric;
+do $$
+begin
+  if exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'reportes_gg' and column_name = 'temperatura_1') then
+    execute 'update public.reportes_gg set temperatura = coalesce(temperatura, temperatura_1, temperatura_2)';
+    execute 'alter table public.reportes_gg drop column temperatura_1';
+    execute 'alter table public.reportes_gg drop column if exists temperatura_2';
+  end if;
+end $$;
 
 create index if not exists reportes_gg_division_fecha_idx on public.reportes_gg (division, fecha desc, hora desc);
 create index if not exists reportes_gg_division_sitio_fecha_idx on public.reportes_gg (division, sitio, fecha desc);

@@ -154,7 +154,7 @@ export default function ReportabilidadGG({ onBack }: { onBack: () => void }) {
         division, fecha: form.fecha, hora: form.hora || null, sitio: form.sitio, turno: form.turno, reporta: form.reporta.trim(),
         combustible: form.combustible, horometro: leerNumero(form.horometro), nroPartidas: leerNumero(form.nroPartidas),
         nivelRefrigerante: form.nivelRefrigerante, nivelAceite: form.nivelAceite,
-        temperatura1: leerNumero(form.temperatura), temperatura2: null,
+        temperatura: leerNumero(form.temperatura),
       });
       setLista(prev => [nuevo, ...(prev ?? []).filter(r => r.id !== nuevo.id)]);
       setUltimoDelSitio(nuevo);
@@ -204,7 +204,7 @@ export default function ReportabilidadGG({ onBack }: { onBack: () => void }) {
       // Mismas columnas (y orden) que la planilla del formulario de Google, del más antiguo al más nuevo.
       const filas = [...todos].reverse().map(r => [
         new Date(r.marcaTemporal), r.fecha, r.hora, r.sitio, r.turno, r.reporta, r.combustible, r.horometro, r.nroPartidas,
-        r.nivelRefrigerante, r.nivelAceite, r.temperatura1 ?? r.temperatura2,
+        r.nivelRefrigerante, r.nivelAceite, r.temperatura,
       ]);
       const blob = await crearExcel('Respuestas de formulario 1', [
         { titulo: 'Marca temporal', tipo: 'fechaHora', ancho: 20 }, { titulo: 'Fecha', tipo: 'fecha', ancho: 12 },
@@ -384,7 +384,7 @@ export default function ReportabilidadGG({ onBack }: { onBack: () => void }) {
                       <td className="text-right tabular-nums">{fmtNum(r.nroPartidas)}</td>
                       <td>{r.nivelRefrigerante ?? '—'}</td>
                       <td className="whitespace-nowrap">{r.nivelAceite ?? '—'}</td>
-                      <td className="text-right tabular-nums">{fmtNum(r.temperatura1 ?? r.temperatura2)}</td>
+                      <td className="text-right tabular-nums">{fmtNum(r.temperatura)}</td>
                       <td>
                         {(esAdmin || r.creadoPor === perfil.id) && (
                           <button type="button" onClick={() => void eliminar(r)} aria-label={`Eliminar reporte de ${r.sitio}`} title="Eliminar"
