@@ -74,3 +74,9 @@
 @keyframes barra-deshacer-entrar { from { opacity: 0; transform: translate(-50%, 12px); } to { opacity: 1; transform: translate(-50%, 0); } }
 .barra-deshacer--mini { animation: none; }
 @media print { .barra-deshacer { display: none; } }
+
+/* Tabla de Reportabilidad de GG */
+.tabla-gg { border-collapse: collapse; }
+.tabla-gg th { text-align: left; font-weight: 700; color: #55636B; background: #F6F8FA; padding: 6px 8px; border-bottom: 1px solid #DCE1E6; white-space: nowrap; position: sticky; top: 0; }
+.tabla-gg td { padding: 5px 8px; border-bottom: 1px solid #EEF1F3; }
+.tabla-gg tbody tr:hover { background: #f7fafc; }

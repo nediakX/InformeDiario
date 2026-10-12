@@ -34,6 +34,7 @@ const InformeCierre = lazy(() => import('../informes/InformeCierre'));
 const InformeMantenimiento = lazy(() => import('../informes/InformeMantenimiento'));
 const InformeFallaCarro = lazy(() => import('../informes/InformeFallaCarro'));
 const ImpresionRapida = lazy(() => import('../pantallas/ImpresionRapida'));
+const ReportabilidadGG = lazy(() => import('../pantallas/ReportabilidadGG'));
 const ChecklistCamioneta = lazy(() => import('../informes/checklist/ChecklistCamioneta'));
 const PanelAdmin = lazy(() => import('../admin/PanelAdmin'));
 const ImportadorWord = lazy(() => import('../componentes/ImportadorWord'));
@@ -516,6 +517,10 @@ function AppContenido() {
 
   if (view === 'perfil') {
     return <CargandoPantalla><Perfil onBack={() => setView('dashboard')} /></CargandoPantalla>;
+  }
+
+  if (view === 'reportabilidad-gg') {
+    return <CargandoPantalla><ReportabilidadGG onBack={() => setView('dashboard')} /></CargandoPantalla>;
   }
 
   if (view === 'impresion') {

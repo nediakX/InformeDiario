@@ -10,11 +10,12 @@
 //   /falla/:id?                Informe de Falla — Carro (sin id = nuevo)
 //   /checklist-camioneta       Checklist diario de la camioneta
 //   /impresion                 Impresión Rápida
+//   /reportabilidad-gg         Reportabilidad de GG (formulario + tabla de grupos generadores)
 //   /perfil                    Mi perfil (datos, contraseña y firma)
 //   /admin/:pestana?           Panel de administración (resumen | en-linea | usuarios | actividad | sistema)
 //   /login, /registro          Acceso (solo sin sesión)
 
-export type Vista = 'dashboard' | 'diario' | 'borradores' | 'cierre' | 'mantenimiento' | 'falla-carro' | 'checklist' | 'impresion' | 'admin' | 'perfil';
+export type Vista = 'dashboard' | 'diario' | 'borradores' | 'cierre' | 'mantenimiento' | 'falla-carro' | 'checklist' | 'impresion' | 'reportabilidad-gg' | 'admin' | 'perfil';
 export type TipoBorradores = 'diario' | 'mantenimiento' | 'falla';
 export type PestanaAdmin = 'resumen' | 'en-linea' | 'usuarios' | 'actividad' | 'sistema';
 
@@ -28,6 +29,7 @@ export const NOMBRE_PANTALLA: Record<Vista, string> = {
   'falla-carro': 'Informe de Falla — Carro',
   checklist: 'Checklist de Camioneta',
   impresion: 'Impresión Rápida',
+  'reportabilidad-gg': 'Reportabilidad de GG',
   admin: 'Panel de administración',
   perfil: 'Mi perfil',
 };
@@ -41,6 +43,7 @@ const BASE: Record<Vista, string> = {
   'falla-carro': '/falla',
   checklist: '/checklist-camioneta',
   impresion: '/impresion',
+  'reportabilidad-gg': '/reportabilidad-gg',
   admin: '/admin',
   perfil: '/perfil',
 };
@@ -63,7 +66,7 @@ export function leerRuta(pathname: string): RutaLeida {
   if (resto.length) return { vista: null, param: null };
   const vista = (Object.keys(BASE) as Vista[]).find(v => v !== 'dashboard' && BASE[v] === `/${primera}`) ?? null;
   if (!vista) return { vista: null, param: null };
-  if (segunda && (vista === 'cierre' || vista === 'impresion' || vista === 'checklist' || vista === 'perfil')) return { vista: null, param: null };
+  if (segunda && (vista === 'cierre' || vista === 'impresion' || vista === 'reportabilidad-gg' || vista === 'checklist' || vista === 'perfil')) return { vista: null, param: null };
   return { vista, param: segunda };
 }
 

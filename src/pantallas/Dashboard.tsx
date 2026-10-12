@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ClipboardCheck, FileStack, FolderOpen, ChevronRight, Bell, FilePlus, Sun, Moon, Wrench, AlertTriangle, Printer, LogOut, ShieldCheck, UserRound, FileUp, type LucideIcon } from 'lucide-react';
+import { ClipboardCheck, FileStack, FolderOpen, ChevronRight, Bell, FilePlus, Sun, Moon, Wrench, AlertTriangle, Printer, LogOut, ShieldCheck, UserRound, FileUp, Fuel, type LucideIcon } from 'lucide-react';
 import { useSesion, nombreVisible } from '../auth/sesion';
 import { CONFIG_DIVISION } from '../datos/divisiones';
 import './dashboard.css';
@@ -39,7 +39,7 @@ function Tarea({ icono: Icono, color, titulo, estado, tono, etiqueta, onClick }:
 }
 
 interface DashboardProps {
-  onNavigate: (view: 'borradores' | 'cierre' | 'checklist' | 'impresion' | 'admin' | 'perfil') => void;
+  onNavigate: (view: 'borradores' | 'cierre' | 'checklist' | 'impresion' | 'reportabilidad-gg' | 'admin' | 'perfil') => void;
   /** Informes de hoy (Día y Noche), guardados o todavía pendientes: la persona elige con cuál trabajar. */
   informesHoy?: BorradorEntry[];
   onAbrirInforme: (entry: BorradorEntry) => void;
@@ -265,6 +265,8 @@ export default function Dashboard({
           <div className="dash-tareas">
             <Tarea icono={ClipboardCheck} color="#1E8E3E" titulo="Checklist de camioneta" onClick={() => onNavigate('checklist')}
               estado={checklistHoy.texto} tono={checklistHoy.completo ? 'ok' : 'aviso'} />
+            <Tarea icono={Fuel} color="#9a5b00" titulo="Reportabilidad de GG" onClick={() => onNavigate('reportabilidad-gg')}
+              estado="Combustible, horómetro, niveles y temperatura de los generadores" />
             <Tarea icono={FileStack} color="#ED7D31" titulo="Informe de cierre" onClick={() => onNavigate('cierre')}
               estado={`${diasConInformeDia} de ${DIAS_POR_TURNO} días de Turno Día con informe`} />
             <Tarea icono={Printer} color="#0E4660" titulo="Impresión rápida" onClick={() => onNavigate('impresion')}
