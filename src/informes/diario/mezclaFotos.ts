@@ -16,6 +16,10 @@ export function mezclarFotos(propias: Foto[], otras: Foto[]): Foto[] {
   return resultado;
 }
 
+/** Foto que es una hoja del checklist enviada por el Checklist de Camioneta. */
+const esHojaChecklist = (foto: string, bloque: EvidenceBlockLike) =>
+  foto.includes('/checklist/') || Object.values(bloque.checklistFotos ?? {}).some(l => l.includes(foto));
+
 /** Bloques de evidencia: se emparejan por id (o por nombre) y se mezclan sus fotos. */
 export function mezclarBloques<T extends EvidenceBlockLike>(propios: T[], otros: EvidenceBlockLike[]): T[] {
   const usados = new Set<EvidenceBlockLike>();
@@ -28,6 +32,15 @@ export function mezclarBloques<T extends EvidenceBlockLike>(propios: T[], otros:
   const mezclados = propios.map(b => {
     const par = buscar(b);
     if (!par || !par.photos?.some(Boolean)) return b;
+    // Hojas del Checklist de Camioneta: las manda el checklist directo a la nube, así que las de la
+    // nube son siempre las vigentes (las de aquí pueden ser de un envío anterior).
+    const hojasRemotas = par.photos.filter((p): p is string => !!p && esHojaChecklist(p, par));
+    if (hojasRemotas.length) {
+      const manuales = [...b.photos.filter(p => !(p && esHojaChecklist(p, b))), ...par.photos.filter(p => !(p && esHojaChecklist(p, par)))];
+      const sinRepetir = manuales.filter((p, i) => p && manuales.indexOf(p) === i);
+      const photos = [...hojasRemotas, ...sinRepetir];
+      return { ...b, photos, photoCount: photos.length, checklistFotos: { ...b.checklistFotos, ...par.checklistFotos } };
+    }
     const photos = mezclarFotos(b.photos, par.photos);
     return { ...b, photos, photoCount: photos.length };
   });

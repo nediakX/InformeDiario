@@ -13,6 +13,7 @@ export interface CampoTexto {
   ancho?: number;        // ancho máximo: si el texto no cabe, se achica la letra.
   centrado?: boolean;    // x es el centro del texto
   tapar?: { x: number; top: number; ancho: number; alto: number }; // rectángulo blanco previo (sobre "__/__/__")
+  negrita?: boolean;     // letra negrita y negra (para rehacer un texto impreso del formulario)
   texto: string;
 }
 
@@ -37,6 +38,8 @@ export interface DocumentoImprimible {
   cantidadSugerida: number;
   /** Campos que dependen de la semana / turno (van en todas las copias). */
   camposSemana?: (s: ContextoSemana) => CampoTexto[];
+  /** Arreglos del formulario impreso: van en todas las copias, también en blanco. */
+  correcciones?: CampoTexto[];
   /** Campos de la persona (solo en las copias con nombre). */
   camposPersona?: (p: Persona, s: ContextoSemana) => CampoTexto[];
 }
@@ -44,6 +47,9 @@ export interface DocumentoImprimible {
 const ddmm = (iso: string) => { const [, m, d] = iso.split('-'); return `${d}/${m}`; };
 const ddmmaa = (iso: string) => { const [y, m, d] = iso.split('-'); return `${d}/${m}/${y.slice(2)}`; };
 const ddmmaaaa = (iso: string) => { const [y, m, d] = iso.split('-'); return `${d}-${m}-${y}`; };
+const diaMes = (iso: string) => { const [, m, d] = iso.split('-'); return `${Number(d)}-${m}`; };
+// Centro de la columna de cada día (miércoles a martes) en la Autoevaluación.
+const CENTROS_AUTOEVALUACION = [319.4, 385.3, 451.3, 517.3, 583.2, 651.0, 722.6];
 const rangoSemana = (s: ContextoSemana) => `${ddmmaaaa(s.dias[0])} al ${ddmmaaaa(s.dias[6])}`;
 
 export const DOCUMENTOS: DocumentoImprimible[] = [
@@ -57,6 +63,11 @@ export const DOCUMENTOS: DocumentoImprimible[] = [
     camposSemana: s => [
       { x: 74, base: 149.6, tamano: 8, texto: rangoSemana(s) },
       { x: 74, base: 426.8, tamano: 8, texto: rangoSemana(s) },
+      // Día y mes sobre cada día de la semana (inicio y término de turno): 7-10, 8-10…
+      ...CENTROS_AUTOEVALUACION.flatMap((x, i) => [
+        { x, base: 148.6, tamano: 7.5, centrado: true, texto: diaMes(s.dias[i]) },
+        { x, base: 425.9, tamano: 7.5, centrado: true, texto: diaMes(s.dias[i]) },
+      ]),
     ],
     camposPersona: p => [
       { x: 64, base: 139.9, tamano: 8.5, ancho: 215, texto: p.nombre },
@@ -82,6 +93,8 @@ export const DOCUMENTOS: DocumentoImprimible[] = [
     nombre: 'Registro de Aplicación de Protector Solar',
     descripcion: 'GSSO-LTE-R-EQPSPRU-DSAL-06 · uno por persona',
     archivo: '/documentos/GSSO-LTE-R-EQPSPRU-DSAL-06_REGISTRO_DE_APLICACIÓN_DE_PROTECTOR_SOLAR.pdf',
+    // El "NO" de las 10:00 viene partido en dos líneas en el PDF: se rehace en una sola.
+    correcciones: [{ x: 254.5, base: 252.4, tamano: 9.8, centrado: true, negrita: true, tapar: { x: 242.8, top: 235.8, ancho: 23.6, alto: 25.6 }, texto: 'NO' }],
     modo: 'persona',
     cantidadSugerida: 0,
     camposSemana: s => [
@@ -103,6 +116,8 @@ export const DOCUMENTOS: DocumentoImprimible[] = [
     modo: 'persona',
     cantidadSugerida: 0,
     camposSemana: s => [
+      // Fechas del turno en las filas 1 a 7 (una por día, miércoles a martes).
+      ...s.dias.map((d, i) => ({ x: 196.7, base: 223.9 + 13.95 * i, tamano: 8.5, centrado: true, texto: ddmmaaaa(d) })),
       { x: 140, base: 462.6, ancho: 620, texto: s.supervisor.nombre },
       { x: 140, base: 476.5, ancho: 620, texto: s.supervisor.cargo },
     ],

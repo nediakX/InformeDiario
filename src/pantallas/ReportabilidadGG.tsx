@@ -42,7 +42,7 @@ function Opciones({ valor, opciones, onChange, nombre }: { valor: string; opcion
 
 interface Formulario {
   fecha: string; hora: string; sitio: string; turno: string; reporta: string; combustible: string;
-  horometro: string; nroPartidas: string; nivelRefrigerante: string; nivelAceite: string; temperatura1: string; temperatura2: string;
+  horometro: string; nroPartidas: string; nivelRefrigerante: string; nivelAceite: string; temperatura: string;
 }
 
 export default function ReportabilidadGG({ onBack }: { onBack: () => void }) {
@@ -61,7 +61,7 @@ export default function ReportabilidadGG({ onBack }: { onBack: () => void }) {
     return {
       fecha, hora: horaActual(), sitio: anterior?.sitio ?? '', turno: anterior?.turno ?? `TURNO ${letraDeFecha(fecha)}`,
       reporta: anterior?.reporta ?? reportaPorDefecto(), combustible: '', horometro: '', nroPartidas: '',
-      nivelRefrigerante: '', nivelAceite: '', temperatura1: '', temperatura2: '',
+      nivelRefrigerante: '', nivelAceite: '', temperatura: '',
     };
   };
   const [form, setForm] = useState<Formulario>(() => nuevoFormulario());
@@ -135,7 +135,7 @@ export default function ReportabilidadGG({ onBack }: { onBack: () => void }) {
     if (!form.combustible) e.combustible = requerido;
     if (!form.nivelRefrigerante) e.nivelRefrigerante = requerido;
     if (!form.nivelAceite) e.nivelAceite = requerido;
-    const numeros: [keyof Formulario, boolean][] = [['horometro', false], ['nroPartidas', true], ['temperatura1', false], ['temperatura2', false]];
+    const numeros: [keyof Formulario, boolean][] = [['horometro', false], ['nroPartidas', true], ['temperatura', false]];
     for (const [k, entero] of numeros) {
       const n = leerNumero(form[k]);
       if (n === null) e[k] = requerido;
@@ -154,7 +154,7 @@ export default function ReportabilidadGG({ onBack }: { onBack: () => void }) {
         division, fecha: form.fecha, hora: form.hora || null, sitio: form.sitio, turno: form.turno, reporta: form.reporta.trim(),
         combustible: form.combustible, horometro: leerNumero(form.horometro), nroPartidas: leerNumero(form.nroPartidas),
         nivelRefrigerante: form.nivelRefrigerante, nivelAceite: form.nivelAceite,
-        temperatura1: leerNumero(form.temperatura1), temperatura2: leerNumero(form.temperatura2),
+        temperatura1: leerNumero(form.temperatura), temperatura2: null,
       });
       setLista(prev => [nuevo, ...(prev ?? []).filter(r => r.id !== nuevo.id)]);
       setUltimoDelSitio(nuevo);
@@ -204,7 +204,7 @@ export default function ReportabilidadGG({ onBack }: { onBack: () => void }) {
       // Mismas columnas (y orden) que la planilla del formulario de Google, del más antiguo al más nuevo.
       const filas = [...todos].reverse().map(r => [
         new Date(r.marcaTemporal), r.fecha, r.hora, r.sitio, r.turno, r.reporta, r.combustible, r.horometro, r.nroPartidas,
-        r.nivelRefrigerante, r.nivelAceite, r.temperatura1, r.temperatura2,
+        r.nivelRefrigerante, r.nivelAceite, r.temperatura1 ?? r.temperatura2,
       ]);
       const blob = await crearExcel('Respuestas de formulario 1', [
         { titulo: 'Marca temporal', tipo: 'fechaHora', ancho: 20 }, { titulo: 'Fecha', tipo: 'fecha', ancho: 12 },
@@ -212,7 +212,7 @@ export default function ReportabilidadGG({ onBack }: { onBack: () => void }) {
         { titulo: 'P Q REPORTA', tipo: 'texto', ancho: 20 }, { titulo: 'Combustible', tipo: 'texto', ancho: 12 },
         { titulo: 'Horómetro', tipo: 'numero', ancho: 11 }, { titulo: 'Nro Partidas', tipo: 'numero', ancho: 12 },
         { titulo: 'Nivel de Refrigerante', tipo: 'texto', ancho: 19 }, { titulo: 'Nivel de Aceite', tipo: 'texto', ancho: 15 },
-        { titulo: 'Temperatura del Generador', tipo: 'numero', ancho: 23 }, { titulo: 'Temperatura del Generador_1', tipo: 'numero', ancho: 25 },
+        { titulo: 'Temperatura del Generador', tipo: 'numero', ancho: 23 },
       ], filas);
       const sufijo = filtro.sitio ? `_${filtro.sitio}` : '';
       saveAs(blob, `Reportabilidad_GG${sufijo}_${hoyLocalISO()}.xlsx`);
@@ -317,18 +317,11 @@ export default function ReportabilidadGG({ onBack }: { onBack: () => void }) {
             <Opciones nombre="Nivel de Aceite" valor={form.nivelAceite} opciones={OPCIONES_ACEITE} onChange={v => poner('nivelAceite', v)} />
             {error('nivelAceite')}
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <label>
-              <span className={etiqueta}>Temperatura del Generador * (°C)</span>
-              <input className={campo} inputMode="decimal" value={form.temperatura1} onChange={e => poner('temperatura1', e.target.value)} placeholder="Ej: 72" />
-              {error('temperatura1')}
-            </label>
-            <label>
-              <span className={etiqueta}>Temperatura del Generador (2ª) * (°C)</span>
-              <input className={campo} inputMode="decimal" value={form.temperatura2} onChange={e => poner('temperatura2', e.target.value)} placeholder="Ej: 72" />
-              {error('temperatura2')}
-            </label>
-          </div>
+          <label className="block max-w-[calc(50%-6px)]">
+            <span className={etiqueta}>Temperatura del Generador * (°C)</span>
+            <input className={campo} inputMode="decimal" value={form.temperatura} onChange={e => poner('temperatura', e.target.value)} placeholder="Ej: 72" />
+            {error('temperatura')}
+          </label>
           <div className="flex justify-end">
             <button type="button" onClick={() => void guardar()} disabled={guardando}
               className="bg-[#0E4660] text-white px-5 py-2.5 rounded-md text-sm font-bold hover:bg-[#0a3549] disabled:opacity-50 flex items-center gap-2">
@@ -375,7 +368,7 @@ export default function ReportabilidadGG({ onBack }: { onBack: () => void }) {
                   <tr>
                     <th>Fecha</th><th>Hora</th><th>Sitio</th><th>Turno</th><th>Reporta</th><th>Comb.</th>
                     <th className="text-right">Horómetro</th><th className="text-right">Partidas</th><th>Refrig.</th><th>Aceite</th>
-                    <th className="text-right">Temp.</th><th className="text-right">Temp. 2</th><th aria-label="Acciones" />
+                    <th className="text-right">Temp. (°C)</th><th aria-label="Acciones" />
                   </tr>
                 </thead>
                 <tbody>
@@ -391,8 +384,7 @@ export default function ReportabilidadGG({ onBack }: { onBack: () => void }) {
                       <td className="text-right tabular-nums">{fmtNum(r.nroPartidas)}</td>
                       <td>{r.nivelRefrigerante ?? '—'}</td>
                       <td className="whitespace-nowrap">{r.nivelAceite ?? '—'}</td>
-                      <td className="text-right tabular-nums">{fmtNum(r.temperatura1)}</td>
-                      <td className="text-right tabular-nums">{fmtNum(r.temperatura2)}</td>
+                      <td className="text-right tabular-nums">{fmtNum(r.temperatura1 ?? r.temperatura2)}</td>
                       <td>
                         {(esAdmin || r.creadoPor === perfil.id) && (
                           <button type="button" onClick={() => void eliminar(r)} aria-label={`Eliminar reporte de ${r.sitio}`} title="Eliminar"

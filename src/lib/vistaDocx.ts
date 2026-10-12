@@ -20,13 +20,73 @@ export async function dibujarDocx(blob: Blob, contenedor: HTMLElement): Promise<
   });
   const hojas = Array.from(contenedor.querySelectorAll<HTMLElement>('section.docx'));
   ajustarComoWord(contenedor, hojas);
+  await aplicarSangriasTablas(blob, hojas).catch(() => undefined);
+  hojas.forEach(separarImagenesDeTablas);
   return hojas;
+}
+
+/**
+ * Los dibujos "flotantes" (ej: la camioneta en la hoja 2 del checklist) no ocupan lugar: si una tabla
+ * que va después quedaría debajo de un dibujo, se baja lo justo para que no se tapen (como en Word).
+ */
+function separarImagenesDeTablas(hoja: HTMLElement) {
+  const cuerpo = hoja.querySelector('article');
+  if (!cuerpo) return;
+  const flotantes = Array.from(cuerpo.querySelectorAll<HTMLElement>('p > div, p > span > div'))
+    .filter(d => d.style.position === 'absolute' && d.querySelector('img'));
+  if (!flotantes.length) return;
+  const tablas = Array.from(cuerpo.querySelectorAll<HTMLTableElement>(':scope > table, :scope > div > table'));
+  for (const tabla of tablas) {
+    const arriba = tabla.getBoundingClientRect().top;
+    const escala = tabla.getBoundingClientRect().height / (tabla.offsetHeight || 1) || 1;
+    let abajo = -Infinity;
+    for (const f of flotantes) {
+      if (!(f.compareDocumentPosition(tabla) & Node.DOCUMENT_POSITION_FOLLOWING)) continue; // el dibujo va después
+      for (const img of Array.from(f.querySelectorAll('img'))) abajo = Math.max(abajo, img.getBoundingClientRect().bottom);
+    }
+    if (abajo > arriba) {
+      const actual = parseFloat(getComputedStyle(tabla).marginTop) || 0;
+      tabla.style.marginTop = `${actual + (abajo - arriba) / escala + 6}px`;
+    }
+  }
+}
+
+/** Sangría (w:tblInd, en pt) de cada tabla de un XML de Word, en el orden en que aparecen. */
+function sangrias(xml: string): number[] {
+  const doc = new DOMParser().parseFromString(xml, 'application/xml');
+  return Array.from(doc.getElementsByTagNameNS('*', 'tbl')).map(tbl => {
+    const pr = Array.from(tbl.children).find(c => c.localName === 'tblPr');
+    const ind = pr && Array.from(pr.children).find(c => c.localName === 'tblInd');
+    const w = ind ? Number(ind.getAttribute('w:w') ?? ind.getAttributeNS('*', 'w')) : 0;
+    const tipo = ind?.getAttribute('w:type');
+    return ind && (!tipo || tipo === 'dxa') && Number.isFinite(w) ? w / 20 : 0;
+  });
+}
+
+/**
+ * El visor no corre las tablas según su sangría (en Word algunas empiezan un poco antes del margen,
+ * como la tabla grande del checklist). Se aplica igual que en el documento.
+ */
+async function aplicarSangriasTablas(blob: Blob, hojas: HTMLElement[]) {
+  const { default: JSZip } = await import('jszip');
+  const zip = await JSZip.loadAsync(blob);
+  const cuerpo = sangrias(await zip.file('word/document.xml')?.async('string') ?? '');
+  const nombreEncabezado = Object.keys(zip.files).filter(n => /^word\/header\d+\.xml$/.test(n)).sort()[0];
+  const encabezado = nombreEncabezado ? sangrias(await zip.file(nombreEncabezado)!.async('string')) : [];
+  const aplicar = (tablas: HTMLTableElement[], lista: number[]) => {
+    if (tablas.length !== lista.length) return; // no calzan: mejor no mover nada
+    tablas.forEach((t, i) => { if (lista[i]) t.style.marginLeft = `${lista[i]}pt`; });
+  };
+  aplicar(hojas.flatMap(h => Array.from(h.querySelectorAll<HTMLTableElement>('article table'))), cuerpo);
+  hojas.forEach(h => h.querySelectorAll('header').forEach(enc => aplicar(Array.from(enc.querySelectorAll<HTMLTableElement>('table')), encabezado)));
 }
 
 /** Retoques para que la vista se parezca a lo que muestra Word. */
 function ajustarComoWord(contenedor: HTMLElement, hojas: HTMLElement[]) {
   // Interlineado "sencillo" de Word (la app usa 1.5 en todo el texto).
   contenedor.style.lineHeight = 'normal';
+  // Letra por defecto de Word (10 pt) para el texto que no indica tamaño (la app usa 16 px).
+  contenedor.style.fontSize = '10pt';
   // Tablas con el ancho exacto de sus columnas (como Word): el texto se corta en líneas igual que en
   // el documento y la tabla no se sale de la hoja.
   contenedor.querySelectorAll<HTMLTableElement>('table').forEach(tabla => {

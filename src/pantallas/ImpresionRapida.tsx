@@ -15,11 +15,11 @@ import { registrarActividad } from '../lib/actividad';
 import { urlDePdf, imprimirPdf, descargarPdf } from '../lib/imprimir';
 import { hoyLocalISO, sumarDias, formatDiaMes } from '../datos/fechas';
 import { semanaDeFecha, DIAS_POR_TURNO, type SemanaTurno } from '../datos/turnos';
-import { getCreadorPorDefecto } from '../informes/diario/constantes';
-import { creadoPorDiario } from '../datos/divisiones';
+import { getCreadorPorDefecto, getDefaultPersonal } from '../informes/diario/constantes';
+import { creadoPorDiario, CONFIG_DIVISION } from '../datos/divisiones';
 import { DOCUMENTOS } from '../impresion/plantillas';
 import { generarKit, type SeleccionDocumento } from '../impresion/generarKit';
-import { personalDelTurno, guardarRut, type PersonaImpresion } from '../impresion/personal';
+import { personalDelTurno, personaSugerida, guardarRut, normalizarNombre, type PersonaImpresion } from '../impresion/personal';
 import { TRABAJADORES, buscarTrabajador } from '../datos/trabajadores';
 
 interface ImpresionRapidaProps {
@@ -120,6 +120,23 @@ export default function ImpresionRapida({ onBack }: ImpresionRapidaProps) {
 
   const actualizarPersona = (i: number, cambio: Partial<PersonaImpresion>) => {
     setPersonas(prev => prev.map((p, j) => j === i ? { ...p, ...cambio } : p));
+    setResultado(null);
+  };
+
+  // Sugeridos (como en el Informe Diario): el equipo del turno, otros de la división y el listado de trabajadores.
+  const [sugeridoElegido, setSugeridoElegido] = useState('');
+  const yaEsta = (nombre: string) => personas.some(p => normalizarNombre(p.nombre) === normalizarNombre(nombre));
+  const insertarSugerido = () => {
+    if (!sugeridoElegido) return;
+    const [nombre, cargo = ''] = sugeridoElegido.split('|');
+    setSugeridoElegido('');
+    if (yaEsta(nombre)) { setAviso(`${nombre.replace(/\.$/, '')} ya está en la lista.`); return; }
+    setPersonas(prev => {
+      // Si quedó una fila vacía (de "Agregar persona"), se usa esa.
+      const vacia = prev.findIndex(p => !p.nombre.trim());
+      const nueva = personaSugerida(nombre, cargo, cuentas, division);
+      return vacia >= 0 ? prev.map((p, j) => (j === vacia ? nueva : p)) : [...prev, nueva];
+    });
     setResultado(null);
   };
 
@@ -290,6 +307,40 @@ export default function ImpresionRapida({ onBack }: ImpresionRapidaProps) {
                 </div>
               );
             })}
+          </div>
+          <div className="flex flex-wrap gap-2 mt-3">
+            <select value={sugeridoElegido} onChange={e => setSugeridoElegido(e.target.value)} aria-label="Persona sugerida"
+              className="flex-1 min-w-[220px] p-2 border border-[#DCE1E6] rounded-md text-sm bg-white">
+              <option value="">-- Seleccionar integrante del equipo --</option>
+              <optgroup label={`Turno ${semana.letra}`}>
+                {getDefaultPersonal(semana.letra, division).map(p => (
+                  <option key={p.nombre} value={`${p.nombre}|${p.cargo}`} disabled={yaEsta(p.nombre)}>{p.nombre.replace(/\.$/, '')} - {p.cargo.replace(/\.$/, '')}</option>
+                ))}
+              </optgroup>
+              <optgroup label={`Turno ${semana.letra === 'A' ? 'B' : 'A'}`}>
+                {getDefaultPersonal(semana.letra === 'A' ? 'B' : 'A', division).map(p => (
+                  <option key={p.nombre} value={`${p.nombre}|${p.cargo}`} disabled={yaEsta(p.nombre)}>{p.nombre.replace(/\.$/, '')} - {p.cargo.replace(/\.$/, '')}</option>
+                ))}
+              </optgroup>
+              {CONFIG_DIVISION[division].personalSugerido.length > 0 && (
+                <optgroup label="Otros">
+                  {CONFIG_DIVISION[division].personalSugerido.map(p => (
+                    <option key={p.nombre} value={`${p.nombre}|${p.cargo}`} disabled={yaEsta(p.nombre)}>{p.nombre.replace(/\.$/, '')} - {p.cargo.replace(/\.$/, '')}</option>
+                  ))}
+                </optgroup>
+              )}
+              {TRABAJADORES[division].length > 0 && (
+                <optgroup label="Listado de trabajadores">
+                  {TRABAJADORES[division].map(t => (
+                    <option key={t.rut} value={`${t.nombre}|${t.cargo}`} disabled={yaEsta(t.nombre)}>{t.nombre} - {t.cargo}</option>
+                  ))}
+                </optgroup>
+              )}
+            </select>
+            <button type="button" onClick={insertarSugerido} disabled={!sugeridoElegido}
+              className="btn-outline text-[#0E4660] px-3 py-1.5 rounded-md text-xs font-bold hover:bg-[#d5e7f8] disabled:opacity-50">
+              + Insertar persona
+            </button>
           </div>
           <div className="flex flex-wrap items-center gap-3 mt-3">
             <button type="button" onClick={() => setPersonas(prev => [...prev, { nombre: '', rut: '', cargo: '', incluir: true }])} className="btn-outline text-[#0E4660] px-3 py-1.5 rounded-md text-xs font-bold hover:bg-[#d5e7f8] flex items-center gap-1.5">

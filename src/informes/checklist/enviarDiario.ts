@@ -28,16 +28,24 @@ function bloquesDia(entry: BorradorEntry): EvidenceBlockLike[] {
   return bloques;
 }
 
-/** Pone las hojas de una patente en el bloque: reemplaza las que ya había enviado, si no usa los espacios vacíos y luego agrega. */
+/** Carpeta donde se suben las hojas del checklist de una camioneta (así se reconocen siempre). */
+const carpetaHojas = (idBorrador: string, clave: string) => `borradores/${idBorrador}/checklist/${clave || 'sin_patente'}`;
+const esHojaDe = (foto: string, clave: string, anteriores: Set<string>) =>
+  anteriores.has(foto) || foto.includes(`/checklist/${clave || 'sin_patente'}/`);
+
+/**
+ * Pone las hojas de una patente en el bloque: un solo registro por camioneta. Se quitan todas las
+ * hojas que ya se habían enviado de esa camioneta (las reconoce por su carpeta, aunque se haya
+ * perdido la lista) y se ponen las nuevas en su lugar. Las fotos que la persona subió a mano se mantienen.
+ */
 export function ponerHojasEnBloque(bloque: EvidenceBlockLike, clave: string, hojas: string[]): EvidenceBlockLike {
   const anteriores = new Set(bloque.checklistFotos?.[clave] ?? []);
-  const pendientes = [...hojas];
-  let photos = bloque.photos.map(p => (p && anteriores.has(p) ? (pendientes.shift() ?? null) : p));
-  photos = photos.map(p => (p === null && pendientes.length ? pendientes.shift()! : p));
-  photos.push(...pendientes);
-  // Si sobró un espacio vacío por haber menos hojas que antes, se quita (siempre queda al menos uno).
-  const llenas = photos.filter(Boolean);
-  if (llenas.length && photos.length > llenas.length && anteriores.size) photos = llenas;
+  const primera = bloque.photos.findIndex(p => !!p && esHojaDe(p, clave, anteriores));
+  const otras = bloque.photos.filter(p => !(p && esHojaDe(p, clave, anteriores)));
+  const llenas = otras.filter(Boolean);
+  // Las hojas van donde estaban las anteriores; si es la primera vez, al comienzo del bloque.
+  const posicion = primera >= 0 ? bloque.photos.slice(0, primera).filter(p => !(p && esHojaDe(p, clave, anteriores))).filter(Boolean).length : 0;
+  const photos = [...llenas.slice(0, posicion), ...hojas, ...llenas.slice(posicion)];
   return { ...bloque, photos, photoCount: photos.length, checklistFotos: { ...bloque.checklistFotos, [clave]: hojas } };
 }
 
@@ -57,7 +65,7 @@ export async function enviarChecklistAlDiario({ blob, patente, fecha, division }
   const base = existente ?? crearBorradorAutomatico(fecha, letra, 'dia', division);
 
   // Se suben primero para que las fotos del bloque sean las direcciones definitivas (así se reconocen al reemplazarlas).
-  const hojas = (await Promise.all(imagenes.map(img => uploadPhotoIfNeeded(img, `borradores/${base.id}`)))).filter((u): u is string => !!u);
+  const hojas = (await Promise.all(imagenes.map(img => uploadPhotoIfNeeded(img, carpetaHojas(base.id, clave))))).filter((u): u is string => !!u);
 
   let bloques = base.evidenceBlocks.length ? [...base.evidenceBlocks] : bloquesDia(base);
   const actIndex = base.actividades.indexOf(ACTIVIDAD_CHECKLIST);

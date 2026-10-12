@@ -2,6 +2,8 @@
 // (con nombre, RUT, cargo y fechas ya escritos) más las copias por turno, en dos PDF:
 // uno a una cara y otro a doble cara (para no cambiar la configuración a mitad de la impresión).
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from 'pdf-lib';
+
+interface Fuentes { normal: PDFFont; negrita: PDFFont }
 import { DOCUMENTOS, type CampoTexto, type ContextoSemana, type DocumentoImprimible, type Persona } from './plantillas';
 
 export interface SeleccionDocumento {
@@ -36,7 +38,8 @@ function textoSeguro(fuente: PDFFont, texto: string): string {
   }
 }
 
-function escribir(pagina: PDFPage, fuente: PDFFont, campo: CampoTexto) {
+function escribir(pagina: PDFPage, fuentes: Fuentes, campo: CampoTexto) {
+  const fuente = campo.negrita ? fuentes.negrita : fuentes.normal;
   const texto = textoSeguro(fuente, campo.texto.trim());
   if (!texto) return;
   const alto = pagina.getHeight();
@@ -54,7 +57,7 @@ function escribir(pagina: PDFPage, fuente: PDFFont, campo: CampoTexto) {
     y: alto - campo.base,
     size: tamano,
     font: fuente,
-    color: rgb(0.05, 0.1, 0.25), // azul oscuro: se distingue de lo impreso del formulario
+    color: campo.negrita ? rgb(0, 0, 0) : rgb(0.05, 0.1, 0.25), // azul oscuro: se distingue de lo impreso del formulario
   });
 }
 
@@ -87,8 +90,8 @@ export async function generarKit(op: OpcionesKit): Promise<ResultadoKit> {
 
   const simple = await PDFDocument.create();
   const doble = await PDFDocument.create();
-  const fuenteSimple = await simple.embedFont(StandardFonts.Helvetica);
-  const fuenteDoble = await doble.embedFont(StandardFonts.Helvetica);
+  const fuenteSimple: Fuentes = { normal: await simple.embedFont(StandardFonts.Helvetica), negrita: await simple.embedFont(StandardFonts.HelveticaBold) };
+  const fuenteDoble: Fuentes = { normal: await doble.embedFont(StandardFonts.Helvetica), negrita: await doble.embedFont(StandardFonts.HelveticaBold) };
 
   for (const copia of copias) {
     const destino = copia.doc.dobleCara ? doble : simple;
@@ -100,6 +103,7 @@ export async function generarKit(op: OpcionesKit): Promise<ResultadoKit> {
     paginas.forEach(p => destino.addPage(p));
     if (copia.doc.dobleCara && paginas.length % 2 !== 0) destino.addPage();
 
+    for (const campo of copia.doc.correcciones ?? []) escribir(paginas[campo.pagina ?? 0], fuente, campo);
     if (op.prellenar) {
       const campos = [
         ...(copia.doc.camposSemana?.(op.semana) ?? []),

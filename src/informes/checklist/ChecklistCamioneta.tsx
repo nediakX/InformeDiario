@@ -40,6 +40,23 @@ const huella = (datos: DatosChecklist) => {
   for (let i = 0; i < t.length; i++) h = (Math.imul(h, 31) + t.charCodeAt(i)) | 0;
   return `${t.length}:${h}`;
 };
+/**
+ * El checklist tal como estaba ese día: las marcas, respuestas y firmas de los días siguientes se
+ * dejan en blanco. Así las hojas que van al Informe Diario de una fecha muestran solo hasta esa fecha.
+ */
+const hastaElDia = (datos: DatosChecklist, dia: number): DatosChecklist => {
+  const cortar = <T,>(arr: T[], vacio: T) => arr.map((v, i) => (i <= dia ? v : vacio));
+  return {
+    ...datos,
+    marcas: Object.fromEntries(Object.entries(datos.marcas).map(([k, v]) => [k, cortar(v, '' as Marca)])),
+    aptitudes: {
+      alcohol: cortar(datos.aptitudes.alcohol, '' as Respuesta),
+      aptitud: cortar(datos.aptitudes.aptitud, '' as Respuesta),
+      medicamento: cortar(datos.aptitudes.medicamento, '' as Respuesta),
+    },
+    firmas: cortar(datos.firmas, ''),
+  };
+};
 const claveEnviado = (id: string, dia: number) => `psinet_checklist_diario_${id}_${dia}`;
 const leerLocal = (k: string) => { try { return localStorage.getItem(k); } catch { return null; } };
 const guardarLocal = (k: string, v: string) => { try { localStorage.setItem(k, v); } catch { /* sin almacenamiento */ } };
@@ -384,7 +401,7 @@ function FormularioChecklist({ id, division, conductores, entrada, base, hoy, on
     enviandoRef.current = true;
     setEnvio({ dia: d, estado: 'enviando' });
     try {
-      const blob = await generarChecklistWord(datosEnvio, await firmasDivision(division));
+      const blob = await generarChecklistWord(hastaElDia(datosEnvio, d), await firmasDivision(division));
       await enviarChecklistAlDiario({ blob, patente: datosEnvio.patente, fecha: fechas[d], division });
       guardarLocal(claveEnviado(id, d), huella(datosEnvio));
       setEnvio({ dia: d, estado: 'ok' });

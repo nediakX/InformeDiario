@@ -39,6 +39,18 @@ export function rutDesdeCuentas(nombre: string, cuentas: { nombre: string; rut: 
   return coincidencias.length === 1 ? coincidencias[0].rut ?? '' : '';
 }
 
+/** Persona elegida de una lista de sugeridos, con su RUT si se conoce. */
+export function personaSugerida(nombre: string, cargo: string, cuentas: { nombre: string; rut: string | null }[], division: Division): PersonaImpresion {
+  const limpio = limpiar(nombre);
+  const ruts = leerRutsGuardados();
+  return {
+    nombre: limpio,
+    cargo: limpiar(cargo) || buscarTrabajador(limpio, division)?.cargo || '',
+    rut: ruts[normalizarNombre(limpio)] || buscarTrabajador(limpio, division)?.rut || rutDesdeCuentas(limpio, cuentas),
+    incluir: true,
+  };
+}
+
 export function personalDelTurno(
   letra: string,
   cuentas: { nombre: string; rut: string | null }[] = [],
