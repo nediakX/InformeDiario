@@ -11,8 +11,8 @@ import './escaner.css';
 type Etapa = 'camara' | 'ajustar' | 'resultado';
 
 const FILTROS: { id: FiltroEscaneo; nombre: string }[] = [
-  { id: 'documento', nombre: 'Documento' },
   { id: 'color', nombre: 'Color' },
+  { id: 'documento', nombre: 'Blanco y negro' },
   { id: 'original', nombre: 'Original' },
 ];
 
@@ -35,7 +35,7 @@ export default function EscanerDocumento({ onUsar, onCancelar }: {
 
   // Documento enderezado y resultado con filtro.
   const enderezadoRef = useRef<HTMLCanvasElement | null>(null);
-  const [filtro, setFiltro] = useState<FiltroEscaneo>('documento');
+  const [filtro, setFiltro] = useState<FiltroEscaneo>('color'); // a color por defecto (blanco y negro queda como opción)
   const [resultado, setResultado] = useState<string | null>(null);
 
   // Cámara: se abre en la etapa de captura y se apaga al salir de ella.

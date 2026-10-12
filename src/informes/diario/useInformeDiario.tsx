@@ -1512,6 +1512,40 @@ export function useInformeDiario({ view, setBorradores, borradoresRef, division 
         const orientedPhotos = hasRequestedPhotoSize
           ? await Promise.all(usablePhotos.map(dataUrl => orientEvidencePhoto(dataUrl, -90)))
           : usablePhotos;
+        // 3 fotos: 2 arriba y la tercera abajo, centrada en todo el ancho (como se arma a mano en Word).
+        if (orientedPhotos.length === 3 && imageWidth === 307 && !hasRequestedPhotoSize) {
+          const celda = async (dataUrl: string, ancho: number, caja: { ancho: number; alto: number }, span?: number) => {
+            const { bytes, type } = await resolveImageBytes(dataUrl);
+            const medida = await medirImagen(dataUrl);
+            const tam = span
+              ? (() => { const e = Math.min(caja.ancho / medida.ancho, caja.alto / medida.alto); return { ancho: Math.round(medida.ancho * e), alto: Math.round(medida.alto * e) }; })()
+              : encajarSinDeformar(medida, caja, { ancho: Math.floor((ancho / 20 - 10) / 0.75), alto: caja.alto });
+            return new TableCell({
+              width: { size: ancho, type: WidthType.DXA },
+              ...(span ? { columnSpan: span } : {}),
+              verticalAlign: VerticalAlign.CENTER,
+              borders: cellBorders(),
+              margins: { top: 100, bottom: 100, left: 100, right: 100 },
+              children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new ImageRun({ data: bytes, transformation: { width: tam.ancho, height: tam.alto }, type })] })],
+            });
+          };
+          const arriba = await Promise.all(orientedPhotos.slice(0, 2).map(d => celda(d, 4680, { ancho: 268, alto: 400 })));
+          const abajo = await celda(orientedPhotos[2], 9360, { ancho: 560, alto: 300 }, 2);
+          return [
+            new Paragraph({ text: "", pageBreakBefore: true }),
+            new Table({
+              width: { size: 9360, type: WidthType.DXA },
+              layout: TableLayoutType.FIXED,
+              columnWidths: [4680, 4680],
+              rows: [
+                new TableRow({ cantSplit: true, children: arriba }),
+                new TableRow({ cantSplit: true, children: [abajo] }),
+                new TableRow({ children: [new TableCell({ columnSpan: 2, borders: cellBorders(), children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: block.title, bold: true, size: 20, font: "Arial" })] })] })] }),
+              ],
+            }),
+          ];
+        }
+
         const cells = await Promise.all(orientedPhotos.map(async dataUrl => {
           const { bytes, type } = await resolveImageBytes(dataUrl);
           // Recuadro de siempre; si la foto no tiene esa forma (ej: horizontal en un recuadro vertical)
