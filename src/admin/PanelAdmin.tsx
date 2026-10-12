@@ -5,7 +5,7 @@
 //  - Actividad: bitácora de sesiones, informes, Word generados y cambios de cuentas.
 //  - Sistema: uso de almacenamiento frente al plan de Supabase y limpieza de fotos huérfanas.
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, BarChart3, HardDrive, History, Loader2, RefreshCw, Users, Wifi, type LucideIcon } from 'lucide-react';
+import { ArrowLeft, BarChart3, Fuel, HardDrive, History, Loader2, RefreshCw, Users, Wifi, type LucideIcon } from 'lucide-react';
 import logoPsinet from '../assets/logo_psinet.jpg';
 import logoEdificio from '../assets/LogoEdificio.png';
 import { supabase } from '../lib/supabase';
@@ -21,6 +21,7 @@ import Usuarios from './Usuarios';
 import EnLinea from './EnLinea';
 import Actividad from './Actividad';
 import Sistema from './Sistema';
+import Generadores from './Generadores';
 import { estadoConexion, usePresenciaAdmin } from './presencia';
 import type { PestanaAdmin } from '../app/rutas';
 import './admin.css';
@@ -79,6 +80,7 @@ export default function PanelAdmin({ onBack, pestana, onPestanaChange }: {
 
   const pestanas: { valor: PestanaAdmin; etiqueta: string; Icono: LucideIcon; badge?: number; badgeClase?: string }[] = [
     { valor: 'resumen', etiqueta: 'Resumen', Icono: BarChart3 },
+    { valor: 'generadores', etiqueta: 'Generadores', Icono: Fuel },
     { valor: 'en-linea', etiqueta: 'En línea', Icono: Wifi, badge: enLineaAhora, badgeClase: 'admin-badge--ok' },
     { valor: 'usuarios', etiqueta: 'Usuarios', Icono: Users, badge: pendientesAprobacion },
     { valor: 'actividad', etiqueta: 'Actividad', Icono: History },
@@ -138,6 +140,8 @@ export default function PanelAdmin({ onBack, pestana, onPestanaChange }: {
             </div>
             {stats ? <Resumen stats={stats} rango={rango} enLinea={enLineaAhora} /> : cargando && <Cargando />}
           </>
+        ) : pestana === 'generadores' ? (
+          <Generadores />
         ) : pestana === 'en-linea' ? (
           datos ? <EnLinea perfiles={datos.perfiles} filas={presencia.filas} ahora={presencia.ahora} /> : cargando && <Cargando />
         ) : pestana === 'usuarios' ? (

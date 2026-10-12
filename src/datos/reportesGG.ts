@@ -1,6 +1,7 @@
 // Reportabilidad de GG (grupos generadores): cada reporte es una fila de la tabla `reportes_gg`
 // (mismas columnas que el formulario "REPORTABILIDAD DE GG" de Google Forms y su planilla).
 import { supabase } from '../lib/supabase';
+import { esErrorDeRed } from '../lib/conexion';
 import type { Division } from './divisiones';
 
 export const TABLA_GG = 'reportes_gg';
@@ -106,11 +107,85 @@ export async function todosLosReportesGG(f: FiltroGG): Promise<ReporteGG[]> {
   }
 }
 
-export async function crearReporteGG(r: NuevoReporteGG): Promise<ReporteGG> {
-  const { data, error } = await supabase.from(TABLA_GG).insert(aFila(r)).select('*').single();
+/** Reporte guardado solo en este equipo (sin señal), esperando subir a la nube. */
+export interface ReporteGGPendiente extends ReporteGG { pendiente: true }
+
+const CLAVE_PENDIENTES = 'psinet_reportes_gg_pendientes';
+export const EVENTO_GG = 'psinet:reportes-gg';
+
+export function pendientesGG(): ReporteGGPendiente[] {
+  try { return JSON.parse(localStorage.getItem(CLAVE_PENDIENTES) ?? '[]') as ReporteGGPendiente[]; } catch { return []; }
+}
+function guardarPendientes(lista: ReporteGGPendiente[]) {
+  try { localStorage.setItem(CLAVE_PENDIENTES, JSON.stringify(lista)); } catch { /* sin almacenamiento */ }
+  window.dispatchEvent(new Event(EVENTO_GG));
+}
+
+const filaCompleta = (r: ReporteGG) => ({ ...aFila(r), id: r.id, marca_temporal: r.marcaTemporal });
+
+/**
+ * Guarda un reporte nuevo. El id se crea en el equipo: si no hay señal (en terreno pasa seguido), el
+ * reporte queda guardado aquí y se sube solo apenas vuelva la conexión, sin duplicarse.
+ */
+export async function crearReporteGG(r: NuevoReporteGG, creadoPor: string | null): Promise<ReporteGG | ReporteGGPendiente> {
+  const nuevo: ReporteGG = { ...r, id: crypto.randomUUID(), marcaTemporal: new Date().toISOString(), creadoPor };
+  try {
+    const { data, error } = await supabase.from(TABLA_GG).upsert(filaCompleta(nuevo)).select('*').single();
+    if (error) throw error;
+    return aReporte(data as Fila);
+  } catch (error) {
+    if (!esErrorDeRed(error)) throw error;
+    const pendiente: ReporteGGPendiente = { ...nuevo, pendiente: true };
+    guardarPendientes([...pendientesGG(), pendiente]);
+    return pendiente;
+  }
+}
+
+/** Corrige un reporte ya guardado (quien lo hizo o un administrador). */
+export async function actualizarReporteGG(r: ReporteGG): Promise<ReporteGG> {
+  // Si todavía no se sube (sin señal), se corrige en el equipo.
+  const pendientes = pendientesGG();
+  if (pendientes.some(p => p.id === r.id)) {
+    guardarPendientes(pendientes.map(p => (p.id === r.id ? { ...r, pendiente: true } : p)));
+    return { ...r };
+  }
+  const { data, error } = await supabase.from(TABLA_GG).update(aFila(r)).eq('id', r.id).select('*').single();
   if (error) throw error;
   return aReporte(data as Fila);
 }
+
+let subiendo = false;
+/** Sube los reportes que quedaron guardados sin señal. Devuelve cuántos se subieron. */
+export async function sincronizarPendientesGG(): Promise<number> {
+  if (subiendo) return 0;
+  const pendientes = pendientesGG();
+  if (!pendientes.length) return 0;
+  subiendo = true;
+  let subidos = 0;
+  try {
+    for (const p of pendientes) {
+      const { pendiente: _p, ...reporte } = p;
+      void _p;
+      const { error } = await supabase.from(TABLA_GG).upsert(filaCompleta(reporte));
+      if (error) { if (esErrorDeRed(error)) break; console.error('No se pudo subir un reporte de GG:', error); continue; }
+      guardarPendientes(pendientesGG().filter(x => x.id !== p.id));
+      subidos += 1;
+    }
+  } catch (error) {
+    if (!esErrorDeRed(error)) console.error('No se pudieron subir los reportes de GG:', error);
+  } finally {
+    subiendo = false;
+  }
+  return subidos;
+}
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('online', () => { void sincronizarPendientesGG(); });
+  window.setInterval(() => { if (pendientesGG().length) void sincronizarPendientesGG(); }, 30_000);
+}
+
+/** Combustible como porcentaje (para los gráficos). */
+export const COMBUSTIBLE_PCT: Record<string, number> = { '1/4': 25, '1/2': 50, '3/4': 75, Lleno: 100 };
 
 /** Vuelve a crear un reporte borrado (botón "Deshacer"), con su mismo id y hora de envío. */
 export async function restaurarReporteGG(r: ReporteGG): Promise<void> {
@@ -119,6 +194,9 @@ export async function restaurarReporteGG(r: ReporteGG): Promise<void> {
 }
 
 export async function eliminarReporteGG(id: string): Promise<void> {
+  // Si estaba guardado solo en el equipo (sin señal), se quita de ahí.
+  const pendientes = pendientesGG();
+  if (pendientes.some(p => p.id === id)) { guardarPendientes(pendientes.filter(p => p.id !== id)); return; }
   const { error } = await supabase.from(TABLA_GG).delete().eq('id', id);
   if (error) throw error;
 }

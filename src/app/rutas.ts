@@ -12,12 +12,12 @@
 //   /impresion                 Impresión Rápida
 //   /reportabilidad-gg         Reportabilidad de GG (formulario + tabla de grupos generadores)
 //   /perfil                    Mi perfil (datos, contraseña y firma)
-//   /admin/:pestana?           Panel de administración (resumen | en-linea | usuarios | actividad | sistema)
+//   /admin/:pestana?           Panel de administración (resumen | generadores | en-linea | usuarios | actividad | sistema)
 //   /login, /registro          Acceso (solo sin sesión)
 
 export type Vista = 'dashboard' | 'diario' | 'borradores' | 'cierre' | 'mantenimiento' | 'falla-carro' | 'checklist' | 'impresion' | 'reportabilidad-gg' | 'admin' | 'perfil';
 export type TipoBorradores = 'diario' | 'mantenimiento' | 'falla';
-export type PestanaAdmin = 'resumen' | 'en-linea' | 'usuarios' | 'actividad' | 'sistema';
+export type PestanaAdmin = 'resumen' | 'generadores' | 'en-linea' | 'usuarios' | 'actividad' | 'sistema';
 
 /** Nombre legible de cada pantalla (se muestra en "Usuarios en línea"). */
 export const NOMBRE_PANTALLA: Record<Vista, string> = {
@@ -74,4 +74,4 @@ export const esTipoBorradores = (v: string | null): v is TipoBorradores =>
   v === 'diario' || v === 'mantenimiento' || v === 'falla';
 
 export const esPestanaAdmin = (v: string | null): v is PestanaAdmin =>
-  v === 'resumen' || v === 'en-linea' || v === 'usuarios' || v === 'actividad' || v === 'sistema';
+  v === 'resumen' || v === 'generadores' || v === 'en-linea' || v === 'usuarios' || v === 'actividad' || v === 'sistema';

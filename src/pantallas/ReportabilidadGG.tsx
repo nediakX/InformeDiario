@@ -1,8 +1,8 @@
 // Reportabilidad de GG: formulario para registrar el estado de un grupo generador (mismos datos
 // que el formulario de Google "REPORTABILIDAD DE GG") y la tabla con todos los reportes, que se
 // puede filtrar y descargar en Excel con el formato de la planilla.
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, Check, Download, Fuel, Loader2, Save, Trash2 } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ArrowLeft, Check, CheckCircle2, CircleDashed, CloudOff, Download, Fuel, Loader2, Pencil, Save, Trash2, X } from 'lucide-react';
 import { saveAs } from 'file-saver';
 import logoPsinet from '../assets/logo_psinet.jpg';
 import logoEdificio from '../assets/LogoEdificio.png';
@@ -10,13 +10,14 @@ import { nombreVisible, useSesion } from '../auth/sesion';
 import { hoyLocalISO } from '../datos/fechas';
 import { letraDeFecha } from '../datos/turnos';
 import { mismaPersona } from '../lib/firma';
+import { getDefaultPersonal } from '../informes/diario/constantes';
 import { esErrorDeRed } from '../lib/conexion';
 import { registrarDeshacer } from '../lib/deshacer';
 import { crearExcel } from '../lib/excel';
 import {
   OPCIONES_ACEITE, OPCIONES_COMBUSTIBLE, OPCIONES_REFRIGERANTE, OPCIONES_TURNO, REPORTAN_GG, SITIOS_GG,
-  crearReporteGG, eliminarReporteGG, leerNumero, listarReportesGG, restaurarReporteGG, suscribirReportesGG, todosLosReportesGG,
-  type FiltroGG, type ReporteGG,
+  EVENTO_GG, actualizarReporteGG, crearReporteGG, eliminarReporteGG, leerNumero, listarReportesGG, pendientesGG, restaurarReporteGG,
+  sincronizarPendientesGG, suscribirReportesGG, todosLosReportesGG, type FiltroGG, type ReporteGG,
 } from '../datos/reportesGG';
 
 const POR_PAGINA = 100;
@@ -48,12 +49,19 @@ interface Formulario {
 export default function ReportabilidadGG({ onBack }: { onBack: () => void }) {
   const { division, perfil, esAdmin } = useSesion();
   const sitios = SITIOS_GG[division];
-  const personas = useMemo(() => {
-    const lista = [...REPORTAN_GG[division]];
-    const propio = nombreVisible(perfil);
-    if (propio && !lista.some(n => mismaPersona(n, propio))) lista.push(propio);
-    return lista;
+  // Quién reporta: lista desplegable por turno (como en el Informe Diario) + otros + escribir otro nombre.
+  const gruposPersonas = useMemo(() => {
+    const limpio = (n: string) => n.trim().replace(/\.+$/, '');
+    const vistos = new Set<string>();
+    const unico = (lista: string[]) => lista.map(limpio).filter(n => n && !vistos.has(n.toLowerCase()) && vistos.add(n.toLowerCase()));
+    const grupos = [
+      { titulo: 'Turno A', nombres: unico(getDefaultPersonal('A', division).map(p => p.nombre)) },
+      { titulo: 'Turno B', nombres: unico(getDefaultPersonal('B', division).map(p => p.nombre)) },
+      { titulo: 'Otros', nombres: unico([...REPORTAN_GG[division], nombreVisible(perfil)]) },
+    ];
+    return grupos.filter(g => g.nombres.length);
   }, [division, perfil]);
+  const personas = useMemo(() => gruposPersonas.flatMap(g => g.nombres), [gruposPersonas]);
   const reportaPorDefecto = () => { const propio = nombreVisible(perfil); return personas.find(n => mismaPersona(n, propio)) ?? propio; };
 
   const nuevoFormulario = (anterior?: Formulario): Formulario => {
@@ -72,9 +80,49 @@ export default function ReportabilidadGG({ onBack }: { onBack: () => void }) {
   };
   const [guardando, setGuardando] = useState(false);
   const [aviso, setAviso] = useState<{ texto: string; error?: boolean } | null>(null);
+  // Reporte que se está corrigiendo (null = reporte nuevo).
+  const [editando, setEditando] = useState<ReporteGG | null>(null);
+  const [otroNombre, setOtroNombre] = useState(false);
+  const formRef = useRef<HTMLElement>(null);
+  const irAlFormulario = () => setTimeout(() => formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
+
+  // --- Lo de hoy: qué sitios ya tienen reporte y cuáles faltan -----------------------------------
+  const hoy = hoyLocalISO();
+  const [deHoy, setDeHoy] = useState<ReporteGG[] | null>(null);
+  const [pendientes, setPendientes] = useState(() => pendientesGG().filter(p => p.division === division));
+  const cargarHoy = useCallback(async () => {
+    try { setDeHoy(await listarReportesGG({ division, desde: hoy, hasta: hoy }, 0, 300)); } catch { /* sin señal: se muestra lo guardado en el equipo */ setDeHoy(prev => prev ?? []); }
+  }, [division, hoy]);
+  useEffect(() => {
+    let vivo = true;
+    listarReportesGG({ division, desde: hoy, hasta: hoy }, 0, 300).then(r => { if (vivo) setDeHoy(r); }).catch(() => { if (vivo) setDeHoy([]); });
+    return () => { vivo = false; };
+  }, [division, hoy]);
+  useEffect(() => {
+    const alCambiar = () => { setPendientes(pendientesGG().filter(p => p.division === division)); void cargarHoy(); };
+    window.addEventListener(EVENTO_GG, alCambiar);
+    void sincronizarPendientesGG();
+    return () => window.removeEventListener(EVENTO_GG, alCambiar);
+  }, [division, cargarHoy]);
+  const reportesHoy = useMemo(() => {
+    const todos = [...pendientes.filter(p => p.fecha === hoy), ...(deHoy ?? []).filter(r => !pendientes.some(p => p.id === r.id))];
+    return todos.sort((a, b) => (b.hora ?? '').localeCompare(a.hora ?? ''));
+  }, [deHoy, pendientes, hoy]);
+  const ultimoHoyPorSitio = useMemo(() => {
+    const m = new Map<string, { ultimo: ReporteGG; cantidad: number }>();
+    for (const r of reportesHoy) {
+      const actual = m.get(r.sitio);
+      m.set(r.sitio, actual ? { ...actual, cantidad: actual.cantidad + 1 } : { ultimo: r, cantidad: 1 });
+    }
+    return m;
+  }, [reportesHoy]);
+  const faltanHoy = sitios.filter(s => !ultimoHoyPorSitio.has(s));
+  const puedeEditar = (r: ReporteGG) => esAdmin || r.creadoPor === perfil.id || 'pendiente' in r;
 
   // --- Tabla de reportes -------------------------------------------------------------------------
-  const [filtro, setFiltro] = useState<Omit<FiltroGG, 'division'>>({});
+  // Al abrir se ven solo los reportes de hoy; con "Ver todos" o las fechas se ve el resto.
+  const [filtro, setFiltro] = useState<Omit<FiltroGG, 'division'>>(() => ({ desde: hoyLocalISO(), hasta: hoyLocalISO() }));
+  const soloHoy = filtro.desde === hoy && filtro.hasta === hoy;
   const [lista, setLista] = useState<ReporteGG[] | null>(null);
   const [hayMas, setHayMas] = useState(false);
   const [cargandoMas, setCargandoMas] = useState(false);
@@ -146,34 +194,69 @@ export default function ReportabilidadGG({ onBack }: { onBack: () => void }) {
     return Object.keys(e).length === 0;
   };
 
+  const valoresFormulario = () => ({
+    division, fecha: form.fecha, hora: form.hora || null, sitio: form.sitio, turno: form.turno, reporta: form.reporta.trim(),
+    combustible: form.combustible, horometro: leerNumero(form.horometro), nroPartidas: leerNumero(form.nroPartidas),
+    nivelRefrigerante: form.nivelRefrigerante, nivelAceite: form.nivelAceite, temperatura: leerNumero(form.temperatura),
+  });
+
   const guardar = async () => {
     if (!validar()) { setAviso({ texto: 'Revisa los campos marcados.', error: true }); return; }
     setGuardando(true);
     try {
-      const nuevo = await crearReporteGG({
-        division, fecha: form.fecha, hora: form.hora || null, sitio: form.sitio, turno: form.turno, reporta: form.reporta.trim(),
-        combustible: form.combustible, horometro: leerNumero(form.horometro), nroPartidas: leerNumero(form.nroPartidas),
-        nivelRefrigerante: form.nivelRefrigerante, nivelAceite: form.nivelAceite,
-        temperatura: leerNumero(form.temperatura),
-      });
-      setLista(prev => [nuevo, ...(prev ?? []).filter(r => r.id !== nuevo.id)]);
+      if (editando) {
+        const corregido = await actualizarReporteGG({ ...editando, ...valoresFormulario() });
+        setLista(prev => (prev ?? []).map(r => (r.id === corregido.id ? corregido : r)));
+        setDeHoy(prev => prev?.map(r => (r.id === corregido.id ? corregido : r)) ?? prev);
+        setEditando(null);
+        setForm(f => nuevoFormulario(f));
+        setErrores({});
+        setAviso({ texto: `Reporte de ${corregido.sitio} corregido.` });
+        return;
+      }
+      const nuevo = await crearReporteGG(valoresFormulario(), perfil.id);
+      const sinSenal = 'pendiente' in nuevo;
+      if (!sinSenal) {
+        const entraEnFiltro = (!filtro.sitio || filtro.sitio === nuevo.sitio) && (!filtro.desde || nuevo.fecha >= filtro.desde) && (!filtro.hasta || nuevo.fecha <= filtro.hasta);
+        if (entraEnFiltro) setLista(prev => [nuevo, ...(prev ?? []).filter(r => r.id !== nuevo.id)]);
+        setDeHoy(prev => (nuevo.fecha === hoy ? [nuevo, ...(prev ?? [])] : prev));
+      }
       setUltimoDelSitio(nuevo);
-      setForm(f => nuevoFormulario(f));
+      // Para seguir en terreno: queda elegido el siguiente sitio que falta hoy.
+      const siguiente = [...sitios.slice(sitios.indexOf(nuevo.sitio) + 1), ...sitios].find(s => s !== nuevo.sitio && !ultimoHoyPorSitio.has(s));
+      setForm(f => ({ ...nuevoFormulario(f), sitio: nuevo.fecha === hoy ? (siguiente ?? '') : f.sitio }));
       setErrores({});
-      setAviso({ texto: `Reporte de ${nuevo.sitio} guardado.` });
+      setAviso({ texto: sinSenal ? `Sin señal: el reporte de ${nuevo.sitio} quedó guardado en este equipo y se subirá solo.` : `Reporte de ${nuevo.sitio} guardado.${siguiente && nuevo.fecha === hoy ? ` Sigue: ${siguiente}.` : ''}` });
+      irAlFormulario();
     } catch (error) {
       console.error('No se pudo guardar el reporte de GG:', error);
-      setAviso({ texto: esErrorDeRed(error) ? 'Sin conexión: el reporte no se guardó. Los datos siguen en el formulario, inténtalo de nuevo con señal.' : 'No se pudo guardar el reporte.', error: true });
+      setAviso({ texto: 'No se pudo guardar el reporte. Los datos siguen en el formulario.', error: true });
     } finally {
       setGuardando(false);
     }
   };
+
+  const editar = (r: ReporteGG) => {
+    setEditando(r);
+    setErrores({});
+    setOtroNombre(!personas.includes(r.reporta));
+    setForm({
+      fecha: r.fecha, hora: r.hora ?? '', sitio: r.sitio, turno: r.turno, reporta: r.reporta, combustible: r.combustible ?? '',
+      horometro: r.horometro?.toString().replace('.', ',') ?? '', nroPartidas: r.nroPartidas?.toString() ?? '',
+      nivelRefrigerante: r.nivelRefrigerante ?? '', nivelAceite: r.nivelAceite ?? '', temperatura: r.temperatura?.toString().replace('.', ',') ?? '',
+    });
+    irAlFormulario();
+  };
+  const cancelarEdicion = () => { setEditando(null); setErrores({}); setForm(f => ({ ...nuevoFormulario(f), sitio: '' })); };
+  const elegirSitio = (sitio: string) => { if (editando) cancelarEdicion(); setForm(f => ({ ...f, sitio, hora: horaActual() })); irAlFormulario(); };
 
   const eliminar = async (r: ReporteGG) => {
     if (!window.confirm(`¿Eliminar el reporte de ${r.sitio} del ${ddmmaaaa(r.fecha)}${r.hora ? ` ${r.hora}` : ''}?`)) return;
     try {
       await eliminarReporteGG(r.id);
       setLista(prev => (prev ?? []).filter(x => x.id !== r.id));
+      setDeHoy(prev => prev?.filter(x => x.id !== r.id) ?? prev);
+      if (editando?.id === r.id) cancelarEdicion();
       registrarDeshacer(`Se eliminó el reporte de ${r.sitio}`, () => {
         void restaurarReporteGG(r).then(() => recargar(Math.max(POR_PAGINA, lista?.length ?? 0))).catch(() => setAviso({ texto: 'No se pudo restaurar el reporte.', error: true }));
       });
@@ -248,9 +331,69 @@ export default function ReportabilidadGG({ onBack }: { onBack: () => void }) {
           <ArrowLeft size={14} /> Volver al menú
         </button>
 
+        {/* Hoy: avance de la reportabilidad del día */}
+        <section className="panel p-5 space-y-3" aria-labelledby="gg-hoy">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h2 id="gg-hoy" className="font-display font-bold text-lg text-[#0E4660]">Hoy · {ddmmaaaa(hoy)}</h2>
+            <span className={`text-xs font-bold rounded-full px-3 py-1 ${faltanHoy.length === 0 ? 'bg-[#e6f6e6] text-[#006300]' : 'bg-[#eef5fb] text-[#0E4660]'}`}>
+              {sitios.length - faltanHoy.length} de {sitios.length} sitios reportados
+            </span>
+          </div>
+          <div className="h-2 rounded-full bg-[#dbe7ee] overflow-hidden" role="meter" aria-valuemin={0} aria-valuemax={sitios.length} aria-valuenow={sitios.length - faltanHoy.length} aria-label="Sitios reportados hoy">
+            <span className="block h-full bg-[#0E4660] rounded-full transition-all" style={{ width: `${((sitios.length - faltanHoy.length) / Math.max(1, sitios.length)) * 100}%` }} />
+          </div>
+          {pendientes.length > 0 && (
+            <p className="text-xs font-bold text-[#7a5b00] bg-[#fff3cd] rounded-md px-3 py-2 flex items-center gap-2">
+              <CloudOff size={14} /> {pendientes.length} reporte{pendientes.length === 1 ? '' : 's'} guardado{pendientes.length === 1 ? '' : 's'} en este equipo, esperando señal para subir.
+            </p>
+          )}
+          {deHoy === null ? (
+            <p className="text-sm text-gray-500 flex items-center gap-2"><Loader2 size={16} className="animate-spin" /> Cargando…</p>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
+              {sitios.map(sitio => {
+                const hecho = ultimoHoyPorSitio.get(sitio);
+                if (!hecho) {
+                  return (
+                    <button key={sitio} type="button" onClick={() => elegirSitio(sitio)}
+                      className={`text-left rounded-lg border-2 border-dashed px-3 py-2.5 hover:bg-[#eef5fb] ${form.sitio === sitio && !editando ? 'border-[#0E4660] bg-[#eef5fb]' : 'border-[#C9D3DA] bg-white'}`}>
+                      <span className="block font-bold text-sm text-[#0E4660]">{sitio}</span>
+                      <span className="text-xs text-gray-500 flex items-center gap-1"><CircleDashed size={12} /> Pendiente · tocar para reportar</span>
+                    </button>
+                  );
+                }
+                const r = hecho.ultimo;
+                const enEquipo = 'pendiente' in r;
+                return (
+                  <div key={sitio} className="rounded-lg border border-[#b9dfb9] bg-[#f3fbf3] px-3 py-2.5">
+                    <div className="flex items-start justify-between gap-1">
+                      <span className="font-bold text-sm text-[#0E4660]">{sitio}</span>
+                      {puedeEditar(r) && (
+                        <button type="button" onClick={() => editar(r)} aria-label={`Corregir reporte de ${sitio}`} title="Corregir"
+                          className="text-[#0E4660] hover:bg-white rounded p-1 -m-1"><Pencil size={13} /></button>
+                      )}
+                    </div>
+                    <span className="text-xs text-[#006300] flex items-center gap-1">
+                      {enEquipo ? <CloudOff size={12} /> : <CheckCircle2 size={12} />} {r.hora ?? '—'} · {r.reporta}{hecho.cantidad > 1 ? ` · ${hecho.cantidad} reportes` : ''}
+                    </span>
+                    <span className="block text-[11px] text-gray-600">{r.combustible ?? '—'} · {fmtNum(r.horometro)} h · {fmtNum(r.temperatura)} °C</span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </section>
+
         {/* Formulario */}
-        <section className="panel p-5 space-y-4 max-w-[760px]">
-          <h2 className="font-display font-bold text-lg text-[#0E4660] flex items-center gap-2"><Fuel size={18} /> Nuevo reporte</h2>
+        <section ref={formRef} className={`panel p-5 space-y-4 max-w-[760px] scroll-mt-4 ${editando ? 'ring-2 ring-[#ED7D31]' : ''}`}>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h2 className="font-display font-bold text-lg text-[#0E4660] flex items-center gap-2"><Fuel size={18} /> {editando ? `Corregir reporte · ${editando.sitio}` : 'Nuevo reporte'}</h2>
+            {editando && (
+              <button type="button" onClick={cancelarEdicion} className="btn-outline text-[#0E4660] px-3 py-1.5 rounded-md text-xs font-bold hover:bg-[#d5e7f8] flex items-center gap-1.5">
+                <X size={14} /> Cancelar corrección
+              </button>
+            )}
+          </div>
           <div className="grid grid-cols-2 gap-3">
             <label>
               <span className={etiqueta}>Fecha *</span>
@@ -277,8 +420,17 @@ export default function ReportabilidadGG({ onBack }: { onBack: () => void }) {
             </label>
             <label className="col-span-2">
               <span className={etiqueta}>Quién reporta *</span>
-              <input className={campo} list="reportan-gg" value={form.reporta} onChange={e => poner('reporta', e.target.value)} placeholder="Nombre" />
-              <datalist id="reportan-gg">{personas.map(n => <option key={n} value={n} />)}</datalist>
+              <select className={campo} value={otroNombre ? '__otro__' : form.reporta}
+                onChange={e => { if (e.target.value === '__otro__') { setOtroNombre(true); poner('reporta', ''); } else { setOtroNombre(false); poner('reporta', e.target.value); } }}>
+                <option value="">Elegir persona</option>
+                {gruposPersonas.map(g => (
+                  <optgroup key={g.titulo} label={g.titulo}>
+                    {g.nombres.map(n => <option key={n} value={n}>{n}</option>)}
+                  </optgroup>
+                ))}
+                <option value="__otro__">Otra persona (escribir nombre)…</option>
+              </select>
+              {otroNombre && <input className={`${campo} mt-1.5`} value={form.reporta} onChange={e => poner('reporta', e.target.value)} placeholder="Nombre y apellido" autoFocus />}
               {error('reporta')}
             </label>
           </div>
@@ -325,7 +477,7 @@ export default function ReportabilidadGG({ onBack }: { onBack: () => void }) {
           <div className="flex justify-end">
             <button type="button" onClick={() => void guardar()} disabled={guardando}
               className="bg-[#0E4660] text-white px-5 py-2.5 rounded-md text-sm font-bold hover:bg-[#0a3549] disabled:opacity-50 flex items-center gap-2">
-              {guardando ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />} Guardar reporte
+              {guardando ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />} {editando ? 'Guardar corrección' : 'Guardar reporte'}
             </button>
           </div>
         </section>
@@ -333,7 +485,15 @@ export default function ReportabilidadGG({ onBack }: { onBack: () => void }) {
         {/* Tabla */}
         <section className="panel p-5 space-y-3">
           <div className="flex flex-wrap items-end justify-between gap-3">
-            <h2 className="font-display font-bold text-lg text-[#0E4660]">Reportes</h2>
+            <div className="flex flex-wrap items-center gap-2">
+              <h2 className="font-display font-bold text-lg text-[#0E4660]">{soloHoy ? 'Reportes de hoy' : 'Reportes'}</h2>
+              <div className="flex rounded-md border border-[#C9D3DA] overflow-hidden text-xs font-bold" role="group" aria-label="Qué reportes ver">
+                <button type="button" aria-pressed={soloHoy} onClick={() => setFiltro(f => ({ ...f, desde: hoy, hasta: hoy }))}
+                  className={`px-3 py-1.5 ${soloHoy ? 'bg-[#0E4660] text-white' : 'bg-white text-[#0E4660] hover:bg-[#eef5fb]'}`}>Hoy</button>
+                <button type="button" aria-pressed={!filtro.desde && !filtro.hasta} onClick={() => setFiltro(f => ({ ...f, desde: undefined, hasta: undefined }))}
+                  className={`px-3 py-1.5 border-l border-[#C9D3DA] ${!filtro.desde && !filtro.hasta ? 'bg-[#0E4660] text-white' : 'bg-white text-[#0E4660] hover:bg-[#eef5fb]'}`}>Ver todos</button>
+              </div>
+            </div>
             <button type="button" onClick={() => void descargarExcel()} disabled={descargando}
               className="btn-outline text-[#0E4660] px-3 py-2 rounded-md text-xs font-bold hover:bg-[#d5e7f8] disabled:opacity-50 flex items-center gap-1.5">
               {descargando ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />} Descargar Excel
@@ -360,7 +520,7 @@ export default function ReportabilidadGG({ onBack }: { onBack: () => void }) {
 
           {errorLista && <p role="alert" className="text-sm rounded-md px-3 py-2 bg-[#fbe9e9] text-[#a32626]">{errorLista}</p>}
           {lista === null && !errorLista && <p className="text-sm text-gray-500 flex items-center gap-2"><Loader2 size={16} className="animate-spin" /> Cargando reportes…</p>}
-          {lista && lista.length === 0 && <p className="text-sm text-gray-500">No hay reportes con este filtro.</p>}
+          {lista && lista.length === 0 && <p className="text-sm text-gray-500">{soloHoy ? 'Todavía no hay reportes hoy.' : 'No hay reportes con este filtro.'}</p>}
           {lista && lista.length > 0 && (
             <div className="overflow-x-auto -mx-5 px-5">
               <table className="tabla-gg w-full text-xs">
@@ -386,9 +546,13 @@ export default function ReportabilidadGG({ onBack }: { onBack: () => void }) {
                       <td className="whitespace-nowrap">{r.nivelAceite ?? '—'}</td>
                       <td className="text-right tabular-nums">{fmtNum(r.temperatura)}</td>
                       <td>
-                        {(esAdmin || r.creadoPor === perfil.id) && (
-                          <button type="button" onClick={() => void eliminar(r)} aria-label={`Eliminar reporte de ${r.sitio}`} title="Eliminar"
-                            className="text-red-700 hover:bg-red-50 rounded p-1"><Trash2 size={14} /></button>
+                        {puedeEditar(r) && (
+                          <span className="flex gap-0.5">
+                            <button type="button" onClick={() => editar(r)} aria-label={`Corregir reporte de ${r.sitio}`} title="Corregir"
+                              className="text-[#0E4660] hover:bg-[#eef5fb] rounded p-1"><Pencil size={14} /></button>
+                            <button type="button" onClick={() => void eliminar(r)} aria-label={`Eliminar reporte de ${r.sitio}`} title="Eliminar"
+                              className="text-red-700 hover:bg-red-50 rounded p-1"><Trash2 size={14} /></button>
+                          </span>
                         )}
                       </td>
                     </tr>
