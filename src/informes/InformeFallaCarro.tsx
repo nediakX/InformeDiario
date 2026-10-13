@@ -597,24 +597,19 @@ export default function InformeFallaCarro({ onBack, borradorInicial = null }: In
       : g)));
 
   // --- Selector de personal (igual que en el Informe Diario: Equipo A / Equipo B) ---
-  const [personalParaCreado, setPersonalParaCreado] = useState("");
-  const [personalParaTecnico, setPersonalParaTecnico] = useState("");
-  const aplicarPersonalCreado = (valor: string) => {
-    if (!valor) return;
+  // "Creado por" en un solo desplegable: si la persona está en la lista se elige ahí; "Otra persona"
+  // abre los campos de nombre y cargo para escribirlos a mano.
+  const [creadoAMano, setCreadoAMano] = useState(false);
+  const mismoTexto = (a: string, b: string) => a.trim().replace(/\.$/, '').toLowerCase() === b.trim().replace(/\.$/, '').toLowerCase();
+  const creadoEnLista = equiposPersonal.flatMap(eq => eq.personas)
+    .find(p => mismoTexto(p.nombre, creadoNombre) && mismoTexto(p.cargo, creadoCargo));
+  const valorCreado = creadoAMano ? '__otro' : creadoEnLista ? `${creadoEnLista.nombre}|${creadoEnLista.cargo}` : creadoNombre.trim() ? '__actual' : '';
+  const elegirCreado = (valor: string) => {
+    if (valor === '__otro') { setCreadoAMano(true); return; }
+    setCreadoAMano(false);
+    if (!valor || valor === '__actual') return;
     const [n, c] = valor.split("|");
     setCreadoNombre(n); setCreadoCargo(c);
-    setPersonalParaCreado("");
-  };
-  // Desde la lista se AGREGA un participante (si la única casilla está vacía, la ocupa).
-  const aplicarPersonalTecnico = (valor: string) => {
-    if (!valor) return;
-    const [n] = valor.split("|");
-    setTecnicos(prev => {
-      if (prev.some(t => t.trim().toLowerCase() === n.trim().toLowerCase())) return prev;
-      const conNombre = prev.filter(t => t.trim());
-      return [...conNombre, n];
-    });
-    setPersonalParaTecnico("");
   };
   const cambiarTecnico = (i: number, valor: string) => setTecnicos(prev => prev.map((t, k) => (k === i ? valor : t)));
   const agregarTecnico = () => setTecnicos(prev => [...prev, ""]);
@@ -973,28 +968,30 @@ export default function InformeFallaCarro({ onBack, borradorInicial = null }: In
                 {CARRO_OPCIONES.map(c => <option key={c} value={c}>{etiquetaCarro(c)}</option>)}
               </select>
             </div>
-            <div className="md:col-span-2">
-              <label className="block text-xs text-[#6B6B6B] font-bold mb-1">Ubicación (opcional, portada)</label>
+            <div>
+              <label className="block text-xs text-[#6B6B6B] font-bold mb-1">Ubicación (portada)</label>
               <input type="text" value={ubicacion} onChange={e => setUbicacion(e.target.value)} className="w-full p-2 border border-[#DCE1E6] rounded-md text-sm" placeholder="Se completa sola al elegir el carro" />
             </div>
-
-            <div className="md:col-span-2 pt-1">
-              <label className="block text-xs text-[#6B6B6B] font-bold mb-1">Creado por — seleccionar de la lista (igual que en el Informe Diario)</label>
-              <select value={personalParaCreado} onChange={e => { setPersonalParaCreado(e.target.value); aplicarPersonalCreado(e.target.value); }} className="w-full p-2 border border-[#DCE1E6] rounded-md text-sm bg-white">
-                <option value="">-- Seleccionar supervisor / técnico --</option>
+            <div>
+              <label htmlFor="falla-creado" className="block text-xs text-[#6B6B6B] font-bold mb-1">Creado por</label>
+              <select id="falla-creado" value={valorCreado} onChange={e => elegirCreado(e.target.value)} className="w-full p-2 border border-[#DCE1E6] rounded-md text-sm bg-white">
+                {!creadoNombre.trim() && <option value="">-- Seleccionar supervisor / técnico --</option>}
+                {!creadoEnLista && creadoNombre.trim() && <option value="__actual">{creadoNombre}{creadoCargo ? ` — ${creadoCargo}` : ''}</option>}
                 {equiposPersonal.map(eq => (
-                  <optgroup key={eq.etiqueta} label={eq.etiqueta}>{eq.personas.map(p => <option key={p.nombre} value={opcionPersonal(p)}>{p.nombre} - {p.cargo}</option>)}</optgroup>
+                  <optgroup key={eq.etiqueta} label={eq.etiqueta}>{eq.personas.map(p => <option key={p.nombre} value={opcionPersonal(p)}>{p.nombre} — {p.cargo}</option>)}</optgroup>
                 ))}
+                <option value="__otro">✎ Otra persona / editar nombre o cargo…</option>
               </select>
             </div>
-            <div>
-              <label className="block text-xs text-[#6B6B6B] font-bold mb-1">Creado por — Nombre</label>
-              <input type="text" value={creadoNombre} onChange={e => setCreadoNombre(e.target.value)} className="w-full p-2 border border-[#DCE1E6] rounded-md text-sm" />
-            </div>
-            <div>
-              <label className="block text-xs text-[#6B6B6B] font-bold mb-1">Creado por — Cargo</label>
-              <input type="text" value={creadoCargo} onChange={e => setCreadoCargo(e.target.value)} className="w-full p-2 border border-[#DCE1E6] rounded-md text-sm" />
-            </div>
+            {creadoAMano && (
+              <div className="md:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-2 p-2 rounded-md bg-[#f4f8fb] border border-[#DCE1E6]">
+                <input type="text" value={creadoNombre} onChange={e => setCreadoNombre(e.target.value)} placeholder="Nombre" aria-label="Creado por — Nombre" autoFocus className="w-full p-2 border border-[#DCE1E6] rounded-md text-sm bg-white" />
+                <div className="flex gap-2">
+                  <input type="text" value={creadoCargo} onChange={e => setCreadoCargo(e.target.value)} placeholder="Cargo" aria-label="Creado por — Cargo" className="flex-1 min-w-0 p-2 border border-[#DCE1E6] rounded-md text-sm bg-white" />
+                  <button type="button" onClick={() => setCreadoAMano(false)} className="btn-outline text-[#0E4660] px-3 rounded-md text-xs font-bold hover:bg-[#d5e7f8]">Listo</button>
+                </div>
+              </div>
+            )}
           </div>
         </details>
 
@@ -1006,8 +1003,8 @@ export default function InformeFallaCarro({ onBack, borradorInicial = null }: In
           <p className="text-xs text-gray-500 mb-3">
             Elige el tipo de falla y completa las horas y el técnico que atendió: al pulsar "Autocompletar" se redactan automáticamente la descripción, la notificación, los hallazgos, la solución y la verificación, usando el carro, la fecha y las horas de arriba. El texto queda editable después.
           </p>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
-            <div className="md:col-span-2">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
+            <div className="sm:col-span-3">
               <label className="block text-xs text-[#6B6B6B] font-bold mb-1">Tipo de falla común</label>
               <select value={tipoFalla} onChange={e => setTipoFalla(e.target.value)} className="w-full p-2 border border-[#DCE1E6] rounded-md text-sm bg-white">
                 {FALLAS_COMUNES.map(f => <option key={f.id} value={f.id}>{f.label}</option>)}
@@ -1018,19 +1015,19 @@ export default function InformeFallaCarro({ onBack, borradorInicial = null }: In
               <input type="time" value={horaAlarma} onChange={e => setHoraAlarma(e.target.value)} className="w-full p-2 border border-[#DCE1E6] rounded-md text-sm" />
             </div>
             <div>
-              <label className="block text-xs text-[#6B6B6B] font-bold mb-1">Hora de respuesta / verificación en terreno</label>
+              <label className="block text-xs text-[#6B6B6B] font-bold mb-1">Hora de respuesta (terreno)</label>
               <input type="time" value={horaRespuesta} onChange={e => setHoraRespuesta(e.target.value)} className="w-full p-2 border border-[#DCE1E6] rounded-md text-sm" />
             </div>
             <div>
               <label className="block text-xs text-[#6B6B6B] font-bold mb-1">Hora 100% operativo</label>
               <input type="time" value={horaOperativo} onChange={e => setHoraOperativo(e.target.value)} className="w-full p-2 border border-[#DCE1E6] rounded-md text-sm" />
             </div>
-            <div className="md:col-span-2">
-              <label className="block text-xs text-[#6B6B6B] font-bold mb-1">Participantes (1° asistencia / tiempo de respuesta)</label>
+            <div className="sm:col-span-3">
+              <label className="block text-xs text-[#6B6B6B] font-bold mb-1">Participantes (1° asistencia / tiempo de respuesta) — elige de la lista o escribe el nombre</label>
               <div className="space-y-2">
                 {tecnicos.map((t, i) => (
                   <div key={i} className="flex gap-2">
-                    <input type="text" value={t} onChange={e => cambiarTecnico(i, e.target.value)} placeholder={`Participante ${i + 1}`}
+                    <input type="text" value={t} onChange={e => cambiarTecnico(i, e.target.value)} placeholder={`Participante ${i + 1}`} list="falla-personal"
                       aria-label={`Participante ${i + 1}`} className="flex-1 p-2 border border-[#DCE1E6] rounded-md text-sm" />
                     {(tecnicos.length > 1 || t.trim()) && (
                       <button type="button" onClick={() => quitarTecnico(i)} className="bg-red-50 text-red-700 p-2 rounded-md hover:bg-red-100" aria-label={`Quitar participante ${i + 1}`}><Trash2 size={15} /></button>
@@ -1045,15 +1042,9 @@ export default function InformeFallaCarro({ onBack, borradorInicial = null }: In
                 <p className="text-[11px] text-gray-500 mt-1">En el informe: «{tecnicoRespuesta}».</p>
               )}
             </div>
-            <div className="md:col-span-2">
-              <label className="block text-xs text-[#6B6B6B] font-bold mb-1">Agregar participante desde la lista (igual que en el Informe Diario)</label>
-              <select value={personalParaTecnico} onChange={e => { setPersonalParaTecnico(e.target.value); aplicarPersonalTecnico(e.target.value); }} className="w-full p-2 border border-[#DCE1E6] rounded-md text-sm bg-white">
-                <option value="">-- Seleccionar supervisor / técnico --</option>
-                {equiposPersonal.map(eq => (
-                  <optgroup key={eq.etiqueta} label={eq.etiqueta}>{eq.personas.map(p => <option key={p.nombre} value={opcionPersonal(p)}>{p.nombre} - {p.cargo}</option>)}</optgroup>
-                ))}
-              </select>
-            </div>
+            <datalist id="falla-personal">
+              {equiposPersonal.flatMap(eq => eq.personas).map((p, k) => <option key={k} value={p.nombre.replace(/\.$/, '')}>{p.cargo}</option>)}
+            </datalist>
           </div>
           <button type="button" onClick={autocompletarTextos} className="btn-outline text-[#0E4660] px-3 py-2 rounded-md text-sm font-bold hover:bg-[#d5e7f8] flex items-center gap-2">
             <Sparkles size={15} /> Autocompletar textos con estos datos
