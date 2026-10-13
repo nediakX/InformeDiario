@@ -28,3 +28,5 @@ dist-ssr
 
 # Archivos generados por TypeScript
 *.tsbuildinfo
+_to_delete/
+Consulta Excel Reportes GG.pq

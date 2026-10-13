@@ -7,6 +7,7 @@ import logoEdificio from "../../assets/LogoEdificio.png";
 import VisorFoto from '../../componentes/VisorFoto';
 import { gruposTareas } from '../../datos/catalogos';
 import EscanerDocumento from '../../componentes/EscanerDocumento';
+import TextoQueCrece from '../../componentes/TextoQueCrece';
 
 import { VERTIV_CARROS_FLAT, VERTIV_ITEMS, CUADRO_VERTIV_SITIOS, leyendaCuadroVertiv } from '../../datos/plantillaWord';
 
@@ -502,32 +503,30 @@ export default function InformeDiario({ d, volverABorradores, goToNewInforme }: 
           <div className="space-y-3">
             {evidenceBlocks.map((block, bi) => block.cuadroVertiv ? null : (
               <div key={block.id} className="border border-dashed border-[#DCE1E6] rounded-lg p-3 bg-[#fafbfc]">
-                <div className="flex items-center gap-2 mb-2">
-                  <input
-                    type="text"
+                <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 mb-2">
+                  <TextoQueCrece
                     value={block.title}
-                    onChange={e => {
-                      const val = e.target.value;
-                      setEvidenceBlocks(prev => prev.map((b, i) => i === bi ? { ...b, title: val } : b));
-                    }}
-                    className="flex-1 font-bold text-sm p-1.5 border border-[#DCE1E6] rounded text-[#0E4660]"
+                    onChange={val => setEvidenceBlocks(prev => prev.map((b, i) => i === bi ? { ...b, title: val } : b))}
+                    aria-label="Nombre del bloque de evidencia"
+                    className="w-full sm:flex-1 min-w-0 font-bold text-sm p-1.5 border border-[#DCE1E6] rounded text-[#0E4660]"
                   />
                   {block.isActivity ? (
-                    <span className="text-[11px] text-gray-400">
+                    <span className="text-[11px] text-gray-400 shrink-0">
                       ({turno === 'dia' ? 'fijo turno día' : `Vinc. a Actividad ${(block.actIndex ?? 0) + 1}`})
                     </span>
                   ) : (
-                    <span className="text-[11px] text-gray-400">(fijo turno {turno === 'noche' ? 'noche' : 'día'})</span>
+                    <span className="text-[11px] text-gray-400 shrink-0">(fijo turno {turno === 'noche' ? 'noche' : 'día'})</span>
                   )}
                 </div>
 
-                <div className="overflow-x-auto pb-2">
-                  <div className="flex flex-nowrap gap-2.5 items-center min-w-max">
+                <div className="sm:overflow-x-auto pb-2">
+                  {/* En el celular, dos casillas por fila (se ven completas); en pantallas grandes, en una fila. */}
+                  <div className="grid grid-cols-2 gap-2 items-start sm:flex sm:flex-nowrap sm:gap-2.5 sm:items-center sm:min-w-max">
                     {block.photos.map((src, pi) => (
                     <div
                       key={pi}
                       onClick={() => handleSelectEvidenceSlot(bi, pi)}
-                      className={`photo-slot w-[180px] min-w-[180px] text-center text-[11px] text-gray-500 relative border-2 border-dashed rounded-md p-1 bg-white cursor-pointer ${selectedEvidenceSlot?.blockIndex === bi && selectedEvidenceSlot.photoIndex === pi ? 'border-[#0E4660] ring-2 ring-[#0E4660]/20' : 'border-gray-300'}`}
+                      className={`photo-slot w-full min-w-0 overflow-hidden sm:w-[180px] sm:min-w-[180px] text-center text-[11px] text-gray-500 relative border-2 border-dashed rounded-md p-1 bg-white cursor-pointer ${selectedEvidenceSlot?.blockIndex === bi && selectedEvidenceSlot.photoIndex === pi ? 'border-[#0E4660] ring-2 ring-[#0E4660]/20' : 'border-gray-300'}`}
                       title="Haz clic aquí y luego pega una imagen con Ctrl+V"
                     >
                       <button
@@ -557,14 +556,14 @@ export default function InformeDiario({ d, volverABorradores, goToNewInforme }: 
                         src={src || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='130' height='98'%3E%3Crect width='100%25' height='100%25' fill='%23eee'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%23aaa' font-size='10'%3EArrastra o pega%3C/text%3E%3C/svg%3E"}
                         alt="Evidencia"
                         onClick={e => { if (src) { e.stopPropagation(); setFotoAmpliada(src); } }}
-                        className={`w-[120px] h-[90px] object-cover rounded mx-auto mb-1 bg-gray-100 ${src ? 'cursor-zoom-in' : ''}`}
+                        className={`w-[120px] max-w-full h-[90px] object-cover rounded mx-auto mb-1 bg-gray-100 ${src ? 'cursor-zoom-in' : ''}`}
                       />
                       <button type="button" onClick={() => openDocumentScanner({ type: 'evidence', blockIndex: bi, photoIndex: pi })} className="w-full bg-[#0E4660] text-white rounded px-1.5 py-1 mb-1 text-[10px] font-bold">Escanear documento</button>
                       <span className="block text-[10px] text-gray-500">Imagen, cámara o app de escaneo:</span>
-                      <input type="file" accept="image/*" onChange={e => e.target.files?.[0] && assignFileToSlot(e.target.files[0], bi, pi)} className="text-[10px] w-full min-w-[168px]" />
+                      <input type="file" accept="image/*" onChange={e => e.target.files?.[0] && assignFileToSlot(e.target.files[0], bi, pi)} className="text-[10px] w-full max-w-full sm:min-w-[168px]" />
                     </div>
                     ))}
-                    <button type="button" onClick={() => handleAddPhotoSlot(bi)} className="btn-outline text-[#0E4660] px-2.5 py-1.5 rounded text-xs font-bold hover:bg-[#d5e7f8]">
+                    <button type="button" onClick={() => handleAddPhotoSlot(bi)} className="btn-outline text-[#0E4660] px-2.5 py-1.5 rounded text-xs font-bold hover:bg-[#d5e7f8] self-center justify-self-start">
                       + Foto
                     </button>
                   </div>
