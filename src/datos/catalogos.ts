@@ -8,7 +8,7 @@ export const LINEA_SERVICIO = "SERVICIO DE IMPLEMENTACIÓN Y CONTINUIDAD OPERACI
 export const CARRO_OPCIONES: string[] = [
   "LTE_CMF_01", "LTE_CMF_02", "LTE_CMF_04", "LTE_CMF_08", "LTE_CMF_09",
   "LTE_CMM_03", "LTE_CMM_05", "LTE_CMM_06", "LTE_CMM_07", "LTE_CMM_10",
-  "LTE_11", "MMOO_01",
+  "LTE_11", "MMOO_01", "Light_12",
 ];
 
 /** Ubicación en faena de cada carro. */
@@ -25,6 +25,7 @@ export const UBICACION_POR_CARRO: Record<string, string> = {
   "LTE_CMF_01": "Bloquera",
   "LTE_11": "Ex Ventiladores",
   "LTE_CMM_07": "Campamento Antiguo",
+  "Light_12": "Mirador Norte Fase 3",
 };
 
 // ---------------------------------------------------------------------------------------

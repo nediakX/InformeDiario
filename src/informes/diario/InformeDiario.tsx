@@ -506,7 +506,13 @@ export default function InformeDiario({ d, volverABorradores, goToNewInforme }: 
                 <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 mb-2">
                   <TextoQueCrece
                     value={block.title}
-                    onChange={val => setEvidenceBlocks(prev => prev.map((b, i) => i === bi ? { ...b, title: val } : b))}
+                    onChange={val => {
+                      setEvidenceBlocks(prev => prev.map((b, i) => i === bi ? { ...b, title: val } : b));
+                      // El bloque de una actividad lleva el mismo nombre que la actividad: se corrige en ambos lados.
+                      if (block.isActivity && block.actIndex !== undefined && actividades[block.actIndex] === block.title) {
+                        handleUpdateActividad(block.actIndex, val);
+                      }
+                    }}
                     aria-label="Nombre del bloque de evidencia"
                     className="w-full sm:flex-1 min-w-0 font-bold text-sm p-1.5 border border-[#DCE1E6] rounded text-[#0E4660]"
                   />
