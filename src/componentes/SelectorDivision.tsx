@@ -1,6 +1,4 @@
-// Selector de división (El Salvador / Andina). Solo lo ven los administradores: al cambiar, toda la
-// app (borradores, informes, indicadores e impresión) pasa a trabajar con la otra división.
-// Los demás usuarios ven solo una etiqueta con la división de su cuenta.
+// Selector de división (El Salvador / Andina)
 import { MapPin } from 'lucide-react';
 import { useSesion } from '../auth/sesion';
 import { CONFIG_DIVISION, DIVISIONES } from '../datos/divisiones';

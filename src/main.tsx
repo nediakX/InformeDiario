@@ -3,7 +3,7 @@ import ReactDOM from 'react-dom/client'
 import { BrowserRouter } from 'react-router'
 import App from './app/App'
 import AuthGate from './auth/AuthGate'
-import './index.css' // Importación indispensable para los estilos
+import './index.css' 
 import { iniciarModoSinConexion } from './lib/pwa'
 
 iniciarModoSinConexion()
