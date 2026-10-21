@@ -25,7 +25,7 @@ const EL_SALVADOR: Trabajador[] = [
   { nombre: 'Gutiérrez Tapia Omar Jesús', rut: '19.144.837-5', cargo: 'Experto SSO, S y MA' },
   { nombre: 'Moll Gallardo Carlos Enrique', rut: '12.667.507-0', cargo: 'Técnico Eléctrico' },
   { nombre: 'Francisco Jara', rut: '14.098.389-6', cargo: 'Técnico Telecomunicaciones' },
-  { nombre: 'Morata Barrios Juan Carlos', rut: '18.924.203-4', cargo: 'Técnico Telecomunicaciones' },
+  { nombre: 'Morata Barrios Juan Carlos', rut: '18.924.203-4', cargo: 'Ingeniero Especialista' },
   { nombre: 'Orrego Rojas Claudio Abdón', rut: '15.051.601-3', cargo: 'Técnico Telecomunicaciones' },
   { nombre: 'Pailapan Hormazabal Camilo Andrés', rut: '17.738.483-6', cargo: 'Supervisor de Operaciones' },
   { nombre: 'Saavedra Valenzuela Juan Carlos', rut: '10.415.558-8', cargo: 'Jefe de Turno' },
