@@ -80,3 +80,67 @@
 .tabla-gg th { text-align: left; font-weight: 700; color: #55636B; background: #F6F8FA; padding: 6px 8px; border-bottom: 1px solid #DCE1E6; white-space: nowrap; position: sticky; top: 0; }
 .tabla-gg td { padding: 5px 8px; border-bottom: 1px solid #EEF1F3; }
 .tabla-gg tbody tr:hover { background: #f7fafc; }
+
+/* ===========================================================================
+   Animaciones (livianas): solo opacidad y transform, que el navegador hace en la GPU sin
+   recalcular el diseño, así no se pega en celulares de gama baja. Las entradas usan
+   fill-mode "backwards": al terminar no queda ningún transform puesto (no afecta modales
+   ni elementos fijos). Con "reducir movimiento" del sistema se desactivan (App.css).
+   =========================================================================== */
+@keyframes aparecer { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+@keyframes aparecer-suave { from { opacity: 0; } to { opacity: 1; } }
+@keyframes crecer-x { from { transform: scaleX(0); } to { transform: none; } }
+@keyframes trazar { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+@keyframes latido { 0%, 100% { transform: none; } 50% { transform: scale(1.18); } }
+@keyframes respirar { 0%, 100% { opacity: 0; } 50% { opacity: 0.9; } }
+
+/* Entrada de cada pantalla y de sus bloques, en cascada (máx. ~0,25 s de espera total). */
+main:not(.dash):not(.auth-shell) > *,
+.dash > *, .dash-rol__principal > *, .dash-rol__lateral > *,
+.dash-grupo__lista > *, .dash-revisar__lista > li, .dash-gg-alertas > li,
+.dash-gg-sitios > *, .dash-contrato__grilla > *, .kpi-grid > *, .admin-grid-2 > *,
+.dash-hoy__turnos > * {
+  animation: aparecer 0.34s cubic-bezier(0.2, 0.7, 0.3, 1) backwards;
+}
+:is(main:not(.dash):not(.auth-shell), .dash, .dash-rol__principal, .dash-rol__lateral, .dash-grupo__lista, .dash-revisar__lista, .dash-gg-alertas, .dash-gg-sitios, .dash-contrato__grilla, .kpi-grid, .admin-grid-2, .dash-hoy__turnos) > :nth-child(2) { animation-delay: 40ms; }
+:is(main:not(.dash):not(.auth-shell), .dash, .dash-rol__principal, .dash-rol__lateral, .dash-grupo__lista, .dash-revisar__lista, .dash-gg-alertas, .dash-gg-sitios, .dash-contrato__grilla, .kpi-grid, .admin-grid-2, .dash-hoy__turnos) > :nth-child(3) { animation-delay: 80ms; }
+:is(main:not(.dash):not(.auth-shell), .dash, .dash-rol__principal, .dash-rol__lateral, .dash-grupo__lista, .dash-revisar__lista, .dash-gg-alertas, .dash-gg-sitios, .dash-contrato__grilla, .kpi-grid, .admin-grid-2, .dash-hoy__turnos) > :nth-child(4) { animation-delay: 120ms; }
+:is(main:not(.dash):not(.auth-shell), .dash, .dash-rol__principal, .dash-rol__lateral, .dash-grupo__lista, .dash-revisar__lista, .dash-gg-alertas, .dash-gg-sitios, .dash-contrato__grilla, .kpi-grid, .admin-grid-2, .dash-hoy__turnos) > :nth-child(5) { animation-delay: 160ms; }
+:is(main:not(.dash):not(.auth-shell), .dash, .dash-rol__principal, .dash-rol__lateral, .dash-grupo__lista, .dash-revisar__lista, .dash-gg-alertas, .dash-gg-sitios, .dash-contrato__grilla, .kpi-grid, .admin-grid-2, .dash-hoy__turnos) > :nth-child(n + 6) { animation-delay: 200ms; }
+
+/* "Todas las opciones" y el detalle de generadores aparecen suaves al abrirse. */
+.dash-mas[open] > .dash-grupos, .dash-gg__detalle { animation: aparecer-suave 0.25s ease-out backwards; }
+
+/* Barras de avance y de gráficos: crecen desde la izquierda. */
+.dash-barra > span, .hbars__bar { transform-origin: left center; animation: crecer-x 0.7s cubic-bezier(0.2, 0.7, 0.3, 1) 0.15s backwards; }
+
+/* Minigráficos de los generadores: la línea se dibuja y el punto final aparece después. */
+.dash-gg-spark path { stroke-dasharray: 1; animation: trazar 0.9s ease-out 0.2s backwards; }
+.dash-gg-spark circle { animation: aparecer-suave 0.3s ease-out 1s backwards; }
+
+/* Alertas críticas: el ícono late suave (pocas a la vez, no cansa ni pesa). */
+.dash-gg-alerta--critico > svg, .dash-revisar__fila--critico > svg:first-child { animation: latido 2.4s ease-in-out infinite; }
+
+/* Día de hoy en el tablero del turno: un brillo que respira. */
+.dash-dia--hoy, .dash-turno-mini__dias li.hoy { position: relative; }
+.dash-dia--hoy::after, .dash-turno-mini__dias li.hoy::after {
+  content: ''; position: absolute; inset: -3px; border-radius: inherit; pointer-events: none;
+  box-shadow: 0 0 0 2px rgba(245, 179, 0, 0.55), 0 0 14px rgba(245, 179, 0, 0.35);
+  opacity: 0; animation: respirar 2.8s ease-in-out infinite;
+}
+
+/* Tarjetas y botones: se levantan al pasar el mouse (solo con mouse) y se hunden al tocarlos. */
+.dash-tarea, .dash-turno-hoy, .dash-gg-sitio, .dash-revisar__fila, .dash-gg-mini__boton, .dash-contrato__kpi, .kpi, .viz-card {
+  transition: transform 0.18s ease, border-color 0.15s ease, box-shadow 0.18s ease;
+}
+@media (hover: hover) {
+  .dash-tarea:hover, .dash-turno-hoy:hover, .dash-gg-sitio:hover, .dash-revisar__fila:hover, .dash-gg-mini__boton:hover {
+    transform: translateY(-2px); box-shadow: 0 8px 20px rgba(20, 24, 28, 0.08);
+  }
+}
+.dash-tarea:active, .dash-turno-hoy:active, .dash-gg-sitio:active, .dash-revisar__fila:active, .dash-gg-mini__boton:active,
+.btn-primary-field:active, .btn-outline:active, .btn-mini:active, .dash-turno-hoy__accion:active { transform: scale(0.98); }
+.btn-primary-field, .btn-outline, .btn-mini { transition: transform 0.12s ease, background-color 0.15s ease, border-color 0.15s ease; }
+
+/* Paneles desplegables de los formularios: el contenido aparece suave al abrirlos. */
+details.panel[open] > :not(summary) { animation: aparecer-suave 0.22s ease-out backwards; }

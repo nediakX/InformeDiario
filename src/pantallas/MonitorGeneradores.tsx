@@ -53,7 +53,7 @@ function Minigrafico({ serie, dato, desde }: { serie: ReporteGG[]; dato: Dato; d
   const u = puntos[puntos.length - 1];
   return (
     <svg className="dash-gg-spark" viewBox="0 0 100 28" preserveAspectRatio="none" aria-hidden="true">
-      <path d={d} fill="none" stroke="currentColor" strokeWidth={1.6} vectorEffect="non-scaling-stroke" strokeLinejoin="round" strokeLinecap="round" />
+      <path d={d} pathLength={1} fill="none" stroke="currentColor" strokeWidth={1.6} vectorEffect="non-scaling-stroke" strokeLinejoin="round" strokeLinecap="round" />
       <circle cx={x(u.t)} cy={y(u.v)} r={2.2} fill="currentColor" />
     </svg>
   );
