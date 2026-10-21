@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useState, type ReactNode } from 'react';
+import { Fragment, Suspense, lazy, useEffect, useState, type ReactNode } from 'react';
 import { ChevronDown, ClipboardCheck, FileStack, FolderOpen, ChevronRight, Bell, FilePlus, Sun, Moon, Wrench, AlertTriangle, Printer, LogOut, ShieldCheck, FileUp, Fuel, LayoutGrid, RadioTower, Map as MapIcon, type LucideIcon } from 'lucide-react';
 import { useSesion, nombreVisible } from '../auth/sesion';
 import { CONFIG_DIVISION } from '../datos/divisiones';
@@ -14,6 +14,8 @@ import { estadoChecklistDelDia } from '../informes/checklist/catalogo';
 import MonitorGeneradores from './MonitorGeneradores';
 import { esPreventiva } from '../informes/preventiva/modelo';
 import { SITIOS_MAPA } from '../datos/sitiosMapa';
+// La vista previa del mapa trae Leaflet: se carga aparte para no demorar el panel.
+const MiniMapaSitios = lazy(() => import('./MiniMapaSitios'));
 import { PorRevisar, ResumenContrato } from './BloquesRol';
 import { DISENO_INICIO, ETIQUETA_CORTA_ROL, ETIQUETA_ROL, ORDEN_COMPLETO, rolDePersona, type BloqueInicio, type IdTarea } from '../datos/roles';
 
@@ -345,6 +347,7 @@ export default function Dashboard({
     generadores: <MonitorGeneradores onAbrir={() => onNavigate('reportabilidad-gg')} detalleInicial={rol === 'electromecanico' ? true : rol === 'contrato' ? false : undefined} />,
     turnoMini,
     generadoresMini: <MonitorGeneradores compacto onAbrir={() => onNavigate('reportabilidad-gg')} />,
+    mapa: SITIOS_MAPA[division] ? <Suspense fallback={null}><MiniMapaSitios onAbrir={() => onNavigate('mapa')} /></Suspense> : null,
     accesos,
   };
 

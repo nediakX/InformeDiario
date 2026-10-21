@@ -11,10 +11,10 @@ import logoPsinet from '../assets/logo_psinet.jpg';
 import logoEdificio from '../assets/LogoEdificio.png';
 import { useSesion } from '../auth/sesion';
 import { configDivision } from '../datos/divisiones';
-import { SITIOS_MAPA, type SitioMapa, distanciaMetros, puntoDesde, sitioGGDe, textoCoordenadas } from '../datos/sitiosMapa';
-import { hoyLocalISO, sumarDias } from '../datos/fechas';
-import { EVENTO_GG, SITIOS_GG, pendientesGG, suscribirReportesGG, todosLosReportesGG, type ReporteGG } from '../datos/reportesGG';
-import { analizarGeneradores, type EstadoGG, type SitioGG } from '../datos/analisisGG';
+import { SITIOS_MAPA, type SitioMapa, distanciaMetros, puntoDesde, textoCoordenadas } from '../datos/sitiosMapa';
+import type { ReporteGG } from '../datos/reportesGG';
+import type { EstadoGG, SitioGG } from '../datos/analisisGG';
+import { useGGSitios } from './useGGSitios';
 
 const CAPAS = {
   satelite: {
@@ -84,38 +84,7 @@ export default function MapaSitios({ onBack }: { onBack: () => void }) {
   const [copiado, setCopiado] = useState<string | null>(null);
 
   // --- Reportabilidad de GG (mismos datos y reglas que el monitoreo del panel) ---
-  const hoy = hoyLocalISO();
-  const desde = sumarDias(hoy, -30);
-  const [reportes, setReportes] = useState<ReporteGG[] | null>(null);
-  const [versionGG, setVersionGG] = useState(0);
-  useEffect(() => {
-    let vivo = true;
-    todosLosReportesGG({ division, desde, hasta: hoy })
-      .then(r => { if (vivo) setReportes(r); })
-      .catch(() => { if (vivo) setReportes([]); });
-    return () => { vivo = false; };
-  }, [division, desde, hoy, versionGG]);
-  useEffect(() => suscribirReportesGG(division, () => setVersionGG(v => v + 1)), [division]);
-  useEffect(() => {
-    const alCambiar = () => setVersionGG(v => v + 1);
-    window.addEventListener(EVENTO_GG, alCambiar);
-    return () => window.removeEventListener(EVENTO_GG, alCambiar);
-  }, []);
-  /** Por carro del mapa: undefined = cargando, null = no reporta GG. */
-  const ggPorCodigo = useMemo(() => {
-    const m = new Map<string, SitioGG | null | undefined>();
-    const lista = SITIOS_GG[division] ?? [];
-    const todos = reportes ? [...reportes, ...pendientesGG().filter(p => p.division === division && !reportes.some(r => r.id === p.id))] : null;
-    const analisis = todos ? analizarGeneradores(lista, todos, hoy) : null;
-    for (const s of sitios) {
-      const g = sitioGGDe(s);
-      if (!g) { m.set(s.codigo, null); continue; }
-      if (!analisis) { m.set(s.codigo, undefined); continue; }
-      const a = analisis.porSitio.find(x => x.sitio === g);
-      m.set(s.codigo, a && (lista.includes(g) || a.ultimo) ? a : null);
-    }
-    return m;
-  }, [reportes, sitios, division, hoy]);
+  const ggPorCodigo = useGGSitios(division, sitios);
 
   // Mapa (una sola vez)
   useEffect(() => {

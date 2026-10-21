@@ -55,7 +55,7 @@ export function esSupervisorGG(perfil: { rut: string | null; rol?: string | null
 }
 
 /** Bloques del panel principal ("Mini" = versión de una línea, para la columna lateral). */
-export type BloqueInicio = 'contrato' | 'revisar' | 'turno' | 'turnoMini' | 'hoy' | 'generadores' | 'generadoresMini' | 'accesos';
+export type BloqueInicio = 'contrato' | 'revisar' | 'turno' | 'turnoMini' | 'hoy' | 'generadores' | 'generadoresMini' | 'mapa' | 'accesos';
 /** Accesos directos a pantallas. */
 export type IdTarea = 'checklist' | 'gg' | 'impresion' | 'cierre' | 'falla' | 'mantenimiento' | 'preventiva' | 'mapa' | 'borradores' | 'recuperar' | 'admin';
 
@@ -69,13 +69,13 @@ export interface DisenoInicio {
 }
 
 export const DISENO_INICIO: Record<Rol, DisenoInicio> = {
-  tecnico: { principal: ['hoy', 'revisar'], lateral: ['accesos', 'turnoMini', 'generadoresMini'], accesos: ['checklist', 'gg', 'falla', 'borradores'] },
-  electrico: { principal: ['hoy', 'revisar'], lateral: ['accesos', 'generadoresMini', 'turnoMini'], accesos: ['falla', 'checklist', 'mantenimiento', 'borradores'] },
-  electromecanico: { principal: ['generadores', 'hoy'], lateral: ['accesos', 'turnoMini'], accesos: ['gg', 'mantenimiento', 'checklist', 'borradores'] },
-  supervisor: { principal: ['revisar', 'generadores', 'hoy'], lateral: ['turnoMini', 'accesos'], accesos: ['gg', 'impresion', 'cierre', 'preventiva', 'borradores'] },
-  jefe: { principal: ['turno', 'revisar', 'hoy'], lateral: ['generadoresMini', 'accesos'], accesos: ['cierre', 'impresion', 'gg', 'borradores'] },
-  contrato: { principal: ['contrato', 'turno'], lateral: ['generadoresMini', 'accesos'], accesos: ['admin', 'cierre', 'gg', 'borradores'] },
+  tecnico: { principal: ['hoy', 'revisar', 'mapa'], lateral: ['accesos', 'turnoMini', 'generadoresMini'], accesos: ['checklist', 'gg', 'falla', 'borradores'] },
+  electrico: { principal: ['hoy', 'revisar', 'mapa'], lateral: ['accesos', 'generadoresMini', 'turnoMini'], accesos: ['falla', 'checklist', 'mantenimiento', 'borradores'] },
+  electromecanico: { principal: ['generadores', 'hoy', 'mapa'], lateral: ['accesos', 'turnoMini'], accesos: ['gg', 'mantenimiento', 'checklist', 'borradores'] },
+  supervisor: { principal: ['revisar', 'generadores', 'hoy', 'mapa'], lateral: ['turnoMini', 'accesos'], accesos: ['gg', 'impresion', 'cierre', 'preventiva', 'borradores'] },
+  jefe: { principal: ['turno', 'revisar', 'hoy', 'mapa'], lateral: ['generadoresMini', 'accesos'], accesos: ['cierre', 'impresion', 'gg', 'borradores'] },
+  contrato: { principal: ['contrato', 'turno', 'mapa'], lateral: ['generadoresMini', 'accesos'], accesos: ['admin', 'cierre', 'gg', 'borradores'] },
 };
 
 /** "Ver todo": el inicio completo, igual para todos, en una columna. */
-export const ORDEN_COMPLETO: BloqueInicio[] = ['turno', 'hoy', 'revisar', 'generadores'];
+export const ORDEN_COMPLETO: BloqueInicio[] = ['turno', 'hoy', 'revisar', 'generadores', 'mapa'];
