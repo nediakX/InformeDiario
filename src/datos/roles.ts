@@ -15,6 +15,11 @@ export const ETIQUETA_ROL: Record<Rol, string> = {
   tecnico: 'Técnico',
 };
 
+/** Nombre corto para el selector de vista del inicio. */
+export const ETIQUETA_CORTA_ROL: Record<Rol, string> = {
+  contrato: 'Contrato', jefe: 'Jefe de turno', supervisor: 'Supervisor', electromecanico: 'Electromecánico', electrico: 'Eléctrico', tecnico: 'Técnico',
+};
+
 const sinTildes = (t: string) => t.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 
 export function rolDeCargo(cargo: string): Rol {

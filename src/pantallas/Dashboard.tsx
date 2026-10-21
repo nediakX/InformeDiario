@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useState, type ReactNode } from 'react';
-import { ChevronDown, ClipboardCheck, FileStack, FolderOpen, ChevronRight, Bell, FilePlus, Sun, Moon, Wrench, AlertTriangle, Printer, LogOut, ShieldCheck, FileUp, Fuel, type LucideIcon } from 'lucide-react';
+import { ChevronDown, ClipboardCheck, FileStack, FolderOpen, ChevronRight, Bell, FilePlus, Sun, Moon, Wrench, AlertTriangle, Printer, LogOut, ShieldCheck, FileUp, Fuel, LayoutGrid, type LucideIcon } from 'lucide-react';
 import { useSesion, nombreVisible } from '../auth/sesion';
 import { CONFIG_DIVISION } from '../datos/divisiones';
 import './dashboard.css';
@@ -13,7 +13,7 @@ import { semanaDeFecha, DIAS_POR_TURNO } from '../datos/turnos';
 import { estadoChecklistDelDia } from '../informes/checklist/catalogo';
 import MonitorGeneradores from './MonitorGeneradores';
 import { PorRevisar, ResumenContrato } from './BloquesRol';
-import { DISENO_INICIO, ETIQUETA_ROL, ORDEN_COMPLETO, rolDePersona, type BloqueInicio, type IdTarea } from '../datos/roles';
+import { DISENO_INICIO, ETIQUETA_CORTA_ROL, ETIQUETA_ROL, ORDEN_COMPLETO, rolDePersona, type BloqueInicio, type IdTarea } from '../datos/roles';
 
 type TipoBorradorTab = 'diario' | 'mantenimiento' | 'falla';
 type EstadoPip = 'pendiente' | 'iniciado' | 'finalizado' | 'futuro';
@@ -373,12 +373,18 @@ export default function Dashboard({
           </div>
           <div className="dash-cuenta">
             <SelectorDivision />
-            <span className="dash-vista">
-              {verTodo ? <>Vista <strong>completa</strong></> : <>Vista de <strong>{ETIQUETA_ROL[rol].toLowerCase()}</strong></>}
-              <button type="button" className="dash-enlace" onClick={alternarVista} aria-pressed={verTodo}>
-                {verTodo ? 'Volver a mi vista' : 'Ver todo'}
-              </button>
-            </span>
+            {/* Vista: la del rol o el inicio completo, en un solo selector */}
+            <div role="radiogroup" aria-label="Vista del inicio" className="inline-flex items-center rounded-full border border-[#DCE1E6] bg-white p-0.5 text-xs font-bold">
+              <LayoutGrid size={14} className="mx-1.5 text-[#0E4660]" aria-hidden="true" />
+              {([[false, ETIQUETA_CORTA_ROL[rol]], [true, 'Todo']] as const).map(([todo, texto]) => (
+                <button key={texto} type="button" role="radio" aria-checked={verTodo === todo}
+                  title={todo ? 'Ver el inicio completo' : `Ver solo lo de ${ETIQUETA_ROL[rol].toLowerCase()}`}
+                  onClick={() => { if (verTodo !== todo) alternarVista(); }}
+                  className={`rounded-full px-3 py-1 transition-colors ${verTodo === todo ? 'bg-[#0E4660] text-white' : 'text-[#0E4660] hover:bg-[#e3edf3]'}`}>
+                  {texto}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 

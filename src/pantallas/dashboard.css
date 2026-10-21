@@ -314,3 +314,9 @@
   .dash-top { align-items: center; gap: 8px; }
   .dash-cuenta { width: 100%; justify-content: space-between; }
 }
+@media (max-width: 720px) {
+  /* División y vista caben en una sola fila: sin íconos y con menos relleno. */
+  .dash-cuenta { flex-wrap: nowrap; gap: 6px; }
+  .dash-cuenta > [role='radiogroup'] > svg { display: none; }
+  .dash-cuenta > [role='radiogroup'] > button { padding-left: 10px; padding-right: 10px; }
+}
