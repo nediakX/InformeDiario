@@ -135,6 +135,14 @@ export default function Dashboard({
     return `${ESTADO_OTRO_LABEL[estado]} · ${fotos.llenas} de ${fotos.total} fotos`;
   };
 
+  // Saludo según la hora (se actualiza solo: el turno Día parte en la mañana y el Noche a las 20:00).
+  const [hora, setHora] = useState(() => new Date().getHours());
+  useEffect(() => {
+    const id = window.setInterval(() => setHora(new Date().getHours()), 60_000);
+    return () => window.clearInterval(id);
+  }, []);
+  const saludo = hora >= 5 && hora < 12 ? 'Buenos días' : hora >= 12 && hora < 20 ? 'Buenas tardes' : 'Buenas noches';
+
   // --- Rol: decide el orden del inicio (solo visual; permisos y datos no cambian) ---
   const { rol } = rolDePersona(perfil, nombreVisible(perfil), division);
   const [verTodo, setVerTodo] = useState<boolean>(() => {
@@ -368,7 +376,7 @@ export default function Dashboard({
         {/* Saludo, división y vista (por rol o completa) en una sola franja */}
         <div className="dash-top">
           <div className="min-w-0">
-            <h1 className="dash-saludo font-display">Hola, {primerNombre}</h1>
+            <h1 className="dash-saludo font-display">{saludo}, {primerNombre}</h1>
             <p className="dash-fecha">{fechaHoyTexto}</p>
           </div>
           <div className="dash-cuenta">
