@@ -34,6 +34,7 @@ import ErrorPantalla from '../componentes/ErrorPantalla';
 const InformeCierre = lazy(() => import('../informes/InformeCierre'));
 const InformeMantenimiento = lazy(() => import('../informes/InformeMantenimiento'));
 const InformePreventiva = lazy(() => import('../informes/preventiva/InformePreventiva'));
+const MapaSitios = lazy(() => import('../pantallas/MapaSitios'));
 const InformeFallaCarro = lazy(() => import('../informes/InformeFallaCarro'));
 const ImpresionRapida = lazy(() => import('../pantallas/ImpresionRapida'));
 const ReportabilidadGG = lazy(() => import('../pantallas/ReportabilidadGG'));
@@ -541,6 +542,10 @@ function AppContenido() {
 
   if (view === 'reportabilidad-gg') {
     return <CargandoPantalla><ReportabilidadGG onBack={() => setView('dashboard')} /></CargandoPantalla>;
+  }
+
+  if (view === 'mapa') {
+    return <CargandoPantalla><MapaSitios onBack={() => setView('dashboard')} /></CargandoPantalla>;
   }
 
   if (view === 'impresion') {

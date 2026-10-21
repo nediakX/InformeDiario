@@ -57,7 +57,7 @@ export function esSupervisorGG(perfil: { rut: string | null; rol?: string | null
 /** Bloques del panel principal ("Mini" = versión de una línea, para la columna lateral). */
 export type BloqueInicio = 'contrato' | 'revisar' | 'turno' | 'turnoMini' | 'hoy' | 'generadores' | 'generadoresMini' | 'accesos';
 /** Accesos directos a pantallas. */
-export type IdTarea = 'checklist' | 'gg' | 'impresion' | 'cierre' | 'falla' | 'mantenimiento' | 'preventiva' | 'borradores' | 'recuperar' | 'admin';
+export type IdTarea = 'checklist' | 'gg' | 'impresion' | 'cierre' | 'falla' | 'mantenimiento' | 'preventiva' | 'mapa' | 'borradores' | 'recuperar' | 'admin';
 
 export interface DisenoInicio {
   /** Columna principal: lo que responde la pregunta del rol, en grande. */

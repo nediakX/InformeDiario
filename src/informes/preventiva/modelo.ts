@@ -2,6 +2,7 @@
 // La estructura sigue el informe de referencia "Reporte_mantencion_preventiva_LTE_CMF_09_11-10-2026"
 // (mismas secciones, mismas leyendas y mismo orden de fotos).
 import { uid } from '../../lib/fotos';
+import { coordenadasPorCarro } from '../../datos/sitiosMapa';
 
 /**
  * Cómo se muestra la foto en el Word:
@@ -325,6 +326,8 @@ export const bitacoraDefecto = (sitio: string, sector: string, secciones: Seccio
 
 /** Coordenadas conocidas de cada sitio (las nuevas que se escriban quedan guardadas en el equipo). */
 export const COORDENADAS_CONOCIDAS: Record<string, string> = {
+  // Las del mapa de sitios (datos/sitiosMapa.ts); las de los reportes originales mandan sobre ellas.
+  ...coordenadasPorCarro(),
   LTE_CMF_09: '-26.254449, -69.540413',
   LTE_11: '-26.162619, -69.334636',
   LTE_CMM_11: '-26.162619, -69.334636',

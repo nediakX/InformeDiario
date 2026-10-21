@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useState, type ReactNode } from 'react';
-import { ChevronDown, ClipboardCheck, FileStack, FolderOpen, ChevronRight, Bell, FilePlus, Sun, Moon, Wrench, AlertTriangle, Printer, LogOut, ShieldCheck, FileUp, Fuel, LayoutGrid, RadioTower, type LucideIcon } from 'lucide-react';
+import { ChevronDown, ClipboardCheck, FileStack, FolderOpen, ChevronRight, Bell, FilePlus, Sun, Moon, Wrench, AlertTriangle, Printer, LogOut, ShieldCheck, FileUp, Fuel, LayoutGrid, RadioTower, Map as MapIcon, type LucideIcon } from 'lucide-react';
 import { useSesion, nombreVisible } from '../auth/sesion';
 import { CONFIG_DIVISION } from '../datos/divisiones';
 import './dashboard.css';
@@ -13,6 +13,7 @@ import { semanaDeFecha, DIAS_POR_TURNO } from '../datos/turnos';
 import { estadoChecklistDelDia } from '../informes/checklist/catalogo';
 import MonitorGeneradores from './MonitorGeneradores';
 import { esPreventiva } from '../informes/preventiva/modelo';
+import { SITIOS_MAPA } from '../datos/sitiosMapa';
 import { PorRevisar, ResumenContrato } from './BloquesRol';
 import { DISENO_INICIO, ETIQUETA_CORTA_ROL, ETIQUETA_ROL, ORDEN_COMPLETO, rolDePersona, type BloqueInicio, type IdTarea } from '../datos/roles';
 
@@ -46,7 +47,7 @@ function Tarea({ icono: Icono, color, titulo, estado, tono, etiqueta, ayuda, onC
 }
 
 interface DashboardProps {
-  onNavigate: (view: 'borradores' | 'cierre' | 'checklist' | 'impresion' | 'reportabilidad-gg' | 'admin' | 'perfil') => void;
+  onNavigate: (view: 'borradores' | 'cierre' | 'checklist' | 'impresion' | 'reportabilidad-gg' | 'mapa' | 'admin' | 'perfil') => void;
   /** Informes de hoy (Día y Noche), guardados o todavía pendientes: la persona elige con cuál trabajar. */
   informesHoy?: BorradorEntry[];
   onAbrirInforme: (entry: BorradorEntry) => void;
@@ -184,6 +185,8 @@ export default function Dashboard({
     preventiva: <Tarea icono={RadioTower} color="#0E7C86" titulo="Mantención preventiva de sitio"
       onClick={() => (borradoresPreventiva.length ? setModalMant('preventiva') : onNuevaPreventiva())}
       estado={borradoresPreventiva.length ? `${borradoresPreventiva.length} borrador${borradoresPreventiva.length === 1 ? '' : 'es'}` : 'Paneles, baterías, GG, torre y consolas'} />,
+    mapa: SITIOS_MAPA[division] ? <Tarea icono={MapIcon} color="#2E7D32" titulo="Mapa de sitios" onClick={() => onNavigate('mapa')}
+      estado={`${SITIOS_MAPA[division]!.sitios.length} carros en ${SITIOS_MAPA[division]!.nombre}`} /> : null,
     borradores: <Tarea icono={FolderOpen} color="#55636B" titulo="Borradores" onClick={() => onNavigate('borradores')}
       estado={`${borradorCount} informe${borradorCount === 1 ? '' : 's'} guardado${borradorCount === 1 ? '' : 's'}`} />,
     recuperar: <Tarea icono={FileUp} color="#0E7C86" titulo="Recuperar informe desde Word" onClick={onImportar}
@@ -198,7 +201,7 @@ export default function Dashboard({
     <div className="dash-grupos">
       <section className="dash-grupo" aria-labelledby="dash-grupo-terreno">
         <h2 id="dash-grupo-terreno" className="dash-grupo__titulo"><ClipboardCheck size={15} aria-hidden="true" /> Registros en terreno</h2>
-        <div className="dash-grupo__lista">{tareas.checklist}{tareas.gg}{tareas.impresion}</div>
+        <div className="dash-grupo__lista">{tareas.checklist}{tareas.gg}{tareas.impresion}{tareas.mapa}</div>
       </section>
       <section className="dash-grupo" aria-labelledby="dash-grupo-informes">
         <h2 id="dash-grupo-informes" className="dash-grupo__titulo"><FileStack size={15} aria-hidden="true" /> Otros informes</h2>
