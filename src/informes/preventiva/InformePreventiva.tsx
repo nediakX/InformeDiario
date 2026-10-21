@@ -1,14 +1,15 @@
-// Informe de Mantención Preventiva de sitio (carro LTE): formulario + Word con el formato del
-// informe de referencia. Pensado para llenarse rápido en terreno:
-//  - El sitio completa solo el sector y las coordenadas (las que se escriban quedan recordadas).
-//  - Las fotos ya vienen con su casilla y su leyenda; solo hay que tomarlas (cámara, galería,
-//    pegar con Ctrl+V o escanear los documentos en papel). Las casillas vacías no salen en el Word.
-//  - Bancos de baterías, dados de concreto, vientos y enlaces MMOO se ajustan con un número.
-//  - El personal se carga del turno; se marca quién ejecutó y la bitácora se arma sola.
+// Informe de Mantención Preventiva de sitio (carro LTE): formulario + Word con el formato de los
+// reportes de referencia. El formulario pide solo lo que cambia de un informe a otro:
+//  - Fecha, sitio (sector y coordenadas salen solos) y quién lo crea.
+//  - Personal en turno y quién ejecutó.
+//  - Las fotos (ya vienen con su casilla y leyenda) y las mediciones de voltaje.
+//  - Las horas de la bitácora.
+// Todo lo demás (portada, revisores, autorización, textos de descripción, actividades
+// administrativas y planificadas, contenido de la bitácora) se arma solo igual que en los originales.
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { saveAs } from 'file-saver';
 import {
-  ArrowLeft, Camera, Check, ChevronDown, ClipboardList, Copy, FileText, Image as ImageIcon, Loader2, MapPin, Minus,
+  ArrowLeft, Camera, Check, ChevronDown, Clock, Copy, Image as ImageIcon, Loader2, MapPin, Minus, Pencil,
   Plus, RefreshCw, Save, ScanLine, Trash2, Users, X,
 } from 'lucide-react';
 import logoPsinet from '../../assets/logo_psinet.jpg';
@@ -28,9 +29,9 @@ import { TRABAJADORES } from '../../datos/trabajadores';
 import { getPersonalGuardado } from '../diario/constantes';
 import { useSesion } from '../../auth/sesion';
 import {
-  type DatosPreventiva, type FilaBitacora, type FotoPrev, type ModoPersonal, type PersonaPrev, type SeccionPrev,
-  ADMINISTRATIVAS_DEFECTO, CANTIDAD_DE, CIERRE_DESCRIPCION, COORDENADAS_CONOCIDAS, actividadesDeSecciones, bitacoraDefecto,
-  casillaNueva, nombreEnlace, planificadasDefecto, rehacerCasillas, seccionExtra, seccionesPorDefecto, sinPunto, trabajosDeSecciones,
+  type DatosPreventiva, type FotoPrev, type HorasBitacora, type PersonaPrev, type SeccionPrev,
+  ADMINISTRATIVAS_DEFECTO, CANTIDAD_DE, CIERRE_DESCRIPCION, COORDENADAS_CONOCIDAS, HORAS_DEFECTO, actividadesDeSecciones, bitacoraDefecto,
+  casillaNueva, nombreEnlace, planificadasDefecto, rehacerCasillas, seccionExtra, seccionesPorDefecto, sinPunto,
 } from './modelo';
 import { generarPreventivaWord, nombreArchivoPreventiva } from './word';
 
@@ -55,27 +56,9 @@ const campo = 'w-full p-2 border border-[#DCE1E6] rounded-md text-sm bg-white';
 const etiqueta = 'block text-xs text-[#6B6B6B] font-bold mb-1';
 const btnSec = 'btn-outline text-[#0E4660] px-3 py-1.5 rounded-md text-xs font-bold hover:bg-[#d5e7f8] inline-flex items-center gap-1';
 
-/** Lista de líneas editable (actividades, administrativas…). */
-function ListaEditable({ items, onChange, placeholder, agregar }: { items: string[]; onChange: (v: string[]) => void; placeholder: string; agregar: string }) {
+function Panel({ icono, titulo, resumen, children }: { icono: ReactNode; titulo: string; resumen?: string; children: ReactNode }) {
   return (
-    <div className="space-y-1.5">
-      {items.map((t, i) => (
-        <div key={i} className="flex gap-1.5">
-          <input type="text" value={t} placeholder={placeholder} onChange={e => onChange(items.map((x, k) => (k === i ? e.target.value : x)))} className={campo} />
-          <button type="button" aria-label="Quitar línea" onClick={() => {
-            onChange(items.filter((_, k) => k !== i));
-            registrarDeshacer(`Se quitó «${t.trim().slice(0, 40) || 'una línea vacía'}»`, () => onChange(reinsertar(items.filter((_, k) => k !== i), i, t)));
-          }} className="bg-red-50 text-red-700 px-2 rounded-md hover:bg-red-100"><Trash2 size={14} /></button>
-        </div>
-      ))}
-      <button type="button" onClick={() => onChange([...items, ''])} className={btnSec}><Plus size={13} /> {agregar}</button>
-    </div>
-  );
-}
-
-function Panel({ icono, titulo, resumen, children, abierto = true }: { icono: ReactNode; titulo: string; resumen?: string; children: ReactNode; abierto?: boolean }) {
-  return (
-    <details open={abierto} className="panel p-4 sm:p-5">
+    <details open className="panel p-4 sm:p-5">
       <summary className="panel__summary font-display font-bold text-lg">
         {icono} {titulo}
         {resumen && <span className="ml-auto text-xs font-sans font-bold text-gray-500">{resumen}</span>}
@@ -91,12 +74,13 @@ export default function InformePreventiva({ onBack, borradorInicial = null }: Pr
   const { carros, ubicacionPorCarro } = cfg;
   const d0 = (borradorInicial?.datos ?? null) as Partial<DatosPreventiva> | null;
 
+  // --- Datos que cambian en cada informe ---
   const [fecha, setFecha] = useState(() => d0?.fecha ?? hoyLocalISO());
   const [sitio, setSitio] = useState(() => d0?.sitio ?? carros[0] ?? '');
   const [sector, setSector] = useState(() => d0?.sector ?? ubicacionPorCarro[carros[0]] ?? '');
   const [coordenadas, setCoordenadas] = useState(() => d0?.coordenadas ?? leerCoordenadas()[carros[0]] ?? '');
   const [sitioAMano, setSitioAMano] = useState(() => !!d0?.sitio && !carros.includes(d0.sitio));
-  const [portada, setPortada] = useState<string | null>(() => d0?.portada ?? null);
+  const [editarUbicacion, setEditarUbicacion] = useState(false);
 
   const creadoresLista = useMemo(() => {
     const vistos = new Set<string>();
@@ -108,22 +92,16 @@ export default function InformePreventiva({ onBack, borradorInicial = null }: Pr
   const [creadoNombre, setCreadoNombre] = useState(() => d0?.creadoNombre ?? sinPunto(creadorDefecto.nombre));
   const [creadoCargo, setCreadoCargo] = useState(() => d0?.creadoCargo ?? sinPunto(creadorDefecto.cargo));
   const [creadoAMano, setCreadoAMano] = useState(false);
-  const [revisados, setRevisados] = useState<string[]>(() => d0?.revisados ?? cfg.falla.revisadoText.split('\n').map(sinPunto).filter(Boolean));
-  const [autorizadoNombre, setAutorizadoNombre] = useState(() => d0?.autorizadoNombre ?? (division === 'el_salvador' ? 'Cesar Orellana Martinez.' : cfg.diario.autorizado.nombre));
-  const [autorizadoCargo, setAutorizadoCargo] = useState(() => d0?.autorizadoCargo ?? cfg.diario.autorizado.cargo);
 
   const personalDelTurno = (iso: string): PersonaPrev[] =>
     getPersonalGuardado(letraDeFecha(iso), division).map(p => ({ id: uid(), nombre: sinPunto(p.nombre), cargo: sinPunto(p.cargo), ejecutante: false }));
   const [personal, setPersonal] = useState<PersonaPrev[]>(() => d0?.personal ?? personalDelTurno(d0?.fecha ?? hoyLocalISO()));
-
   const [secciones, setSecciones] = useState<SeccionPrev[]>(() => d0?.secciones ?? seccionesPorDefecto(cfg.vertiv));
-  const [actividades, setActividades] = useState<string[]>(() => d0?.actividades ?? actividadesDeSecciones(secciones));
-  const [cierreDescripcion, setCierreDescripcion] = useState(() => d0?.cierreDescripcion ?? CIERRE_DESCRIPCION);
-  const [administrativas, setAdministrativas] = useState<string[]>(() => d0?.administrativas ?? ADMINISTRATIVAS_DEFECTO);
-  const [planificadas, setPlanificadas] = useState<string[]>(() => d0?.planificadas ?? planificadasDefecto(sitio, sector));
-  const [bitacora, setBitacora] = useState<FilaBitacora[]>(() => d0?.bitacora ?? bitacoraDefecto(sitio, sector, secciones));
-  // Mientras no se editen a mano, las planificadas y la bitácora siguen al sitio elegido.
-  const planificadasTocadasRef = useRef(!!d0);
+  const [horas, setHoras] = useState<HorasBitacora>(() => d0?.horas ?? HORAS_DEFECTO);
+
+  // --- Lo fijo (igual en todos los reportes) ---
+  const revisados = useMemo(() => cfg.falla.revisadoText.split('\n').map(sinPunto).filter(Boolean), [cfg]);
+  const autorizado = division === 'el_salvador' ? { nombre: 'Cesar Orellana Martinez.', cargo: 'ADC' } : cfg.diario.autorizado;
 
   const [generando, setGenerando] = useState(false);
   const [toast, setToast] = useState<{ text: string; error?: boolean } | null>(null);
@@ -132,20 +110,14 @@ export default function InformePreventiva({ onBack, borradorInicial = null }: Pr
   const [seleccion, setSeleccion] = useState<{ seccion: string; foto: string } | null>(null);
   const showToast = (text: string, error = false) => { setToast({ text, error }); setTimeout(() => setToast(null), 3500); };
 
-  // --- Sitio ---
   const elegirSitio = (valor: string) => {
-    if (valor === '__otro') { setSitioAMano(true); return; }
+    if (valor === '__otro') { setSitioAMano(true); setEditarUbicacion(true); setSitio(''); setSector(''); setCoordenadas(''); return; }
     setSitioAMano(false);
     setSitio(valor);
     setSector(ubicacionPorCarro[valor] ?? '');
     setCoordenadas(leerCoordenadas()[valor] ?? '');
-    if (!planificadasTocadasRef.current) {
-      setPlanificadas(planificadasDefecto(valor, ubicacionPorCarro[valor] ?? ''));
-      setBitacora(prev => prev.map((f, i) => (i === 1 && f.actividades[0]?.startsWith('Se realiza mantenimiento preventivo sitio')
-        ? { ...f, actividades: [`Se realiza mantenimiento preventivo sitio ${[valor, (ubicacionPorCarro[valor] ?? '').toUpperCase()].filter(Boolean).join(' ')}`, ...f.actividades.slice(1)] }
-        : f)));
-    }
   };
+  const faltaUbicacion = !sector.trim() || !coordenadas.trim();
 
   // --- Personal ---
   const cambiarPersona = (id: string, patch: Partial<PersonaPrev>) => setPersonal(prev => prev.map(p => (p.id === id ? { ...p, ...patch } : p)));
@@ -159,15 +131,14 @@ export default function InformePreventiva({ onBack, borradorInicial = null }: Pr
   const cargoDe = (nombre: string) => {
     const n = sinPunto(nombre).toLowerCase();
     if (!n) return '';
-    const t = listaTrabajadores.find(x => x.nombre.toLowerCase().includes(n) || n.split(' ').every(p => x.nombre.toLowerCase().includes(p)));
-    return t?.cargo ?? '';
+    return listaTrabajadores.find(x => n.split(/\s+/).every(p => x.nombre.toLowerCase().includes(p)))?.cargo ?? '';
   };
   const nombresSugeridos = useMemo(() => {
     const set = new Set<string>([...getPersonalGuardado('A', division), ...getPersonalGuardado('B', division)].map(p => sinPunto(p.nombre)));
     return [...set];
   }, [division]);
 
-  // --- Secciones y fotos ---
+  // --- Fotos ---
   const cambiarSeccion = (id: string, f: (s: SeccionPrev) => SeccionPrev) => setSecciones(prev => prev.map(s => (s.id === id ? f(s) : s)));
   const cambiarFoto = (sid: string, fid: string, patch: Partial<FotoPrev>) =>
     cambiarSeccion(sid, s => ({ ...s, fotos: s.fotos.map(f => (f.id === fid ? { ...f, ...patch } : f)) }));
@@ -203,8 +174,16 @@ export default function InformePreventiva({ onBack, borradorInicial = null }: Pr
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [seleccion]);
 
-  // --- Bitácora ---
-  const cambiarFila = (id: string, patch: Partial<FilaBitacora>) => setBitacora(prev => prev.map(f => (f.id === id ? { ...f, ...patch } : f)));
+  // --- Datos completos del informe (lo variable + lo fijo) ---
+  const datos: DatosPreventiva = {
+    clase: 'preventiva', fecha, sitio, sector, coordenadas, creadoNombre, creadoCargo,
+    revisados, autorizadoNombre: autorizado.nombre, autorizadoCargo: autorizado.cargo,
+    actividades: actividadesDeSecciones(secciones), cierreDescripcion: CIERRE_DESCRIPCION, personal,
+    administrativas: ADMINISTRATIVAS_DEFECTO, planificadas: planificadasDefecto(sitio, sector), secciones,
+    bitacora: bitacoraDefecto(sitio, sector, secciones, horas), horas,
+  };
+  const datosRef = useRef(datos);
+  useEffect(() => { datosRef.current = datos; });
 
   // --- Borrador en la nube (lista de Mantenimiento, con clase "preventiva") ---
   const [draftId, setDraftId] = useState(() => borradorInicial?.id ?? crypto.randomUUID());
@@ -212,19 +191,12 @@ export default function InformePreventiva({ onBack, borradorInicial = null }: Pr
   const pausarRef = useRef(false);
   const [guardadoEn, setGuardadoEn] = useState<string | null>(borradorInicial?.savedAt ?? null);
   const [guardando, setGuardando] = useState(false);
-  const datos: DatosPreventiva = {
-    clase: 'preventiva', fecha, sitio, sector, coordenadas, creadoNombre, creadoCargo, revisados, autorizadoNombre, autorizadoCargo,
-    portada, actividades, cierreDescripcion, personal, administrativas, planificadas, secciones, bitacora,
-  };
-  const datosRef = useRef(datos);
-  useEffect(() => { datosRef.current = datos; });
   const primeraVezRef = useRef(true);
   useEffect(() => {
     if (primeraVezRef.current) { primeraVezRef.current = false; return; }
     if (pausarRef.current) { pausarRef.current = false; return; }
     const d = datosRef.current;
-    const tieneFotos = d.secciones.some(s => s.fotos.some(f => f.photo)) || !!d.portada;
-    if (!tieneFotos && !enNubeRef.current) return;
+    if (!d.secciones.some(s => s.fotos.some(f => f.photo)) && !enNubeRef.current) return;
     const t = setTimeout(() => {
       const entry: BorradorOtroEntry = {
         id: draftId, tipo: 'mantenimiento', division, fecha: d.fecha, savedAt: new Date().toISOString(),
@@ -235,10 +207,7 @@ export default function InformePreventiva({ onBack, borradorInicial = null }: Pr
       upsertBorradorOtro(entry)
         .then(g => {
           const subidas = mapaFotosSubidas(entry.datos, g.datos);
-          if (subidas.size) {
-            setSecciones(prev => aplicarFotosSubidas(prev, subidas));
-            setPortada(prev => aplicarFotosSubidas(prev, subidas));
-          }
+          if (subidas.size) setSecciones(prev => aplicarFotosSubidas(prev, subidas));
           enNubeRef.current = true;
           setGuardadoEn(g.savedAt);
         })
@@ -246,10 +215,7 @@ export default function InformePreventiva({ onBack, borradorInicial = null }: Pr
         .finally(() => setGuardando(false));
     }, 900);
     return () => clearTimeout(t);
-  }, [
-    draftId, division, fecha, sitio, sector, coordenadas, creadoNombre, creadoCargo, revisados, autorizadoNombre, autorizadoCargo,
-    portada, actividades, cierreDescripcion, personal, administrativas, planificadas, secciones, bitacora,
-  ]);
+  }, [draftId, division, fecha, sitio, sector, coordenadas, creadoNombre, creadoCargo, personal, secciones, horas]);
 
   const borrarBorrador = () => {
     const idPrevio = draftId;
@@ -268,12 +234,12 @@ export default function InformePreventiva({ onBack, borradorInicial = null }: Pr
     });
   };
 
-  // --- Word ---
   const generar = async () => {
     if (!sitio.trim()) { showToast('Indica el sitio.', true); return; }
     if (!fecha) { showToast('Selecciona la fecha.', true); return; }
     if (!fotosListas) { showToast('Agrega al menos una foto.', true); return; }
     if (!personal.some(p => p.ejecutante)) { showToast('Marca quién ejecutó el mantenimiento (en Personal).', true); return; }
+    if (sitio.trim() && coordenadas.trim()) recordarCoordenadas(sitio.trim(), coordenadas.trim());
     setGenerando(true);
     try {
       const blob = await generarPreventivaWord(datosRef.current);
@@ -289,16 +255,20 @@ export default function InformePreventiva({ onBack, borradorInicial = null }: Pr
     }
   };
 
+  // Leyenda de una casilla: fija (como en el original), salvo las fotos que se agregan a mano.
+  const leyendaCasilla = (f: FotoPrev) => f.formato === 'consola' ? [f.titulo, f.descripcion].filter(t => t.trim()).join(' · ') : (f.descripcion.trim() || f.titulo);
+
   const fotoCasilla = (s: SeccionPrev, f: FotoPrev) => {
     const elegida = seleccion?.foto === f.id;
+    const aMano = f.k.startsWith('mano-');
     const esDoc = f.formato === 'doc' || pareceDocumento(f.descripcion, f.titulo, s.titulo);
     return (
       <div key={f.id} className={`rounded-lg border p-2 bg-white flex gap-2 ${elegida ? 'border-[#0E4660] ring-2 ring-[#0E4660]/20' : 'border-[#DCE1E6]'}`}
         onClick={() => setSeleccion({ seccion: s.id, foto: f.id })}>
-        <div className="w-[96px] flex-none">
+        <div className="w-[92px] flex-none">
           <div className="relative">
             <img src={f.photo || PLACEHOLDER} alt="" onClick={e => { if (f.photo) { e.stopPropagation(); setFotoAmpliada(f.photo); } }}
-              className={`w-full h-[72px] object-cover rounded bg-[#eef1f2] ${f.photo ? 'cursor-zoom-in' : ''}`} />
+              className={`w-full h-[68px] object-cover rounded bg-[#eef1f2] ${f.photo ? 'cursor-zoom-in' : ''}`} />
             {f.photo ? (
               <span className="absolute top-1 right-1 bg-[#1e8e3e] text-white rounded-full w-4 h-4 flex items-center justify-center"><Check size={11} /></span>
             ) : (
@@ -319,31 +289,34 @@ export default function InformePreventiva({ onBack, borradorInicial = null }: Pr
           </div>
         </div>
         <div className="flex-1 min-w-0 space-y-1">
-          {(f.titulo || f.formato === 'grande' || f.formato === 'consola') && (
-            <input type="text" value={f.titulo} onChange={e => cambiarFoto(s.id, f.id, { titulo: e.target.value })} placeholder="Título (negrita)" aria-label="Título de la foto"
-              className="w-full text-xs font-bold p-1.5 border border-[#DCE1E6] rounded text-[#0E4660]" />
+          {aMano ? (
+            <textarea value={f.descripcion} rows={2} onChange={e => cambiarFoto(s.id, f.id, { descripcion: e.target.value })} placeholder="Descripción"
+              aria-label="Descripción de la foto" className="w-full text-xs p-1.5 border border-[#DCE1E6] rounded resize-y" />
+          ) : (
+            <p className="text-xs text-[#333] leading-snug first-letter:uppercase">{leyendaCasilla(f)}</p>
           )}
-          <textarea value={f.descripcion} rows={2} onChange={e => cambiarFoto(s.id, f.id, { descripcion: e.target.value })}
-            placeholder={f.formato === 'consola' ? 'Detalle (ej: Enlace a carro CMM-06.)' : 'Descripción'} aria-label="Descripción de la foto"
-            className="w-full text-xs p-1.5 border border-[#DCE1E6] rounded resize-y" />
           {f.valor !== undefined && (
             <input type="text" inputMode="decimal" value={f.valor} onChange={e => cambiarFoto(s.id, f.id, { valor: e.target.value })}
               onBlur={e => { const v = e.target.value.trim(); if (/^\d+([.,]\d+)?$/.test(v)) cambiarFoto(s.id, f.id, { valor: `${v.replace('.', ',')} VDC` }); }}
-              placeholder="Medición (ej: 56,5)" aria-label="Medición en VDC" className="w-full text-xs font-bold p-1.5 border border-[#f1c69d] bg-[#fff8f1] rounded" />
+              placeholder="Voltaje (ej: 56,5)" aria-label="Medición en VDC" className="w-full text-xs font-bold p-1.5 border border-[#f1c69d] bg-[#fff8f1] rounded" />
           )}
           <div className="flex gap-2 text-[11px]">
             {f.photo && <button type="button" onClick={e => { e.stopPropagation(); cambiarFoto(s.id, f.id, { photo: null }); }} className="text-gray-500 underline">Quitar foto</button>}
-            {f.k.startsWith('mano-') && <button type="button" onClick={e => { e.stopPropagation(); quitarCasilla(s.id, f.id); }} className="text-red-700 underline">Quitar casilla</button>}
+            {aMano && <button type="button" onClick={e => { e.stopPropagation(); quitarCasilla(s.id, f.id); }} className="text-red-700 underline">Quitar casilla</button>}
           </div>
         </div>
       </div>
     );
   };
 
-  const opcionesSitio = carros.map(c => ({ valor: c, texto: ubicacionPorCarro[c] ? `${c} — ${ubicacionPorCarro[c]}` : c }));
   const enCreadores = creadoresLista.find(p => p.nombre === sinPunto(creadoNombre) && p.cargo === sinPunto(creadoCargo));
   const valorCreado = creadoAMano ? '__otro' : enCreadores ? `${enCreadores.nombre}|${enCreadores.cargo}` : '__actual';
-  const portadaEfectiva = portada || secciones.find(s => s.clave === 'vista' && s.activa)?.fotos.find(f => f.photo)?.photo || null;
+  const horaCampo = (clave: keyof HorasBitacora, texto: string) => (
+    <div>
+      <label className={etiqueta} htmlFor={`pv-${clave}`}>{texto}</label>
+      <input id={`pv-${clave}`} type="time" value={horas[clave]} onChange={e => setHoras(h => ({ ...h, [clave]: e.target.value }))} className={campo} />
+    </div>
+  );
 
   return (
     <div className="min-h-screen text-[#222] font-sans pb-20">
@@ -353,7 +326,7 @@ export default function InformePreventiva({ onBack, borradorInicial = null }: Pr
             <div className="site-header__plate"><img src={logoPsinet} alt="PSINet" /></div>
             <div className="min-w-0">
               <div className="site-header__title font-display font-bold text-xl leading-tight truncate">Mantención preventiva de sitio</div>
-              <div className="site-header__meta text-xs truncate">Mismo formato que los reportes de mantención preventiva (portada, encabezado, fotos y bitácora)</div>
+              <div className="site-header__meta text-xs truncate">Mismo formato que los reportes de mantención preventiva</div>
             </div>
           </div>
           <div className="site-header__photo"><img src={logoEdificio} alt="" aria-hidden="true" /></div>
@@ -376,8 +349,8 @@ export default function InformePreventiva({ onBack, borradorInicial = null }: Pr
           </div>
         </div>
 
-        <Panel icono={<MapPin size={18} className="panel__summary-icon" />} titulo="1. Sitio y portada" resumen={sitio}>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <Panel icono={<MapPin size={18} className="panel__summary-icon" />} titulo="1. Datos del informe" resumen={sitio}>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
               <label className={etiqueta} htmlFor="pv-fecha">Fecha</label>
               <input id="pv-fecha" type="date" value={fecha} onChange={e => setFecha(e.target.value)} className={campo} />
@@ -385,38 +358,11 @@ export default function InformePreventiva({ onBack, borradorInicial = null }: Pr
             <div>
               <label className={etiqueta} htmlFor="pv-sitio">Sitio</label>
               <select id="pv-sitio" value={sitioAMano ? '__otro' : sitio} onChange={e => elegirSitio(e.target.value)} className={campo}>
-                {opcionesSitio.map(o => <option key={o.valor} value={o.valor}>{o.texto}</option>)}
+                {carros.map(c => <option key={c} value={c}>{ubicacionPorCarro[c] ? `${c} — ${ubicacionPorCarro[c]}` : c}</option>)}
                 <option value="__otro">Otro sitio (escribir)…</option>
               </select>
               {sitioAMano && <input type="text" value={sitio} onChange={e => setSitio(e.target.value)} placeholder="Ej: LTE_CMM_11" aria-label="Código del sitio" className={`${campo} mt-1.5`} />}
             </div>
-            <div>
-              <label className={etiqueta} htmlFor="pv-sector">Sector</label>
-              <input id="pv-sector" type="text" value={sector} onChange={e => setSector(e.target.value)} placeholder="Ej: Cerro La Ballena" className={campo} />
-            </div>
-            <div>
-              <label className={etiqueta} htmlFor="pv-coord">Coordenadas</label>
-              <input id="pv-coord" type="text" value={coordenadas} onChange={e => setCoordenadas(e.target.value)} onBlur={() => { if (sitio.trim() && coordenadas.trim()) recordarCoordenadas(sitio.trim(), coordenadas.trim()); }}
-                placeholder="Ej: -26.254449, -69.540413" className={campo} />
-              <p className="text-[11px] text-gray-500 mt-0.5">Quedan recordadas para la próxima vez que elijas este sitio.</p>
-            </div>
-          </div>
-          <div className="mt-3 flex items-center gap-3 flex-wrap">
-            <img src={portadaEfectiva || PLACEHOLDER} alt="" className="w-[64px] h-[88px] object-cover rounded border border-[#DCE1E6]" />
-            <div className="text-xs text-gray-600 flex-1 min-w-[180px]">
-              <p className="font-bold text-[#0E4660]">Foto de portada</p>
-              <p>{portada ? 'Foto elegida.' : portadaEfectiva ? 'Se usa la vista general del sitio.' : 'Se usa la foto de la plantilla (o la vista general, cuando la cargues).'}</p>
-              <div className="flex gap-2 mt-1">
-                <label htmlFor="pv-portada" className={`${btnSec} cursor-pointer`}><ImageIcon size={13} /> Elegir otra</label>
-                <input id="pv-portada" type="file" accept="image/*" className="hidden" onChange={async e => { const file = e.target.files?.[0]; if (file) setPortada(await fileToDataUrl(file)); e.target.value = ''; }} />
-                {portada && <button type="button" onClick={() => setPortada(null)} className="text-xs underline">Usar la vista general</button>}
-              </div>
-            </div>
-          </div>
-        </Panel>
-
-        <Panel icono={<FileText size={18} className="panel__summary-icon" />} titulo="2. Firmas de la portada" resumen={sinPunto(creadoNombre)} abierto={false}>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div>
               <label className={etiqueta} htmlFor="pv-creado">Creado por</label>
               <select id="pv-creado" value={valorCreado} onChange={e => {
@@ -437,34 +383,41 @@ export default function InformePreventiva({ onBack, borradorInicial = null }: Pr
                 </div>
               )}
             </div>
-            <div>
-              <span className={etiqueta}>Autorizado por</span>
-              <div className="grid grid-cols-[1fr_90px] gap-1.5">
-                <input type="text" value={autorizadoNombre} onChange={e => setAutorizadoNombre(e.target.value)} aria-label="Autorizado por" className={campo} />
-                <input type="text" value={autorizadoCargo} onChange={e => setAutorizadoCargo(e.target.value)} aria-label="Cargo de quien autoriza" className={campo} />
+          </div>
+          {editarUbicacion || faltaUbicacion ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
+              <div>
+                <label className={etiqueta} htmlFor="pv-sector">Sector</label>
+                <input id="pv-sector" type="text" value={sector} onChange={e => setSector(e.target.value)} placeholder="Ej: Cerro La Ballena" className={campo} />
+              </div>
+              <div>
+                <label className={etiqueta} htmlFor="pv-coord">Coordenadas {faltaUbicacion && <span className="font-normal">(se recuerdan para este sitio)</span>}</label>
+                <input id="pv-coord" type="text" value={coordenadas} onChange={e => setCoordenadas(e.target.value)} onBlur={() => { if (sitio.trim() && coordenadas.trim()) recordarCoordenadas(sitio.trim(), coordenadas.trim()); }}
+                  placeholder="Ej: -26.254449, -69.540413" className={campo} />
               </div>
             </div>
-            <div className="md:col-span-2">
-              <span className={etiqueta}>Revisado por</span>
-              <ListaEditable items={revisados} onChange={setRevisados} placeholder="Nombre" agregar="Agregar revisor" />
-            </div>
-          </div>
+          ) : (
+            <p className="text-xs text-gray-600 mt-2 flex items-center gap-1.5 flex-wrap">
+              <MapPin size={12} className="text-[#0E4660]" /> {sector} · {coordenadas}
+              <button type="button" onClick={() => setEditarUbicacion(true)} className="inline-flex items-center gap-0.5 text-[#0E4660] font-bold underline"><Pencil size={11} /> Corregir</button>
+            </p>
+          )}
         </Panel>
 
-        <Panel icono={<Users size={18} className="panel__summary-icon" />} titulo="3. Personal"
-          resumen={`${personal.length} en turno · ${personal.filter(p => p.ejecutante).length} ejecutantes`}>
-          <p className="text-xs text-gray-500 mb-2">Marca <strong>Ejecutó</strong> a quienes hicieron el mantenimiento: van en "Personal Ejecutante" y en la bitácora.</p>
+        <Panel icono={<Users size={18} className="panel__summary-icon" />} titulo="2. Personal"
+          resumen={`${personal.length} en turno · ${personal.filter(p => p.ejecutante).length} ejecutaron`}>
+          <p className="text-xs text-gray-500 mb-2">Marca <strong>Ejecutó</strong> a quienes hicieron el mantenimiento.</p>
           <div className="space-y-1.5">
             {personal.map(p => (
-              <div key={p.id} className="grid grid-cols-[1fr_auto] sm:grid-cols-[1.2fr_1fr_auto_auto] gap-1.5 items-center">
+              <div key={p.id} className="grid grid-cols-[1fr_auto_auto] sm:grid-cols-[1.3fr_1fr_auto_auto] gap-1.5 items-center">
                 <input type="text" value={p.nombre} list="pv-personas" placeholder="Nombre" aria-label="Nombre"
                   onChange={e => cambiarPersona(p.id, { nombre: e.target.value })}
                   onBlur={e => { if (!p.cargo.trim()) { const c = cargoDe(e.target.value); if (c) cambiarPersona(p.id, { cargo: c }); } }} className={campo} />
-                <label className={`sm:order-3 flex items-center gap-1 text-xs font-bold px-2 py-2 rounded-md border cursor-pointer select-none ${p.ejecutante ? 'bg-[#e6f4ea] border-[#b9dfb9] text-[#1e6b34]' : 'border-[#DCE1E6] text-gray-500'}`}>
+                <input type="text" value={p.cargo} placeholder="Cargo" aria-label="Cargo" onChange={e => cambiarPersona(p.id, { cargo: e.target.value })} className={`${campo} hidden sm:block`} />
+                <label className={`flex items-center gap-1 text-xs font-bold px-2 py-2 rounded-md border cursor-pointer select-none ${p.ejecutante ? 'bg-[#e6f4ea] border-[#b9dfb9] text-[#1e6b34]' : 'border-[#DCE1E6] text-gray-500'}`}>
                   <input type="checkbox" checked={p.ejecutante} onChange={e => cambiarPersona(p.id, { ejecutante: e.target.checked })} className="accent-[#1e8e3e]" /> Ejecutó
                 </label>
-                <input type="text" value={p.cargo} placeholder="Cargo" aria-label="Cargo" onChange={e => cambiarPersona(p.id, { cargo: e.target.value })} className={`${campo} sm:order-2`} />
-                <button type="button" aria-label="Quitar persona" onClick={() => quitarPersona(p.id)} className="sm:order-4 bg-red-50 text-red-700 px-2 py-2 rounded-md hover:bg-red-100 justify-self-end"><Trash2 size={14} /></button>
+                <button type="button" aria-label="Quitar persona" onClick={() => quitarPersona(p.id)} className="bg-red-50 text-red-700 px-2 py-2 rounded-md hover:bg-red-100"><Trash2 size={14} /></button>
               </div>
             ))}
           </div>
@@ -475,28 +428,8 @@ export default function InformePreventiva({ onBack, borradorInicial = null }: Pr
           </div>
         </Panel>
 
-        <Panel icono={<ClipboardList size={18} className="panel__summary-icon" />} titulo="4. Descripción y actividades" abierto={false}>
-          <div className="flex items-center justify-between gap-2 mb-1">
-            <span className={etiqueta}>Actividades realizadas (descripción)</span>
-            <button type="button" onClick={() => setActividades(actividadesDeSecciones(secciones))} className="text-[11px] font-bold text-[#0E4660] underline">Rehacer según las secciones</button>
-          </div>
-          <ListaEditable items={actividades} onChange={setActividades} placeholder="Actividad" agregar="Agregar actividad" />
-          <label className={`${etiqueta} mt-3`} htmlFor="pv-cierre">Texto final de la descripción</label>
-          <textarea id="pv-cierre" value={cierreDescripcion} rows={2} onChange={e => setCierreDescripcion(e.target.value)} className={campo} />
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
-            <div>
-              <span className={etiqueta}>Actividades administrativas</span>
-              <ListaEditable items={administrativas} onChange={setAdministrativas} placeholder="Actividad" agregar="Agregar" />
-            </div>
-            <div>
-              <span className={etiqueta}>Actividades planificadas</span>
-              <ListaEditable items={planificadas} onChange={v => { planificadasTocadasRef.current = true; setPlanificadas(v); }} placeholder="Actividad" agregar="Agregar" />
-            </div>
-          </div>
-        </Panel>
-
-        <Panel icono={<Camera size={18} className="panel__summary-icon" />} titulo="5. Registro fotográfico" resumen={`${fotosListas}/${totalFotos} fotos`}>
-          <p className="text-xs text-gray-500 mb-3">Toca una casilla y toma la foto, elígela de la galería o pégala con Ctrl+V (la selección pasa sola a la siguiente vacía). Las casillas sin foto no salen en el Word. Desactiva las secciones que no apliquen al sitio.</p>
+        <Panel icono={<Camera size={18} className="panel__summary-icon" />} titulo="3. Fotos" resumen={`${fotosListas}/${totalFotos}`}>
+          <p className="text-xs text-gray-500 mb-3">Toca una casilla y toma la foto, elígela de la galería o pégala con Ctrl+V (pasa sola a la siguiente vacía). Las casillas sin foto no salen en el Word; quita las secciones que no apliquen al sitio.</p>
           <div className="space-y-3">
             {secciones.map(s => {
               const cant = CANTIDAD_DE[s.clave];
@@ -513,24 +446,22 @@ export default function InformePreventiva({ onBack, borradorInicial = null }: Pr
                   </summary>
                   {s.activa && (
                     <div className="px-2.5 pb-2.5 space-y-2">
-                      <div className="flex flex-wrap items-center gap-2">
-                        {s.mostrarTitulo && (
-                          <input type="text" value={s.titulo} onChange={e => cambiarSeccion(s.id, x => ({ ...x, titulo: e.target.value }))} aria-label="Título de la sección"
-                            className="flex-1 min-w-[200px] text-xs p-1.5 border border-[#DCE1E6] rounded" />
-                        )}
-                        {cant && (
-                          <div className="flex items-center gap-1 text-xs font-bold text-gray-600">
-                            {cant.etiqueta}:
-                            <button type="button" aria-label={`Menos ${cant.etiqueta}`} disabled={(s.cantidad ?? 0) <= 1}
-                              onClick={() => cambiarSeccion(s.id, x => rehacerCasillas(x, Math.max(1, (x.cantidad ?? 1) - 1)))}
-                              className="w-7 h-7 rounded border border-[#DCE1E6] bg-white flex items-center justify-center disabled:opacity-40"><Minus size={13} /></button>
-                            <span className="w-5 text-center">{s.cantidad}</span>
-                            <button type="button" aria-label={`Más ${cant.etiqueta}`} disabled={(s.cantidad ?? 0) >= cant.max}
-                              onClick={() => cambiarSeccion(s.id, x => rehacerCasillas(x, Math.min(cant.max, (x.cantidad ?? 0) + 1)))}
-                              className="w-7 h-7 rounded border border-[#DCE1E6] bg-white flex items-center justify-center disabled:opacity-40"><Plus size={13} /></button>
-                          </div>
-                        )}
-                      </div>
+                      {s.clave === 'extra' && (
+                        <input type="text" value={s.titulo} onChange={e => cambiarSeccion(s.id, x => ({ ...x, titulo: e.target.value }))} aria-label="Título de la sección"
+                          placeholder="Título de la sección" className="w-full text-xs p-1.5 border border-[#DCE1E6] rounded" />
+                      )}
+                      {cant && (
+                        <div className="flex items-center gap-1 text-xs font-bold text-gray-600">
+                          {cant.etiqueta}:
+                          <button type="button" aria-label={`Menos ${cant.etiqueta}`} disabled={(s.cantidad ?? 0) <= 1}
+                            onClick={() => cambiarSeccion(s.id, x => rehacerCasillas(x, Math.max(1, (x.cantidad ?? 1) - 1)))}
+                            className="w-7 h-7 rounded border border-[#DCE1E6] bg-white flex items-center justify-center disabled:opacity-40"><Minus size={13} /></button>
+                          <span className="w-5 text-center">{s.cantidad}</span>
+                          <button type="button" aria-label={`Más ${cant.etiqueta}`} disabled={(s.cantidad ?? 0) >= cant.max}
+                            onClick={() => cambiarSeccion(s.id, x => rehacerCasillas(x, Math.min(cant.max, (x.cantidad ?? 0) + 1)))}
+                            className="w-7 h-7 rounded border border-[#DCE1E6] bg-white flex items-center justify-center disabled:opacity-40"><Plus size={13} /></button>
+                        </div>
+                      )}
                       {s.clave === 'consolas' && (
                         <div className="flex flex-wrap items-center gap-1.5 text-xs">
                           <span className="font-bold text-gray-600">Enlaces MMOO:</span>
@@ -566,40 +497,14 @@ export default function InformePreventiva({ onBack, borradorInicial = null }: Pr
           </button>
         </Panel>
 
-        <Panel icono={<ClipboardList size={18} className="panel__summary-icon" />} titulo="6. Bitácora" abierto={false}>
-          <div className="space-y-3">
-            {bitacora.map((f, i) => (
-              <div key={f.id} className="rounded-lg border border-[#DCE1E6] p-2.5 bg-[#fafbfc] space-y-2">
-                <div className="flex flex-wrap items-end gap-2">
-                  <div><label className={etiqueta} htmlFor={`pv-ini-${f.id}`}>Inicio</label><input id={`pv-ini-${f.id}`} type="time" value={f.inicio} onChange={e => cambiarFila(f.id, { inicio: e.target.value })} className={campo} /></div>
-                  <div><label className={etiqueta} htmlFor={`pv-fin-${f.id}`}>Término</label><input id={`pv-fin-${f.id}`} type="time" value={f.termino} onChange={e => cambiarFila(f.id, { termino: e.target.value })} className={campo} /></div>
-                  <div className="flex-1 min-w-[160px]">
-                    <label className={etiqueta} htmlFor={`pv-per-${f.id}`}>Personal</label>
-                    <select id={`pv-per-${f.id}`} value={f.modoPersonal} onChange={e => cambiarFila(f.id, { modoPersonal: e.target.value as ModoPersonal })} className={campo}>
-                      <option value="turno">Todo el personal en turno</option>
-                      <option value="ejecutantes">Solo quienes ejecutaron</option>
-                      <option value="manual">Escribir a mano</option>
-                    </select>
-                  </div>
-                  <button type="button" aria-label="Quitar fila" onClick={() => {
-                    setBitacora(prev => prev.filter(x => x.id !== f.id));
-                    registrarDeshacer('Se quitó una fila de la bitácora', () => setBitacora(prev => reinsertar(prev, i, f)));
-                  }} className="bg-red-50 text-red-700 px-2 py-2 rounded-md hover:bg-red-100"><Trash2 size={14} /></button>
-                </div>
-                {f.modoPersonal === 'manual' && (
-                  <textarea value={f.personalManual} rows={3} onChange={e => cambiarFila(f.id, { personalManual: e.target.value })} placeholder="Un nombre por línea" aria-label="Personal" className={campo} />
-                )}
-                <div className="flex items-center justify-between">
-                  <span className={etiqueta}>Actividades</span>
-                  {i > 0 && <button type="button" onClick={() => cambiarFila(f.id, { actividades: [f.actividades[0] ?? '', ...trabajosDeSecciones(secciones)] })} className="text-[11px] font-bold text-[#0E4660] underline">Rehacer según las secciones</button>}
-                </div>
-                <ListaEditable items={f.actividades} onChange={v => cambiarFila(f.id, { actividades: v })} placeholder="Actividad" agregar="Agregar actividad" />
-              </div>
-            ))}
+        <Panel icono={<Clock size={18} className="panel__summary-icon" />} titulo="4. Horas de la bitácora" resumen={`${horas.mantInicio} – ${horas.mantTermino}`}>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {horaCampo('planInicio', 'Planificación: inicio')}
+            {horaCampo('planTermino', 'Planificación: término')}
+            {horaCampo('mantInicio', 'Mantención: inicio')}
+            {horaCampo('mantTermino', 'Mantención: término')}
           </div>
-          <button type="button" onClick={() => setBitacora(prev => [...prev, { id: uid(), inicio: '', termino: '', actividades: [''], modoPersonal: 'ejecutantes', personalManual: '' }])} className={`${btnSec} mt-2`}>
-            <Plus size={13} /> Agregar fila
-          </button>
+          <p className="text-[11px] text-gray-500 mt-2">Las actividades y el personal de la bitácora se completan solos con las secciones y el personal de arriba.</p>
         </Panel>
 
         <div className="action-zone">

@@ -70,8 +70,8 @@ export interface DatosPreventiva {
   revisados: string[];
   autorizadoNombre: string;
   autorizadoCargo: string;
-  /** Foto de portada (vacía = la vista general del sitio, o la de la plantilla). */
-  portada: string | null;
+  /** Ya no se usa: la portada es fija (la de los reportes originales). Se conserva por los borradores antiguos. */
+  portada?: string | null;
   actividades: string[];
   cierreDescripcion: string;
   personal: PersonaPrev[];
@@ -79,7 +79,12 @@ export interface DatosPreventiva {
   planificadas: string[];
   secciones: SeccionPrev[];
   bitacora: FilaBitacora[];
+  /** Horas de la bitácora (lo único que cambia de un informe a otro en esa tabla). */
+  horas?: HorasBitacora;
 }
+
+export interface HorasBitacora { planInicio: string; planTermino: string; mantInicio: string; mantTermino: string }
+export const HORAS_DEFECTO: HorasBitacora = { planInicio: '08:00', planTermino: '09:00', mantInicio: '11:30', mantTermino: '13:00' };
 
 export const esPreventiva = (datos: unknown): boolean =>
   !!datos && typeof datos === 'object' && (datos as Record<string, unknown>).clase === 'preventiva';
@@ -255,8 +260,11 @@ export const casillaNueva = (formato: FormatoFoto = 'par'): FotoPrev =>
 // ---------------------------------------------------------------------------------------
 
 /** Actividades de la descripción según las secciones que van en el informe. */
+/** La sección va en el informe: está incluida y tiene al menos una foto. */
+const vaEnInforme = (secciones: SeccionPrev[], k: ClaveSeccion) => secciones.some(s => s.clave === k && s.activa && s.fotos.some(f => f.photo));
+
 export function actividadesDeSecciones(secciones: SeccionPrev[]): string[] {
-  const activa = (k: ClaveSeccion) => secciones.some(s => s.clave === k && s.activa);
+  const activa = (k: ClaveSeccion) => vaEnInforme(secciones, k);
   const lista = ['Inspección general del sitio.'];
   if (activa('fotovoltaico')) lista.push('Limpieza de paneles solares.');
   if (activa('comunicaciones')) lista.push('Revisión y limpieza del gabinete de telecomunicaciones.');
@@ -269,7 +277,7 @@ export function actividadesDeSecciones(secciones: SeccionPrev[]): string[] {
 
 /** Trabajos de la bitácora (segunda fila) según las secciones que van en el informe. */
 export function trabajosDeSecciones(secciones: SeccionPrev[]): string[] {
-  const activa = (k: ClaveSeccion) => secciones.some(s => s.clave === k && s.activa);
+  const activa = (k: ClaveSeccion) => vaEnInforme(secciones, k);
   const lista: string[] = [];
   if (activa('fotovoltaico')) lista.push('Limpieza de sistema fotovoltaico.');
   if (activa('vertiv')) lista.push('Limpieza de gabinetes eléctricos.');
@@ -301,16 +309,16 @@ export const planificadasDefecto = (sitio: string, sector: string) => [
   'Orden y aseo al área de trabajo.',
 ];
 
-export const bitacoraDefecto = (sitio: string, sector: string, secciones: SeccionPrev[]): FilaBitacora[] => [
+export const bitacoraDefecto = (sitio: string, sector: string, secciones: SeccionPrev[], h: HorasBitacora = HORAS_DEFECTO): FilaBitacora[] => [
   {
-    id: uid(), inicio: '08:00', termino: '09:00', modoPersonal: 'turno', personalManual: '',
+    id: 'plan', inicio: h.planInicio, termino: h.planTermino, modoPersonal: 'turno', personalManual: '',
     actividades: [
       'Planificación, coordinación y delegación de las actividades del día.',
       'Se carga los materiales y herramientas para realizar el mantenimiento preventivo.',
     ],
   },
   {
-    id: uid(), inicio: '11:30', termino: '13:00', modoPersonal: 'ejecutantes', personalManual: '',
+    id: 'mant', inicio: h.mantInicio, termino: h.mantTermino, modoPersonal: 'ejecutantes', personalManual: '',
     actividades: [`Se realiza mantenimiento preventivo sitio ${[sitio, sector.toUpperCase()].filter(Boolean).join(' ')}`, ...trabajosDeSecciones(secciones)],
   },
 ];
