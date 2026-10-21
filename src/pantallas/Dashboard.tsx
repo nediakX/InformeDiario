@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useState, type ReactNode } from 'react';
-import { ChevronDown, ClipboardCheck, FileStack, FolderOpen, ChevronRight, Bell, FilePlus, Sun, Moon, Wrench, AlertTriangle, Printer, LogOut, ShieldCheck, UserRound, FileUp, Fuel, type LucideIcon } from 'lucide-react';
+import { ChevronDown, ClipboardCheck, FileStack, FolderOpen, ChevronRight, Bell, FilePlus, Sun, Moon, Wrench, AlertTriangle, Printer, LogOut, ShieldCheck, FileUp, Fuel, type LucideIcon } from 'lucide-react';
 import { useSesion, nombreVisible } from '../auth/sesion';
 import { CONFIG_DIVISION } from '../datos/divisiones';
 import './dashboard.css';
@@ -342,6 +342,21 @@ export default function Dashboard({
               </div>
             </div>
           </div>
+          {/* Cuenta en la barra superior: perfil y salir, compactos */}
+          <div className="site-header__cuenta">
+            <button type="button" className="cuenta-boton" title={`Mi perfil · ${perfil.email}`} onClick={() => onNavigate('perfil')}>
+              <span className="cuenta-boton__avatar" aria-hidden="true">{(primerNombre[0] || '?').toUpperCase()}</span>
+              <span className="cuenta-boton__nombre">{nombreVisible(perfil)}</span>
+              {esAdmin && <span className="cuenta-boton__rol">Admin</span>}
+            </button>
+            <button
+              type="button"
+              onClick={() => { if (window.confirm('¿Cerrar sesión en este dispositivo?')) void cerrarSesion(); }}
+              className="cuenta-salir" aria-label="Cerrar sesión" title="Cerrar sesión"
+            >
+              <LogOut size={16} aria-hidden="true" /><span className="cuenta-salir__txt">Salir</span>
+            </button>
+          </div>
           <div className="site-header__photo">
             <img src={logoEdificio} alt="" aria-hidden="true" />
           </div>
@@ -350,7 +365,7 @@ export default function Dashboard({
       </header>
 
       <main className="dash">
-        {/* Saludo y cuenta */}
+        {/* Saludo, división y vista (por rol o completa) en una sola franja */}
         <div className="dash-top">
           <div className="min-w-0">
             <h1 className="dash-saludo font-display">Hola, {primerNombre}</h1>
@@ -358,27 +373,13 @@ export default function Dashboard({
           </div>
           <div className="dash-cuenta">
             <SelectorDivision />
-            <button type="button" className="dash-usuario dash-usuario--boton" title={`Mi perfil · ${perfil.email}`} onClick={() => onNavigate('perfil')}>
-              <UserRound size={14} aria-hidden="true" />
-              <span className="truncate">{nombreVisible(perfil)}</span>
-              {esAdmin && <span className="dash-usuario__rol">Admin</span>}
-            </button>
-            <button
-              type="button"
-              onClick={() => { if (window.confirm('¿Cerrar sesión en este dispositivo?')) void cerrarSesion(); }}
-              className="dash-salir"
-            >
-              <LogOut size={14} aria-hidden="true" /> Salir
-            </button>
+            <span className="dash-vista">
+              {verTodo ? <>Vista <strong>completa</strong></> : <>Vista de <strong>{ETIQUETA_ROL[rol].toLowerCase()}</strong></>}
+              <button type="button" className="dash-enlace" onClick={alternarVista} aria-pressed={verTodo}>
+                {verTodo ? 'Volver a mi vista' : 'Ver todo'}
+              </button>
+            </span>
           </div>
-        </div>
-
-        {/* Inicio ordenado según el rol (del cargo en el listado de trabajadores); "Ver todo" muestra el inicio completo. */}
-        <div className="dash-vista">
-          <span>{verTodo ? <>Vista <strong>completa</strong></> : <>Vista de <strong>{ETIQUETA_ROL[rol].toLowerCase()}</strong></>}</span>
-          <button type="button" className="dash-enlace" onClick={alternarVista} aria-pressed={verTodo}>
-            {verTodo ? 'Volver a mi vista' : 'Ver todo'}
-          </button>
         </div>
 
         {verTodo ? (

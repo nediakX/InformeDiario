@@ -302,3 +302,15 @@
 
 .dash-gg-sitio__ubicacion { font-size: 0.7rem; color: var(--text-soft); margin-top: -3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .dash-gg-sitio__nombre { font-size: 0.8rem; letter-spacing: -0.01em; }
+
+/* Franja de saludo compacta: saludo a la izquierda; división y vista a la derecha. */
+.dash { padding-top: 16px; gap: 20px; }
+.dash-saludo { font-size: 1.6rem; }
+.dash-fecha { margin-top: 2px; font-size: 0.82rem; }
+.dash-top .dash-vista { display: inline-flex; align-items: center; gap: 8px; margin: 0; font-size: 0.78rem; color: var(--text-soft); padding: 6px 12px; border-radius: 999px; background: #fff; border: 1px solid var(--line); }
+@media (max-width: 720px) {
+  .dash { padding-top: 12px; gap: 16px; }
+  .dash-saludo { font-size: 1.4rem; }
+  .dash-top { align-items: center; gap: 8px; }
+  .dash-cuenta { width: 100%; justify-content: space-between; }
+}
