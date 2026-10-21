@@ -147,9 +147,18 @@ export const DOCUMENTOS: DocumentoImprimible[] = [
   {
     id: 'fatiga',
     nombre: 'Encuesta de Fatiga y Somnolencia',
-    descripcion: 'Se usa solo si alguien presenta pérdida de alerta · en blanco',
+    descripcion: 'Se usa solo si alguien presenta pérdida de alerta · una por persona',
     archivo: '/documentos/Formato_Encuesta_Fatiga_y_somnolencia.pdf',
-    modo: 'turno',
-    cantidadSugerida: 2,
+    modo: 'persona',
+    cantidadSugerida: 0,
+    // Datos del supervisor y del trabajador ya escritos: en terreno solo se marcan SI/NO, la fecha y las firmas.
+    camposSemana: s => [
+      { x: 232, base: 665.4, tamano: 9, ancho: 212, texto: s.supervisor.nombre },
+      { x: 232, base: 684.1, tamano: 9, ancho: 212, texto: s.supervisor.cargo },
+    ],
+    camposPersona: p => [
+      { x: 232, base: 700.9, tamano: 9, ancho: 212, texto: p.nombre },
+      { x: 232, base: 718.9, tamano: 9, ancho: 212, texto: p.cargo },
+    ],
   },
 ];

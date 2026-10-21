@@ -33,12 +33,15 @@ interface Preferencias {
   seleccion: SeleccionDocumento[];
   prellenar: boolean;
   orden: 'persona' | 'documento';
+  /** La Encuesta de Fatiga pasó de "2 en blanco" a "una por persona con nombre". */
+  fatigaConNombre?: boolean;
 }
 
 const preferenciasPorDefecto = (): Preferencias => ({
   seleccion: DOCUMENTOS.map(d => ({ id: d.id, incluir: d.id !== 'fatiga' || d.cantidadSugerida > 0, extra: d.cantidadSugerida })),
   prellenar: true,
   orden: 'persona',
+  fatigaConNombre: true,
 });
 
 function leerPreferencias(): Preferencias {
@@ -49,7 +52,13 @@ function leerPreferencias(): Preferencias {
     return {
       prellenar: guardadas.prellenar ?? base.prellenar,
       orden: guardadas.orden === 'documento' ? 'documento' : 'persona',
-      seleccion: base.seleccion.map(s => guardadas.seleccion?.find(g => g.id === s.id) ?? s),
+      fatigaConNombre: true,
+      seleccion: base.seleccion.map(s => {
+        const g = guardadas.seleccion?.find(x => x.id === s.id);
+        if (!g) return s;
+        // Antes eran copias en blanco: ahora van con nombre, así que las "en blanco" vuelven a 0.
+        return g.id === 'fatiga' && !guardadas.fatigaConNombre ? { ...g, extra: 0 } : g;
+      }),
     };
   } catch {
     return base;
@@ -151,6 +160,23 @@ export default function ImpresionRapida({ onBack }: ImpresionRapidaProps) {
   const totalCopias = DOCUMENTOS.reduce((n, d) => n + copiasDe(d.id), 0);
   const rutsFaltantes = incluidas.filter(p => !p.rut.trim()).length;
 
+  // "Otros": los sugeridos de la división más los trabajadores del listado que no están en el Turno A ni B
+  // (así cada persona aparece una sola vez en el desplegable).
+  const otrosSugeridos = useMemo(() => {
+    const yaListados = [...getDefaultPersonal('A', division), ...getDefaultPersonal('B', division), ...CONFIG_DIVISION[division].personalSugerido];
+    const ruts = new Set(yaListados.map(p => buscarTrabajador(p.nombre, division)?.rut).filter(Boolean));
+    // Mismo nombre aunque esté escrito distinto ("German Votter" / "Votterl German", con o sin tildes).
+    const palabras = (n: string) => n.normalize('NFD').replace(/[\u0300-\u036f.]/g, '').toLowerCase().split(/\s+/).filter(Boolean);
+    const parecido = (a: string, b: string) => {
+      const [pa, pb] = [palabras(a), palabras(b)];
+      const [corto, largo] = pa.length <= pb.length ? [pa, pb] : [pb, pa];
+      return corto.length >= 2 && corto.every(w => largo.some(x => x.startsWith(w) || w.startsWith(x)));
+    };
+    const resto = TRABAJADORES[division]
+      .filter(t => !ruts.has(t.rut) && !yaListados.some(p => parecido(p.nombre, t.nombre)))
+      .map(t => ({ nombre: t.nombre, cargo: t.cargo }));
+    return [...CONFIG_DIVISION[division].personalSugerido, ...resto];
+  }, [division]);
   const nombreBase = useMemo(() => `Kit_Turno${semana.letra}_${semana.inicio}`, [semana]);
 
   const preparar = async (): Promise<Resultado | null> => {
@@ -322,17 +348,10 @@ export default function ImpresionRapida({ onBack }: ImpresionRapidaProps) {
                   <option key={p.nombre} value={`${p.nombre}|${p.cargo}`} disabled={yaEsta(p.nombre)}>{p.nombre.replace(/\.$/, '')} - {p.cargo.replace(/\.$/, '')}</option>
                 ))}
               </optgroup>
-              {CONFIG_DIVISION[division].personalSugerido.length > 0 && (
+              {otrosSugeridos.length > 0 && (
                 <optgroup label="Otros">
-                  {CONFIG_DIVISION[division].personalSugerido.map(p => (
-                    <option key={p.nombre} value={`${p.nombre}|${p.cargo}`} disabled={yaEsta(p.nombre)}>{p.nombre.replace(/\.$/, '')} - {p.cargo.replace(/\.$/, '')}</option>
-                  ))}
-                </optgroup>
-              )}
-              {TRABAJADORES[division].length > 0 && (
-                <optgroup label="Listado de trabajadores">
-                  {TRABAJADORES[division].map(t => (
-                    <option key={t.rut} value={`${t.nombre}|${t.cargo}`} disabled={yaEsta(t.nombre)}>{t.nombre} - {t.cargo}</option>
+                  {otrosSugeridos.map(p => (
+                    <option key={`${p.nombre}|${p.cargo}`} value={`${p.nombre}|${p.cargo}`} disabled={yaEsta(p.nombre)}>{p.nombre.replace(/\.$/, '')} - {p.cargo.replace(/\.$/, '')}</option>
                   ))}
                 </optgroup>
               )}

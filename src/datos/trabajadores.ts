@@ -58,3 +58,18 @@ export function buscarTrabajador(nombre: string, division: Division): Trabajador
   });
   return candidatos.length === 1 ? candidatos[0] : null;
 }
+
+/** RUT sin puntos ni guion, con K mayúscula ("14.352.176-1" → "143521761"). */
+export const rutLimpio = (rut: string | null | undefined) => (rut ?? '').replace(/[^0-9kK]/g, '').toUpperCase();
+
+/**
+ * ¿Es supervisor según el listado de trabajadores (cargo "Supervisor …")? Se busca por el RUT de la
+ * cuenta, igual que la base de datos (tabla public.supervisores), para que lo que muestra la app y lo
+ * que la base permite sean lo mismo.
+ */
+export function esSupervisorDelListado(rut: string | null | undefined, division: Division): boolean {
+  const r = rutLimpio(rut);
+  if (!r) return false;
+  const t = TRABAJADORES[division].find(x => rutLimpio(x.rut) === r);
+  return Boolean(t && /supervisor/i.test(t.cargo));
+}

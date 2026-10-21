@@ -7,6 +7,7 @@ import { saveAs } from 'file-saver';
 import logoPsinet from '../assets/logo_psinet.jpg';
 import logoEdificio from '../assets/LogoEdificio.png';
 import { nombreVisible, useSesion } from '../auth/sesion';
+import { esSupervisorDelListado } from '../datos/trabajadores';
 import { hoyLocalISO } from '../datos/fechas';
 import { letraDeFecha } from '../datos/turnos';
 import { mismaPersona } from '../lib/firma';
@@ -117,7 +118,10 @@ export default function ReportabilidadGG({ onBack }: { onBack: () => void }) {
     return m;
   }, [reportesHoy]);
   const faltanHoy = sitios.filter(s => !ultimoHoyPorSitio.has(s));
-  const puedeEditar = (r: ReporteGG) => esAdmin || r.creadoPor === perfil.id || 'pendiente' in r;
+  // Corregir o borrar reportes ya guardados: solo supervisores (según el listado de trabajadores) y
+  // administradores. Los técnicos solo ingresan reportes; lo que aún no sube (sin señal) sí lo pueden corregir.
+  const esSupervisor = esAdmin || esSupervisorDelListado(perfil.rut, division);
+  const puedeEditar = (r: ReporteGG) => esSupervisor || 'pendiente' in r;
 
   // --- Tabla de reportes -------------------------------------------------------------------------
   // Al abrir se ven solo los reportes de hoy; con "Ver todos" o las fechas se ve el resto.
@@ -517,6 +521,13 @@ export default function ReportabilidadGG({ onBack }: { onBack: () => void }) {
             </label>
           </div>
           <p className="text-[11px] text-gray-500">El Excel trae todos los reportes del filtro, con las mismas columnas de la planilla del formulario.</p>
+          {esSupervisor ? (
+            <p className="text-xs rounded-md px-3 py-2 bg-[#eef5fb] text-[#0E4660] flex items-center gap-1.5">
+              <Pencil size={13} /> <strong>Vista de supervisor:</strong> puedes corregir <Pencil size={11} className="inline" /> o eliminar <Trash2 size={11} className="inline" /> cualquier reporte.
+            </p>
+          ) : (
+            <p className="text-xs rounded-md px-3 py-2 bg-[#f6f7f8] text-gray-600">Si un reporte quedó con un error, avísale a un supervisor: solo los supervisores pueden corregir o eliminar reportes.</p>
+          )}
 
           {errorLista && <p role="alert" className="text-sm rounded-md px-3 py-2 bg-[#fbe9e9] text-[#a32626]">{errorLista}</p>}
           {lista === null && !errorLista && <p className="text-sm text-gray-500 flex items-center gap-2"><Loader2 size={16} className="animate-spin" /> Cargando reportes…</p>}
@@ -528,7 +539,7 @@ export default function ReportabilidadGG({ onBack }: { onBack: () => void }) {
                   <tr>
                     <th>Fecha</th><th>Hora</th><th>Sitio</th><th>Turno</th><th>Reporta</th><th>Comb.</th>
                     <th className="text-right">Horómetro</th><th className="text-right">Partidas</th><th>Refrig.</th><th>Aceite</th>
-                    <th className="text-right">Temp. (°C)</th><th aria-label="Acciones" />
+                    <th className="text-right">Temp. (°C)</th>{esSupervisor && <th aria-label="Acciones" />}
                   </tr>
                 </thead>
                 <tbody>
@@ -545,7 +556,7 @@ export default function ReportabilidadGG({ onBack }: { onBack: () => void }) {
                       <td>{r.nivelRefrigerante ?? '—'}</td>
                       <td className="whitespace-nowrap">{r.nivelAceite ?? '—'}</td>
                       <td className="text-right tabular-nums">{fmtNum(r.temperatura)}</td>
-                      <td>
+                      {esSupervisor && <td>
                         {puedeEditar(r) && (
                           <span className="flex gap-0.5">
                             <button type="button" onClick={() => editar(r)} aria-label={`Corregir reporte de ${r.sitio}`} title="Corregir"
@@ -554,7 +565,7 @@ export default function ReportabilidadGG({ onBack }: { onBack: () => void }) {
                               className="text-red-700 hover:bg-red-50 rounded p-1"><Trash2 size={14} /></button>
                           </span>
                         )}
-                      </td>
+                      </td>}
                     </tr>
                   ))}
                 </tbody>

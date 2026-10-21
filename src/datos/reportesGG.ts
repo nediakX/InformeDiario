@@ -130,9 +130,10 @@ const filaCompleta = (r: ReporteGG) => ({ ...aFila(r), id: r.id, marca_temporal:
 export async function crearReporteGG(r: NuevoReporteGG, creadoPor: string | null): Promise<ReporteGG | ReporteGGPendiente> {
   const nuevo: ReporteGG = { ...r, id: crypto.randomUUID(), marcaTemporal: new Date().toISOString(), creadoPor };
   try {
-    const { data, error } = await supabase.from(TABLA_GG).upsert(filaCompleta(nuevo)).select('*').single();
+    // Si el mismo reporte ya había subido (reintento), no se toca: corregir es solo para supervisores.
+    const { error } = await supabase.from(TABLA_GG).upsert(filaCompleta(nuevo), { ignoreDuplicates: true });
     if (error) throw error;
-    return aReporte(data as Fila);
+    return nuevo;
   } catch (error) {
     if (!esErrorDeRed(error)) throw error;
     const pendiente: ReporteGGPendiente = { ...nuevo, pendiente: true };
@@ -166,7 +167,7 @@ export async function sincronizarPendientesGG(): Promise<number> {
     for (const p of pendientes) {
       const { pendiente: _p, ...reporte } = p;
       void _p;
-      const { error } = await supabase.from(TABLA_GG).upsert(filaCompleta(reporte));
+      const { error } = await supabase.from(TABLA_GG).upsert(filaCompleta(reporte), { ignoreDuplicates: true });
       if (error) { if (esErrorDeRed(error)) break; console.error('No se pudo subir un reporte de GG:', error); continue; }
       guardarPendientes(pendientesGG().filter(x => x.id !== p.id));
       subidos += 1;

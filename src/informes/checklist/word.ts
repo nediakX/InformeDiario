@@ -131,7 +131,22 @@ export async function generarChecklistWord(datos: DatosChecklist, firmas: FirmaP
     p.appendChild(run(rPr, texto(valor)));
   };
 
-  /** ✓ (símbolo Webdings, el mismo de las instrucciones del registro) o X. */
+  /**
+   * El ✓ va como carácter Unicode con letra "Segoe UI Symbol" (y no como símbolo Webdings): los visores
+   * sin Webdings (celulares, Google Docs, algunos lectores) lo mostraban como "α" o "a".
+   */
+  const letraCheck = (rPr: Element) => {
+    let f = hijos(rPr, 'rFonts')[0];
+    if (!f) {
+      f = nuevo('rFonts');
+      const estilo = hijos(rPr, 'rStyle')[0];
+      rPr.insertBefore(f, estilo ? estilo.nextSibling : rPr.firstChild);
+    }
+    for (const a of ['ascii', 'hAnsi', 'cs', 'eastAsia']) f.setAttributeNS(W, `w:${a}`, 'Segoe UI Symbol');
+    for (const a of ['asciiTheme', 'hAnsiTheme', 'cstheme', 'eastAsiaTheme']) f.removeAttributeNS(W, a);
+  };
+
+  /** ✓ (el mismo símbolo de las instrucciones del registro) o X. */
   const marcar = (tc: Element, marca: Marca) => {
     if (!marca) return;
     const p = primerParrafo(tc);
@@ -139,10 +154,8 @@ export async function generarChecklistWord(datos: DatosChecklist, firmas: FirmaP
     negrita(rPr);
     centrar(p);
     if (marca === 'ok') {
-      const sym = nuevo('sym');
-      sym.setAttributeNS(W, 'w:font', 'Webdings');
-      sym.setAttributeNS(W, 'w:char', 'F061');
-      p.appendChild(run(rPr, sym));
+      letraCheck(rPr);
+      p.appendChild(run(rPr, texto('\u2713')));
     } else {
       p.appendChild(run(rPr, texto('X')));
     }
@@ -261,6 +274,17 @@ export async function generarChecklistWord(datos: DatosChecklist, firmas: FirmaP
         linea.appendChild(run(rPr.cloneNode(true) as Element, texto(renglon)));
       });
     }
+  }
+
+  // El ✓ de las instrucciones de la plantilla ("indicar con un ✓…") también viene en Webdings: igual que arriba.
+  for (const sym of Array.from(doc.getElementsByTagNameNS(W, 'sym'))) {
+    if (sym.getAttributeNS(W, 'font') !== 'Webdings' || sym.getAttributeNS(W, 'char')?.toUpperCase() !== 'F061') continue;
+    const r = sym.parentNode as Element | null;
+    if (!r) continue;
+    let rPr = hijos(r, 'rPr')[0];
+    if (!rPr) { rPr = nuevo('rPr'); r.insertBefore(rPr, r.firstChild); }
+    letraCheck(rPr);
+    r.replaceChild(texto('\u2713'), sym);
   }
 
   zip.file('word/document.xml', new XMLSerializer().serializeToString(doc));
