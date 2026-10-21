@@ -16,6 +16,7 @@ import { getDefaultPersonal } from '../informes/diario/constantes';
 import { esErrorDeRed } from '../lib/conexion';
 import { registrarDeshacer } from '../lib/deshacer';
 import { crearExcel } from '../lib/excel';
+import { horometroRetrocede } from '../datos/analisisGG';
 import {
   OPCIONES_ACEITE, OPCIONES_COMBUSTIBLE, OPCIONES_REFRIGERANTE, OPCIONES_TURNO, REPORTAN_GG, SITIOS_GG,
   EVENTO_GG, actualizarReporteGG, crearReporteGG, eliminarReporteGG, leerNumero, listarReportesGG, pendientesGG, restaurarReporteGG,
@@ -313,7 +314,7 @@ export default function ReportabilidadGG({ onBack }: { onBack: () => void }) {
   };
 
   const error = (k: keyof Formulario) => errores[k] ? <span className="text-[11px] text-[#a32626] font-bold">{errores[k]}</span> : null;
-  const horometroBaja = ultimo?.horometro != null && leerNumero(form.horometro) !== null && (leerNumero(form.horometro) as number) < ultimo.horometro;
+  const horometroBaja = ultimo?.horometro != null && leerNumero(form.horometro) !== null && horometroRetrocede(ultimo.horometro, leerNumero(form.horometro) as number);
 
   return (
     <div className="min-h-screen pb-16">

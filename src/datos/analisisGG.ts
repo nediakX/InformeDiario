@@ -7,11 +7,18 @@
 //  - Combustible en 1/4 = crítico (hay que rellenar).
 //  - Aceite "Bajo" = crítico; "Sobre Relleno" = atención. Refrigerante "Minimo" = atención.
 //  - Temperatura: 90 °C o más = atención; 95 °C o más = crítico.
-//  - Horómetro: si baja respecto del reporte anterior, o sube más de lo posible (más horas que las
+//  - Horómetro: si baja más de una décima respecto del reporte anterior (una variación de 0,1 h es
+//    redondeo de lectura, no alerta), o sube más de lo posible (más horas que las
 //    transcurridas), es un dato a revisar (casi siempre un error de digitación). Si un generador que
 //    normalmente suma horas lleva 3 días sin moverse, se avisa (podría no estar operando).
 //  - Partidas: si bajan, o suben mucho más de lo normal en el sitio, se avisa.
 import type { ReporteGG } from './reportesGG';
+
+/** Variación del horómetro que se considera lectura/redondeo y no genera alerta (una décima). */
+export const TOLERANCIA_HOROMETRO = 0.1;
+const EPS = 1e-6;
+/** El horómetro bajó de verdad (más de una décima). */
+export const horometroRetrocede = (anterior: number, actual: number) => actual - anterior < -(TOLERANCIA_HOROMETRO + EPS);
 
 // Mismo valor que COMBUSTIBLE_PCT de reportesGG (aquí aparte para que este cálculo no cargue Supabase).
 const COMBUSTIBLE_PCT: Record<string, number> = { '1/4': 25, '1/2': 50, '3/4': 75, Lleno: 100 };
@@ -91,8 +98,8 @@ export function analizarSitio(sitio: string, reportes: ReporteGG[], hoy: string)
   const deltasHoras: number[] = [];
   for (let i = 1; i < conHoras.length; i++) {
     const horas = (instante(conHoras[i]) - instante(conHoras[i - 1])) / 3_600_000;
-    const d = conHoras[i].horometro! - conHoras[i - 1].horometro!;
-    if (horas > 0 && d >= 0 && d <= horas + 1) deltasHoras.push((d / horas) * 24);
+    const d = Math.max(0, conHoras[i].horometro! - conHoras[i - 1].horometro!);
+    if (horas > 0 && d <= horas + 1) deltasHoras.push((d / horas) * 24);
   }
   const ritmoNormal = mediana(deltasHoras); // horas de uso por día, típico del sitio
   const n = conHoras.length;
@@ -100,14 +107,15 @@ export function analizarSitio(sitio: string, reportes: ReporteGG[], hoy: string)
     const [a, b] = [conHoras[n - 2], conHoras[n - 1]];
     const horas = (instante(b) - instante(a)) / 3_600_000;
     const d = b.horometro! - a.horometro!;
-    if (d < 0) alerta('atencion', 'Horóm. baja', 'Horómetro retrocede', `${fmt(a.horometro!)} → ${fmt(b.horometro!)} h: revisar si se digitó mal.`, b.fecha);
-    else if (horas > 0 && d > horas + 1) alerta('atencion', 'Horóm. salta', 'Salto de horómetro', `Subió ${fmt(d)} h en ${fmt(horas)} h transcurridas: revisar el dato.`, b.fecha);
+    if (horometroRetrocede(a.horometro!, b.horometro!)) alerta('atencion', 'Horóm. baja', 'Horómetro retrocede', `${fmt(a.horometro!)} → ${fmt(b.horometro!)} h: revisar si se digitó mal.`, b.fecha);
+    else if (d > 0 && horas > 0 && d > horas + 1) alerta('atencion', 'Horóm. salta', 'Salto de horómetro', `Subió ${fmt(d)} h en ${fmt(horas)} h transcurridas: revisar el dato.`, b.fecha);
   }
   if (ritmoNormal >= 2 && n >= 3) {
     // Generador que normalmente opera (≥ 2 h/día) y no suma horas en 3 días o más.
     const ultimoH = conHoras[n - 1];
     let k = n - 1;
-    while (k > 0 && conHoras[k - 1].horometro === ultimoH.horometro) k--;
+    // Variaciones de una décima cuentan como "sin moverse" (redondeo de la lectura).
+    while (k > 0 && Math.abs(conHoras[k - 1].horometro! - ultimoH.horometro!) <= TOLERANCIA_HOROMETRO + EPS) k--;
     const primeroIgual = conHoras[k];
     const diasQuieto = diasEntre(primeroIgual.fecha, ultimoH.fecha);
     if (diasQuieto >= 3) alerta('atencion', 'Horóm. detenido', 'Horómetro detenido', `Sin sumar horas desde el ${ddmm(primeroIgual.fecha)} (normal: ~${fmt(ritmoNormal)} h/día). ¿Está operando?`, ultimoH.fecha);
