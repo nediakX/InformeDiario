@@ -6,6 +6,13 @@ import { useSesion } from '../auth/sesion';
 import { hoyLocalISO, sumarDias } from '../datos/fechas';
 import { EVENTO_GG, SITIOS_GG, pendientesGG, suscribirReportesGG, todosLosReportesGG, type ReporteGG } from '../datos/reportesGG';
 import { analizarGeneradores, valorGG, type EstadoGG, type SitioGG } from '../datos/analisisGG';
+import { configDivision, type Division } from '../datos/divisiones';
+
+/** Ubicación del carro de un sitio ("LTE_CMF_01" → "Bloquera"; "LTE_CM_MMOO_01" usa la del carro MMOO_01). */
+function ubicacionDeSitio(sitio: string, division: Division): string {
+  const ubic = configDivision(division).ubicacionPorCarro as Record<string, string>;
+  return ubic[sitio] ?? ubic[sitio.replace(/^LTE_CM_/, '')] ?? ubic[sitio.replace(/^LTE_/, '')] ?? '';
+}
 
 type Dato = 'temperatura' | 'horometro' | 'combustible';
 const DATOS: { valor: Dato; etiqueta: string; unidad: string }[] = [
@@ -62,7 +69,7 @@ function Estanque({ nivel }: { nivel: string | null }) {
   );
 }
 
-function Tarjeta({ s, dato, desde, onAbrir }: { s: SitioGG; dato: Dato; desde: string; onAbrir: () => void }) {
+function Tarjeta({ s, dato, desde, onAbrir, ubicacion }: { s: SitioGG; dato: Dato; desde: string; onAbrir: () => void; ubicacion: string }) {
   const { texto, Icono } = ESTADO[s.estado];
   const pendienteHoy = s.estado === 'ok' && s.diasSinReporte === 1;
   const u = s.ultimo;
@@ -71,7 +78,8 @@ function Tarjeta({ s, dato, desde, onAbrir }: { s: SitioGG; dato: Dato; desde: s
   return (
     <button type="button" className={`dash-gg-sitio dash-gg-sitio--${s.estado}`} onClick={onAbrir}
       title={s.alertas.map(a => `${a.titulo}: ${a.detalle}`).join('\n') || 'Sin alertas'}>
-      <span className="dash-gg-sitio__nombre">{s.sitio.replace(/^LTE_/, '')}</span>
+      <span className="dash-gg-sitio__nombre" title={ubicacion ? `${s.sitio} · ${ubicacion}` : s.sitio}>{s.sitio}</span>
+      {ubicacion && <span className="dash-gg-sitio__ubicacion">{ubicacion}</span>}
       <span className="dash-gg-sitio__estado">
         {pendienteHoy ? <Clock3 size={12} aria-hidden="true" /> : <Icono size={12} aria-hidden="true" />}
         <span>{s.alertas[0]?.corto ?? (pendienteHoy ? 'Pendiente hoy' : texto)}</span>
@@ -153,7 +161,7 @@ export default function MonitorGeneradores({ onAbrir, detalleInicial, compacto }
     filas.push({
       clave: `reporte-${sev}`, severidad: sev,
       titulo: <>{sev === 'critico' ? 'Sin reporte hace 3 días o más' : 'Sin reporte hace 2 días'} · <strong>{lista.length}</strong> generador{lista.length === 1 ? '' : 'es'}</>,
-      detalle: lista.map(a => `${a.sitio.replace(/^LTE_/, '')}${a.fecha ? ` (${a.fecha.slice(8, 10)}/${a.fecha.slice(5, 7)})` : ''}`).join(' · '),
+      detalle: lista.map(a => `${a.sitio}${a.fecha ? ` (${a.fecha.slice(8, 10)}/${a.fecha.slice(5, 7)})` : ''}`).join(' · '),
     });
   }
   for (const a of todas.filter(x => x.tipo === 'equipo')) {
@@ -241,7 +249,7 @@ export default function MonitorGeneradores({ onAbrir, detalleInicial, compacto }
                 </div>
               </div>
               <div className="dash-gg-sitios">
-                {tarjetas.map(s => <Tarjeta key={s.sitio} s={s} dato={dato} desde={desdeGrafico} onAbrir={onAbrir} />)}
+                {tarjetas.map(s => <Tarjeta key={s.sitio} s={s} dato={dato} desde={desdeGrafico} onAbrir={onAbrir} ubicacion={ubicacionDeSitio(s.sitio, division)} />)}
               </div>
             </div>
           )}

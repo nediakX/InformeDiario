@@ -299,3 +299,6 @@
 .dash-rol .dash-turno-hoy { padding: 14px; gap: 12px; }
 .dash-rol .dash-turno-hoy__titulo { font-size: 1.1rem; white-space: nowrap; }
 .dash-rol .dash-turno-hoy__icono { width: 38px; height: 38px; }
+
+.dash-gg-sitio__ubicacion { font-size: 0.7rem; color: var(--text-soft); margin-top: -3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dash-gg-sitio__nombre { font-size: 0.8rem; letter-spacing: -0.01em; }
