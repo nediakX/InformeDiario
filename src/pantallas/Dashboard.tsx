@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useState, type ReactNode } from 'react';
-import { ChevronDown, ClipboardCheck, FileStack, FolderOpen, ChevronRight, Bell, FilePlus, Sun, Moon, Wrench, AlertTriangle, Printer, LogOut, ShieldCheck, FileUp, Fuel, LayoutGrid, type LucideIcon } from 'lucide-react';
+import { ChevronDown, ClipboardCheck, FileStack, FolderOpen, ChevronRight, Bell, FilePlus, Sun, Moon, Wrench, AlertTriangle, Printer, LogOut, ShieldCheck, FileUp, Fuel, LayoutGrid, RadioTower, type LucideIcon } from 'lucide-react';
 import { useSesion, nombreVisible } from '../auth/sesion';
 import { CONFIG_DIVISION } from '../datos/divisiones';
 import './dashboard.css';
@@ -12,6 +12,7 @@ import { hoyLocalISO, formatDiaMes, formatFechaLarga } from '../datos/fechas';
 import { semanaDeFecha, DIAS_POR_TURNO } from '../datos/turnos';
 import { estadoChecklistDelDia } from '../informes/checklist/catalogo';
 import MonitorGeneradores from './MonitorGeneradores';
+import { esPreventiva } from '../informes/preventiva/modelo';
 import { PorRevisar, ResumenContrato } from './BloquesRol';
 import { DISENO_INICIO, ETIQUETA_CORTA_ROL, ETIQUETA_ROL, ORDEN_COMPLETO, rolDePersona, type BloqueInicio, type IdTarea } from '../datos/roles';
 
@@ -63,6 +64,8 @@ interface DashboardProps {
   checklistsCamioneta?: BorradorOtroEntry[];
   onNuevoMantenimiento: () => void;
   onAbrirMantenimiento: (entry: BorradorOtroEntry) => void;
+  /** Nueva Mantención preventiva de sitio (sus borradores van en la lista de Mantenimiento). */
+  onNuevaPreventiva: () => void;
   onNuevaFalla: () => void;
   onAbrirFalla: (entry: BorradorOtroEntry) => void;
   /** Lleva a la pantalla de Borradores ya en la pestaña del tipo indicado. */
@@ -78,12 +81,18 @@ const ESTADO_OTRO_LABEL: Record<'pendiente' | 'iniciado' | 'finalizado', string>
 export default function Dashboard({
   onNavigate, borradorCount, pendientesCount = 0, informesHoy = [], onAbrirInforme, onNuevoInforme,
   borradoresMantenimiento = [], borradoresFalla = [], checklistsCamioneta = [], borradoresSemana = [],
-  onNuevoMantenimiento, onAbrirMantenimiento, onNuevaFalla, onAbrirFalla, onVerBorradores, onImportar,
+  onNuevoMantenimiento, onAbrirMantenimiento, onNuevaPreventiva, onNuevaFalla, onAbrirFalla, onVerBorradores, onImportar,
 }: DashboardProps) {
   const { perfil, esAdmin, pendientesAprobacion, cerrarSesion, division } = useSesion();
   const checklistHoy = estadoChecklistDelDia(checklistsCamioneta, hoyLocalISO(), CONFIG_DIVISION[division].camionetas.length);
   const [modalInformeOpen, setModalInformeOpen] = useState(false);
-  const [modalMantenimientoOpen, setModalMantenimientoOpen] = useState(false);
+  // Modal de Mantenimiento: de generador o preventiva de sitio (cada uno con sus borradores).
+  const [modalMant, setModalMant] = useState<null | 'generador' | 'preventiva'>(null);
+  const modalMantenimientoOpen = modalMant !== null;
+  const setModalMantenimientoOpen = (abierto: false) => { if (!abierto) setModalMant(null); };
+  const borradoresGenerador = borradoresMantenimiento.filter(e => !esPreventiva(e.datos));
+  const borradoresPreventiva = borradoresMantenimiento.filter(e => esPreventiva(e.datos));
+  const borradoresModalMant = modalMant === 'preventiva' ? borradoresPreventiva : borradoresGenerador;
   const [modalFallaOpen, setModalFallaOpen] = useState(false);
 
   // Turno de trabajo (A o B) según el calendario 7x7 y en qué día de su semana va.
@@ -169,9 +178,12 @@ export default function Dashboard({
     falla: <Tarea icono={AlertTriangle} color="#B3261E" titulo="Informe de falla de carro" onClick={() => setModalFallaOpen(true)}
       estado={borradoresFalla.length ? `${borradoresFalla.length} borrador${borradoresFalla.length === 1 ? '' : 'es'}` : 'Sin borradores'}
       etiqueta="En desarrollo" />,
-    mantenimiento: <Tarea icono={Wrench} color="#55636B" titulo="Mantenimiento de generador" onClick={() => setModalMantenimientoOpen(true)}
-      estado={borradoresMantenimiento.length ? `${borradoresMantenimiento.length} borrador${borradoresMantenimiento.length === 1 ? '' : 'es'}` : 'Sin borradores'}
+    mantenimiento: <Tarea icono={Wrench} color="#55636B" titulo="Mantenimiento de generador" onClick={() => setModalMant('generador')}
+      estado={borradoresGenerador.length ? `${borradoresGenerador.length} borrador${borradoresGenerador.length === 1 ? '' : 'es'}` : 'Sin borradores'}
       etiqueta="En desarrollo" />,
+    preventiva: <Tarea icono={RadioTower} color="#0E7C86" titulo="Mantención preventiva de sitio"
+      onClick={() => (borradoresPreventiva.length ? setModalMant('preventiva') : onNuevaPreventiva())}
+      estado={borradoresPreventiva.length ? `${borradoresPreventiva.length} borrador${borradoresPreventiva.length === 1 ? '' : 'es'}` : 'Paneles, baterías, GG, torre y consolas'} />,
     borradores: <Tarea icono={FolderOpen} color="#55636B" titulo="Borradores" onClick={() => onNavigate('borradores')}
       estado={`${borradorCount} informe${borradorCount === 1 ? '' : 's'} guardado${borradorCount === 1 ? '' : 's'}`} />,
     recuperar: <Tarea icono={FileUp} color="#0E7C86" titulo="Recuperar informe desde Word" onClick={onImportar}
@@ -190,7 +202,7 @@ export default function Dashboard({
       </section>
       <section className="dash-grupo" aria-labelledby="dash-grupo-informes">
         <h2 id="dash-grupo-informes" className="dash-grupo__titulo"><FileStack size={15} aria-hidden="true" /> Otros informes</h2>
-        <div className="dash-grupo__lista">{tareas.cierre}{tareas.falla}{tareas.mantenimiento}</div>
+        <div className="dash-grupo__lista">{tareas.cierre}{tareas.preventiva}{tareas.falla}{tareas.mantenimiento}</div>
       </section>
       <section className="dash-grupo" aria-labelledby="dash-grupo-archivo">
         <h2 id="dash-grupo-archivo" className="dash-grupo__titulo"><FolderOpen size={15} aria-hidden="true" /> Archivo</h2>
@@ -506,11 +518,11 @@ export default function Dashboard({
             onClick={event => event.stopPropagation()}
           >
             <div>
-              <h2 className="text-lg font-bold text-[#0E4660]">Mantenimiento de Generador</h2>
+              <h2 className="text-lg font-bold text-[#0E4660]">{modalMant === 'preventiva' ? 'Mantención preventiva de sitio' : 'Mantenimiento de Generador'}</h2>
               <p className="text-sm text-gray-500 mt-1">Continúa un borrador guardado o crea uno nuevo.</p>
             </div>
 
-            {borradoresMantenimiento.slice(0, 4).map(entry => (
+            {borradoresModalMant.slice(0, 4).map(entry => (
               <button
                 key={entry.id}
                 type="button"
@@ -528,19 +540,19 @@ export default function Dashboard({
               </button>
             ))}
 
-            {borradoresMantenimiento.length > 4 && (
+            {borradoresModalMant.length > 4 && (
               <button
                 type="button"
                 onClick={() => { setModalMantenimientoOpen(false); onVerBorradores('mantenimiento'); }}
                 className="text-xs font-bold text-[#0E4660] underline"
               >
-                Ver los {borradoresMantenimiento.length} borradores guardados
+                Ver los {borradoresModalMant.length} borradores guardados
               </button>
             )}
 
             <button
               type="button"
-              onClick={() => { setModalMantenimientoOpen(false); onNuevoMantenimiento(); }}
+              onClick={() => { const tipo = modalMant; setModalMantenimientoOpen(false); if (tipo === 'preventiva') onNuevaPreventiva(); else onNuevoMantenimiento(); }}
               className="w-full flex items-center gap-3 p-4 rounded-lg border-2 border-[#DCE1E6] bg-white hover:bg-[#f0f6fb] transition-colors text-left"
             >
               <span className="flex h-9 w-9 flex-none items-center justify-center rounded-full bg-[#F5B300] text-white">

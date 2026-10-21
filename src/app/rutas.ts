@@ -8,6 +8,7 @@
 //   /cierre                    Informe de Cierre semanal
 //   /mantenimiento/:id?        Mantenimiento de Generador (sin id = nuevo)
 //   /falla/:id?                Informe de Falla — Carro (sin id = nuevo)
+//   /mantencion-preventiva/:id? Mantención preventiva de sitio (sin id = nuevo)
 //   /checklist-camioneta       Checklist diario de la camioneta
 //   /impresion                 Impresión Rápida
 //   /reportabilidad-gg         Reportabilidad de GG (formulario + tabla de grupos generadores)
@@ -15,7 +16,7 @@
 //   /admin/:pestana?           Panel de administración (resumen | actividades | generadores | en-linea | usuarios | actividad | sistema)
 //   /login, /registro          Acceso (solo sin sesión)
 
-export type Vista = 'dashboard' | 'diario' | 'borradores' | 'cierre' | 'mantenimiento' | 'falla-carro' | 'checklist' | 'impresion' | 'reportabilidad-gg' | 'admin' | 'perfil';
+export type Vista = 'dashboard' | 'diario' | 'borradores' | 'cierre' | 'mantenimiento' | 'preventiva' | 'falla-carro' | 'checklist' | 'impresion' | 'reportabilidad-gg' | 'admin' | 'perfil';
 export type TipoBorradores = 'diario' | 'mantenimiento' | 'falla';
 export type PestanaAdmin = 'resumen' | 'actividades' | 'generadores' | 'en-linea' | 'usuarios' | 'actividad' | 'sistema';
 
@@ -26,6 +27,7 @@ export const NOMBRE_PANTALLA: Record<Vista, string> = {
   borradores: 'Borradores',
   cierre: 'Informe de Cierre',
   mantenimiento: 'Mantenimiento de Generador',
+  preventiva: 'Mantención preventiva de sitio',
   'falla-carro': 'Informe de Falla — Carro',
   checklist: 'Checklist de Camioneta',
   impresion: 'Impresión Rápida',
@@ -40,6 +42,7 @@ const BASE: Record<Vista, string> = {
   borradores: '/borradores',
   cierre: '/cierre',
   mantenimiento: '/mantenimiento',
+  preventiva: '/mantencion-preventiva',
   'falla-carro': '/falla',
   checklist: '/checklist-camioneta',
   impresion: '/impresion',

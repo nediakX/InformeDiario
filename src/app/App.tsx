@@ -14,6 +14,7 @@ import { leerRuta, rutaDe, esTipoBorradores, esPestanaAdmin, NOMBRE_PANTALLA, ty
 import { usePresencia } from '../lib/presencia';
 
 import { type BorradorEntry, fetchBorradores, subscribeBorradores, deleteBorrador, deleteBorradores, esSemillaSinEditar, estadoBorrador, upsertBorrador } from '../datos/borradoresDiario';
+import { esPreventiva } from '../informes/preventiva/modelo';
 import { type BorradorOtroEntry, fetchBorradoresOtros, subscribeBorradoresOtros, deleteBorradorOtro, upsertBorradorOtro } from '../datos/borradoresOtros';
 import { formatFechaLarga, hoyLocalISO } from '../datos/fechas';
 import { configDivision } from '../datos/divisiones';
@@ -32,6 +33,7 @@ import BotonSubir from '../componentes/BotonSubir';
 import ErrorPantalla from '../componentes/ErrorPantalla';
 const InformeCierre = lazy(() => import('../informes/InformeCierre'));
 const InformeMantenimiento = lazy(() => import('../informes/InformeMantenimiento'));
+const InformePreventiva = lazy(() => import('../informes/preventiva/InformePreventiva'));
 const InformeFallaCarro = lazy(() => import('../informes/InformeFallaCarro'));
 const ImpresionRapida = lazy(() => import('../pantallas/ImpresionRapida'));
 const ReportabilidadGG = lazy(() => import('../pantallas/ReportabilidadGG'));
@@ -153,7 +155,20 @@ function AppContenido() {
     setView('mantenimiento');
   };
 
+  // La Mantención preventiva de sitio se guarda en la misma lista (tipo mantenimiento, clase "preventiva").
+  const goToNuevaPreventiva = () => {
+    setMantenimientoAAbrir(null);
+    setMantenimientoInstancia(n => n + 1);
+    setView('preventiva');
+  };
+
   const goToAbrirMantenimiento = (entry: BorradorOtroEntry) => {
+    if (esPreventiva(entry.datos)) {
+      setMantenimientoAAbrir(entry);
+      setMantenimientoInstancia(n => n + 1);
+      setView('preventiva', entry.id);
+      return;
+    }
     setMantenimientoAAbrir(entry);
     setMantenimientoInstancia(n => n + 1);
     setView('mantenimiento', entry.id);
@@ -179,7 +194,7 @@ function AppContenido() {
     return lista.find(b => b.id === ruta.param) ?? null;
   };
 
-  const mantenimientoDeRuta = view === 'mantenimiento' ? borradorOtroDeRuta(borradoresMantenimiento, mantenimientoAAbrir) : null;
+  const mantenimientoDeRuta = view === 'mantenimiento' || view === 'preventiva' ? borradorOtroDeRuta(borradoresMantenimiento, mantenimientoAAbrir) : null;
 
   const fallaDeRuta = view === 'falla-carro' ? borradorOtroDeRuta(borradoresFalla, fallaAAbrir) : null;
 
@@ -460,6 +475,7 @@ function AppContenido() {
         checklistsCamioneta={checklistsCamioneta}
         onNuevoMantenimiento={goToNuevoMantenimiento}
         onAbrirMantenimiento={goToAbrirMantenimiento}
+        onNuevaPreventiva={goToNuevaPreventiva}
         onNuevaFalla={goToNuevaFalla}
         onAbrirFalla={goToAbrirFalla}
         onVerBorradores={tipo => setView('borradores', tipo)}
@@ -505,6 +521,10 @@ function AppContenido() {
 
   if (view === 'mantenimiento') {
     return <CargandoPantalla><InformeMantenimiento key={`${mantenimientoInstancia}-${mantenimientoDeRuta?.id ?? 'nuevo'}`} onBack={() => setView('dashboard')} borradorInicial={mantenimientoDeRuta} /></CargandoPantalla>;
+  }
+
+  if (view === 'preventiva') {
+    return <CargandoPantalla><InformePreventiva key={`${mantenimientoInstancia}-${mantenimientoDeRuta?.id ?? 'nuevo'}`} onBack={() => setView('dashboard')} borradorInicial={mantenimientoDeRuta} /></CargandoPantalla>;
   }
 
   if (view === 'falla-carro') {
