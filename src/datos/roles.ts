@@ -27,10 +27,26 @@ export function rolDeCargo(cargo: string): Rol {
   return 'tecnico';
 }
 
-export function rolDePersona(rut: string | null | undefined, nombre: string, division: Division): { rol: Rol; cargo: string | null } {
+export const ROLES: Rol[] = ['tecnico', 'electrico', 'electromecanico', 'supervisor', 'jefe', 'contrato'];
+export const esRol = (v: unknown): v is Rol => typeof v === 'string' && (ROLES as string[]).includes(v);
+
+/** Rol según el listado de trabajadores (sin contar el que asigne un administrador). */
+export function rolDelListado(rut: string | null | undefined, nombre: string, division: Division): { rol: Rol; cargo: string | null } {
   const r = rutLimpio(rut);
   const t = (r && TRABAJADORES[division].find(x => rutLimpio(x.rut) === r)) || buscarTrabajador(nombre, division);
   return t ? { rol: rolDeCargo(t.cargo), cargo: t.cargo } : { rol: 'tecnico', cargo: null };
+}
+
+/** Rol con que trabaja la persona: el asignado por un administrador o, si no hay, el del listado. */
+export function rolDePersona(perfil: { rut: string | null; rol?: string | null }, nombre: string, division: Division): { rol: Rol; asignado: boolean } {
+  if (esRol(perfil.rol)) return { rol: perfil.rol, asignado: true };
+  return { rol: rolDelListado(perfil.rut, nombre, division).rol, asignado: false };
+}
+
+/** Puede corregir y borrar reportes de GG (igual que la función es_supervisor() de la base de datos). */
+export function esSupervisorGG(perfil: { rut: string | null; rol?: string | null }, _division: Division, esSupervisorListado: boolean): boolean {
+  if (esRol(perfil.rol)) return perfil.rol === 'supervisor' || perfil.rol === 'jefe';
+  return esSupervisorListado;
 }
 
 /** Bloques del panel principal ("Mini" = versión de una línea, para la columna lateral). */

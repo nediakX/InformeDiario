@@ -230,6 +230,12 @@ export async function cambiarFaenaUsuario(id: string, faena: Faena) {
   if (error) throw error;
 }
 
+/** Rol de la persona (ordena su inicio; supervisor/jefe corrigen reportes de GG). null = automático. */
+export async function cambiarRolUsuario(id: string, rol: string | null) {
+  const { error } = await supabase.from('perfiles').update({ rol }).eq('id', id);
+  if (error) throw error;
+}
+
 export async function cambiarRolAdmin(id: string, esAdmin: boolean) {
   const { error } = await supabase.from('perfiles').update({ es_admin: esAdmin }).eq('id', id);
   if (error) throw error;

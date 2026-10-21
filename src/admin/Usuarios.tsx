@@ -3,7 +3,9 @@ import { useMemo, useState } from 'react';
 import { Search } from 'lucide-react';
 import { Check, ShieldCheck, ShieldOff, X, RotateCcw } from 'lucide-react';
 import { useSesion, FAENAS, type EstadoCuenta, type Faena, type Perfil } from '../auth/sesion';
-import { cambiarEstadoUsuario, cambiarFaenaUsuario, cambiarRolAdmin } from './datos';
+import { cambiarEstadoUsuario, cambiarFaenaUsuario, cambiarRolAdmin, cambiarRolUsuario } from './datos';
+import { ETIQUETA_ROL, ROLES, esRol, rolDelListado } from '../datos/roles';
+import { divisionDeFaena } from '../datos/divisiones';
 import { TarjetaGrafico } from './graficos';
 import { estadoConexion, type FilaPresencia } from './presencia';
 import PuntoConexion from './PuntoConexion';
@@ -85,7 +87,7 @@ export default function Usuarios({ perfiles, onCambio, presencia, ahora }: {
         <div className="viz-table-wrap">
           <table className="viz-table viz-table--tarjetas">
             <thead>
-              <tr><th>Nombre</th><th>RUT</th><th>División</th><th>Estado</th><th>Conexión</th><th>Último acceso</th><th>Registro</th><th aria-label="Acciones" /></tr>
+              <tr><th>Nombre</th><th>RUT</th><th>División</th><th>Rol</th><th>Estado</th><th>Conexión</th><th>Último acceso</th><th>Registro</th><th aria-label="Acciones" /></tr>
             </thead>
             <tbody>
               {lista.map(p => {
@@ -115,6 +117,28 @@ export default function Usuarios({ perfiles, onCambio, presencia, ahora }: {
                         {!p.faena && <option value="" disabled>Sin división</option>}
                         {FAENAS.map(f => <option key={f.valor} value={f.valor}>{f.etiqueta}</option>)}
                       </select>
+                    </td>
+                    <td data-label="Rol">
+                      {(() => {
+                        const auto = rolDelListado(p.rut, p.nombre, divisionDeFaena(p.faena));
+                        return (
+                          <select
+                            aria-label={`Rol de ${p.nombre || p.email}`}
+                            className="select-division"
+                            value={esRol(p.rol) ? p.rol : ''}
+                            disabled={deshabilitado}
+                            title="Ordena su pantalla de inicio. Supervisor y Jefe de turno además corrigen reportes de GG."
+                            style={{ maxWidth: 180 }}
+                            onChange={e => {
+                              const rol = e.target.value || null;
+                              void ejecutar(p.id, () => cambiarRolUsuario(p.id, rol));
+                            }}
+                          >
+                            <option value="" title={auto.cargo ? `Según el listado: ${auto.cargo}` : 'No está en el listado de trabajadores'}>Auto: {ETIQUETA_ROL[auto.rol]}</option>
+                            {ROLES.map(r => <option key={r} value={r}>{ETIQUETA_ROL[r]}</option>)}
+                          </select>
+                        );
+                      })()}
                     </td>
                     <td data-label="Estado">
                       <div className="flex flex-wrap gap-1">

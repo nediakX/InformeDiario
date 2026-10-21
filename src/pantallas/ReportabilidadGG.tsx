@@ -8,6 +8,7 @@ import logoPsinet from '../assets/logo_psinet.jpg';
 import logoEdificio from '../assets/LogoEdificio.png';
 import { nombreVisible, useSesion } from '../auth/sesion';
 import { esSupervisorDelListado } from '../datos/trabajadores';
+import { esSupervisorGG } from '../datos/roles';
 import { hoyLocalISO } from '../datos/fechas';
 import { letraDeFecha } from '../datos/turnos';
 import { mismaPersona } from '../lib/firma';
@@ -120,7 +121,7 @@ export default function ReportabilidadGG({ onBack }: { onBack: () => void }) {
   const faltanHoy = sitios.filter(s => !ultimoHoyPorSitio.has(s));
   // Corregir o borrar reportes ya guardados: solo supervisores (según el listado de trabajadores) y
   // administradores. Los técnicos solo ingresan reportes; lo que aún no sube (sin señal) sí lo pueden corregir.
-  const esSupervisor = esAdmin || esSupervisorDelListado(perfil.rut, division);
+  const esSupervisor = esAdmin || esSupervisorGG(perfil, division, esSupervisorDelListado(perfil.rut, division));
   const puedeEditar = (r: ReporteGG) => esSupervisor || 'pendiente' in r;
 
   // --- Tabla de reportes -------------------------------------------------------------------------

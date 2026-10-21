@@ -28,6 +28,8 @@ export interface Perfil {
   created_at: string;
   /** Firma del usuario (PNG con fondo transparente, en dataURL). Se pone en el checklist de camioneta. */
   firma?: string | null;
+  /** Rol asignado por un administrador (vacío = automático, según el cargo del listado de trabajadores). */
+  rol?: string | null;
 }
 
 export interface SesionValor {

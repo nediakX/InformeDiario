@@ -136,7 +136,7 @@ export default function Dashboard({
   };
 
   // --- Rol: decide el orden del inicio (solo visual; permisos y datos no cambian) ---
-  const { rol } = rolDePersona(perfil.rut, nombreVisible(perfil), division);
+  const { rol } = rolDePersona(perfil, nombreVisible(perfil), division);
   const [verTodo, setVerTodo] = useState<boolean>(() => {
     try { return localStorage.getItem('psinet_inicio_completo') === '1'; } catch { return false; }
   });
