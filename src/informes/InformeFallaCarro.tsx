@@ -3,8 +3,10 @@ import type * as docx from 'docx';
 import { saveAs } from 'file-saver';
 import { registrarActividad } from '../lib/actividad';
 import {
-  ArrowLeft, Loader2, AlertTriangle, ListChecks, ShieldCheck, Camera, Plus, Trash2, ClipboardList, Sparkles, Save, X, Copy,
+  ArrowLeft, Loader2, AlertTriangle, ListChecks, ShieldCheck, Camera, Plus, Trash2, ClipboardList, Sparkles, Save, X, Copy, ScanLine,
 } from 'lucide-react';
+import EscanerDocumento from '../componentes/EscanerDocumento';
+import { pareceDocumento } from '../lib/documentosEscaneables';
 import logoPsinet from "../assets/logo_psinet.jpg";
 import logoEdificio from "../assets/LogoEdificio.png";
 import VisorFoto, { copiarImagenAlPortapapel } from '../componentes/VisorFoto';
@@ -359,6 +361,8 @@ export default function InformeFallaCarro({ onBack, borradorInicial = null }: In
   const [isGenerating, setIsGenerating] = useState(false);
   const [toastMessage, setToastMessage] = useState<{ text: string; isError?: boolean } | null>(null);
   const [fotoAmpliada, setFotoAmpliada] = useState<string | null>(null);
+  // Casilla para la que se abrió el escáner de documentos (ART, bloqueo, permisos…).
+  const [escanearEn, setEscanearEn] = useState<{ grupoId: string; fotoId: string } | null>(null);
 
   // --- Borrador en la nube (compartido con el equipo, igual que Informe Diario) ---
   const borradorCargadoRef = useRef(false);
@@ -1164,6 +1168,11 @@ export default function InformeFallaCarro({ onBack, borradorInicial = null }: In
                         onClick={e => { if (slot.photo) { e.stopPropagation(); setFotoAmpliada(slot.photo); } }}
                         className={`w-full h-[80px] object-cover rounded mb-1 bg-gray-100 ${slot.photo ? 'cursor-zoom-in' : ''}`}
                       />
+                      <button type="button" onClick={e => { e.stopPropagation(); setEscanearEn({ grupoId: grupo.id, fotoId: slot.id }); }}
+                        className={`w-full flex items-center justify-center gap-1 rounded px-1 py-1 mb-1 text-[10px] font-bold ${pareceDocumento(grupo.nota, grupo.caption, slot.caption) ? 'bg-[#0E4660] text-white' : 'bg-[#e3edf3] text-[#0E4660]'}`}
+                        title="Escanear un documento en papel (ART, bloqueo, permiso…): se recorta y endereza solo">
+                        <ScanLine size={12} aria-hidden="true" /> Escanear
+                      </button>
                       <input type="file" accept="image/*" onChange={e => e.target.files?.[0] && asignarFoto(grupo.id, slot.id, e.target.files[0])} className="text-[9px] w-full mb-1" />
                       <input type="text" value={slot.caption ?? ""} onChange={e => updateFotoCaption(grupo.id, slot.id, e.target.value)} placeholder="Leyenda de esta foto (opcional)" className="w-full text-[9px] p-1 border border-[#DCE1E6] rounded" />
                       <button type="button" onClick={() => removeFotoDeGrupo(grupo.id, slot.id)} className="absolute -top-2 -right-2 bg-red-600 text-white rounded-full w-5 h-5 flex items-center justify-center text-[10px]">×</button>
@@ -1202,6 +1211,19 @@ export default function InformeFallaCarro({ onBack, borradorInicial = null }: In
       )}
 
       {fotoAmpliada && <VisorFoto src={fotoAmpliada} onClose={() => setFotoAmpliada(null)} />}
+
+      {escanearEn && (
+        <EscanerDocumento
+          onCancelar={() => setEscanearEn(null)}
+          onUsar={documento => {
+            const destino = escanearEn;
+            setGrupos(prev => prev.map(g => (g.id === destino.grupoId
+              ? { ...g, fotos: g.fotos.map(f => (f.id === destino.fotoId ? { ...f, photo: documento } : f)) }
+              : g)));
+            setEscanearEn(null);
+          }}
+        />
+      )}
     </div>
   );
 }

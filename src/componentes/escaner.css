@@ -33,3 +33,17 @@
 .escaner__btn--principal:disabled { background: #9fb3bd; cursor: not-allowed; }
 .escaner__btn--secundario { background: #fff; color: #0e4660; border: 1px solid #cbd3d7; }
 .escaner button:focus-visible, .escaner label:focus-within { outline: 3px solid #f5b300; outline-offset: 2px; }
+
+/* Cámara sin bandas negras: el visor toma la misma proporción del video. */
+.escaner__camara { position: relative; margin: 0 auto; width: 100%; border-radius: 10px; overflow: hidden; background: #eef1f2; min-height: 160px; }
+.escaner__camara video { display: block; width: 100%; height: 100%; object-fit: cover; }
+.escaner__camara svg { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.escaner__guia-svg { fill: none; stroke: rgba(245, 179, 0, 0.8); stroke-width: 2px; stroke-dasharray: 8 6; vector-effect: non-scaling-stroke; }
+.escaner__vivo { fill: rgba(245, 179, 0, 0.16); stroke: #f5b300; stroke-width: 3px; vector-effect: non-scaling-stroke; stroke-linejoin: round; transition: fill 0.2s ease, stroke 0.2s ease; }
+.escaner__vivo--listo { fill: rgba(30, 142, 62, 0.2); stroke: #1e8e3e; }
+.escaner__progreso { position: absolute; left: 12px; right: 12px; bottom: 10px; height: 4px; border-radius: 2px; background: rgba(255, 255, 255, 0.45); overflow: hidden; }
+.escaner__progreso > span { display: block; height: 100%; background: #1e8e3e; transform-origin: left center; transition: transform 0.25s linear; }
+.escaner__auto { display: inline-flex; align-items: center; justify-content: center; gap: 6px; margin: 0 auto; padding: 6px 12px; border-radius: 999px; border: 1px solid #cbd3d7; background: #fff; color: #55636b; font-size: 0.78rem; font-weight: 700; cursor: pointer; }
+.escaner__auto--on { background: #e6f4ea; border-color: #b9dfb9; color: #1e6b34; }
+/* Ajuste de esquinas: fondo claro en vez de negro alrededor de la foto. */
+.escaner__visor--ajuste { background: #eef1f2; }

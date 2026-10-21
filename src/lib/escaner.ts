@@ -65,13 +65,20 @@ export function esquinasPorDefecto(ancho: number, alto: number): Esquinas {
   return [{ x: mx, y: my }, { x: ancho - mx, y: my }, { x: ancho - mx, y: alto - my }, { x: mx, y: alto - my }];
 }
 
-/** Busca el contorno de la hoja (el cuadrilátero más grande). null si no lo encuentra. */
-export async function detectarHoja(canvas: HTMLCanvasElement): Promise<Esquinas | null> {
+/**
+ * Busca el contorno de la hoja (el cuadrilátero más grande). null si no lo encuentra.
+ * @param ladoMaximo tamaño de la copia en que se busca: 800 para una foto; ~360 en la vista en vivo
+ *   de la cámara (se repite varias veces por segundo y tiene que ser liviano).
+ */
+export async function detectarHoja(canvas: HTMLCanvasElement | HTMLVideoElement, ladoMaximo = 800): Promise<Esquinas | null> {
   const cv = await cargarOpenCv();
+  const anchoOrigen = canvas instanceof HTMLVideoElement ? canvas.videoWidth : canvas.width;
+  const altoOrigen = canvas instanceof HTMLVideoElement ? canvas.videoHeight : canvas.height;
+  if (!anchoOrigen || !altoOrigen) return null;
   // Se trabaja en una copia chica: más rápido y menos ruido.
   // (Se achica con el lienzo antes de pasarla a OpenCV: en iOS su memoria es muy limitada.)
-  const escala = Math.min(1, 800 / Math.max(canvas.width, canvas.height));
-  const reducido = nuevoLienzo(canvas.width * escala, canvas.height * escala);
+  const escala = Math.min(1, ladoMaximo / Math.max(anchoOrigen, altoOrigen));
+  const reducido = nuevoLienzo(anchoOrigen * escala, altoOrigen * escala);
   const rctx = contexto(reducido);
   rctx.imageSmoothingQuality = 'high';
   rctx.drawImage(canvas, 0, 0, reducido.width, reducido.height);
@@ -118,7 +125,10 @@ export async function detectarHoja(canvas: HTMLCanvasElement): Promise<Esquinas 
   const puntos = mejor as Punto[];
   const cx = puntos.reduce((n, p) => n + p.x, 0) / 4;
   const cy = puntos.reduce((n, p) => n + p.y, 0) / 4;
-  return ordenar(puntos.map(p => ({ x: p.x + (cx - p.x) * 0.012, y: p.y + (cy - p.y) * 0.012 })));
+  // Se entra un poco hacia el centro para no arrastrar el borde del fondo; más cuando la detección
+  // fue sobre una copia chica (cámara en vivo), que es menos precisa.
+  const k = escala * Math.max(anchoOrigen, altoOrigen) < 500 ? 0.022 : 0.012;
+  return ordenar(puntos.map(p => ({ x: p.x + (cx - p.x) * k, y: p.y + (cy - p.y) * k })));
 }
 
 // --- Utilidades de lienzo ------------------------------------------------------------------------

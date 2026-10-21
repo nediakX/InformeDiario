@@ -1,7 +1,9 @@
-// Escáner de documentos (Informe Diario): cámara o imagen → ajustar las 4 esquinas de la hoja →
-// documento enderezado y con aspecto de escaneo (Documento / Color / Original) → se inserta.
+// Escáner de documentos: cámara o imagen → la hoja se detecta sola (en vivo en la cámara) →
+// documento enderezado y con aspecto de escaneo (Color / Blanco y negro / Original) → se inserta.
+// Con "Captura automática" la foto se toma sola cuando la hoja queda quieta y bien encuadrada.
+// Si no se encuentra la hoja, se pasa a ajustar las 4 esquinas a mano.
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
-import { Camera, ImageUp, Loader2, RotateCw, Crop, Check, X, ScanLine } from 'lucide-react';
+import { Camera, ImageUp, Loader2, RotateCw, Crop, Check, X, ScanLine, Zap } from 'lucide-react';
 import {
   aJpeg, aplicarFiltro, cargarImagen, cargarOpenCv, detectarHoja, enderezar, esquinasPorDefecto,
   liberarLienzo, lienzoDesdeImagen, rotar90, type Esquinas, type FiltroEscaneo,
@@ -21,11 +23,23 @@ export default function EscanerDocumento({ onUsar, onCancelar }: {
   onCancelar: () => void;
 }) {
   const [etapa, setEtapa] = useState<Etapa>('camara');
-  const [mensaje, setMensaje] = useState('Encuadra la hoja completa sobre un fondo que contraste y captura.');
+  const MENSAJE_CAMARA = 'Encuadra la hoja sobre un fondo que contraste: se detecta sola.';
+  const [mensaje, setMensaje] = useState(MENSAJE_CAMARA);
   const [ocupado, setOcupado] = useState(false);
   const [sinCamara, setSinCamara] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const [videoTam, setVideoTam] = useState<{ w: number; h: number } | null>(null);
+
+  // Detección en vivo: contorno de la hoja sobre la cámara y captura automática cuando está quieta.
+  const [enVivo, setEnVivo] = useState<Esquinas | null>(null);
+  const [auto, setAuto] = useState<boolean>(() => {
+    try { return localStorage.getItem('psinet_escaner_auto') !== '0'; } catch { return true; }
+  });
+  const [estable, setEstable] = useState(0); // 0..1: cuánto falta para la captura automática
+  const capturandoRef = useRef(false);
+  const autoRef = useRef(auto);
+  const capturarRef = useRef<(q: Esquinas) => void>(() => {});
 
   // Imagen capturada (lienzo de trabajo) y su vista.
   const capturaRef = useRef<HTMLCanvasElement | null>(null);
@@ -65,60 +79,53 @@ export default function EscanerDocumento({ onUsar, onCancelar }: {
     };
   }, [etapa]);
 
+  // Detección en vivo (≈ 4 veces por segundo, sobre una copia chica del cuadro de la cámara).
+  useEffect(() => {
+    if (etapa !== 'camara' || sinCamara) return;
+    let vivo = true;
+    let anterior: Esquinas | null = null;
+    let quietos = 0;
+    const NECESARIOS = 5; // ~1,2 s quieta antes de capturar sola
+    let temporizador: ReturnType<typeof setTimeout>;
+    const vuelta = async () => {
+      if (!vivo) return;
+      const video = videoRef.current;
+      if (video && video.videoWidth && !capturandoRef.current) {
+        try {
+          const q = await detectarHoja(video, 360);
+          if (!vivo) return;
+          setEnVivo(q);
+          if (q && anterior) {
+            const diag = Math.hypot(video.videoWidth, video.videoHeight);
+            const movimiento = q.reduce((n, p, i) => n + Math.hypot(p.x - anterior![i].x, p.y - anterior![i].y), 0) / 4 / diag;
+            quietos = movimiento < 0.015 ? quietos + 1 : 0;
+          } else quietos = 0;
+          anterior = q;
+          setEstable(q ? Math.min(1, quietos / NECESARIOS) : 0);
+          if (q && quietos >= NECESARIOS && autoRef.current) {
+            capturandoRef.current = true;
+            capturarRef.current(q);
+            return;
+          }
+        } catch { /* OpenCV aún cargando: se reintenta */ }
+      }
+      temporizador = setTimeout(() => { void vuelta(); }, 250);
+    };
+    temporizador = setTimeout(() => { void vuelta(); }, 400);
+    return () => { vivo = false; clearTimeout(temporizador); };
+  }, [etapa, sinCamara]);
+  const alternarAuto = () => {
+    const nuevo = !auto;
+    autoRef.current = nuevo;
+    setAuto(nuevo);
+    try { localStorage.setItem('psinet_escaner_auto', nuevo ? '1' : '0'); } catch { /* sin almacenamiento */ }
+  };
+
   // Al cerrar el escáner se libera la memoria de las imágenes (en iOS se acumula hasta fallar).
   useEffect(() => () => {
     liberarLienzo(capturaRef.current);
     liberarLienzo(enderezadoRef.current);
   }, []);
-
-  const prepararAjuste = async (lienzo: HTMLCanvasElement) => {
-    liberarLienzo(capturaRef.current);
-    liberarLienzo(enderezadoRef.current);
-    enderezadoRef.current = null;
-    capturaRef.current = lienzo;
-    setCapturaUrl(lienzo.toDataURL('image/jpeg', 0.9));
-    setTamano({ w: lienzo.width, h: lienzo.height });
-    setEtapa('ajustar');
-    setOcupado(true);
-    setMensaje('Buscando los bordes de la hoja…');
-    try {
-      const detectadas = await detectarHoja(lienzo);
-      setEsquinas(detectadas ?? esquinasPorDefecto(lienzo.width, lienzo.height));
-      setMensaje(detectadas
-        ? 'Revisa las esquinas: arrastra los puntos si no calzan con la hoja.'
-        : 'No se detectó la hoja: arrastra los 4 puntos a las esquinas del documento.');
-    } catch {
-      setEsquinas(esquinasPorDefecto(lienzo.width, lienzo.height));
-      setMensaje('Arrastra los 4 puntos a las esquinas del documento.');
-    } finally {
-      setOcupado(false);
-    }
-  };
-
-  const capturar = () => {
-    const video = videoRef.current;
-    if (!video || !video.videoWidth) return;
-    const lienzo = document.createElement('canvas');
-    const escala = Math.min(1, 2000 / Math.max(video.videoWidth, video.videoHeight));
-    lienzo.width = Math.round(video.videoWidth * escala);
-    lienzo.height = Math.round(video.videoHeight * escala);
-    const ctx = lienzo.getContext('2d');
-    if (!ctx) { setMensaje('El teléfono no tiene memoria libre para la foto. Cierra otras pestañas e intenta de nuevo.'); return; }
-    ctx.drawImage(video, 0, 0, lienzo.width, lienzo.height);
-    void prepararAjuste(lienzo);
-  };
-
-  const elegirImagen = async (archivo: File) => {
-    const url = URL.createObjectURL(archivo);
-    try {
-      const img = await cargarImagen(url);
-      void prepararAjuste(lienzoDesdeImagen(img));
-    } catch {
-      setMensaje('No se pudo leer esa imagen. Prueba con otra.');
-    } finally {
-      URL.revokeObjectURL(url);
-    }
-  };
 
   const generar = async (lienzo: HTMLCanvasElement, f: FiltroEscaneo) => {
     setOcupado(true);
@@ -134,14 +141,14 @@ export default function EscanerDocumento({ onUsar, onCancelar }: {
     }
   };
 
-  const recortar = async () => {
-    if (!capturaRef.current || !esquinas) return;
+  const recortar = async (esq: Esquinas | null = esquinas, base: HTMLCanvasElement | null = capturaRef.current) => {
+    if (!base || !esq) return;
     setOcupado(true);
     setMensaje('Enderezando y limpiando el documento…');
     try {
       // Se deja respirar a la interfaz para que se vea el mensaje antes del cálculo.
       await new Promise(r => setTimeout(r, 30));
-      const recto = await enderezar(capturaRef.current, esquinas);
+      const recto = await enderezar(base, esq);
       liberarLienzo(enderezadoRef.current);
       enderezadoRef.current = recto;
       setEtapa('resultado');
@@ -153,6 +160,63 @@ export default function EscanerDocumento({ onUsar, onCancelar }: {
       setOcupado(false);
     }
   };
+
+  const prepararAjuste = async (lienzo: HTMLCanvasElement, conocidas?: Esquinas | null) => {
+    liberarLienzo(capturaRef.current);
+    liberarLienzo(enderezadoRef.current);
+    enderezadoRef.current = null;
+    capturaRef.current = lienzo;
+    setCapturaUrl(lienzo.toDataURL('image/jpeg', 0.9));
+    setTamano({ w: lienzo.width, h: lienzo.height });
+    setEtapa('ajustar');
+    setOcupado(true);
+    setMensaje('Buscando los bordes de la hoja…');
+    let detectadas: Esquinas | null = conocidas ?? null;
+    try {
+      if (!detectadas) detectadas = await detectarHoja(lienzo);
+    } catch { detectadas = null; }
+    if (detectadas) {
+      // Hoja encontrada: se recorta de inmediato (las esquinas se pueden corregir después con "Ajustar bordes").
+      setEsquinas(detectadas);
+      setOcupado(false);
+      await recortar(detectadas, lienzo);
+      return;
+    }
+    setEsquinas(esquinasPorDefecto(lienzo.width, lienzo.height));
+    setMensaje('No se detectó la hoja: arrastra los 4 puntos a las esquinas del documento.');
+    setOcupado(false);
+  };
+
+  const capturar = (vivas?: Esquinas | null) => {
+    const video = videoRef.current;
+    if (!video || !video.videoWidth) { capturandoRef.current = false; return; }
+    const lienzo = document.createElement('canvas');
+    const escala = Math.min(1, 2000 / Math.max(video.videoWidth, video.videoHeight));
+    lienzo.width = Math.round(video.videoWidth * escala);
+    lienzo.height = Math.round(video.videoHeight * escala);
+    const ctx = lienzo.getContext('2d');
+    if (!ctx) { setMensaje('El teléfono no tiene memoria libre para la foto. Cierra otras pestañas e intenta de nuevo.'); return; }
+    ctx.drawImage(video, 0, 0, lienzo.width, lienzo.height);
+    // Las esquinas vistas en vivo están en el tamaño del video: se llevan al de la foto.
+    const k = lienzo.width / video.videoWidth;
+    const conocidas = vivas ? (vivas.map(p => ({ x: p.x * k, y: p.y * k })) as Esquinas) : null;
+    void prepararAjuste(lienzo, conocidas);
+  };
+
+  useEffect(() => { capturarRef.current = capturar; });
+
+  const elegirImagen = async (archivo: File) => {
+    const url = URL.createObjectURL(archivo);
+    try {
+      const img = await cargarImagen(url);
+      void prepararAjuste(lienzoDesdeImagen(img));
+    } catch {
+      setMensaje('No se pudo leer esa imagen. Prueba con otra.');
+    } finally {
+      URL.revokeObjectURL(url);
+    }
+  };
+
 
   const cambiarFiltro = (f: FiltroEscaneo) => {
     setFiltro(f);
@@ -168,10 +232,12 @@ export default function EscanerDocumento({ onUsar, onCancelar }: {
   };
 
   const volverACapturar = () => {
+    capturandoRef.current = false;
+    setEnVivo(null); setEstable(0);
     liberarLienzo(capturaRef.current); capturaRef.current = null;
     liberarLienzo(enderezadoRef.current); enderezadoRef.current = null;
     setEsquinas(null); setCapturaUrl(null); setResultado(null);
-    setMensaje('Encuadra la hoja completa sobre un fondo que contraste y captura.');
+    setMensaje(MENSAJE_CAMARA);
     setEtapa('camara');
   };
 
@@ -209,9 +275,20 @@ export default function EscanerDocumento({ onUsar, onCancelar }: {
                 <p>No se pudo abrir la cámara en este navegador. Elige una foto del documento desde la galería o la cámara del teléfono.</p>
               </div>
             ) : (
-              <div className="escaner__visor">
-                <video ref={videoRef} autoPlay muted playsInline />
-                <div className="escaner__guia" aria-hidden="true" />
+              <div className="escaner__camara"
+                style={videoTam ? { aspectRatio: `${videoTam.w} / ${videoTam.h}`, width: `min(100%, calc(60vh * ${(videoTam.w / videoTam.h).toFixed(4)}))` } : undefined}>
+                <video ref={videoRef} autoPlay muted playsInline
+                  onLoadedMetadata={e => { const v = e.currentTarget; if (v.videoWidth) setVideoTam({ w: v.videoWidth, h: v.videoHeight }); }} />
+                {videoTam && (
+                  <svg viewBox={`0 0 ${videoTam.w} ${videoTam.h}`} preserveAspectRatio="none" aria-hidden="true">
+                    {enVivo
+                      ? <polygon points={enVivo.map(p => `${p.x},${p.y}`).join(' ')} className={`escaner__vivo ${estable >= 1 ? 'escaner__vivo--listo' : ''}`} />
+                      : <rect x={videoTam.w * 0.07} y={videoTam.h * 0.07} width={videoTam.w * 0.86} height={videoTam.h * 0.86} rx={12} className="escaner__guia-svg" />}
+                  </svg>
+                )}
+                {enVivo && auto && (
+                  <span className="escaner__progreso" aria-hidden="true"><span style={{ transform: `scaleX(${estable})` }} /></span>
+                )}
               </div>
             )}
             <div className="escaner__acciones">
@@ -220,11 +297,16 @@ export default function EscanerDocumento({ onUsar, onCancelar }: {
                 <input type="file" accept="image/*" className="sr-only" onChange={e => { const f = e.target.files?.[0]; if (f) void elegirImagen(f); e.target.value = ''; }} />
               </label>
               {!sinCamara && (
-                <button type="button" onClick={capturar} className="escaner__btn escaner__btn--principal">
+                <button type="button" onClick={() => { capturandoRef.current = true; capturar(enVivo); }} className="escaner__btn escaner__btn--principal">
                   <Camera size={16} aria-hidden="true" /> Capturar
                 </button>
               )}
             </div>
+            {!sinCamara && (
+              <button type="button" role="switch" aria-checked={auto} onClick={alternarAuto} className={`escaner__auto ${auto ? 'escaner__auto--on' : ''}`}>
+                <Zap size={14} aria-hidden="true" /> Captura automática {auto ? 'activada' : 'desactivada'}
+              </button>
+            )}
           </>
         )}
 
@@ -259,7 +341,7 @@ export default function EscanerDocumento({ onUsar, onCancelar }: {
             </div>
             <div className="escaner__acciones">
               <button type="button" onClick={volverACapturar} className="escaner__btn escaner__btn--secundario">Tomar otra</button>
-              <button type="button" onClick={() => void recortar()} disabled={ocupado || !esquinas} className="escaner__btn escaner__btn--principal">
+              <button type="button" onClick={() => void recortar(esquinas, capturaRef.current)} disabled={ocupado || !esquinas} className="escaner__btn escaner__btn--principal">
                 <Crop size={16} aria-hidden="true" /> Recortar documento
               </button>
             </div>

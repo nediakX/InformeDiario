@@ -3,8 +3,10 @@ import type * as docx from 'docx';
 import { saveAs } from 'file-saver';
 import { registrarActividad } from '../lib/actividad';
 import {
-  ArrowLeft, Loader2, Wrench, ClipboardList, Camera, Gauge, ListChecks, Plus, Trash2, Save, X, Copy, Image as ImageIcon,
+  ArrowLeft, Loader2, Wrench, ClipboardList, Camera, Gauge, ListChecks, Plus, Trash2, Save, X, Copy, Image as ImageIcon, ScanLine,
 } from 'lucide-react';
+import EscanerDocumento from '../componentes/EscanerDocumento';
+import { pareceDocumento } from '../lib/documentosEscaneables';
 import logoPsinet from "../assets/logo_psinet.jpg";
 import logoEdificio from "../assets/LogoEdificio.png";
 import VisorFoto, { copiarImagenAlPortapapel } from '../componentes/VisorFoto';
@@ -194,6 +196,8 @@ export default function InformeMantenimiento({ onBack, borradorInicial = null }:
   const [isGenerating, setIsGenerating] = useState(false);
   const [toastMessage, setToastMessage] = useState<{ text: string; isError?: boolean } | null>(null);
   const [fotoAmpliada, setFotoAmpliada] = useState<string | null>(null);
+  // Casilla para la que se abrió el escáner de documentos (ART, bloqueo/LOTO, permisos…).
+  const [escanearFotoId, setEscanearFotoId] = useState<string | null>(null);
   const [selectedFotoId, setSelectedFotoId] = useState<string | null>(null);
 
   // --- Borrador en la nube (compartido con el equipo, igual que Informe Diario) ---
@@ -1004,6 +1008,11 @@ export default function InformeMantenimiento({ onBack, borradorInicial = null }:
                           <ImageIcon size={12} />
                         </label>
                       </div>
+                      <button type="button" onClick={e => { e.stopPropagation(); setEscanearFotoId(item.id); }}
+                        className={`w-full mt-1 flex items-center justify-center gap-1 rounded py-1 text-[10px] font-bold ${pareceDocumento(item.caption, item.section, item.description) ? 'bg-[#ED7D31] text-white' : 'bg-[#e3edf3] text-[#0E4660]'}`}
+                        title="Escanear un documento en papel (ART, bloqueo/LOTO, permiso…): se recorta y endereza solo">
+                        <ScanLine size={12} aria-hidden="true" /> Escanear
+                      </button>
                     </div>
                     <div className="flex-1 space-y-1.5">
                       <input type="text" value={item.caption} onChange={e => updateFoto(item.id, { caption: e.target.value })} placeholder="Título / leyenda de la foto" className="w-full font-bold text-sm p-1.5 border border-[#DCE1E6] rounded text-[#0E4660]" />
@@ -1131,6 +1140,13 @@ export default function InformeMantenimiento({ onBack, borradorInicial = null }:
       )}
 
       {fotoAmpliada && <VisorFoto src={fotoAmpliada} onClose={() => setFotoAmpliada(null)} />}
+
+      {escanearFotoId && (
+        <EscanerDocumento
+          onCancelar={() => setEscanearFotoId(null)}
+          onUsar={documento => { updateFoto(escanearFotoId, { photo: documento }); setEscanearFotoId(null); }}
+        />
+      )}
     </div>
   );
 }
