@@ -1,7 +1,7 @@
 -- Rol de cada persona, asignado por un administrador (pestaña Usuarios del panel de administración).
 -- Vacío = automático: se toma del cargo en el listado de trabajadores. El rol ordena la pantalla de
 -- inicio y, si es "supervisor" o "jefe", permite corregir o borrar reportes de GG.
--- Se puede ejecutar más de una vez.
+-- Se puede ejecutar más de una vez. Incluye lo de reportes_gg_supervisores.sql (no hace falta correr ese aparte).
 
 alter table public.perfiles add column if not exists rol text;
 do $$
@@ -13,6 +13,23 @@ begin
 end $$;
 -- Solo los administradores pueden cambiarlo: la política "perfiles_update_admin" ya limita los cambios
 -- a perfiles a los administradores, y "actualizar_mi_perfil" no toca esta columna.
+
+-- Supervisores según el listado de trabajadores (por RUT sin puntos ni guion).
+create table if not exists public.supervisores (
+  rut text primary key,
+  nombre text not null default '',
+  division text not null default 'el_salvador'
+);
+alter table public.supervisores enable row level security;
+drop policy if exists "supervisores_select" on public.supervisores;
+create policy "supervisores_select" on public.supervisores for select to authenticated using (true);
+
+insert into public.supervisores (rut, nombre, division) values
+  ('143521761', 'Díaz Cornejo Max Andrés', 'el_salvador'),
+  ('179072378', 'Fernández Ortega Luis Humberto', 'el_salvador'),
+  ('177384836', 'Pailapan Hormazabal Camilo Andrés', 'el_salvador'),
+  ('187106818', 'Santana Ramos Patricio Ernesto', 'el_salvador')
+on conflict (rut) do update set nombre = excluded.nombre, division = excluded.division;
 
 -- Supervisor para la Reportabilidad de GG: rol asignado supervisor/jefe, o (sin rol asignado) el
 -- cargo "Supervisor de Operaciones" del listado (tabla supervisores).
@@ -33,6 +50,18 @@ as $$
                    where s.rut = upper(regexp_replace(coalesce(p.rut, ''), '[^0-9kK]', '', 'g')))))
   );
 $$;
+
+-- Reportabilidad de GG: solo supervisores (y administradores) corrigen o borran reportes.
+drop policy if exists "reportes_gg_update" on public.reportes_gg;
+create policy "reportes_gg_update" on public.reportes_gg
+for update to authenticated
+using (public.puede_ver_division(division) and (public.es_supervisor() or public.es_admin()))
+with check (public.puede_ver_division(division));
+
+drop policy if exists "reportes_gg_delete" on public.reportes_gg;
+create policy "reportes_gg_delete" on public.reportes_gg
+for delete to authenticated
+using (public.puede_ver_division(division) and (public.es_supervisor() or public.es_admin()));
 
 -- Bitácora: queda registrado quién cambió el rol de quién.
 create or replace function public.auditar_perfil()
