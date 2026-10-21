@@ -124,3 +124,91 @@
 @media (prefers-reduced-motion: reduce) {
   .dash-turno-hoy, .dash-tarea, .dash-tarea__flecha { transition: none; }
 }
+
+/* Opciones agrupadas por para qué sirven */
+.dash-grupos { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; align-items: start; }
+.dash-grupo { display: grid; gap: 8px; }
+.dash-grupo__titulo {
+  display: flex; align-items: center; gap: 6px; margin: 0; padding-bottom: 6px; border-bottom: 2px solid var(--line);
+  font-size: 0.78rem; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; color: var(--brand-blue);
+}
+.dash-grupo__lista { display: grid; gap: 8px; }
+.dash-grupo .dash-tarea { padding: 10px 12px; }
+.dash-grupo .dash-tarea__icono { width: 36px; height: 36px; }
+
+/* Monitoreo de generadores: compacto (conteo + 3 alertas); el detalle por generador se abre aparte */
+.dash-gg__cabecera { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; margin: 0 0 10px; }
+.dash-gg__cabecera h2 { margin: 0; font-size: 1.35rem; font-weight: 700; color: var(--brand-blue); }
+.dash-gg__abrir { margin-left: auto; }
+.dash-gg__caja { background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 12px; display: grid; gap: 10px; }
+.dash-gg__cargando { color: var(--text-soft); font-size: 0.85rem; }
+.dash-gg__resumen { display: inline-flex; flex-wrap: wrap; gap: 6px; }
+.dash-gg-cuenta { display: inline-flex; align-items: center; gap: 4px; padding: 3px 9px; border-radius: 999px; font-size: 0.76rem; }
+.dash-gg-cuenta strong { font-size: 0.9rem; }
+.dash-gg-cuenta--ok { background: #e6f4ea; color: #1e6b34; }
+.dash-gg-cuenta--atencion { background: #fff3cd; color: #7a5b00; }
+.dash-gg-cuenta--critico { background: #fbe9e9; color: #a32626; }
+
+.dash-gg-alertas { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.dash-gg-alerta { display: flex; align-items: flex-start; gap: 8px; padding: 7px 10px; border-radius: 8px; font-size: 0.84rem; color: var(--ink); border-left: 4px solid; }
+.dash-gg-alerta svg { flex: none; margin-top: 2px; }
+.dash-gg-alerta--critico { background: #fdf1f1; border-color: #b3261e; }
+.dash-gg-alerta--critico svg { color: #b3261e; }
+.dash-gg-alerta--atencion { background: #fffaeb; border-color: #d39b00; }
+.dash-gg-alerta--atencion svg { color: #9a6c00; }
+.dash-gg-alerta__texto { display: grid; gap: 1px; min-width: 0; }
+.dash-gg-alerta__detalle { font-size: 0.76rem; color: var(--text-soft); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dash-gg-sin-alertas { display: flex; align-items: center; gap: 6px; margin: 0; font-size: 0.84rem; color: #1e6b34; }
+.dash-gg__acciones { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; }
+.dash-gg__toggle { margin-left: auto; }
+.dash-gg__toggle svg { transition: transform 0.15s ease; }
+.dash-gg__detalle { display: grid; gap: 8px; padding-top: 10px; border-top: 1px solid var(--line-soft, #eef1f2); }
+
+.dash-gg__barra { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
+.dash-gg__barra-titulo { font-size: 0.78rem; font-weight: 700; color: var(--text-soft); }
+.dash-gg-dato { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.dash-gg-dato button { padding: 4px 10px; font-size: 0.75rem; font-weight: 700; color: var(--brand-blue); background: #fff; cursor: pointer; }
+.dash-gg-dato button + button { border-left: 1px solid var(--line); }
+.dash-gg-dato button[aria-pressed='true'] { background: var(--brand-blue); color: #fff; }
+
+.dash-gg-sitios { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+.dash-gg-sitio {
+  display: grid; gap: 3px; text-align: left; cursor: pointer; padding: 8px 10px 7px; border-radius: 8px; min-width: 0;
+  background: #fafbfc; border: 1px solid var(--line); border-top: 3px solid var(--line); color: var(--brand-blue);
+}
+.dash-gg-sitio:hover { border-color: var(--brand-blue); }
+.dash-gg-sitio--ok { border-top-color: #1e8e3e; }
+.dash-gg-sitio--atencion { border-top-color: #d39b00; background: #fffcf3; color: #8a6100; }
+.dash-gg-sitio--critico, .dash-gg-sitio--sin_datos { border-top-color: #b3261e; background: #fdf6f6; color: #a32626; }
+.dash-gg-sitio__fila { display: flex; align-items: center; justify-content: space-between; gap: 6px; min-width: 0; }
+.dash-gg-sitio__nombre { font-weight: 800; font-size: 0.85rem; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dash-gg-sitio__estado { display: flex; align-items: center; gap: 3px; font-size: 0.7rem; font-weight: 700; min-width: 0; margin-top: -2px; }
+.dash-gg-sitio__estado > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dash-gg-sitio__estado svg { flex: none; }
+.dash-gg-sitio--ok .dash-gg-sitio__estado { color: #1e6b34; }
+.dash-gg-sitio__valor { font-size: 1.05rem; font-weight: 700; color: var(--ink); font-variant-numeric: tabular-nums; }
+.dash-gg-sitio__pie { font-size: 0.68rem; color: var(--text-soft); }
+.dash-gg-spark { display: block; width: 100%; height: 26px; }
+.dash-gg-spark--vacio { height: 26px; display: flex; align-items: center; font-size: 0.68rem; color: var(--text-soft); }
+.dash-gg-estanque { display: inline-flex; gap: 2px; flex: none; }
+.dash-gg-estanque > span { width: 7px; height: 12px; border-radius: 2px; border: 1px solid #b9c3c9; background: #fff; }
+.dash-gg-estanque > span.lleno { background: #0e4660; border-color: #0e4660; }
+.dash-gg-estanque > span.bajo { background: #b3261e; border-color: #b3261e; }
+
+@media (max-width: 900px) {
+  .dash-grupos { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 720px) {
+  .dash-grupos { grid-template-columns: 1fr; gap: 14px; }
+  .dash-grupo .dash-tarea { padding: 9px 11px; }
+  .dash-tarea__estado--ayuda { display: none; }
+  .dash-gg__cabecera h2 { font-size: 1.2rem; }
+  .dash-gg-cuenta__txt, .dash-gg__abrir-txt { display: none; }
+  .dash-gg-alerta { font-size: 0.8rem; padding: 6px 9px; }
+  /* En el celular las tarjetas van en una sola fila que se desliza de lado (las con problemas primero). */
+  .dash-gg-sitios {
+    display: flex; overflow-x: auto; scroll-snap-type: x mandatory; gap: 8px;
+    margin: 0 -12px; padding: 0 12px 4px; scrollbar-width: thin;
+  }
+  .dash-gg-sitio { flex: 0 0 136px; scroll-snap-align: start; }
+}

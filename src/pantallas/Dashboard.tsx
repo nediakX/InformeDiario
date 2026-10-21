@@ -11,6 +11,7 @@ import { type BorradorOtroEntry, estadoBorradorGenerico, contarFotosGenerico } f
 import { hoyLocalISO, formatDiaMes, formatFechaLarga } from '../datos/fechas';
 import { semanaDeFecha, DIAS_POR_TURNO } from '../datos/turnos';
 import { estadoChecklistDelDia } from '../informes/checklist/catalogo';
+import MonitorGeneradores from './MonitorGeneradores';
 
 type TipoBorradorTab = 'diario' | 'mantenimiento' | 'falla';
 type EstadoPip = 'pendiente' | 'iniciado' | 'finalizado' | 'futuro';
@@ -19,9 +20,12 @@ const INICIAL_DIA = ['D', 'L', 'M', 'M', 'J', 'V', 'S'];
 const ETIQUETA_ESTADO: Record<EstadoPip, string> = { pendiente: 'sin fotos', iniciado: 'en curso', finalizado: 'finalizado', futuro: 'aún no' };
 
 /** Acceso a una tarea: ícono, nombre y su estado en una línea. */
-function Tarea({ icono: Icono, color, titulo, estado, tono, etiqueta, onClick }: {
+function Tarea({ icono: Icono, color, titulo, estado, tono, etiqueta, ayuda, onClick }: {
   icono: LucideIcon; color: string; titulo: string; estado: string;
-  tono?: 'ok' | 'aviso'; etiqueta?: string; onClick: () => void;
+  tono?: 'ok' | 'aviso'; etiqueta?: string;
+  /** El texto es solo una descripción fija (no un estado): en el celular se oculta para ahorrar espacio. */
+  ayuda?: boolean;
+  onClick: () => void;
 }) {
   return (
     <button type="button" onClick={onClick} className="dash-tarea">
@@ -31,7 +35,7 @@ function Tarea({ icono: Icono, color, titulo, estado, tono, etiqueta, onClick }:
           {titulo}
           {etiqueta && <span className="dash-tarea__etiqueta">{etiqueta}</span>}
         </span>
-        <span className={`dash-tarea__estado ${tono ? `dash-tarea__estado--${tono}` : ''}`}>{estado}</span>
+        <span className={`dash-tarea__estado ${tono ? `dash-tarea__estado--${tono}` : ''} ${ayuda ? 'dash-tarea__estado--ayuda' : ''}`}>{estado}</span>
       </span>
       <ChevronRight size={18} className="dash-tarea__flecha" aria-hidden="true" />
     </button>
@@ -259,36 +263,53 @@ export default function Dashboard({
           </div>
         </section>
 
-        {/* Resto de tareas: cada una con su estado en una línea */}
-        <section aria-labelledby="dash-tareas-titulo">
-          <h2 id="dash-tareas-titulo" className="dash-subtitulo font-display">Tareas del turno</h2>
-          <div className="dash-tareas">
-            <Tarea icono={ClipboardCheck} color="#1E8E3E" titulo="Checklist de camioneta" onClick={() => onNavigate('checklist')}
-              estado={checklistHoy.texto} tono={checklistHoy.completo ? 'ok' : 'aviso'} />
-            <Tarea icono={Fuel} color="#9a5b00" titulo="Reportabilidad de GG" onClick={() => onNavigate('reportabilidad-gg')}
-              estado="Combustible, horómetro, niveles y temperatura de los generadores" />
-            <Tarea icono={FileStack} color="#ED7D31" titulo="Informe de cierre" onClick={() => onNavigate('cierre')}
-              estado={`${diasConInformeDia} de ${DIAS_POR_TURNO} días de Turno Día con informe`} />
-            <Tarea icono={Printer} color="#0E4660" titulo="Impresión rápida" onClick={() => onNavigate('impresion')}
-              estado={diaDelTurno === 1 ? 'Imprime el kit de formularios de esta semana' : diaDelTurno >= DIAS_POR_TURNO - 1 ? 'Prepara el kit de la próxima semana' : 'Formularios de faena listos para imprimir'}
-              tono={diaDelTurno === 1 || diaDelTurno >= DIAS_POR_TURNO - 1 ? 'aviso' : undefined} />
-            <Tarea icono={FolderOpen} color="#55636B" titulo="Borradores" onClick={() => onNavigate('borradores')}
-              estado={`${borradorCount} informe${borradorCount === 1 ? '' : 's'} guardado${borradorCount === 1 ? '' : 's'}`} />
-            <Tarea icono={FileUp} color="#0E7C86" titulo="Recuperar informe desde Word" onClick={onImportar}
-              estado="Vuelve a crear un informe borrado a partir de su Word" />
-            <Tarea icono={Wrench} color="#55636B" titulo="Mantenimiento de generador" onClick={() => setModalMantenimientoOpen(true)}
-              estado={borradoresMantenimiento.length ? `${borradoresMantenimiento.length} borrador${borradoresMantenimiento.length === 1 ? '' : 'es'}` : 'Sin borradores'}
-              etiqueta="En desarrollo" />
-            <Tarea icono={AlertTriangle} color="#B3261E" titulo="Informe de falla de carro" onClick={() => setModalFallaOpen(true)}
-              estado={borradoresFalla.length ? `${borradoresFalla.length} borrador${borradoresFalla.length === 1 ? '' : 'es'}` : 'Sin borradores'}
-              etiqueta="En desarrollo" />
-            {esAdmin && (
-              <Tarea icono={ShieldCheck} color="#14181C" titulo="Panel de administración" onClick={() => onNavigate('admin')}
-                estado={pendientesAprobacion > 0 ? `${pendientesAprobacion} cuenta${pendientesAprobacion === 1 ? '' : 's'} por aprobar` : 'Indicadores, usuarios y actividad'}
-                tono={pendientesAprobacion > 0 ? 'aviso' : undefined} />
-            )}
-          </div>
-        </section>
+        {/* Monitoreo de generadores (Reportabilidad de GG): estado, alertas y variaciones */}
+        <MonitorGeneradores onAbrir={() => onNavigate('reportabilidad-gg')} />
+
+        {/* Resto de opciones, agrupadas por para qué sirven */}
+        <div className="dash-grupos">
+          <section className="dash-grupo" aria-labelledby="dash-grupo-terreno">
+            <h2 id="dash-grupo-terreno" className="dash-grupo__titulo"><ClipboardCheck size={15} aria-hidden="true" /> Registros en terreno</h2>
+            <div className="dash-grupo__lista">
+              <Tarea icono={ClipboardCheck} color="#1E8E3E" titulo="Checklist de camioneta" onClick={() => onNavigate('checklist')}
+                estado={checklistHoy.texto} tono={checklistHoy.completo ? 'ok' : 'aviso'} />
+              <Tarea icono={Fuel} color="#9a5b00" titulo="Reportabilidad de GG" onClick={() => onNavigate('reportabilidad-gg')}
+                estado="Combustible, horómetro, niveles y temperatura" ayuda />
+              <Tarea icono={Printer} color="#0E4660" titulo="Impresión rápida" onClick={() => onNavigate('impresion')}
+                estado={diaDelTurno === 1 ? 'Imprime el kit de formularios de esta semana' : diaDelTurno >= DIAS_POR_TURNO - 1 ? 'Prepara el kit de la próxima semana' : 'Formularios de faena listos para imprimir'}
+                tono={diaDelTurno === 1 || diaDelTurno >= DIAS_POR_TURNO - 1 ? 'aviso' : undefined} />
+            </div>
+          </section>
+
+          <section className="dash-grupo" aria-labelledby="dash-grupo-informes">
+            <h2 id="dash-grupo-informes" className="dash-grupo__titulo"><FileStack size={15} aria-hidden="true" /> Otros informes</h2>
+            <div className="dash-grupo__lista">
+              <Tarea icono={FileStack} color="#ED7D31" titulo="Informe de cierre" onClick={() => onNavigate('cierre')}
+                estado={`${diasConInformeDia} de ${DIAS_POR_TURNO} días de Turno Día con informe`} />
+              <Tarea icono={AlertTriangle} color="#B3261E" titulo="Informe de falla de carro" onClick={() => setModalFallaOpen(true)}
+                estado={borradoresFalla.length ? `${borradoresFalla.length} borrador${borradoresFalla.length === 1 ? '' : 'es'}` : 'Sin borradores'}
+                etiqueta="En desarrollo" />
+              <Tarea icono={Wrench} color="#55636B" titulo="Mantenimiento de generador" onClick={() => setModalMantenimientoOpen(true)}
+                estado={borradoresMantenimiento.length ? `${borradoresMantenimiento.length} borrador${borradoresMantenimiento.length === 1 ? '' : 'es'}` : 'Sin borradores'}
+                etiqueta="En desarrollo" />
+            </div>
+          </section>
+
+          <section className="dash-grupo" aria-labelledby="dash-grupo-archivo">
+            <h2 id="dash-grupo-archivo" className="dash-grupo__titulo"><FolderOpen size={15} aria-hidden="true" /> Archivo</h2>
+            <div className="dash-grupo__lista">
+              <Tarea icono={FolderOpen} color="#55636B" titulo="Borradores" onClick={() => onNavigate('borradores')}
+                estado={`${borradorCount} informe${borradorCount === 1 ? '' : 's'} guardado${borradorCount === 1 ? '' : 's'}`} />
+              <Tarea icono={FileUp} color="#0E7C86" titulo="Recuperar informe desde Word" onClick={onImportar}
+                estado="Vuelve a crear un informe borrado a partir de su Word" ayuda />
+              {esAdmin && (
+                <Tarea icono={ShieldCheck} color="#14181C" titulo="Panel de administración" onClick={() => onNavigate('admin')}
+                  estado={pendientesAprobacion > 0 ? `${pendientesAprobacion} cuenta${pendientesAprobacion === 1 ? '' : 's'} por aprobar` : 'Indicadores, actividades, generadores y usuarios'}
+                  tono={pendientesAprobacion > 0 ? 'aviso' : undefined} />
+              )}
+            </div>
+          </section>
+        </div>
       </main>
 
       {modalInformeOpen && (

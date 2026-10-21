@@ -10,6 +10,7 @@ import { useSesion } from '../auth/sesion';
 import { hoyLocalISO, sumarDias } from '../datos/fechas';
 import { COMBUSTIBLE_PCT, SITIOS_GG, listarReportesGG, suscribirReportesGG, todosLosReportesGG, type ReporteGG } from '../datos/reportesGG';
 import { esErrorDeRed } from '../lib/conexion';
+import { analizarGeneradores } from '../datos/analisisGG';
 import { Indicador, TarjetaGrafico } from './graficos';
 
 type Metrica = 'horometro' | 'temperatura' | 'combustible' | 'nroPartidas';
@@ -219,6 +220,10 @@ export default function Generadores() {
     return { sitio: s, u, d, estado };
   });
   const atrasados = estados.filter(e => e.estado === 'atrasado' || e.estado === 'sin_datos').length;
+  // Alertas automáticas (mismas reglas que el panel principal), con los reportes del periodo.
+  const analisis = analizarGeneradores(sitios, reportes ?? [], hoy);
+  const alertasDe = new Map(analisis.porSitio.map(p => [p.sitio, p.alertas.filter(a => a.tipo === 'equipo')]));
+  const alertasEquipo = analisis.alertas.filter(a => a.tipo === 'equipo');
   const met = METRICAS.find(m => m.valor === metrica)!;
   const diasCompletos = porDia.filter(d => d.sitios.length >= sitios.length).length;
 
@@ -240,7 +245,28 @@ export default function Generadores() {
         <Indicador etiqueta="Días con todos los sitios" valor={`${diasCompletos} de ${dias}`} />
         <Indicador etiqueta="Sitios atrasados" valor={atrasados} detalle="2 días o más sin reporte"
           alerta={atrasados ? 'Revisar' : undefined} />
+        <Indicador etiqueta="Alertas de equipos" valor={alertasEquipo.length}
+          detalle={`${alertasEquipo.filter(a => a.severidad === 'critico').length} críticas`}
+          alerta={alertasEquipo.length ? 'Ver detalle abajo' : undefined} />
       </div>
+
+      <TarjetaGrafico titulo="Alertas automáticas" subtitulo="Último reporte de cada generador: combustible, aceite, refrigerante, temperatura, horómetro y partidas">
+        {alertasEquipo.length === 0 ? (
+          <p className="viz-empty">Sin anomalías en los últimos reportes.</p>
+        ) : (
+          <ul className="space-y-1.5">
+            {alertasEquipo.map((a, i) => (
+              <li key={i} className="flex flex-wrap items-center gap-2 text-sm">
+                <span className={`estado-chip ${a.severidad === 'critico' ? 'estado-chip--critico' : 'estado-chip--atencion'}`}>
+                  <AlertTriangle size={13} aria-hidden="true" /> {a.severidad === 'critico' ? 'Crítico' : 'Atención'}
+                </span>
+                <strong>{a.sitio}</strong> {a.titulo}
+                <span className="text-gray-500 text-xs">{a.detalle}{a.fecha ? ` · ${ddmm(a.fecha)}` : ''}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </TarjetaGrafico>
 
       <TarjetaGrafico titulo="Sitios reportados por día" subtitulo={`De ${sitios.length} sitios · barra completa = todos reportados`}>
         <BarrasDias dias={porDia} total={sitios.length} />
@@ -264,7 +290,7 @@ export default function Generadores() {
         <div className="viz-table-wrap">
           <table className="viz-table viz-table--tarjetas">
             <thead>
-              <tr><th>Sitio</th><th>Estado</th><th>Último reporte</th><th>Combustible</th><th className="num">Horómetro</th><th className="num">Temp.</th><th>Aceite</th><th>Refrigerante</th></tr>
+              <tr><th>Sitio</th><th>Estado</th><th>Alertas</th><th>Último reporte</th><th>Combustible</th><th className="num">Horómetro</th><th className="num">Temp.</th><th>Aceite</th><th>Refrigerante</th></tr>
             </thead>
             <tbody>
               {estados.map(({ sitio: s, u, d, estado }) => {
@@ -273,6 +299,7 @@ export default function Generadores() {
                   <tr key={s}>
                     <td><strong>{s}</strong></td>
                     <td><span className={`estado-chip ${clase}`}><Icono size={13} aria-hidden="true" /> {texto(d)}</span></td>
+                    <td className="text-xs">{(alertasDe.get(s) ?? []).map(a => a.corto).join(' · ') || '—'}</td>
                     <td>{u ? `${ddmm(u.fecha)}${u.hora ? ` ${u.hora}` : ''} · ${u.reporta}` : '—'}</td>
                     <td>{u?.combustible ?? '—'}</td>
                     <td className="num">{u?.horometro != null ? fmt(u.horometro) : '—'}</td>

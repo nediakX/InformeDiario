@@ -676,3 +676,10 @@
   .viz-table--tarjetas td > * { min-width: 0; }
   .viz-table--tarjetas .select-division { width: 100%; padding: 7px 8px; font-size: 13px; }
 }
+
+/* Tablas en el celular: columnas secundarias se ocultan (su dato va bajo el nombre). */
+.solo-movil { display: none; }
+@media (max-width: 640px) {
+  .ocultar-movil { display: none; }
+  .solo-movil { display: block; }
+}
