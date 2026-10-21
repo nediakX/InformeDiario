@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useState, type ReactNode } from 'react';
-import { ClipboardCheck, FileStack, FolderOpen, ChevronRight, Bell, FilePlus, Sun, Moon, Wrench, AlertTriangle, Printer, LogOut, ShieldCheck, UserRound, FileUp, Fuel, type LucideIcon } from 'lucide-react';
+import { ChevronDown, ClipboardCheck, FileStack, FolderOpen, ChevronRight, Bell, FilePlus, Sun, Moon, Wrench, AlertTriangle, Printer, LogOut, ShieldCheck, UserRound, FileUp, Fuel, type LucideIcon } from 'lucide-react';
 import { useSesion, nombreVisible } from '../auth/sesion';
 import { CONFIG_DIVISION } from '../datos/divisiones';
 import './dashboard.css';
@@ -13,7 +13,7 @@ import { semanaDeFecha, DIAS_POR_TURNO } from '../datos/turnos';
 import { estadoChecklistDelDia } from '../informes/checklist/catalogo';
 import MonitorGeneradores from './MonitorGeneradores';
 import { PorRevisar, ResumenContrato } from './BloquesRol';
-import { ETIQUETA_ROL, ORDEN_COMPLETO, ORDEN_INICIO, rolDePersona, type BloqueInicio } from '../datos/roles';
+import { DISENO_INICIO, ETIQUETA_ROL, ORDEN_COMPLETO, rolDePersona, type BloqueInicio, type IdTarea } from '../datos/roles';
 
 type TipoBorradorTab = 'diario' | 'mantenimiento' | 'falla';
 type EstadoPip = 'pendiente' | 'iniciado' | 'finalizado' | 'futuro';
@@ -144,8 +144,87 @@ export default function Dashboard({
     try { localStorage.setItem('psinet_inicio_completo', v ? '0' : '1'); } catch { /* sin almacenamiento */ }
     return !v;
   });
-  const orden: BloqueInicio[] = verTodo ? ORDEN_COMPLETO : ORDEN_INICIO[rol];
+  const diseno = DISENO_INICIO[rol];
   const esGestion = rol === 'supervisor' || rol === 'jefe' || rol === 'contrato';
+
+  // Accesos a cada pantalla (se usan en "Accesos rápidos" del rol y en "Todas las opciones").
+  const tareas: Record<IdTarea, ReactNode> = {
+    checklist: <Tarea icono={ClipboardCheck} color="#1E8E3E" titulo="Checklist de camioneta" onClick={() => onNavigate('checklist')}
+      estado={checklistHoy.texto} tono={checklistHoy.completo ? 'ok' : 'aviso'} />,
+    gg: <Tarea icono={Fuel} color="#9a5b00" titulo="Reportabilidad de GG" onClick={() => onNavigate('reportabilidad-gg')}
+      estado="Combustible, horómetro, niveles y temperatura" ayuda />,
+    impresion: <Tarea icono={Printer} color="#0E4660" titulo="Impresión rápida" onClick={() => onNavigate('impresion')}
+      estado={diaDelTurno === 1 ? 'Imprime el kit de formularios de esta semana' : diaDelTurno >= DIAS_POR_TURNO - 1 ? 'Prepara el kit de la próxima semana' : 'Formularios de faena listos para imprimir'}
+      tono={diaDelTurno === 1 || diaDelTurno >= DIAS_POR_TURNO - 1 ? 'aviso' : undefined} />,
+    cierre: <Tarea icono={FileStack} color="#ED7D31" titulo="Informe de cierre" onClick={() => onNavigate('cierre')}
+      estado={`${diasConInformeDia} de ${DIAS_POR_TURNO} días de Turno Día con informe`} />,
+    falla: <Tarea icono={AlertTriangle} color="#B3261E" titulo="Informe de falla de carro" onClick={() => setModalFallaOpen(true)}
+      estado={borradoresFalla.length ? `${borradoresFalla.length} borrador${borradoresFalla.length === 1 ? '' : 'es'}` : 'Sin borradores'}
+      etiqueta="En desarrollo" />,
+    mantenimiento: <Tarea icono={Wrench} color="#55636B" titulo="Mantenimiento de generador" onClick={() => setModalMantenimientoOpen(true)}
+      estado={borradoresMantenimiento.length ? `${borradoresMantenimiento.length} borrador${borradoresMantenimiento.length === 1 ? '' : 'es'}` : 'Sin borradores'}
+      etiqueta="En desarrollo" />,
+    borradores: <Tarea icono={FolderOpen} color="#55636B" titulo="Borradores" onClick={() => onNavigate('borradores')}
+      estado={`${borradorCount} informe${borradorCount === 1 ? '' : 's'} guardado${borradorCount === 1 ? '' : 's'}`} />,
+    recuperar: <Tarea icono={FileUp} color="#0E7C86" titulo="Recuperar informe desde Word" onClick={onImportar}
+      estado="Vuelve a crear un informe borrado a partir de su Word" ayuda />,
+    admin: esAdmin ? <Tarea icono={ShieldCheck} color="#14181C" titulo="Panel de administración" onClick={() => onNavigate('admin')}
+      estado={pendientesAprobacion > 0 ? `${pendientesAprobacion} cuenta${pendientesAprobacion === 1 ? '' : 's'} por aprobar` : 'Indicadores, actividades, generadores y usuarios'}
+      tono={pendientesAprobacion > 0 ? 'aviso' : undefined} /> : null,
+  };
+
+  // Todas las opciones, agrupadas por para qué sirven.
+  const opciones = (
+    <div className="dash-grupos">
+      <section className="dash-grupo" aria-labelledby="dash-grupo-terreno">
+        <h2 id="dash-grupo-terreno" className="dash-grupo__titulo"><ClipboardCheck size={15} aria-hidden="true" /> Registros en terreno</h2>
+        <div className="dash-grupo__lista">{tareas.checklist}{tareas.gg}{tareas.impresion}</div>
+      </section>
+      <section className="dash-grupo" aria-labelledby="dash-grupo-informes">
+        <h2 id="dash-grupo-informes" className="dash-grupo__titulo"><FileStack size={15} aria-hidden="true" /> Otros informes</h2>
+        <div className="dash-grupo__lista">{tareas.cierre}{tareas.falla}{tareas.mantenimiento}</div>
+      </section>
+      <section className="dash-grupo" aria-labelledby="dash-grupo-archivo">
+        <h2 id="dash-grupo-archivo" className="dash-grupo__titulo"><FolderOpen size={15} aria-hidden="true" /> Archivo</h2>
+        <div className="dash-grupo__lista">{tareas.borradores}{tareas.recuperar}{tareas.admin}</div>
+      </section>
+    </div>
+  );
+
+  // Turno en una tarjeta corta (columna lateral): semana con sus marcas Día/Noche y el avance.
+  const turnoMini = (
+    <section className="dash-turno-mini" aria-labelledby="dash-turno-mini-titulo">
+      <div className="dash-turno-mini__cabecera">
+        <h2 id="dash-turno-mini-titulo" className="font-display">Turno {semanaHoy.letra}</h2>
+        <span>Día {diaDelTurno} de {DIAS_POR_TURNO} · {formatDiaMes(semanaHoy.inicio)} al {formatDiaMes(semanaHoy.fin)}</span>
+      </div>
+      <ol className="dash-turno-mini__dias" aria-label="Informes de la semana: arriba Día, abajo Noche">
+        {semanaHoy.dias.map(fecha => (
+          <li key={fecha} className={`${fecha === hoy ? 'hoy' : ''} ${fecha > hoy ? 'futuro' : ''}`}
+            title={`${formatFechaLarga(fecha)}: Día ${ETIQUETA_ESTADO[estadoDe(fecha, 'dia')]}, Noche ${ETIQUETA_ESTADO[estadoDe(fecha, 'noche')]}`}>
+            <span className="dash-turno-mini__dia">{INICIAL_DIA[new Date(`${fecha}T12:00:00`).getDay()]}{Number(fecha.slice(8, 10))}</span>
+            <span className={`dash-pip dash-pip--${estadoDe(fecha, 'dia')}`} />
+            <span className={`dash-pip dash-pip--${estadoDe(fecha, 'noche')}`} />
+          </li>
+        ))}
+      </ol>
+      <div className="dash-turno-mini__pie">
+        <span><strong>{finalizadosSemana}</strong> de {informesQueTocan} informes finalizados</span>
+        {pendientesCount > 0 && (
+          <button type="button" onClick={() => onNavigate('borradores')} className="dash-turno__pendientes"><Bell size={12} aria-hidden="true" /> {pendientesCount} por completar</button>
+        )}
+      </div>
+    </section>
+  );
+
+  const accesos = (
+    <section className="dash-accesos" aria-labelledby="dash-accesos-titulo">
+      <h2 id="dash-accesos-titulo" className="dash-grupo__titulo">Accesos rápidos</h2>
+      <div className="dash-grupo__lista">
+        {diseno.accesos.filter(id => tareas[id]).map(id => <Fragment key={id}>{tareas[id]}</Fragment>)}
+      </div>
+    </section>
+  );
 
   const bloques: Record<BloqueInicio, ReactNode> = {
     contrato: <ResumenContrato division={division} onVerMas={esAdmin ? () => onNavigate('admin') : undefined} />,
@@ -241,52 +320,9 @@ export default function Dashboard({
         </section>
         </>,
     generadores: <MonitorGeneradores onAbrir={() => onNavigate('reportabilidad-gg')} detalleInicial={rol === 'electromecanico' ? true : rol === 'contrato' ? false : undefined} />,
-    opciones: <>
-        {/* Resto de opciones, agrupadas por para qué sirven */}
-        <div className="dash-grupos">
-          <section className="dash-grupo" aria-labelledby="dash-grupo-terreno">
-            <h2 id="dash-grupo-terreno" className="dash-grupo__titulo"><ClipboardCheck size={15} aria-hidden="true" /> Registros en terreno</h2>
-            <div className="dash-grupo__lista">
-              <Tarea icono={ClipboardCheck} color="#1E8E3E" titulo="Checklist de camioneta" onClick={() => onNavigate('checklist')}
-                estado={checklistHoy.texto} tono={checklistHoy.completo ? 'ok' : 'aviso'} />
-              <Tarea icono={Fuel} color="#9a5b00" titulo="Reportabilidad de GG" onClick={() => onNavigate('reportabilidad-gg')}
-                estado="Combustible, horómetro, niveles y temperatura" ayuda />
-              <Tarea icono={Printer} color="#0E4660" titulo="Impresión rápida" onClick={() => onNavigate('impresion')}
-                estado={diaDelTurno === 1 ? 'Imprime el kit de formularios de esta semana' : diaDelTurno >= DIAS_POR_TURNO - 1 ? 'Prepara el kit de la próxima semana' : 'Formularios de faena listos para imprimir'}
-                tono={diaDelTurno === 1 || diaDelTurno >= DIAS_POR_TURNO - 1 ? 'aviso' : undefined} />
-            </div>
-          </section>
-
-          <section className="dash-grupo" aria-labelledby="dash-grupo-informes">
-            <h2 id="dash-grupo-informes" className="dash-grupo__titulo"><FileStack size={15} aria-hidden="true" /> Otros informes</h2>
-            <div className="dash-grupo__lista">
-              <Tarea icono={FileStack} color="#ED7D31" titulo="Informe de cierre" onClick={() => onNavigate('cierre')}
-                estado={`${diasConInformeDia} de ${DIAS_POR_TURNO} días de Turno Día con informe`} />
-              <Tarea icono={AlertTriangle} color="#B3261E" titulo="Informe de falla de carro" onClick={() => setModalFallaOpen(true)}
-                estado={borradoresFalla.length ? `${borradoresFalla.length} borrador${borradoresFalla.length === 1 ? '' : 'es'}` : 'Sin borradores'}
-                etiqueta="En desarrollo" />
-              <Tarea icono={Wrench} color="#55636B" titulo="Mantenimiento de generador" onClick={() => setModalMantenimientoOpen(true)}
-                estado={borradoresMantenimiento.length ? `${borradoresMantenimiento.length} borrador${borradoresMantenimiento.length === 1 ? '' : 'es'}` : 'Sin borradores'}
-                etiqueta="En desarrollo" />
-            </div>
-          </section>
-
-          <section className="dash-grupo" aria-labelledby="dash-grupo-archivo">
-            <h2 id="dash-grupo-archivo" className="dash-grupo__titulo"><FolderOpen size={15} aria-hidden="true" /> Archivo</h2>
-            <div className="dash-grupo__lista">
-              <Tarea icono={FolderOpen} color="#55636B" titulo="Borradores" onClick={() => onNavigate('borradores')}
-                estado={`${borradorCount} informe${borradorCount === 1 ? '' : 's'} guardado${borradorCount === 1 ? '' : 's'}`} />
-              <Tarea icono={FileUp} color="#0E7C86" titulo="Recuperar informe desde Word" onClick={onImportar}
-                estado="Vuelve a crear un informe borrado a partir de su Word" ayuda />
-              {esAdmin && (
-                <Tarea icono={ShieldCheck} color="#14181C" titulo="Panel de administración" onClick={() => onNavigate('admin')}
-                  estado={pendientesAprobacion > 0 ? `${pendientesAprobacion} cuenta${pendientesAprobacion === 1 ? '' : 's'} por aprobar` : 'Indicadores, actividades, generadores y usuarios'}
-                  tono={pendientesAprobacion > 0 ? 'aviso' : undefined} />
-              )}
-            </div>
-          </section>
-        </div>
-        </>,
+    turnoMini,
+    generadoresMini: <MonitorGeneradores compacto onAbrir={() => onNavigate('reportabilidad-gg')} />,
+    accesos,
   };
 
   return (
@@ -339,13 +375,29 @@ export default function Dashboard({
 
         {/* Inicio ordenado según el rol (del cargo en el listado de trabajadores); "Ver todo" muestra el inicio completo. */}
         <div className="dash-vista">
-          <span>Vista: <strong>{verTodo ? 'completa' : ETIQUETA_ROL[rol]}</strong></span>
+          <span>{verTodo ? <>Vista <strong>completa</strong></> : <>Vista de <strong>{ETIQUETA_ROL[rol].toLowerCase()}</strong></>}</span>
           <button type="button" className="dash-enlace" onClick={alternarVista} aria-pressed={verTodo}>
-            {verTodo ? `Ver solo lo de ${ETIQUETA_ROL[rol].toLowerCase()}` : 'Ver todo'}
+            {verTodo ? 'Volver a mi vista' : 'Ver todo'}
           </button>
         </div>
 
-        {orden.map(b => <Fragment key={b}>{bloques[b]}</Fragment>)}
+        {verTodo ? (
+          <>
+            {ORDEN_COMPLETO.map(b => <Fragment key={b}>{bloques[b]}</Fragment>)}
+            {opciones}
+          </>
+        ) : (
+          <>
+            <div className="dash-rol">
+              <div className="dash-rol__principal">{diseno.principal.map(b => <Fragment key={b}>{bloques[b]}</Fragment>)}</div>
+              <aside className="dash-rol__lateral" aria-label="Resumen y accesos">{diseno.lateral.map(b => <Fragment key={b}>{bloques[b]}</Fragment>)}</aside>
+            </div>
+            <details className="dash-mas">
+              <summary><ChevronDown size={16} aria-hidden="true" /> Todas las opciones</summary>
+              {opciones}
+            </details>
+          </>
+        )}
       </main>
 
       {modalInformeOpen && (

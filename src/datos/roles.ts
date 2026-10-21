@@ -33,18 +33,28 @@ export function rolDePersona(rut: string | null | undefined, nombre: string, div
   return t ? { rol: rolDeCargo(t.cargo), cargo: t.cargo } : { rol: 'tecnico', cargo: null };
 }
 
-/** Bloques del panel principal. */
-export type BloqueInicio = 'contrato' | 'revisar' | 'turno' | 'hoy' | 'generadores' | 'opciones';
+/** Bloques del panel principal ("Mini" = versión de una línea, para la columna lateral). */
+export type BloqueInicio = 'contrato' | 'revisar' | 'turno' | 'turnoMini' | 'hoy' | 'generadores' | 'generadoresMini' | 'accesos';
+/** Accesos directos a pantallas. */
+export type IdTarea = 'checklist' | 'gg' | 'impresion' | 'cierre' | 'falla' | 'mantenimiento' | 'borradores' | 'recuperar' | 'admin';
 
-/** Orden del inicio para cada rol: arriba lo que responde la pregunta de ese rol. */
-export const ORDEN_INICIO: Record<Rol, BloqueInicio[]> = {
-  contrato: ['contrato', 'generadores', 'turno', 'opciones', 'hoy'],
-  jefe: ['turno', 'revisar', 'generadores', 'hoy', 'opciones'],
-  supervisor: ['revisar', 'generadores', 'hoy', 'turno', 'opciones'],
-  electromecanico: ['generadores', 'hoy', 'opciones', 'turno'],
-  electrico: ['hoy', 'opciones', 'generadores', 'turno'],
-  tecnico: ['hoy', 'opciones', 'turno', 'generadores'],
+export interface DisenoInicio {
+  /** Columna principal: lo que responde la pregunta del rol, en grande. */
+  principal: BloqueInicio[];
+  /** Columna lateral (debajo en el celular): contexto en versión corta y accesos directos. */
+  lateral: BloqueInicio[];
+  /** Accesos directos del rol (el resto queda en "Todas las opciones"). */
+  accesos: IdTarea[];
+}
+
+export const DISENO_INICIO: Record<Rol, DisenoInicio> = {
+  tecnico: { principal: ['hoy', 'revisar'], lateral: ['accesos', 'turnoMini', 'generadoresMini'], accesos: ['checklist', 'gg', 'falla', 'borradores'] },
+  electrico: { principal: ['hoy', 'revisar'], lateral: ['accesos', 'generadoresMini', 'turnoMini'], accesos: ['falla', 'checklist', 'mantenimiento', 'borradores'] },
+  electromecanico: { principal: ['generadores', 'hoy'], lateral: ['accesos', 'turnoMini'], accesos: ['gg', 'mantenimiento', 'checklist', 'borradores'] },
+  supervisor: { principal: ['revisar', 'generadores', 'hoy'], lateral: ['turnoMini', 'accesos'], accesos: ['gg', 'impresion', 'cierre', 'borradores'] },
+  jefe: { principal: ['turno', 'revisar', 'hoy'], lateral: ['generadoresMini', 'accesos'], accesos: ['cierre', 'impresion', 'gg', 'borradores'] },
+  contrato: { principal: ['contrato', 'turno'], lateral: ['generadoresMini', 'accesos'], accesos: ['admin', 'cierre', 'gg', 'borradores'] },
 };
 
-/** "Ver todo": el inicio completo, igual para todos. */
-export const ORDEN_COMPLETO: BloqueInicio[] = ['turno', 'hoy', 'revisar', 'generadores', 'opciones'];
+/** "Ver todo": el inicio completo, igual para todos, en una columna. */
+export const ORDEN_COMPLETO: BloqueInicio[] = ['turno', 'hoy', 'revisar', 'generadores'];

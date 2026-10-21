@@ -86,8 +86,10 @@ function Tarjeta({ s, dato, desde, onAbrir }: { s: SitioGG; dato: Dato; desde: s
   );
 }
 
-export default function MonitorGeneradores({ onAbrir, detalleInicial }: {
+export default function MonitorGeneradores({ onAbrir, detalleInicial, compacto }: {
   onAbrir: () => void;
+  /** Versión de una tarjeta corta (columna lateral): conteo y la alerta más grave. */
+  compacto?: boolean;
   /** Si el detalle por generador parte abierto (según el rol). Sin valor: abierto solo en pantallas grandes. */
   detalleInicial?: boolean;
 }) {
@@ -161,6 +163,29 @@ export default function MonitorGeneradores({ onAbrir, detalleInicial }: {
   const visibles = verTodas ? filas : filas.slice(0, MAX_ALERTAS);
   // Primero los que tienen problemas: en el celular son los que se ven sin deslizar.
   const tarjetas = [...(analisis?.porSitio ?? [])].sort((a, b) => ORDEN_ESTADO[a.estado] - ORDEN_ESTADO[b.estado]);
+
+  if (compacto) {
+    const peor = filas[0];
+    return (
+      <section className="dash-gg-mini" aria-labelledby="dash-gg-mini-titulo">
+        <button type="button" onClick={onAbrir} className="dash-gg-mini__boton">
+          <span className="dash-gg-mini__fila">
+            <h2 id="dash-gg-mini-titulo" className="font-display"><Fuel size={16} aria-hidden="true" /> Generadores</h2>
+            {analisis && (
+              <span className="dash-gg__resumen">
+                <span className="dash-gg-cuenta dash-gg-cuenta--ok"><CheckCircle2 size={12} aria-hidden="true" /><strong>{analisis.resumen.ok}</strong></span>
+                <span className="dash-gg-cuenta dash-gg-cuenta--atencion"><AlertTriangle size={12} aria-hidden="true" /><strong>{analisis.resumen.atencion}</strong></span>
+                <span className="dash-gg-cuenta dash-gg-cuenta--critico"><AlertOctagon size={12} aria-hidden="true" /><strong>{analisis.resumen.critico}</strong></span>
+              </span>
+            )}
+          </span>
+          <span className={`dash-gg-mini__alerta ${peor ? `dash-gg-mini__alerta--${peor.severidad}` : ''}`}>
+            {!analisis ? 'Cargando…' : peor ? <>{peor.titulo}</> : 'Sin alertas'}
+          </span>
+        </button>
+      </section>
+    );
+  }
 
   return (
     <section className="dash-gg" aria-labelledby="dash-gg-titulo">
