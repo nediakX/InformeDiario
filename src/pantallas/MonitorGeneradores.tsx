@@ -86,7 +86,11 @@ function Tarjeta({ s, dato, desde, onAbrir }: { s: SitioGG; dato: Dato; desde: s
   );
 }
 
-export default function MonitorGeneradores({ onAbrir }: { onAbrir: () => void }) {
+export default function MonitorGeneradores({ onAbrir, detalleInicial }: {
+  onAbrir: () => void;
+  /** Si el detalle por generador parte abierto (según el rol). Sin valor: abierto solo en pantallas grandes. */
+  detalleInicial?: boolean;
+}) {
   const { division } = useSesion();
   const sitios = SITIOS_GG[division];
   const hoy = hoyLocalISO();
@@ -103,6 +107,7 @@ export default function MonitorGeneradores({ onAbrir }: { onAbrir: () => void })
       const guardado = localStorage.getItem(CLAVE_DETALLE);
       if (guardado) return guardado === '1';
     } catch { /* sin almacenamiento */ }
+    if (detalleInicial !== undefined) return detalleInicial;
     return typeof window === 'undefined' || window.innerWidth > 720;
   });
   const alternarDetalle = () => setDetalle(v => {

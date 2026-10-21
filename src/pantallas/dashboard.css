@@ -212,3 +212,38 @@
   }
   .dash-gg-sitio { flex: 0 0 136px; scroll-snap-align: start; }
 }
+
+/* Vista por rol */
+.dash-vista { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 12px; margin-top: -12px; font-size: 0.78rem; color: var(--text-soft); }
+.dash-vista strong { color: var(--brand-blue); }
+
+/* Por revisar / Pendientes del turno */
+.dash-revisar__ok { display: flex; align-items: center; gap: 6px; margin: 0; padding: 12px 14px; border-radius: 10px; background: #fff; border: 1px solid var(--line); color: #1e6b34; font-size: 0.86rem; }
+.dash-revisar__lista { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.dash-revisar__fila {
+  display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; cursor: pointer;
+  padding: 10px 12px; border-radius: 10px; background: #fff; border: 1px solid var(--line); border-left: 4px solid;
+}
+.dash-revisar__fila:hover { border-color: var(--brand-blue); }
+.dash-revisar__fila--critico { border-left-color: #b3261e; }
+.dash-revisar__fila--critico > svg:first-child { color: #b3261e; }
+.dash-revisar__fila--atencion { border-left-color: #d39b00; }
+.dash-revisar__fila--atencion > svg:first-child { color: #9a6c00; }
+.dash-revisar__texto { display: grid; gap: 1px; flex: 1; min-width: 0; font-size: 0.86rem; color: var(--ink); }
+.dash-revisar__texto > span { font-size: 0.76rem; color: var(--text-soft); }
+.dash-revisar__flecha { flex: none; color: #9aa5ad; }
+
+/* Contrato */
+.dash-contrato__grilla { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.dash-contrato__kpi { display: grid; gap: 2px; padding: 12px 14px; border-radius: 10px; background: #fff; border: 1px solid var(--line); border-top: 3px solid var(--line); }
+.dash-contrato__kpi--ok { border-top-color: #1e8e3e; }
+.dash-contrato__kpi--atencion { border-top-color: #d39b00; }
+.dash-contrato__kpi--critico { border-top-color: #b3261e; }
+.dash-contrato__valor { font-size: 1.6rem; font-weight: 800; color: var(--ink); font-variant-numeric: tabular-nums; line-height: 1.1; }
+.dash-contrato__etiqueta { display: inline-flex; align-items: center; gap: 4px; font-size: 0.8rem; font-weight: 700; color: var(--ink); }
+.dash-contrato__detalle { font-size: 0.72rem; color: var(--text-soft); }
+@media (max-width: 720px) {
+  .dash-contrato__grilla { grid-template-columns: 1fr 1fr; }
+  .dash-contrato__valor { font-size: 1.35rem; }
+  .dash-vista { margin-top: -8px; }
+}
