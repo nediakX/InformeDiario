@@ -6,6 +6,8 @@
 //   /informe-diario/:id        Informe Diario (id del borrador)
 //   /borradores/:tipo          Borradores (diario | mantenimiento | falla)
 //   /cierre                    Informe de Cierre semanal
+//   /presentacion-turno        Presentación del turno (láminas del turno completo)
+//   /presentacion-fin-de-semana Presentación del fin de semana (viernes a domingo)
 //   /mantenimiento/:id?        Mantenimiento de Generador (sin id = nuevo)
 //   /falla/:id?                Informe de Falla — Carro (sin id = nuevo)
 //   /mantencion-preventiva/:id? Mantención preventiva de sitio (sin id = nuevo)
@@ -17,7 +19,7 @@
 //   /admin/:pestana?           Panel de administración (resumen | actividades | generadores | en-linea | usuarios | actividad | sistema)
 //   /login, /registro          Acceso (solo sin sesión)
 
-export type Vista = 'dashboard' | 'diario' | 'borradores' | 'cierre' | 'presentacion' | 'mantenimiento' | 'preventiva' | 'falla-carro' | 'checklist' | 'impresion' | 'reportabilidad-gg' | 'mapa' | 'admin' | 'perfil';
+export type Vista = 'dashboard' | 'diario' | 'borradores' | 'cierre' | 'presentacion' | 'presentacion-fds' | 'mantenimiento' | 'preventiva' | 'falla-carro' | 'checklist' | 'impresion' | 'reportabilidad-gg' | 'mapa' | 'admin' | 'perfil';
 export type TipoBorradores = 'diario' | 'mantenimiento' | 'falla';
 export type PestanaAdmin = 'resumen' | 'actividades' | 'generadores' | 'en-linea' | 'usuarios' | 'actividad' | 'sistema';
 
@@ -28,6 +30,7 @@ export const NOMBRE_PANTALLA: Record<Vista, string> = {
   borradores: 'Borradores',
   cierre: 'Informe de Cierre',
   presentacion: 'Presentación del turno',
+  'presentacion-fds': 'Presentación fin de semana',
   mantenimiento: 'Mantenimiento de Generador',
   preventiva: 'Mantención preventiva de sitio',
   'falla-carro': 'Informe de Falla — Carro',
@@ -45,6 +48,7 @@ const BASE: Record<Vista, string> = {
   borradores: '/borradores',
   cierre: '/cierre',
   presentacion: '/presentacion-turno',
+  'presentacion-fds': '/presentacion-fin-de-semana',
   mantenimiento: '/mantenimiento',
   preventiva: '/mantencion-preventiva',
   'falla-carro': '/falla',
@@ -74,7 +78,7 @@ export function leerRuta(pathname: string): RutaLeida {
   if (resto.length) return { vista: null, param: null };
   const vista = (Object.keys(BASE) as Vista[]).find(v => v !== 'dashboard' && BASE[v] === `/${primera}`) ?? null;
   if (!vista) return { vista: null, param: null };
-  if (segunda && (vista === 'cierre' || vista === 'presentacion' || vista === 'impresion' || vista === 'reportabilidad-gg' || vista === 'checklist' || vista === 'perfil' || vista === 'mapa')) return { vista: null, param: null };
+  if (segunda && (vista === 'cierre' || vista === 'presentacion' || vista === 'presentacion-fds' || vista === 'impresion' || vista === 'reportabilidad-gg' || vista === 'checklist' || vista === 'perfil' || vista === 'mapa')) return { vista: null, param: null };
   return { vista, param: segunda };
 }
 

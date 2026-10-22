@@ -548,6 +548,9 @@ function aFormaP(lamina: Lamina, sp: Element): Element {
   const forma = lamina.doc.importNode(envoltorio.documentElement.firstElementChild!, true) as Element;
   // txXfrm solo existe en los diagramas (posición del texto relativa al diagrama): en una lámina movería el texto.
   for (const hijo of Array.from(forma.children)) if (hijo.localName === 'txXfrm') forma.removeChild(hijo);
+  // En un diagrama, la forma no lleva p:nvPr; en una lámina el esquema lo exige (PowerPoint pide "reparar" sin él).
+  const nvSpPr = forma.getElementsByTagNameNS(NS_P, 'nvSpPr')[0];
+  if (nvSpPr && !hijos(nvSpPr, NS_P, 'nvPr').length) nvSpPr.appendChild(lamina.doc.createElementNS(NS_P, 'p:nvPr'));
   return forma;
 }
 
@@ -725,6 +728,129 @@ function llenarDifusiones(lamina: Lamina, datos: DatosFds, avisos: string[]) {
 // API pública
 // ---------------------------------------------------------------------------------------
 
+// ---- Integridad del paquete: lo que PowerPoint rechaza aunque LibreOffice lo abra --------------
+
+const NS_REL = 'http://schemas.openxmlformats.org/package/2006/relationships';
+
+/** Carpeta de una parte del paquete ("ppt/slides/slide1.xml" -> "ppt/slides"; en la raíz, ""). */
+const carpetaDe = (ruta: string) => (ruta.includes('/') ? ruta.slice(0, ruta.lastIndexOf('/')) : '');
+/** Ruta dentro del paquete a partir de un destino relativo o absoluto ("../media/a.png" desde "ppt/slides"). */
+function resolverRuta(base: string, destino: string): string {
+  let objetivo = destino;
+  try { objetivo = decodeURIComponent(destino); } catch { /* destino sin codificar */ }
+  const completa = objetivo.startsWith('/') ? objetivo : `${base}/${objetivo}`;
+  const salida: string[] = [];
+  for (const p of completa.split('/')) {
+    if (!p || p === '.') continue;
+    if (p === '..') salida.pop(); else salida.push(p);
+  }
+  return salida.join('/');
+}
+
+/**
+ * Renumera los identificadores de diseño (p:sldLayoutId) repetidos entre másters: el esquema los exige únicos en
+ * todo el archivo, y la plantilla trae varios másters copiados con los mismos números.
+ */
+async function numerarLayoutsUnicos(zip: JSZip) {
+  const rutas = Object.keys(zip.files).filter(n => /^ppt\/slideMasters\/slideMaster\d+\.xml$/.test(n)).sort();
+  const presentacion = leer(await zip.file('ppt/presentation.xml')!.async('string'));
+  const usados = descendientes(presentacion.documentElement, NS_P, 'sldMasterId').map(e => Number(e.getAttribute('id')));
+  const docs = await Promise.all(rutas.map(async ruta => ({ ruta, doc: leer(await zip.file(ruta)!.async('string')) })));
+  const todos = docs.flatMap(({ doc }) => descendientes(doc.documentElement, NS_P, 'sldLayoutId').map(e => Number(e.getAttribute('id'))));
+  let siguiente = Math.max(2147483647, ...usados, ...todos) + 1;
+  const vistos = new Set<number>(usados);
+  for (const { ruta, doc } of docs) {
+    let tocado = false;
+    for (const el of descendientes(doc.documentElement, NS_P, 'sldLayoutId')) {
+      const id = Number(el.getAttribute('id'));
+      if (vistos.has(id)) {
+        el.setAttribute('id', String(siguiente));
+        vistos.add(siguiente++);
+        tocado = true;
+      } else {
+        vistos.add(id);
+      }
+    }
+    if (tocado) zip.file(ruta, escribir(doc), { createFolders: false });
+  }
+}
+
+/**
+ * Quita los saltos (hipervínculos a otra lámina) que apuntan a láminas que no están en la presentación. La plantilla
+ * trae saltos desde la portada y el índice hacia láminas que el fin de semana no usa; un salto a una lámina ausente es
+ * una referencia rota, y PowerPoint puede pedir "reparar" el archivo. Las láminas que quedan sin salto se podan después.
+ */
+async function quitarSaltosARestos(zip: JSZip) {
+  const presentacion = leer(await zip.file('ppt/presentation.xml')!.async('string'));
+  const relsPresentacion = leer(await zip.file('ppt/_rels/presentation.xml.rels')!.async('string'));
+  const rutaDe = new Map<string, string>();
+  for (const r of Array.from(relsPresentacion.getElementsByTagNameNS(NS_REL, 'Relationship'))) {
+    rutaDe.set(r.getAttribute('Id') ?? '', resolverRuta('ppt', r.getAttribute('Target') ?? ''));
+  }
+  const enPresentacion = new Set(
+    descendientes(presentacion.documentElement, NS_P, 'sldId').map(e => rutaDe.get(e.getAttributeNS(NS_R, 'id') ?? '') ?? ''),
+  );
+  for (const ruta of enPresentacion) {
+    const rutaRels = `ppt/slides/_rels/${ruta.slice('ppt/slides/'.length)}.rels`;
+    if (!ruta.startsWith('ppt/slides/') || !zip.file(ruta) || !zip.file(rutaRels)) continue;
+    const relsLamina = leer(await zip.file(rutaRels)!.async('string'));
+    const rotos = new Set(
+      Array.from(relsLamina.getElementsByTagNameNS(NS_REL, 'Relationship'))
+        .filter(r => (r.getAttribute('Type') ?? '').endsWith('/slide'))
+        .filter(r => !enPresentacion.has(resolverRuta('ppt/slides', r.getAttribute('Target') ?? '')))
+        .map(r => r.getAttribute('Id') ?? ''),
+    );
+    if (!rotos.size) continue;
+    const lamina = leer(await zip.file(ruta)!.async('string'));
+    for (const etiqueta of ['hlinkClick', 'hlinkHover']) {
+      for (const enlace of descendientes(lamina.documentElement, NS_A, etiqueta)) {
+        if (rotos.has(enlace.getAttributeNS(NS_R, 'id') ?? '')) enlace.parentNode?.removeChild(enlace);
+      }
+    }
+    for (const r of Array.from(relsLamina.getElementsByTagNameNS(NS_REL, 'Relationship'))) {
+      if (rotos.has(r.getAttribute('Id') ?? '')) r.parentNode?.removeChild(r);
+    }
+    zip.file(ruta, escribir(lamina), { createFolders: false });
+    zip.file(rutaRels, escribir(relsLamina), { createFolders: false });
+  }
+}
+
+/**
+ * Quita del paquete las partes que ya nadie referencia (los SmartArt de las cascadas que se reemplazaron) y sus
+ * tipos de contenido. Una parte huérfana hace que PowerPoint pida "reparar" el archivo.
+ */
+async function podarPartesHuerfanas(zip: JSZip) {
+  const alcanzadas = new Set<string>(['[Content_Types].xml', '_rels/.rels']);
+  const cola: string[] = [];
+  const relacionesDe = async (rutaRels: string, base: string) => {
+    const doc = leer(await zip.file(rutaRels)!.async('string'));
+    return Array.from(doc.getElementsByTagNameNS(NS_REL, 'Relationship'))
+      .filter(r => r.getAttribute('TargetMode') !== 'External')
+      .map(r => resolverRuta(base, r.getAttribute('Target') ?? ''));
+  };
+  const visitar = (ruta: string) => {
+    if (ruta && zip.file(ruta) && !alcanzadas.has(ruta)) { alcanzadas.add(ruta); cola.push(ruta); }
+  };
+  for (const destino of await relacionesDe('_rels/.rels', '')) visitar(destino);
+  while (cola.length) {
+    const parte = cola.shift()!;
+    const carpeta = carpetaDe(parte);
+    const rutaRels = `${carpeta ? `${carpeta}/` : ''}_rels/${parte.slice(parte.lastIndexOf('/') + 1)}.rels`;
+    if (!zip.file(rutaRels)) continue;
+    alcanzadas.add(rutaRels);
+    for (const destino of await relacionesDe(rutaRels, carpeta)) visitar(destino);
+  }
+  for (const nombre of Object.keys(zip.files)) {
+    if (!zip.files[nombre].dir && !alcanzadas.has(nombre)) zip.remove(nombre);
+  }
+  const tipos = leer(await zip.file('[Content_Types].xml')!.async('string'));
+  let cambio = false;
+  for (const o of Array.from(tipos.getElementsByTagName('Override'))) {
+    if (!zip.file((o.getAttribute('PartName') ?? '').replace(/^\//, ''))) { o.parentNode?.removeChild(o); cambio = true; }
+  }
+  if (cambio) zip.file('[Content_Types].xml', escribir(tipos), { createFolders: false });
+}
+
 /** Genera la presentación de fin de semana. Devuelve el archivo .pptx listo para descargar y los avisos. */
 export async function generarPresentacionFds(datos: DatosFds): Promise<ResultadoPresentacion> {
   const respuesta = await fetch(plantillaUrl);
@@ -754,6 +880,9 @@ export async function generarPresentacionFds(datos: DatosFds): Promise<Resultado
     zip.file(`ppt/slides/slide${lamina.numero}.xml`, escribir(lamina.doc), { createFolders: false });
     zip.file(lamina.relsPath, escribir(lamina.rels), { createFolders: false });
   }
+  await numerarLayoutsUnicos(zip);
+  await quitarSaltosARestos(zip);
+  await podarPartesHuerfanas(zip);
   const blob = await zip.generateAsync({ type: 'blob', mimeType: MIME_PPTX, compression: 'DEFLATE' });
   return { blob, avisos };
 }

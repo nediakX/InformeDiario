@@ -4,25 +4,43 @@ import { ArrowLeft, ChevronLeft, ChevronRight, CircleCheckBig, Circle, Loader2, 
 import logoPsinet from '../../assets/logo_psinet.jpg';
 import logoEdificio from '../../assets/LogoEdificio.png';
 import { fetchBorradores, subscribeBorradores, type BorradorEntry } from '../../datos/borradoresDiario';
+import type { BorradorOtroEntry } from '../../datos/borradoresOtros';
 import { formatDiaMes, formatFechaLarga, hoyLocalISO, sumarDias } from '../../datos/fechas';
 import { semanaDeFecha } from '../../datos/turnos';
 import { useSesion } from '../../auth/sesion';
 import { construirPresentacion, nombreArchivoPresentacion } from './modelo';
 import { generarPresentacionTurno } from './pptx';
 import PresentacionFds from './PresentacionFds';
+import { leerReportesFds } from './datosFds';
+import { mantenimientosGeneradorDe, type DatosAutoFds } from './modeloFds';
+
+/** Turno completo (láminas del turno) o fin de semana (viernes a domingo). */
+export type Modo = 'completo' | 'fds';
+
+/** Lo que se leyó de la base para el fin de semana, con la clave de la división, la semana y la recarga a la que corresponde. */
+interface LecturaFds {
+  clave: string;
+  datos: Pick<DatosAutoFds, 'reportesFds' | 'horometros'> | null;
+  error: string | null;
+}
 
 interface PresentacionTurnoProps {
   onBack: () => void;
+  /** Pantalla que se abre primero (la ruta /presentacion-fin-de-semana abre el fin de semana). */
+  modoInicial?: Modo;
+  /** Mantenimientos de la app: los de generador alimentan la presentación de fin de semana. */
+  borradoresMantenimiento: BorradorOtroEntry[];
 }
 
-type Modo = 'completo' | 'fds';
-
 /** Presentación del turno (solo DSAL): arma el .pptx del turno completo o del fin de semana, con el formato de las referencias. */
-export default function PresentacionTurno({ onBack }: PresentacionTurnoProps) {
+export default function PresentacionTurno({ onBack, modoInicial = 'completo', borradoresMantenimiento }: PresentacionTurnoProps) {
   const { division } = useSesion();
   const [borradores, setBorradores] = useState<BorradorEntry[]>([]);
   const [fechaSemana, setFechaSemana] = useState(() => hoyLocalISO());
-  const [modo, setModo] = useState<Modo>('completo');
+  const [modo, setModo] = useState<Modo>(modoInicial);
+  // Reportes de GG del fin de semana y horómetros: se leen de la base al entrar al fin de semana.
+  const [lecturaFds, setLecturaFds] = useState<LecturaFds | null>(null);
+  const [recargaFds, setRecargaFds] = useState(0);
   // Observaciones de Turno Noche editadas por semana (si no se editan, salen las de los informes).
   const [observacionesEditadas, setObservacionesEditadas] = useState<Record<string, string>>({});
   const [generando, setGenerando] = useState(false);
@@ -33,6 +51,18 @@ export default function PresentacionTurno({ onBack }: PresentacionTurnoProps) {
   const semana = useMemo(() => semanaDeFecha(fechaSemana), [fechaSemana]);
   const datos = useMemo(() => construirPresentacion(borradores, semana), [borradores, semana]);
   const textoObservaciones = observacionesEditadas[semana.inicio] ?? datos.observacionesNoche.join('\n');
+  // La clave identifica la división, la semana y la última recarga: si la lectura guardada no es de esa clave, todavía no llegó.
+  const claveFds = `${division}|${semana.inicio}|${recargaFds}`;
+  const lectura = lecturaFds?.clave === claveFds ? lecturaFds : null;
+  const cargandoFds = modo === 'fds' && lectura === null;
+  const errorFds = lectura?.error ?? null;
+  const mantenimientosFds = useMemo(() => mantenimientosGeneradorDe(borradoresMantenimiento), [borradoresMantenimiento]);
+  const leidoFds = lectura?.datos ?? null;
+  const autoFds = useMemo<DatosAutoFds>(() => ({
+    reportesFds: leidoFds?.reportesFds ?? [],
+    horometros: leidoFds?.horometros ?? {},
+    mantenimientos: mantenimientosFds,
+  }), [leidoFds, mantenimientosFds]);
 
   useEffect(() => {
     void fetchBorradores(division).then(setBorradores);
@@ -44,6 +74,21 @@ export default function PresentacionTurno({ onBack }: PresentacionTurnoProps) {
     const timer = setTimeout(() => setToast(null), 4000);
     return () => clearTimeout(timer);
   }, [toast]);
+
+  // Al entrar al fin de semana (y al cambiar de semana o de división) se leen de la base los reportes de GG y los horómetros.
+  useEffect(() => {
+    if (modo !== 'fds') return;
+    let vigente = true;
+    leerReportesFds(division, semana)
+      .then(datos => { if (vigente) setLecturaFds({ clave: claveFds, datos, error: null }); })
+      .catch(error => {
+        console.error(error);
+        if (vigente) {
+          setLecturaFds({ clave: claveFds, datos: null, error: 'No se pudieron leer los reportes de GG de la base. Revisa la conexión y vuelve a intentar.' });
+        }
+      });
+    return () => { vigente = false; };
+  }, [modo, division, semana, claveFds]);
 
   const hayInformes = datos.dias.some(d => d.tieneInforme);
   // Días con informe (o con Turno Noche) cuyo recuadro de reportabilidad GG queda sin foto.
@@ -198,7 +243,14 @@ export default function PresentacionTurno({ onBack }: PresentacionTurnoProps) {
         </div>
 
         <div hidden={modo !== 'fds'}>
-          <PresentacionFds semana={semana} borradores={borradores} />
+          <PresentacionFds
+            semana={semana}
+            borradores={borradores}
+            auto={autoFds}
+            cargando={cargandoFds}
+            errorDatos={errorFds}
+            onActualizar={() => setRecargaFds(n => n + 1)}
+          />
         </div>
       </main>
 

@@ -1,8 +1,12 @@
 // Presentación de fin de semana (viernes a domingo de la semana de turno). Los textos salen de los
-// Informes Diarios como borradores; la pantalla permite editarlos antes de generar el .pptx.
+// Informes Diarios como borradores; la reportabilidad GG, las horas registradas y el último
+// mantenimiento salen de la base (ver datosFds.ts). La pantalla permite corregirlo todo antes de
+// generar el .pptx.
 import { esSemillaSinEditar, type BorradorEntry, type EvidenceBlockLike } from '../../datos/borradoresDiario';
+import type { BorradorOtroEntry } from '../../datos/borradoresOtros';
 import type { SemanaTurno } from '../../datos/turnos';
 import { nombreDiaSemana, sumarDias } from '../../datos/fechas';
+import { esPreventiva } from '../preventiva/modelo';
 import { resumenDeDia } from './modelo';
 
 /** Una fila de la tabla de actividades (lámina 5). */
@@ -59,6 +63,38 @@ export interface DatosFds {
   conclusiones: string[];
 }
 
+/** Un sitio de la tabla de mantenimiento preventivo (lámina 9). */
+export interface SitioFds {
+  /** Etiqueta como aparece en la referencia del fin de semana. */
+  sitio: string;
+  nombre: string;
+  /** Días hasta el próximo mantenimiento (180 o 210). */
+  dias: number;
+  /** Carro en los informes de mantenimiento de generador (ej: LTE_CMF_09; el MMOO se llama MMOO_01). */
+  carro: string;
+  /** Sitio en la Reportabilidad de GG (null = no reporta GG). */
+  gg: string | null;
+}
+
+/**
+ * Sitios de la tabla de mantenimiento (lámina 9), en el orden de la referencia. "Ex Ventiladores" es el
+ * carro LTE_11 en el catálogo y en los reportes de GG (la fila de la referencia lo nombra CMM_11).
+ */
+export const SITIOS_FDS: SitioFds[] = [
+  { sitio: 'O&M_LTE_CMM_03', nombre: 'cerro pepa', dias: 180, carro: 'LTE_CMM_03', gg: 'LTE_CMM_03' },
+  { sitio: 'O&M_LTE_CMF_09', nombre: 'Cerro La Ballena', dias: 180, carro: 'LTE_CMF_09', gg: 'LTE_CMF_09' },
+  { sitio: 'O&M_MMOO 01', nombre: 'Chancado Primario', dias: 180, carro: 'MMOO_01', gg: 'LTE_CM_MMOO_01' },
+  { sitio: 'O&M_LTE_CMF_04', nombre: 'Cerro Antenas', dias: 180, carro: 'LTE_CMF_04', gg: 'LTE_CMF_04' },
+  { sitio: 'O&M_LTE_CMM_06', nombre: 'Mirador Fase 2', dias: 180, carro: 'LTE_CMM_06', gg: 'LTE_CMM_06' },
+  { sitio: 'O&M_LTE_CMM_10', nombre: 'Cerro Pisquero', dias: 180, carro: 'LTE_CMM_10', gg: 'LTE_CMM_10' },
+  { sitio: 'O&M_LTE_CMF_02', nombre: 'Truck shop', dias: 210, carro: 'LTE_CMF_02', gg: 'LTE_CMF_02' },
+  { sitio: 'O&M_LTE_CMF_08', nombre: 'Ex Garita Rajo Inca', dias: 180, carro: 'LTE_CMF_08', gg: 'LTE_CMF_08' },
+  { sitio: 'O&M_LTE_CMM_05', nombre: 'EX Barrio Cívico', dias: 180, carro: 'LTE_CMM_05', gg: 'LTE_CMM_05' },
+  { sitio: 'O&M_LTE_CMF_01', nombre: 'Bloquera', dias: 180, carro: 'LTE_CMF_01', gg: 'LTE_CMF_01' },
+  { sitio: 'O&M_LTE_CMM_11', nombre: 'ex ventiladores.', dias: 180, carro: 'LTE_11', gg: 'LTE_11' },
+  { sitio: 'O&M_LTE_CMM_07', nombre: 'Campamento Antiguo', dias: 210, carro: 'LTE_CMM_07', gg: 'LTE_CMM_07' },
+];
+
 /** Controles transversales que salen en la lámina del fin de semana de referencia. */
 export const CONTROLES_FDS_PREDETERMINADOS = [
   'Charla inicio de turno',
@@ -67,24 +103,30 @@ export const CONTROLES_FDS_PREDETERMINADOS = [
   'Protección solar, hidratación, ART y test alcohol/drogas',
 ];
 
-/** Sitios de la tabla de mantenimiento (lámina 9) con sus días de mantenimiento de referencia. */
-export const OM_SITIOS_PREDETERMINADOS: { sitio: string; nombre: string; dias: number }[] = [
-  { sitio: 'O&M_LTE_CMM_03', nombre: 'cerro pepa', dias: 180 },
-  { sitio: 'O&M_LTE_CMF_09', nombre: 'Cerro La Ballena', dias: 180 },
-  { sitio: 'O&M_MMOO 01', nombre: 'Chancado Primario', dias: 180 },
-  { sitio: 'O&M_LTE_CMF_04', nombre: 'Cerro Antenas', dias: 180 },
-  { sitio: 'O&M_LTE_CMM_06', nombre: 'Mirador Fase 2', dias: 180 },
-  { sitio: 'O&M_LTE_CMM_10', nombre: 'Cerro Pisquero', dias: 180 },
-  { sitio: 'O&M_LTE_CMF_02', nombre: 'Truck shop', dias: 210 },
-  { sitio: 'O&M_LTE_CMF_08', nombre: 'Ex Garita Rajo Inca', dias: 180 },
-  { sitio: 'O&M_LTE_CMM_05', nombre: 'EX Barrio Cívico', dias: 180 },
-  { sitio: 'O&M_LTE_CMF_01', nombre: 'Bloquera', dias: 180 },
-  { sitio: 'O&M_LTE_CMM_11', nombre: 'ex ventiladores.', dias: 180 },
-  { sitio: 'O&M_LTE_CMM_07', nombre: 'Campamento Antiguo', dias: 210 },
-];
-
 /** Frase de apertura del resumen (la usa el equipo en todas las presentaciones de fin de semana). */
 const FRASE_ESTABLE = 'OPERACIÓN GENERAL ESTABLE DURANTE EL FIN DE SEMANA.';
+
+/** Un mantenimiento de generador leído de la base: sitio, fecha y el horómetro tal como se escribió. */
+export interface MantenimientoFds {
+  sitio: string;
+  /** ISO "2026-09-23". */
+  fecha: string;
+  horometro: string;
+  savedAt: string;
+}
+
+/** Lo que se lee de la base (no de los informes diarios). */
+export interface DatosAutoFds {
+  /** Reportes de GG de los tres días del fin de semana (sitio y fecha). */
+  reportesFds: { sitio: string; fecha: string }[];
+  /** Último horómetro reportado en GG por sitio (clave: sitio de GG), hasta la fecha de corte. */
+  horometros: Record<string, { horas: number; fecha: string }>;
+  /** Informes de mantenimiento de generador (sin preventiva). */
+  mantenimientos: MantenimientoFds[];
+}
+
+/** Sin datos de la base (todavía no se leyeron): los campos salen vacíos y se avisa. */
+export const SIN_DATOS_FDS: DatosAutoFds = { reportesFds: [], horometros: {}, mantenimientos: [] };
 
 const sinAcentos = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
 
@@ -120,72 +162,14 @@ const difusionesTextoDe = (entrada: BorradorEntry): string[] =>
 const tituloRealizados = (lista: string[], patron: RegExp) =>
   sinRepetidos(lista.filter(a => patron.test(sinAcentos(a))));
 
-/** Borrador completo de la presentación de fin de semana a partir de los informes de la semana de turno. */
-export function construirPresentacionFds(entradas: BorradorEntry[], semana: SemanaTurno): DatosFds {
-  const validas = entradas.filter(e => !esSemillaSinEditar(e));
-  const buscar = (fecha: string, turno: 'dia' | 'noche') => validas.find(e => e.fecha === fecha && e.turno === turno) ?? null;
-
-  // Viernes, sábado y domingo de la semana de turno (índices 2, 3 y 4 de los 7 días).
+/** Viernes, sábado y domingo de la semana de turno, y el lunes de corte de las horas registradas. */
+export function fdsDeSemana(semana: SemanaTurno) {
   const fechas = semana.dias.slice(2, 5);
-  const dias: DiaFds[] = fechas.map(fecha => {
-    const dia = buscar(fecha, 'dia');
-    const actividades = dia
-      ? resumenDeDia(dia).map(a => ({ actividad: a.toUpperCase(), responsable: responsableDe(a) }))
-      : [];
-    return { fecha, actividades, difusiones: dia ? difusionesTextoDe(dia) : [] };
-  });
-
-  const noches = fechas.map(f => buscar(f, 'noche')).filter((e): e is BorradorEntry => Boolean(e));
-  const actividadesTodas = sinRepetidos([
-    ...dias.flatMap(d => d.actividades.map(a => a.actividad)),
-    ...noches.flatMap(n => n.actividades.map(a => a.trim())),
-  ]);
-
-  const mantencion = tituloRealizados(actividadesTodas, ES_MANTENCION);
-  const baterias = tituloRealizados(actividadesTodas, ES_BATERIA);
-  const cpe = tituloRealizados(actividadesTodas, ES_CPE);
-  const fallas = tituloRealizados(actividadesTodas, ES_FALLA);
-
-  const resumenGeneral = [FRASE_ESTABLE];
-  if (mantencion.length) resumenGeneral.push(`SE EJECUTARON MANTENIMIENTOS PREVENTIVOS: ${mantencion.join('; ')}`);
-  if (cpe.length) resumenGeneral.push(`SE EJECUTARON TRABAJOS DE CPE: ${cpe.join('; ')}`);
-  if (baterias.length) resumenGeneral.push(`SE REALIZÓ MEDICIÓN Y VALIDACIÓN DE BANCO DE BATERÍAS: ${baterias.join('; ')}`);
-
-  const observaciones = sinRepetidos(noches.flatMap(n => n.observaciones.map(o => o.trim())));
-  // La reportabilidad GG y las horas de O&M se ingresan a mano: los informes no traen esos números.
-  return {
-    letra: semana.letra,
-    inicio: fechas[0],
-    fin: fechas[2],
-    resumenGeneral,
-    dias,
-    reportabilidadGG: [null, null, null],
-    fechaCorteOm: sumarDias(fechas[2], 1),
-    om: OM_SITIOS_PREDETERMINADOS.map(s => ({ ...s, horasUltimo: null, fechaUltimo: null, horasRegistradas: null })),
-    cascadaActividades: [
-      ...(mantencion.length ? [`MANTENIMIENTOS PREVENTIVOS EJECUTADOS: ${mantencion.join('; ')}`] : []),
-      ...(baterias.length ? [`SE REALIZÓ MEDICIÓN Y VALIDACIÓN DE BANCO DE BATERÍAS DE LOS CARROS LTE.`] : []),
-      'SE MANTIENE CONTROL DOCUMENTAL EN TERRENO.',
-    ],
-    controles: [...CONTROLES_FDS_PREDETERMINADOS],
-    observaciones,
-    cpe,
-    conclusiones: [
-      'FIN DE SEMANA CON CONTINUIDAD OPERACIONAL Y SIN INCIDENTES OPERACIONALES MAYORES REPORTADOS.',
-      ...(fallas.length ? [`SE ATENDIERON FALLAS: ${fallas.join('; ')}`] : []),
-    ],
-  };
+  return { fechas, inicio: fechas[0], fin: fechas[2], corte: sumarDias(fechas[2], 1) };
 }
 
-/** Nombre del archivo, con el mismo estilo que las presentaciones de referencia del fin de semana. */
-export const nombreArchivoPresentacionFds = (datos: Pick<DatosFds, 'letra' | 'inicio' | 'fin'>) => {
-  const larga = (iso: string) => { const [y, m, d] = iso.split('-'); return `${d}-${m}-${y}`; };
-  return `Presentacion_FDS_Turno${datos.letra}_LTE_DSAL_${larga(datos.inicio)}_AL_${larga(datos.fin)}_final.pptx`;
-};
-
-// ---------------------------------------------------------------------------------------
-// Formulario: los textos que se editan en pantalla y su conversión a los datos de la lámina
-// ---------------------------------------------------------------------------------------
+/** Clave comparable de un sitio: "LTE 11", "lte_11" y "LTE-11" son todos "LTE_11". */
+export const claveSitio = (texto: string) => texto.trim().replace(/[\s-]+/g, '_').toUpperCase();
 
 /** Rótulo de un día del fin de semana: "VIERNES 23/10". */
 export const rotuloDiaFds = (iso: string) => `${nombreDiaSemana(iso).toUpperCase()} ${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
@@ -251,16 +235,140 @@ export function parseOmFds(texto: string): FilaOmFds[] {
 
 const lineasDe = (texto: string) => texto.split('\n').map(l => l.trim()).filter(Boolean);
 
+// ---------------------------------------------------------------------------------------
+// Reportabilidad, horas y último mantenimiento (datos que salen de la base)
+// ---------------------------------------------------------------------------------------
+
+/** Sitios de la Reportabilidad de GG (los 12 grupos del formulario). */
+const SITIOS_GG_FDS = new Set(SITIOS_FDS.flatMap(s => (s.gg ? [claveSitio(s.gg)] : [])));
+
+/**
+ * Reportabilidad de GG de un día: sitios de GG con al menos un reporte ese día, sobre el total de sitios
+ * (0-1). null si ningún sitio reportó: la lámina no tiene dato y así se avisa.
+ */
+export function reportabilidadDeDia(reportes: { sitio: string; fecha: string }[], fecha: string): number | null {
+  const reportados = new Set(reportes.filter(r => r.fecha === fecha).map(r => claveSitio(r.sitio)).filter(s => SITIOS_GG_FDS.has(s)));
+  return reportados.size > 0 ? reportados.size / SITIOS_GG_FDS.size : null;
+}
+
+/** Horas registradas de un sitio de GG: el último horómetro reportado hasta la fecha de corte (null = sin dato). */
+export const horasRegistradasDe = (auto: DatosAutoFds, gg: string | null): number | null =>
+  gg === null ? null : (auto.horometros[claveSitio(gg)]?.horas ?? null);
+
+/** Informes de mantenimiento de generador, de la lista de borradores (los preventivos no traen horómetro). */
+export function mantenimientosGeneradorDe(entradas: BorradorOtroEntry[]): MantenimientoFds[] {
+  return entradas
+    .filter(e => !esPreventiva(e.datos))
+    .map(e => {
+      const { sitio, fecha, horometro } = e.datos;
+      return {
+        sitio: typeof sitio === 'string' ? sitio : '',
+        fecha: typeof fecha === 'string' && fecha ? fecha : e.fecha,
+        horometro: typeof horometro === 'string' ? horometro : '',
+        savedAt: e.savedAt,
+      };
+    })
+    .filter(m => m.sitio.trim() !== '' && m.fecha !== '');
+}
+
+/** Último mantenimiento de generador del carro hasta la fecha de corte: horas (horómetro) y fecha. */
+export function ultimoMantenimientoDe(mantenimientos: MantenimientoFds[], carro: string, corte: string): { horas: number | null; fecha: string | null } {
+  const clave = claveSitio(carro);
+  const ultimo = mantenimientos
+    .filter(m => claveSitio(m.sitio) === clave && m.fecha <= corte)
+    .sort((a, b) => b.fecha.localeCompare(a.fecha) || b.savedAt.localeCompare(a.savedAt))[0];
+  return ultimo ? { horas: numeroFds(ultimo.horometro), fecha: ultimo.fecha } : { horas: null, fecha: null };
+}
+
+// ---------------------------------------------------------------------------------------
+// Borrador completo a partir de los informes y de los datos de la base
+// ---------------------------------------------------------------------------------------
+
+/** Borrador completo de la presentación de fin de semana a partir de los informes de la semana de turno. */
+export function construirPresentacionFds(entradas: BorradorEntry[], semana: SemanaTurno, auto: DatosAutoFds = SIN_DATOS_FDS): DatosFds {
+  const validas = entradas.filter(e => !esSemillaSinEditar(e));
+  const buscar = (fecha: string, turno: 'dia' | 'noche') => validas.find(e => e.fecha === fecha && e.turno === turno) ?? null;
+
+  const { fechas, inicio, fin, corte } = fdsDeSemana(semana);
+  const dias: DiaFds[] = fechas.map(fecha => {
+    const dia = buscar(fecha, 'dia');
+    const actividades = dia
+      ? resumenDeDia(dia).map(a => ({ actividad: a.toUpperCase(), responsable: responsableDe(a) }))
+      : [];
+    return { fecha, actividades, difusiones: dia ? difusionesTextoDe(dia) : [] };
+  });
+
+  const noches = fechas.map(f => buscar(f, 'noche')).filter((e): e is BorradorEntry => Boolean(e));
+  const actividadesTodas = sinRepetidos([
+    ...dias.flatMap(d => d.actividades.map(a => a.actividad)),
+    ...noches.flatMap(n => n.actividades.map(a => a.trim())),
+  ]);
+
+  const mantencion = tituloRealizados(actividadesTodas, ES_MANTENCION);
+  const baterias = tituloRealizados(actividadesTodas, ES_BATERIA);
+  const cpe = tituloRealizados(actividadesTodas, ES_CPE);
+  const fallas = tituloRealizados(actividadesTodas, ES_FALLA);
+
+  const resumenGeneral = [FRASE_ESTABLE];
+  if (mantencion.length) resumenGeneral.push(`SE EJECUTARON MANTENIMIENTOS PREVENTIVOS: ${mantencion.join('; ')}`);
+  if (cpe.length) resumenGeneral.push(`SE EJECUTARON TRABAJOS DE CPE: ${cpe.join('; ')}`);
+  if (baterias.length) resumenGeneral.push(`SE REALIZÓ MEDICIÓN Y VALIDACIÓN DE BANCO DE BATERÍAS: ${baterias.join('; ')}`);
+
+  const observaciones = sinRepetidos(noches.flatMap(n => n.observaciones.map(o => o.trim())));
+  return {
+    letra: semana.letra,
+    inicio,
+    fin,
+    resumenGeneral,
+    dias,
+    reportabilidadGG: fechas.map(fecha => reportabilidadDeDia(auto.reportesFds, fecha)),
+    fechaCorteOm: corte,
+    om: SITIOS_FDS.map(s => {
+      const ultimo = ultimoMantenimientoDe(auto.mantenimientos, s.carro, corte);
+      return {
+        sitio: s.sitio,
+        nombre: s.nombre,
+        horasUltimo: ultimo.horas,
+        fechaUltimo: ultimo.fecha,
+        dias: s.dias,
+        horasRegistradas: horasRegistradasDe(auto, s.gg),
+      };
+    }),
+    cascadaActividades: [
+      ...(mantencion.length ? [`MANTENIMIENTOS PREVENTIVOS EJECUTADOS: ${mantencion.join('; ')}`] : []),
+      ...(baterias.length ? [`SE REALIZÓ MEDICIÓN Y VALIDACIÓN DE BANCO DE BATERÍAS DE LOS CARROS LTE.`] : []),
+      'SE MANTIENE CONTROL DOCUMENTAL EN TERRENO.',
+    ],
+    controles: [...CONTROLES_FDS_PREDETERMINADOS],
+    observaciones,
+    cpe,
+    conclusiones: [
+      'FIN DE SEMANA CON CONTINUIDAD OPERACIONAL Y SIN INCIDENTES OPERACIONALES MAYORES REPORTADOS.',
+      ...(fallas.length ? [`SE ATENDIERON FALLAS: ${fallas.join('; ')}`] : []),
+    ],
+  };
+}
+
+/** Nombre del archivo, con el mismo estilo que las presentaciones de referencia del fin de semana. */
+export const nombreArchivoPresentacionFds = (datos: Pick<DatosFds, 'letra' | 'inicio' | 'fin'>) => {
+  const larga = (iso: string) => { const [y, m, d] = iso.split('-'); return `${d}-${m}-${y}`; };
+  return `Presentacion_FDS_Turno${datos.letra}_LTE_DSAL_${larga(datos.inicio)}_AL_${larga(datos.fin)}_final.pptx`;
+};
+
+// ---------------------------------------------------------------------------------------
+// Formulario: los textos que se editan en pantalla y su conversión a los datos de la lámina
+// ---------------------------------------------------------------------------------------
+
 /**
  * Datos de la presentación a partir de los textos del formulario. `valor(clave)` devuelve el texto de cada campo
  * (claves: resumen, act0-2, gg0-2, dif0-2, fechaCorte, om, cascada, controles, observaciones, cpe, conclusiones).
  */
 export function datosFdsDesde(valor: (clave: string) => string, semana: SemanaTurno): DatosFds {
-  const fechas = semana.dias.slice(2, 5);
+  const { fechas, inicio, fin, corte } = fdsDeSemana(semana);
   return {
     letra: semana.letra,
-    inicio: fechas[0],
-    fin: fechas[2],
+    inicio,
+    fin,
     resumenGeneral: lineasDe(valor('resumen')),
     dias: fechas.map((fecha, k) => ({
       fecha,
@@ -271,7 +379,7 @@ export function datosFdsDesde(valor: (clave: string) => string, semana: SemanaTu
       difusiones: lineasDe(valor(`dif${k}`)),
     })),
     reportabilidadGG: [0, 1, 2].map(k => parsePorcentajeFds(valor(`gg${k}`))),
-    fechaCorteOm: parseFechaFds(valor('fechaCorte')) ?? sumarDias(fechas[2], 1),
+    fechaCorteOm: parseFechaFds(valor('fechaCorte')) ?? corte,
     om: parseOmFds(valor('om')),
     cascadaActividades: lineasDe(valor('cascada')),
     controles: lineasDe(valor('controles')),
@@ -281,7 +389,7 @@ export function datosFdsDesde(valor: (clave: string) => string, semana: SemanaTu
   };
 }
 
-/** Textos iniciales del formulario, a partir de los datos armados con los informes. */
+/** Textos iniciales del formulario, a partir de los datos armados con los informes y la base. */
 export function textosFdsDesde(datos: DatosFds): Record<string, string> {
   const dmy = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}`;
   const textos: Record<string, string> = {
@@ -311,9 +419,9 @@ export function avisosFds(datos: DatosFds): string[] {
   datos.dias.forEach((dia, k) => {
     if (datos.reportabilidadGG[k] === null) avisos.push(`Falta la reportabilidad GG del ${rotuloDiaFds(dia.fecha).toLowerCase()}: el gráfico la muestra en 0%.`);
   });
-  const incompletos = datos.om.filter(f => f.horasUltimo === null || f.fechaUltimo === null).length;
-  if (incompletos) {
-    avisos.push(`${incompletos === 1 ? 'Un sitio de mantenimiento no tiene' : `${incompletos} sitios de mantenimiento no tienen`} horas o fecha del último mantenimiento: su fila quedará incompleta.`);
-  }
+  const sinUltimo = datos.om.filter(f => f.horasUltimo === null || f.fechaUltimo === null).map(f => f.nombre);
+  if (sinUltimo.length) avisos.push(`Sin horas o fecha del último mantenimiento: ${sinUltimo.join(', ')}. Su fila quedará incompleta.`);
+  const sinHoras = datos.om.filter(f => f.horasRegistradas === null).map(f => f.nombre);
+  if (sinHoras.length) avisos.push(`Sin horas registradas hasta la fecha de corte: ${sinHoras.join(', ')}.`);
   return avisos;
 }

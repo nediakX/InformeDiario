@@ -521,8 +521,18 @@ function AppContenido() {
     return <CargandoPantalla><InformeCierre onBack={() => setView('dashboard')} /></CargandoPantalla>;
   }
 
-  if (view === 'presentacion' && division === 'el_salvador') {
-    return <CargandoPantalla><PresentacionTurno onBack={() => setView('dashboard')} /></CargandoPantalla>;
+  if ((view === 'presentacion' || view === 'presentacion-fds') && division === 'el_salvador') {
+    // La clave por pantalla hace que al cambiar entre turno completo y fin de semana se vuelva a montar en el modo correcto.
+    return (
+      <CargandoPantalla>
+        <PresentacionTurno
+          key={view}
+          modoInicial={view === 'presentacion-fds' ? 'fds' : 'completo'}
+          borradoresMantenimiento={borradoresMantenimiento}
+          onBack={() => setView('dashboard')}
+        />
+      </CargandoPantalla>
+    );
   }
 
   if (view === 'mantenimiento') {
