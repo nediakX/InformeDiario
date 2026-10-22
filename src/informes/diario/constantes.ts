@@ -128,16 +128,28 @@ export const DEFAULT_ACTIVIDADES_DIA: string[] = [
   "Tareas Administrativas."
 ];
 
-export const ACTIVIDAD_DIA_PERMANENTE = "Verificación de Ropa Alta Visibilidad";
+export const ACTIVIDAD_DIA_PERMANENTE = "Verificación de Ropa Alta Visibilidad.";
 export const ACTIVIDAD_ART_VEHICULO_LIVIANO = "Registro ART Conducción Vehículo Liviano.";
 
+// Compara actividades ignorando mayúsculas, espacios y el punto final.
+const normActividad = (s: string) => s.trim().replace(/\.+$/, '').toLowerCase();
+
 export const ensureActividadesDiaPermanentes = (items: string[]) => {
-  const updated = [...items];
-  if (!updated.includes(ACTIVIDAD_ART_VEHICULO_LIVIANO)) {
+  // Quita duplicados (p. ej. "Verificación de Ropa Alta Visibilidad" con y sin punto), dejando la primera.
+  const vistos = new Set<string>();
+  const updated = items.filter((it) => {
+    const k = normActividad(it);
+    if (!k) return true;
+    if (vistos.has(k)) return false;
+    vistos.add(k);
+    return true;
+  });
+  const tiene = (act: string) => vistos.has(normActividad(act));
+  if (!tiene(ACTIVIDAD_ART_VEHICULO_LIVIANO)) {
     const fatigueIndex = updated.indexOf("Registro Fatiga y Somnolencia.");
     updated.splice(fatigueIndex >= 0 ? fatigueIndex : updated.length, 0, ACTIVIDAD_ART_VEHICULO_LIVIANO);
   }
-  if (!updated.includes(ACTIVIDAD_DIA_PERMANENTE)) updated.push(ACTIVIDAD_DIA_PERMANENTE);
+  if (!tiene(ACTIVIDAD_DIA_PERMANENTE)) updated.push(ACTIVIDAD_DIA_PERMANENTE);
   return updated;
 };
 
