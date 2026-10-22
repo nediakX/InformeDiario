@@ -5,7 +5,7 @@
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import { Camera, ImageUp, Loader2, RotateCw, Crop, Check, X, ScanLine, Zap } from 'lucide-react';
 import {
-  aJpeg, aplicarFiltro, cargarImagen, cargarOpenCv, detectarHoja, enderezar, esquinasPorDefecto,
+  aJpeg, aplicarFiltro, cargarImagen, detectarHoja, enderezar, esquinasPorDefecto,
   liberarLienzo, lienzoDesdeImagen, rotar90, type Esquinas, type FiltroEscaneo,
 } from '../lib/escaner';
 import './escaner.css';
@@ -70,8 +70,6 @@ export default function EscanerDocumento({ onUsar, onCancelar }: {
         if (videoRef.current) { videoRef.current.srcObject = stream; void videoRef.current.play(); }
       })
       .catch(() => setSinCamara(true));
-    // Mientras tanto se precarga OpenCV, así el escaneo es inmediato al capturar.
-    void cargarOpenCv().catch(() => undefined);
     return () => {
       cancelado = true;
       streamRef.current?.getTracks().forEach(t => t.stop());
@@ -107,7 +105,7 @@ export default function EscanerDocumento({ onUsar, onCancelar }: {
             capturarRef.current(q);
             return;
           }
-        } catch { /* OpenCV aún cargando: se reintenta */ }
+        } catch { /* cuadro de video no disponible aún: se reintenta */ }
       }
       temporizador = setTimeout(() => { void vuelta(); }, 250);
     };

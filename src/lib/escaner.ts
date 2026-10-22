@@ -131,37 +131,44 @@ function cuadrilatero(cv: Cv, contorno: Cv): Punto[] | null {
       // Sin 4 vértices claros: los puntos extremos en las 4 diagonales.
       vertices = ordenar(puntosDe(casco));
     }
-    vertices = ordenar(vertices);
-    // Reajuste de los lados: puntos del contorno cerca de cada lado, sin los extremos (las esquinas
-    // pueden estar dobladas o redondeadas).
-    const diag = Math.hypot(...[vertices[2].x - vertices[0].x, vertices[2].y - vertices[0].y]);
-    const tol = Math.max(3, diag * 0.025);
-    const rectas = [0, 1, 2, 3].map(i => {
-      const a = vertices![i], b = vertices![(i + 1) % 4];
-      const largo = Math.hypot(b.x - a.x, b.y - a.y) || 1;
-      const lado = pts.filter(p => {
-        if (distSegmento(p, a, b) > tol) return false;
-        const t = ((p.x - a.x) * (b.x - a.x) + (p.y - a.y) * (b.y - a.y)) / (largo * largo);
-        return t > 0.12 && t < 0.88;
-      });
-      let recta = lado.length >= 6 ? ajustarRecta(lado) : ajustarRecta([a, b]);
-      // Segunda pasada: solo los puntos que de verdad están sobre la recta (deja fuera puntas dobladas).
-      if (recta && lado.length >= 6) {
-        const r0 = recta;
-        const cerca = lado.filter(p => Math.abs((p.x - r0.c.x) * r0.d.y - (p.y - r0.c.y) * r0.d.x) < tol / 3);
-        if (cerca.length >= Math.max(6, lado.length * 0.4)) recta = ajustarRecta(cerca);
-      }
-      return recta;
-    });
-    const esquinas = [0, 1, 2, 3].map(i => cruce(rectas[(i + 3) % 4]!, rectas[i]!));
-    if (esquinas.some(e => !e)) return vertices;
-    const finales = esquinas as Punto[];
-    // Si el reajuste se fue lejos (lados casi paralelos, ruido), se usan los vértices aproximados.
-    const lejos = finales.some((e, i) => Math.hypot(e.x - vertices![i].x, e.y - vertices![i].y) > diag * 0.12);
-    return ordenar(lejos ? vertices : finales);
+    return reajustarLados(ordenar(vertices), pts);
   } finally {
     casco.delete(); aprox.delete();
   }
+}
+
+/**
+ * Reajusta cada lado del cuadrilátero con los puntos del borde que caen sobre él (sin los extremos,
+ * que pueden estar doblados o redondeados) y devuelve los cruces de las 4 rectas como esquinas.
+ */
+function reajustarLados(vertices: Punto[], pts: Punto[]): Punto[] {
+  // Reajuste de los lados: puntos del contorno cerca de cada lado, sin los extremos (las esquinas
+  // pueden estar dobladas o redondeadas).
+  const diag = Math.hypot(...[vertices[2].x - vertices[0].x, vertices[2].y - vertices[0].y]);
+  const tol = Math.max(3, diag * 0.025);
+  const rectas = [0, 1, 2, 3].map(i => {
+    const a = vertices[i], b = vertices[(i + 1) % 4];
+    const largo = Math.hypot(b.x - a.x, b.y - a.y) || 1;
+    const lado = pts.filter(p => {
+      if (distSegmento(p, a, b) > tol) return false;
+      const t = ((p.x - a.x) * (b.x - a.x) + (p.y - a.y) * (b.y - a.y)) / (largo * largo);
+      return t > 0.12 && t < 0.88;
+    });
+    let recta = lado.length >= 6 ? ajustarRecta(lado) : ajustarRecta([a, b]);
+    // Segunda pasada: solo los puntos que de verdad están sobre la recta (deja fuera puntas dobladas).
+    if (recta && lado.length >= 6) {
+      const r0 = recta;
+      const cerca = lado.filter(p => Math.abs((p.x - r0.c.x) * r0.d.y - (p.y - r0.c.y) * r0.d.x) < tol / 3);
+      if (cerca.length >= Math.max(6, lado.length * 0.4)) recta = ajustarRecta(cerca);
+    }
+    return recta;
+  });
+  const esquinas = [0, 1, 2, 3].map(i => cruce(rectas[(i + 3) % 4]!, rectas[i]!));
+  if (esquinas.some(e => !e)) return vertices;
+  const finales = esquinas as Punto[];
+  // Si el reajuste se fue lejos (lados casi paralelos, ruido), se usan los vértices aproximados.
+  const lejos = finales.some((e, i) => Math.hypot(e.x - vertices[i].x, e.y - vertices[i].y) > diag * 0.12);
+  return ordenar(lejos ? vertices : finales);
 }
 
 /** ¿Tiene forma de hoja? Convexo y con ángulos razonables (vista en perspectiva incluida). */
@@ -187,13 +194,236 @@ function esHojaValida(q: Punto[], ancho: number, alto: number): boolean {
   return q.every(p => p.x > -margen && p.y > -margen && p.x < ancho + margen && p.y < alto + margen);
 }
 
+// --- Detección sin OpenCV (JavaScript puro) ------------------------------------------------------
+// Es la principal: no depende de descargar OpenCV (≈10 MB, que en algunos iPhone no alcanza a
+// cargar o se queda sin memoria) y es rápida, así sirve también para la cámara en vivo.
+// La hoja es la mancha clara y sin color más grande: se separa por color, se limpia y de su borde se
+// sacan las 4 rectas de los lados.
+
+/** Umbral de Otsu de un histograma de 256 niveles. */
+function otsu(hist: Uint32Array, total: number): number {
+  let suma = 0;
+  for (let i = 0; i < 256; i++) suma += i * hist[i];
+  let sumaB = 0, pesoB = 0, mejor = 0, umbral = 128;
+  for (let t = 0; t < 256; t++) {
+    pesoB += hist[t];
+    if (!pesoB) continue;
+    const pesoF = total - pesoB;
+    if (!pesoF) break;
+    sumaB += t * hist[t];
+    const mB = sumaB / pesoB, mF = (suma - sumaB) / pesoF;
+    const varianza = pesoB * pesoF * (mB - mF) * (mB - mF);
+    if (varianza > mejor) { mejor = varianza; umbral = t; }
+  }
+  return umbral;
+}
+
+/** Máximo (dilatar) o mínimo (erosionar) en una ventana cuadrada de radio r, por filas y columnas. */
+function filtroMorfologico(m: Uint8Array, w: number, h: number, r: number, maximo: boolean): Uint8Array {
+  const tmp = new Uint8Array(w * h);
+  const out = new Uint8Array(w * h);
+  const usar = maximo ? (a: number, b: number) => (a > b ? a : b) : (a: number, b: number) => (a < b ? a : b);
+  const fuera = maximo ? 0 : 255; // fuera de la imagen: no agranda (dilatar) ni come la hoja que toca el borde (erosionar)
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      let v = maximo ? 0 : 255;
+      for (let k = -r; k <= r; k++) { const xx = x + k; v = usar(v, xx < 0 || xx >= w ? fuera : m[y * w + xx]); }
+      tmp[y * w + x] = v;
+    }
+  }
+  for (let x = 0; x < w; x++) {
+    for (let y = 0; y < h; y++) {
+      let v = maximo ? 0 : 255;
+      for (let k = -r; k <= r; k++) { const yy = y + k; v = usar(v, yy < 0 || yy >= h ? fuera : tmp[yy * w + x]); }
+      out[y * w + x] = v;
+    }
+  }
+  return out;
+}
+
+/** Casco convexo (cadena monótona). */
+function cascoConvexo(pts: Punto[]): Punto[] {
+  const p = [...pts].sort((a, b) => a.x - b.x || a.y - b.y);
+  if (p.length < 3) return p;
+  const cruz = (o: Punto, a: Punto, b: Punto) => (a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x);
+  const abajo: Punto[] = [], arriba: Punto[] = [];
+  for (const q of p) { while (abajo.length >= 2 && cruz(abajo[abajo.length - 2], abajo[abajo.length - 1], q) <= 0) abajo.pop(); abajo.push(q); }
+  for (let i = p.length - 1; i >= 0; i--) { const q = p[i]; while (arriba.length >= 2 && cruz(arriba[arriba.length - 2], arriba[arriba.length - 1], q) <= 0) arriba.pop(); arriba.push(q); }
+  return [...abajo.slice(0, -1), ...arriba.slice(0, -1)];
+}
+
+/** Simplifica un polígono cerrado (Douglas-Peucker) con tolerancia `eps`. */
+function simplificarCerrado(pol: Punto[], eps: number): Punto[] {
+  if (pol.length <= 4) return pol;
+  // Se parte desde los dos puntos más lejanos entre sí, así el resultado no depende del inicio.
+  let ia = 0, ib = 0, d = -1;
+  for (let i = 0; i < pol.length; i++) for (let j = i + 1; j < pol.length; j++) {
+    const dd = (pol[i].x - pol[j].x) ** 2 + (pol[i].y - pol[j].y) ** 2;
+    if (dd > d) { d = dd; ia = i; ib = j; }
+  }
+  const tramo = (i: number, j: number): Punto[] => {
+    const seg: Punto[] = [];
+    for (let k = i; k !== j; k = (k + 1) % pol.length) seg.push(pol[k]);
+    seg.push(pol[j]);
+    return seg;
+  };
+  const dp = (pts: Punto[]): Punto[] => {
+    if (pts.length < 3) return pts;
+    const a = pts[0], b = pts[pts.length - 1];
+    let max = -1, idx = 0;
+    for (let k = 1; k < pts.length - 1; k++) { const dist = distSegmento(pts[k], a, b); if (dist > max) { max = dist; idx = k; } }
+    if (max <= eps) return [a, b];
+    return [...dp(pts.slice(0, idx + 1)).slice(0, -1), ...dp(pts.slice(idx))];
+  };
+  const r1 = dp(tramo(ia, ib)), r2 = dp(tramo(ib, ia));
+  return [...r1.slice(0, -1), ...r2.slice(0, -1)];
+}
+
+/** Hoja buscada por color en una copia chica de la imagen (coordenadas de esa copia). */
+function detectarHojaPorColor(datos: ImageData): { esquinas: Punto[]; puntaje: number } | null {
+  const { width: w, height: h, data } = datos;
+  const n = w * h;
+  const lado = Math.max(w, h);
+  // "Puntaje de papel": claro y sin color (V − S de HSV, entre 0 y 255).
+  const puntaje = new Uint8Array(n);
+  for (let i = 0, j = 0; i < n; i++, j += 4) {
+    const r = data[j], g = data[j + 1], b = data[j + 2];
+    const max = r > g ? (r > b ? r : b) : (g > b ? g : b);
+    const min = r < g ? (r < b ? r : b) : (g < b ? g : b);
+    const sat = max ? ((max - min) * 255) / max : 0;
+    puntaje[i] = Math.max(0, Math.min(255, max - sat));
+  }
+  // Suavizado (desenfoque de caja) para borrar la textura de la mesa y el texto.
+  const rs = Math.max(1, Math.round(lado / 160));
+  const suave = new Uint8Array(n);
+  {
+    const tmp = new Float32Array(n);
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      let s = 0, c = 0;
+      for (let k = -rs; k <= rs; k++) { const xx = x + k; if (xx >= 0 && xx < w) { s += puntaje[y * w + xx]; c++; } }
+      tmp[y * w + x] = s / c;
+    }
+    for (let x = 0; x < w; x++) for (let y = 0; y < h; y++) {
+      let s = 0, c = 0;
+      for (let k = -rs; k <= rs; k++) { const yy = y + k; if (yy >= 0 && yy < h) { s += tmp[yy * w + x]; c++; } }
+      suave[y * w + x] = s / c;
+    }
+  }
+  const hist = new Uint32Array(256);
+  for (let i = 0; i < n; i++) hist[suave[i]]++;
+  const t = otsu(hist, n);
+  let mascara: Uint8Array = new Uint8Array(n);
+  for (let i = 0; i < n; i++) mascara[i] = suave[i] > t ? 255 : 0;
+  // Cierra el texto y las líneas impresas (la hoja queda "llena") y borra manchas sueltas.
+  const rc = Math.max(2, Math.round(lado / 70));
+  const ra = Math.max(1, Math.round(lado / 140));
+  mascara = filtroMorfologico(filtroMorfologico(mascara, w, h, rc, true), w, h, rc, false);
+  mascara = filtroMorfologico(filtroMorfologico(mascara, w, h, ra, false), w, h, ra, true);
+
+  // Componentes conectadas: se revisan las 3 más grandes.
+  const etiqueta = new Int32Array(n).fill(-1);
+  const componentes: { id: number; area: number }[] = [];
+  const pila = new Int32Array(n);
+  let id = 0;
+  for (let i = 0; i < n; i++) {
+    if (!mascara[i] || etiqueta[i] !== -1) continue;
+    let tope = 0, area = 0;
+    pila[tope++] = i; etiqueta[i] = id;
+    while (tope) {
+      const k = pila[--tope]; area++;
+      const x = k % w, y = (k - x) / w;
+      if (x > 0 && mascara[k - 1] && etiqueta[k - 1] === -1) { etiqueta[k - 1] = id; pila[tope++] = k - 1; }
+      if (x < w - 1 && mascara[k + 1] && etiqueta[k + 1] === -1) { etiqueta[k + 1] = id; pila[tope++] = k + 1; }
+      if (y > 0 && mascara[k - w] && etiqueta[k - w] === -1) { etiqueta[k - w] = id; pila[tope++] = k - w; }
+      if (y < h - 1 && mascara[k + w] && etiqueta[k + w] === -1) { etiqueta[k + w] = id; pila[tope++] = k + w; }
+    }
+    componentes.push({ id, area });
+    id++;
+  }
+  componentes.sort((a, b) => b.area - a.area);
+  let mejor: { esquinas: Punto[]; puntaje: number } | null = null;
+  for (const comp of componentes.slice(0, 3)) {
+    if (comp.area < n * 0.1) break;
+    // Borde de la mancha (píxeles con algún vecino fuera de ella).
+    const borde: Punto[] = [];
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      const k = y * w + x;
+      if (etiqueta[k] !== comp.id) continue;
+      if (x === 0 || y === 0 || x === w - 1 || y === h - 1 || etiqueta[k - 1] !== comp.id || etiqueta[k + 1] !== comp.id || etiqueta[k - w] !== comp.id || etiqueta[k + w] !== comp.id) {
+        borde.push({ x: x + 0.5, y: y + 0.5 });
+      }
+    }
+    const casco = cascoConvexo(borde);
+    if (casco.length < 4) continue;
+    const perimetro = casco.reduce((s, p, i) => s + Math.hypot(p.x - casco[(i + 1) % casco.length].x, p.y - casco[(i + 1) % casco.length].y), 0);
+    let vertices: Punto[] | null = null;
+    for (let eps = 0.01; eps <= 0.1 && !vertices; eps += 0.01) {
+      const simple = simplificarCerrado(casco, eps * perimetro);
+      if (simple.length === 4) vertices = simple;
+    }
+    if (!vertices) vertices = ordenar(casco);
+    const q = reajustarLados(ordenar(vertices), borde);
+    if (!esHojaValida(q, w, h)) continue;
+    const aq = areaPoligono(q);
+    const relleno = Math.min(comp.area, aq) / Math.max(comp.area, aq);
+    if (relleno < 0.8) continue;
+    const p = relleno * 2 + aq / n;
+    if (!mejor || p > mejor.puntaje) mejor = { esquinas: q, puntaje: p };
+  }
+  return mejor;
+}
+
+/** Se cuenta el tiempo de carga de OpenCV: si no carga a tiempo (iPhone), no se vuelve a esperar. */
+let openCvFallo = false;
+const conTiempo = <T,>(p: Promise<T>, ms: number) => new Promise<T>((resolve, reject) => {
+  const t = setTimeout(() => reject(new Error('OpenCV no cargó a tiempo')), ms);
+  p.then(v => { clearTimeout(t); resolve(v); }, e => { clearTimeout(t); reject(e); });
+});
+
 /**
  * Busca la hoja en la imagen. null si no la encuentra.
- * @param ladoMaximo tamaño de la copia en que se busca: 800 para una foto; ~360 en la vista en vivo
- *   de la cámara (se repite varias veces por segundo y tiene que ser liviano).
+ * Primero por color en JavaScript puro (rápido y funciona en todos los teléfonos); si no la
+ * encuentra y es una foto (no la cámara en vivo), se intenta además con OpenCV por bordes.
+ * @param ladoMaximo 800 para una foto; ~360 en la vista en vivo de la cámara (varias veces por segundo).
  */
-export async function detectarHoja(canvas: HTMLCanvasElement | HTMLVideoElement, ladoMaximo = 800): Promise<Esquinas | null> {
-  const cv = await cargarOpenCv();
+export async function detectarHoja(fuente: HTMLCanvasElement | HTMLVideoElement, ladoMaximo = 800): Promise<Esquinas | null> {
+  const anchoOrigen = fuente instanceof HTMLVideoElement ? fuente.videoWidth : fuente.width;
+  const altoOrigen = fuente instanceof HTMLVideoElement ? fuente.videoHeight : fuente.height;
+  if (!anchoOrigen || !altoOrigen) return null;
+  const enVivo = ladoMaximo < 600;
+  // Copia chica para buscar por color (con 320 px de lado sobra para encontrar la hoja).
+  const escala = Math.min(1, (enVivo ? 240 : 400) / Math.max(anchoOrigen, altoOrigen));
+  const chica = nuevoLienzo(anchoOrigen * escala, altoOrigen * escala);
+  const ctx = contexto(chica);
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(fuente, 0, 0, chica.width, chica.height);
+  const datos = ctx.getImageData(0, 0, chica.width, chica.height);
+  liberarLienzo(chica);
+  const porColor = detectarHojaPorColor(datos);
+  if (porColor) {
+    // Se entra un poco hacia el centro para no arrastrar el borde de la mesa al recorte.
+    const sx = anchoOrigen / datos.width, sy = altoOrigen / datos.height;
+    const puntos = porColor.esquinas.map(p => ({ x: p.x * sx, y: p.y * sy }));
+    const cx = puntos.reduce((s, p) => s + p.x, 0) / 4, cy = puntos.reduce((s, p) => s + p.y, 0) / 4;
+    const k = 0.006;
+    return ordenar(puntos.map(p => ({
+      x: Math.min(anchoOrigen, Math.max(0, p.x + (cx - p.x) * k)),
+      y: Math.min(altoOrigen, Math.max(0, p.y + (cy - p.y) * k)),
+    })));
+  }
+  if (enVivo || openCvFallo) return null;
+  try {
+    return await detectarHojaCv(fuente, ladoMaximo);
+  } catch (error) {
+    openCvFallo = true;
+    console.warn('Detección con OpenCV no disponible:', error);
+    return null;
+  }
+}
+
+/** Detección por bordes con OpenCV (respaldo para fotos donde la hoja no se distingue por color). */
+async function detectarHojaCv(canvas: HTMLCanvasElement | HTMLVideoElement, ladoMaximo = 800): Promise<Esquinas | null> {
+  const cv = await conTiempo(cargarOpenCv(), 20000);
   const anchoOrigen = canvas instanceof HTMLVideoElement ? canvas.videoWidth : canvas.width;
   const altoOrigen = canvas instanceof HTMLVideoElement ? canvas.videoHeight : canvas.height;
   if (!anchoOrigen || !altoOrigen) return null;
