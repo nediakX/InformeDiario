@@ -32,6 +32,7 @@ import BotonSubir from '../componentes/BotonSubir';
 // Pantallas que no se usan al abrir la app: se descargan recién cuando se entra a ellas.
 import ErrorPantalla from '../componentes/ErrorPantalla';
 const InformeCierre = lazy(() => import('../informes/InformeCierre'));
+const PresentacionTurno = lazy(() => import('../informes/presentacion/PresentacionTurno'));
 const InformeMantenimiento = lazy(() => import('../informes/InformeMantenimiento'));
 const InformePreventiva = lazy(() => import('../informes/preventiva/InformePreventiva'));
 const MapaSitios = lazy(() => import('../pantallas/MapaSitios'));
@@ -518,6 +519,10 @@ function AppContenido() {
 
   if (view === 'cierre') {
     return <CargandoPantalla><InformeCierre onBack={() => setView('dashboard')} /></CargandoPantalla>;
+  }
+
+  if (view === 'presentacion' && division === 'el_salvador') {
+    return <CargandoPantalla><PresentacionTurno onBack={() => setView('dashboard')} /></CargandoPantalla>;
   }
 
   if (view === 'mantenimiento') {

@@ -17,7 +17,7 @@
 //   /admin/:pestana?           Panel de administración (resumen | actividades | generadores | en-linea | usuarios | actividad | sistema)
 //   /login, /registro          Acceso (solo sin sesión)
 
-export type Vista = 'dashboard' | 'diario' | 'borradores' | 'cierre' | 'mantenimiento' | 'preventiva' | 'falla-carro' | 'checklist' | 'impresion' | 'reportabilidad-gg' | 'mapa' | 'admin' | 'perfil';
+export type Vista = 'dashboard' | 'diario' | 'borradores' | 'cierre' | 'presentacion' | 'mantenimiento' | 'preventiva' | 'falla-carro' | 'checklist' | 'impresion' | 'reportabilidad-gg' | 'mapa' | 'admin' | 'perfil';
 export type TipoBorradores = 'diario' | 'mantenimiento' | 'falla';
 export type PestanaAdmin = 'resumen' | 'actividades' | 'generadores' | 'en-linea' | 'usuarios' | 'actividad' | 'sistema';
 
@@ -27,6 +27,7 @@ export const NOMBRE_PANTALLA: Record<Vista, string> = {
   diario: 'Informe Diario',
   borradores: 'Borradores',
   cierre: 'Informe de Cierre',
+  presentacion: 'Presentación del turno',
   mantenimiento: 'Mantenimiento de Generador',
   preventiva: 'Mantención preventiva de sitio',
   'falla-carro': 'Informe de Falla — Carro',
@@ -43,6 +44,7 @@ const BASE: Record<Vista, string> = {
   diario: '/informe-diario',
   borradores: '/borradores',
   cierre: '/cierre',
+  presentacion: '/presentacion-turno',
   mantenimiento: '/mantenimiento',
   preventiva: '/mantencion-preventiva',
   'falla-carro': '/falla',
@@ -72,7 +74,7 @@ export function leerRuta(pathname: string): RutaLeida {
   if (resto.length) return { vista: null, param: null };
   const vista = (Object.keys(BASE) as Vista[]).find(v => v !== 'dashboard' && BASE[v] === `/${primera}`) ?? null;
   if (!vista) return { vista: null, param: null };
-  if (segunda && (vista === 'cierre' || vista === 'impresion' || vista === 'reportabilidad-gg' || vista === 'checklist' || vista === 'perfil' || vista === 'mapa')) return { vista: null, param: null };
+  if (segunda && (vista === 'cierre' || vista === 'presentacion' || vista === 'impresion' || vista === 'reportabilidad-gg' || vista === 'checklist' || vista === 'perfil' || vista === 'mapa')) return { vista: null, param: null };
   return { vista, param: segunda };
 }
 

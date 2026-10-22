@@ -1,5 +1,5 @@
 import { Fragment, Suspense, lazy, useEffect, useState, type ReactNode } from 'react';
-import { ChevronDown, ClipboardCheck, FileStack, FolderOpen, ChevronRight, Bell, FilePlus, Sun, Moon, Wrench, AlertTriangle, Printer, LogOut, ShieldCheck, FileUp, Fuel, LayoutGrid, RadioTower, Map as MapIcon, type LucideIcon } from 'lucide-react';
+import { ChevronDown, ClipboardCheck, FileStack, FolderOpen, ChevronRight, Bell, FilePlus, Sun, Moon, Wrench, AlertTriangle, Printer, LogOut, ShieldCheck, FileUp, Fuel, LayoutGrid, RadioTower, Map as MapIcon, Presentation, type LucideIcon } from 'lucide-react';
 import { useSesion, nombreVisible } from '../auth/sesion';
 import { CONFIG_DIVISION } from '../datos/divisiones';
 import './dashboard.css';
@@ -49,7 +49,7 @@ function Tarea({ icono: Icono, color, titulo, estado, tono, etiqueta, ayuda, onC
 }
 
 interface DashboardProps {
-  onNavigate: (view: 'borradores' | 'cierre' | 'checklist' | 'impresion' | 'reportabilidad-gg' | 'mapa' | 'admin' | 'perfil') => void;
+  onNavigate: (view: 'borradores' | 'cierre' | 'presentacion' | 'checklist' | 'impresion' | 'reportabilidad-gg' | 'mapa' | 'admin' | 'perfil') => void;
   /** Informes de hoy (Día y Noche), guardados o todavía pendientes: la persona elige con cuál trabajar. */
   informesHoy?: BorradorEntry[];
   onAbrirInforme: (entry: BorradorEntry) => void;
@@ -178,6 +178,8 @@ export default function Dashboard({
       tono={diaDelTurno === 1 || diaDelTurno >= DIAS_POR_TURNO - 1 ? 'aviso' : undefined} />,
     cierre: <Tarea icono={FileStack} color="#ED7D31" titulo="Informe de cierre" onClick={() => onNavigate('cierre')}
       estado={`${diasConInformeDia} de ${DIAS_POR_TURNO} días de Turno Día con informe`} />,
+    presentacion: division === 'el_salvador' ? <Tarea icono={Presentation} color="#7B3FA0" titulo="Presentación del turno" onClick={() => onNavigate('presentacion')}
+      estado="Láminas del turno completo desde los informes diarios" /> : null,
     falla: <Tarea icono={AlertTriangle} color="#B3261E" titulo="Informe de falla de carro" onClick={() => setModalFallaOpen(true)}
       estado={borradoresFalla.length ? `${borradoresFalla.length} borrador${borradoresFalla.length === 1 ? '' : 'es'}` : 'Sin borradores'}
       etiqueta="En desarrollo" />,
@@ -207,7 +209,7 @@ export default function Dashboard({
       </section>
       <section className="dash-grupo" aria-labelledby="dash-grupo-informes">
         <h2 id="dash-grupo-informes" className="dash-grupo__titulo"><FileStack size={15} aria-hidden="true" /> Otros informes</h2>
-        <div className="dash-grupo__lista">{tareas.cierre}{tareas.preventiva}{tareas.falla}{tareas.mantenimiento}</div>
+        <div className="dash-grupo__lista">{tareas.cierre}{tareas.presentacion}{tareas.preventiva}{tareas.falla}{tareas.mantenimiento}</div>
       </section>
       <section className="dash-grupo" aria-labelledby="dash-grupo-archivo">
         <h2 id="dash-grupo-archivo" className="dash-grupo__titulo"><FolderOpen size={15} aria-hidden="true" /> Archivo</h2>
