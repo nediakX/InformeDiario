@@ -1,5 +1,6 @@
 // Genera la presentación del turno (.pptx) a partir de la plantilla de DSAL: se conserva el diseño
-// (láminas, colores, tipografías, marcos de fotos) y solo se reemplazan textos, fotos y leyendas.
+// (láminas, colores, tipografías, imágenes, animaciones y marcos de fotos) y solo se reemplazan
+// textos, fotos y leyendas.
 import JSZip from 'jszip';
 import plantillaUrl from '../../assets/plantillas/presentacion_turno.pptx?url';
 import { comprimirDataUrl } from '../../lib/fotos';
@@ -20,6 +21,12 @@ const MESES_MAYUSCULA = ['ENERO', 'FEBRERO', 'MARZO', 'ABRIL', 'MAYO', 'JUNIO', 
 const FOTO_LADO = 1400;
 const FOTO_CALIDAD = 0.85;
 
+/** Resultado de generar: el archivo y los avisos que conviene revisar antes de presentarlo. */
+export interface ResultadoPresentacion {
+  blob: Blob;
+  avisos: string[];
+}
+
 /** "2026-08-26" -> "26/08/2026" */
 const dmy = (iso: string) => { const [y, m, d] = iso.split('-'); return `${d}/${m}/${y}`; };
 /** "2026-08-26" -> "26 AGOSTO" */
@@ -29,10 +36,32 @@ const diaMesMayuscula = (iso: string) => { const [, m, d] = iso.split('-').map(N
 // Utilidades de XML (DOM del navegador)
 // ---------------------------------------------------------------------------------------
 
-const leer = (xml: string) => new DOMParser().parseFromString(xml, 'application/xml');
+const leer = (xml: string) => {
+  const doc = new DOMParser().parseFromString(xml, 'application/xml');
+  if (doc.getElementsByTagName('parsererror').length) throw new Error('Una lámina de la plantilla no se pudo leer.');
+  return doc;
+};
 const escribir = (doc: Document) => {
   const xml = new XMLSerializer().serializeToString(doc);
   return xml.startsWith('<?xml') ? xml : '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n' + xml;
+};
+
+/**
+ * Quita los caracteres que XML 1.0 no admite (un texto con ellos deja la lámina dañada para PowerPoint).
+ * Los pares sustitutos válidos (emojis, letras raras) se conservan.
+ */
+const textoSeguro = (texto: string) => {
+  let salida = '';
+  for (let i = 0; i < texto.length; i++) {
+    const c = texto.charCodeAt(i);
+    if (c === 0x09 || c === 0x0a || c === 0x0d || (c >= 0x20 && c <= 0xd7ff) || (c >= 0xe000 && c <= 0xfffd)) {
+      salida += texto[i];
+    } else if (c >= 0xd800 && c <= 0xdbff) {
+      const siguiente = texto.charCodeAt(i + 1);
+      if (siguiente >= 0xdc00 && siguiente <= 0xdfff) { salida += texto[i] + texto[i + 1]; i++; }
+    }
+  }
+  return salida;
 };
 
 const hijos = (el: Element, ns: string, local: string) =>
@@ -61,16 +90,19 @@ function fijarTexto(p: Element, texto: string) {
   const runs = hijos(p, NS_A, 'r');
   if (!runs.length) {
     const r = p.ownerDocument.createElementNS(NS_A, 'a:r');
-    const t = p.ownerDocument.createElementNS(NS_A, 'a:t');
-    r.appendChild(t);
-    p.appendChild(r);
+    r.appendChild(p.ownerDocument.createElementNS(NS_A, 'a:t'));
+    p.insertBefore(r, hijos(p, NS_A, 'endParaRPr')[0] ?? null);
     runs.push(r);
   }
   for (const hijo of Array.from(p.children)) {
     if (hijo.localName !== 'pPr' && hijo.localName !== 'endParaRPr' && hijo !== runs[0]) p.removeChild(hijo);
   }
-  const t = runs[0].getElementsByTagNameNS(NS_A, 't')[0];
-  t.textContent = texto;
+  let t = runs[0].getElementsByTagNameNS(NS_A, 't')[0];
+  if (!t) {
+    t = p.ownerDocument.createElementNS(NS_A, 'a:t');
+    runs[0].appendChild(t);
+  }
+  t.textContent = textoSeguro(texto);
 }
 
 const fijarTamano = (p: Element, sz: number) => {
@@ -121,15 +153,92 @@ function tamanoEnPt(forma: Element): { ancho: number; alto: number } {
   return { ancho: (w * sx) / 12700, alto: (h * sy) / 12700 };
 }
 
+/** Tamaño de letra (centésimas de punto) que trae la plantilla en un párrafo, si lo trae. */
+function tamanoDePlantilla(p: Element | undefined): number | null {
+  if (!p) return null;
+  const con = [...descendientes(p, NS_A, 'rPr'), ...descendientes(p, NS_A, 'endParaRPr')].find(r => r.getAttribute('sz'));
+  const sz = Number(con?.getAttribute('sz'));
+  return sz > 0 ? sz : null;
+}
+
+/** Tamaños a probar: primero el de la plantilla (así se ve igual) y después cada vez más chicos. */
+function tamanosPosibles(base: number | null, respaldo: number[]): number[] {
+  if (!base) return respaldo;
+  const lista = [base];
+  for (let sz = base - 50; sz >= 500; sz -= 50) lista.push(sz);
+  return lista;
+}
+
 /** Mayor tamaño de letra (centésimas de punto) con el que los textos caben en la caja. Cálculo aproximado. */
 function tamanoQueCabe(caja: { ancho: number; alto: number }, textos: string[], tamanos: number[]): number {
   for (const sz of tamanos) {
     const pt = sz / 100;
-    const porLinea = Math.max(10, (caja.ancho - 20) / (pt * 0.66));
+    const porLinea = Math.max(10, (caja.ancho - 20) / (pt * 0.7));
     const lineas = textos.reduce((n, t) => n + Math.max(1, Math.ceil(t.length / porLinea)), 0);
     if (lineas * pt * 1.2 + textos.length * pt * 0.3 <= caja.alto - 8) return sz;
   }
   return tamanos[tamanos.length - 1];
+}
+
+// ---------------------------------------------------------------------------------------
+// Animaciones: al quitar una forma se quita también todo lo que la anima
+// ---------------------------------------------------------------------------------------
+
+/** Quita un p:par de la animación y, si su grupo queda vacío, también el grupo (sin pasar de la secuencia). */
+function quitarNodoDeTiempo(par: Element) {
+  let lista: Element | null = par.parentElement;
+  par.parentElement?.removeChild(par);
+  while (lista && lista.localName === 'childTnLst' && lista.children.length === 0) {
+    const nodo = lista.parentElement;   // p:cTn dueño de la lista
+    if (!nodo || ['mainSeq', 'tmRoot', 'interactiveSeq'].includes(nodo.getAttribute('nodeType') ?? '')) break;
+    const envoltorio = nodo.parentElement; // p:par que envuelve a ese nodo
+    if (!envoltorio || envoltorio.localName !== 'par') break;
+    lista = envoltorio.parentElement;
+    envoltorio.parentElement?.removeChild(envoltorio);
+  }
+}
+
+/**
+ * Quita de la animación de la lámina todo lo que apunta a formas que ya no existen.
+ * Si queda una referencia colgando, PowerPoint pide "Reparar el archivo".
+ */
+function limpiarAnimaciones(doc: Document, quitados: Set<string>) {
+  const raiz = doc.documentElement;
+  const tiempos = descendientes(raiz, NS_P, 'timing')[0];
+  if (!tiempos) return;
+
+  // 1) Efectos cuyo destino se quitó: cada efecto es un p:par que envuelve a un nodo cTn con presetClass.
+  const efectos = new Set<Element>();
+  for (const destino of descendientes(tiempos, NS_P, 'spTgt')) {
+    if (!quitados.has(destino.getAttribute('spid') ?? '')) continue;
+    let nodo: Element | null = destino.parentElement;
+    while (nodo && !(nodo.localName === 'cTn' && nodo.hasAttribute('presetClass'))) nodo = nodo.parentElement;
+    if (!nodo?.parentElement) throw new Error('Una animación de la plantilla no tiene un efecto reconocible.');
+    efectos.add(nodo.parentElement);
+  }
+  for (const par of efectos) quitarNodoDeTiempo(par);
+
+  // 2) Bloques de compilación (bldLst) de las formas quitadas.
+  const bloques = descendientes(tiempos, NS_P, 'bldLst')[0];
+  if (bloques) {
+    for (const b of Array.from(bloques.children)) {
+      if (quitados.has(b.getAttribute('spid') ?? '')) bloques.removeChild(b);
+    }
+    if (bloques.children.length === 0) tiempos.removeChild(bloques);
+  }
+
+  // 3) Conectores que se pegaban a una forma quitada.
+  for (const ref of [...descendientes(raiz, NS_A, 'stCxn'), ...descendientes(raiz, NS_A, 'endCxn')]) {
+    if (quitados.has(ref.getAttribute('id') ?? '')) ref.parentElement?.removeChild(ref);
+  }
+
+  // 4) Sin efectos, se quita la animación entera; si quedan, los nodos se numeran de nuevo en orden.
+  if (!descendientes(tiempos, NS_P, 'cTn').some(c => c.hasAttribute('presetClass'))) {
+    tiempos.parentElement?.removeChild(tiempos);
+    return;
+  }
+  let numero = 1;
+  for (const nodo of descendientes(tiempos, NS_P, 'cTn')) nodo.setAttribute('id', String(numero++));
 }
 
 // ---------------------------------------------------------------------------------------
@@ -201,7 +310,7 @@ const arbolDeLamina = (lamina: Lamina) => lamina.doc.getElementsByTagNameNS(NS_P
 async function ponerFoto(ctx: Contexto, lamina: Lamina, pic: Element, foto: FotoLista) {
   lamina.contadorFotos += 1;
   const nombre = `pres_${lamina.numero}_${lamina.contadorFotos}.jpeg`;
-  ctx.zip.file(`ppt/media/${nombre}`, foto.bytes);
+  ctx.zip.file(`ppt/media/${nombre}`, foto.bytes, { createFolders: false });
   const idRel = `rIdPres${lamina.contadorFotos}`;
   const rel = lamina.rels.createElementNS(NS_PR, 'Relationship');
   rel.setAttribute('Id', idRel);
@@ -232,18 +341,14 @@ async function ponerFoto(ctx: Contexto, lamina: Lamina, pic: Element, foto: Foto
   }
 }
 
-/** Quita una imagen sin foto. Si es la única imagen de su grupo, quita el grupo completo (con su leyenda). */
-function quitarImagen(pic: Element) {
+/** Quita una imagen sin foto y su animación. Si es la única imagen de su grupo, quita el grupo completo (con su leyenda). */
+function quitarImagen(lamina: Lamina, pic: Element) {
   const padre = pic.parentElement!;
   const grupo = padre.localName === 'grpSp' ? padre : null;
-  if (grupo) {
-    const otrasImagenes = descendientes(grupo, NS_P, 'pic').filter(p => p !== pic);
-    if (otrasImagenes.length === 0) {
-      grupo.parentElement!.removeChild(grupo);
-      return;
-    }
-  }
-  padre.removeChild(pic);
+  const quitar = grupo && descendientes(grupo, NS_P, 'pic').length === 1 ? grupo : pic;
+  const quitados = new Set(descendientes(quitar, NS_P, 'cNvPr').map(c => c.getAttribute('id') ?? ''));
+  quitar.parentElement!.removeChild(quitar);
+  limpiarAnimaciones(lamina.doc, quitados);
 }
 
 /** Leyenda de una imagen: el texto de su mismo grupo (si lo tiene). */
@@ -252,6 +357,15 @@ const leyendaDe = (pic: Element): Element | null => {
   if (padre.localName !== 'grpSp') return null;
   return hijos(padre, NS_P, 'sp').find(sp => textoDe(sp).trim() !== '') ?? null;
 };
+
+/** Pone el título en la leyenda de una foto; si no cabe en su caja, el texto se achica (como en el resto de la lámina). */
+function ajustarLeyenda(leyenda: Element, titulo: string) {
+  const parrafo = parrafosDe(txBodyDe(leyenda)).find(tieneTexto) ?? parrafosDe(txBodyDe(leyenda))[0];
+  if (!parrafo) return;
+  const sz = tamanoQueCabe(tamanoEnPt(leyenda), [titulo], tamanosPosibles(tamanoDePlantilla(parrafo), [1000, 900, 800, 700, 600]));
+  fijarUnico(leyenda, titulo);
+  for (const p of parrafosDe(txBodyDe(leyenda))) fijarTamano(p, sz);
+}
 
 /** Imágenes que reciben una foto: las que usan el marcador de la plantilla (los iconos fijos, como el cono, no). */
 const marcosDeFoto = (lamina: Lamina): Element[] => {
@@ -304,8 +418,8 @@ function llenarResumenDia(lamina: Lamina, dias: DiaPresentacion[]) {
     const items = dia.tieneInforme
       ? dia.resumen.map(t => t.toUpperCase())
       : ['SIN INFORME DIARIO DE TURNO DÍA.'];
-    // Cada caja tiene su tamaño: el texto se achica hasta que quepa.
-    const sz = tamanoQueCabe(tamanoEnPt(caja.cuerpo), items, [900, 800, 700, 650, 600, 550]);
+    // Cada caja empieza con el tamaño de la plantilla y se achica solo si el texto no cabe.
+    const sz = tamanoQueCabe(tamanoEnPt(caja.cuerpo), items, tamanosPosibles(tamanoDePlantilla(modelo), [900, 800, 700, 650, 600, 550]));
     reemplazarParrafos(caja.cuerpo, items.map(t => copiaDe(modelo, t, sz)));
   });
 }
@@ -321,7 +435,7 @@ function llenarResumenNoche(lamina: Lamina, datos: DatosPresentacion) {
     const items = datos.resumenNoche.length ? datos.resumenNoche.map(t => t.toUpperCase()) : ['SIN ACTIVIDADES REGISTRADAS EN TURNO NOCHE.'];
     const caja = tamanoEnPt(rango);
     // Se descuenta la línea de fechas (encabezado) para calcular el tamaño de las actividades.
-    const sz = tamanoQueCabe({ ancho: caja.ancho, alto: caja.alto - 36 }, items, [1000, 900, 800, 700, 650]);
+    const sz = tamanoQueCabe({ ancho: caja.ancho, alto: caja.alto - 36 }, items, tamanosPosibles(tamanoDePlantilla(modelo), [1000, 900, 800, 700, 650]));
     const nuevos = [copiaDe(cabecera, `${dmy(datos.inicio)} al ${dmy(datos.fin)}`)];
     if (modelo) nuevos.push(...items.map(t => copiaDe(modelo, t, sz)));
     reemplazarParrafos(rango, nuevos);
@@ -336,14 +450,14 @@ function llenarResumenNoche(lamina: Lamina, datos: DatosPresentacion) {
     const modelo = primerItem === -1 ? parrafos.find(tieneTexto)! : parrafos[primerItem];
     const items = datos.observacionesNoche.length ? datos.observacionesNoche.map(t => t.toUpperCase()) : ['SIN OBSERVACIONES.'];
     const caja = tamanoEnPt(obs);
-    const sz = tamanoQueCabe({ ancho: caja.ancho, alto: caja.alto - 18 }, items, [1050, 900, 800, 700]);
+    const sz = tamanoQueCabe({ ancho: caja.ancho, alto: caja.alto - 18 }, items, tamanosPosibles(tamanoDePlantilla(modelo), [1050, 900, 800, 700]));
     reemplazarParrafos(obs, [...cabecera, ...items.map(t => copiaDe(modelo, t, sz))]);
   }
 }
 
-// ---- Reportabilidad GG (foto por día) ---------------------------------------------------
+// ---- Reportabilidad GG (foto por día, del Informe de Turno Noche) -----------------------
 
-async function llenarGG(ctx: Contexto, lamina: Lamina, dias: DiaPresentacion[], inicioDia: number) {
+async function llenarGG(ctx: Contexto, lamina: Lamina, dias: DiaPresentacion[], inicioDia: number, avisos: string[]) {
   const arbol = arbolDeLamina(lamina);
   const titulos = hijos(arbol, NS_P, 'sp').filter(sp => /REPORTABILIDAD GG/.test(textoDe(sp)));
   const fotos = marcosDeFoto(lamina);
@@ -356,20 +470,23 @@ async function llenarGG(ctx: Contexto, lamina: Lamina, dias: DiaPresentacion[], 
     const dia = dias[inicioDia + k];
     if (!dia) continue;
     fijarUnico(sp, `REPORTABILIDAD GG ${dmy(dia.fecha)}`);
+    // Sin foto en el Turno Noche, el recuadro queda con el marcador "SIN FOTO" de la plantilla.
+    if (!dia.fotoGG) continue;
     // La foto de la reportabilidad es la que está justo debajo del título y se superpone con su columna.
     const pic = fotos
       .map(p => ({ p, mp: marco(p) }))
       .filter(({ mp }) => mp.y >= m.y && mp.x < m.x + m.w && mp.x + mp.w > m.x)
       .sort((a, b) => (a.mp.y - b.mp.y))[0]?.p;
-    if (!pic || !dia.fotoGG) continue;
+    if (!pic) { avisos.push(`Reportabilidad GG del ${dmy(dia.fecha)}: no hay recuadro para la foto.`); continue; }
     const foto = await fotoDe(ctx, dia.fotoGG);
     if (foto) await ponerFoto(ctx, lamina, pic, foto);
+    else avisos.push(`No se pudo preparar la foto de reportabilidad GG del ${dmy(dia.fecha)}.`);
   }
 }
 
 // ---- Difusiones (una lámina por día) ----------------------------------------------------
 
-async function llenarDifusiones(ctx: Contexto, lamina: Lamina, dia: DiaPresentacion) {
+async function llenarDifusiones(ctx: Contexto, lamina: Lamina, dia: DiaPresentacion, avisos: string[]) {
   const arbol = arbolDeLamina(lamina);
   const titulo = hijos(arbol, NS_P, 'sp').find(sp => textoDe(sp).trim().startsWith('DIFUSIONES'))
     ?? descendientes(arbol, NS_P, 'sp').find(sp => textoDe(sp).trim().startsWith('DIFUSIONES'));
@@ -378,14 +495,14 @@ async function llenarDifusiones(ctx: Contexto, lamina: Lamina, dia: DiaPresentac
     if (parrafos.length > 1) fijarTexto(parrafos[1], diaMesMayuscula(dia.fecha));
   }
 
-  // Lista de difusiones (viñetas).
+  // Lista de difusiones (viñetas): empieza con el tamaño de la plantilla y se achica si no cabe.
   const cuerpo = descendientes(arbol, NS_P, 'sp')
     .filter(sp => parrafosDe(txBodyDe(sp)).some(tieneVinetas))
     .sort((a, b) => parrafosDe(txBodyDe(b)).length - parrafosDe(txBodyDe(a)).length)[0];
   if (cuerpo) {
     const modelo = primerParrafoCon(cuerpo, tieneVinetas)!;
     const items = dia.difusiones.length ? dia.difusiones.map(d => d.titulo.toUpperCase()) : ['SIN DIFUSIONES REGISTRADAS.'];
-    const sz = items.length <= 4 ? 1600 : items.length <= 6 ? 1400 : 1200;
+    const sz = tamanoQueCabe(tamanoEnPt(cuerpo), items, tamanosPosibles(tamanoDePlantilla(modelo), [1600, 1400, 1200, 1000, 900]));
     reemplazarParrafos(cuerpo, items.map(t => copiaDe(modelo, t, sz)));
   }
 
@@ -397,14 +514,22 @@ async function llenarDifusiones(ctx: Contexto, lamina: Lamina, dia: DiaPresentac
     const pic = imagenes[i];
     const entrada = pendientes[i];
     if (!entrada) { sobrantes.push(pic); continue; }
-    const leyenda = leyendaDe(pic);
-    if (leyenda) fijarUnico(leyenda, entrada.titulo.toUpperCase());
     const foto = await fotoDe(ctx, entrada.src);
-    if (foto) await ponerFoto(ctx, lamina, pic, foto);
-    else sobrantes.push(pic);
+    if (!foto) {
+      sobrantes.push(pic);
+      avisos.push(`No se pudo preparar una foto de "${entrada.titulo}" (${dmy(dia.fecha)}).`);
+      continue;
+    }
+    const leyenda = leyendaDe(pic);
+    if (leyenda) ajustarLeyenda(leyenda, entrada.titulo.toUpperCase());
+    await ponerFoto(ctx, lamina, pic, foto);
   }
   for (const pic of sobrantes) {
-    if (pic.parentNode) quitarImagen(pic);
+    if (pic.parentNode) quitarImagen(lamina, pic);
+  }
+  if (pendientes.length > imagenes.length) {
+    const sinLugar = pendientes.length - imagenes.length;
+    avisos.push(`Difusiones del ${dmy(dia.fecha)}: ${sinLugar} foto(s) no caben en la lámina y no se incluyeron.`);
   }
 }
 
@@ -412,12 +537,13 @@ async function llenarDifusiones(ctx: Contexto, lamina: Lamina, dia: DiaPresentac
 // API pública
 // ---------------------------------------------------------------------------------------
 
-/** Genera la presentación del turno. Devuelve el archivo .pptx listo para descargar. */
-export async function generarPresentacionTurno(datos: DatosPresentacion): Promise<Blob> {
+/** Genera la presentación del turno. Devuelve el archivo .pptx listo para descargar y los avisos. */
+export async function generarPresentacionTurno(datos: DatosPresentacion): Promise<ResultadoPresentacion> {
   const respuesta = await fetch(plantillaUrl);
   if (!respuesta.ok) throw new Error('No se pudo cargar la plantilla de la presentación.');
   const zip = await JSZip.loadAsync(await respuesta.arrayBuffer());
   const ctx: Contexto = { zip, laminas: new Map(), fotos: new Map() };
+  const avisos: string[] = [];
 
   llenarPortada(await abrirLamina(ctx, LAMINA_PORTADA), datos);
   llenarResumenDia(await abrirLamina(ctx, LAMINA_RESUMEN_DIA), datos.dias);
@@ -426,19 +552,20 @@ export async function generarPresentacionTurno(datos: DatosPresentacion): Promis
   let inicioGG = 0;
   for (const numero of LAMINAS_GG) {
     const lamina = await abrirLamina(ctx, numero);
-    await llenarGG(ctx, lamina, datos.dias, inicioGG);
+    await llenarGG(ctx, lamina, datos.dias, inicioGG, avisos);
     inicioGG += hijos(arbolDeLamina(lamina), NS_P, 'sp').filter(sp => /REPORTABILIDAD GG/.test(textoDe(sp))).length;
   }
 
   for (let i = 0; i < LAMINAS_DIFUSIONES.length; i++) {
     const dia = datos.dias[i];
     if (!dia) break;
-    await llenarDifusiones(ctx, await abrirLamina(ctx, LAMINAS_DIFUSIONES[i]), dia);
+    await llenarDifusiones(ctx, await abrirLamina(ctx, LAMINAS_DIFUSIONES[i]), dia, avisos);
   }
 
   for (const lamina of ctx.laminas.values()) {
-    zip.file(`ppt/slides/slide${lamina.numero}.xml`, escribir(lamina.doc));
-    zip.file(lamina.relsPath, escribir(lamina.rels));
+    zip.file(`ppt/slides/slide${lamina.numero}.xml`, escribir(lamina.doc), { createFolders: false });
+    zip.file(lamina.relsPath, escribir(lamina.rels), { createFolders: false });
   }
-  return zip.generateAsync({ type: 'blob', mimeType: MIME_PPTX, compression: 'DEFLATE' });
+  const blob = await zip.generateAsync({ type: 'blob', mimeType: MIME_PPTX, compression: 'DEFLATE' });
+  return { blob, avisos };
 }

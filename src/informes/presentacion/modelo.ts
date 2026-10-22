@@ -17,7 +17,9 @@ export interface DiaPresentacion {
   resumen: string[];
   /** Difusiones del día: actividades con fotos (ART, flash, reuniones, charlas...). */
   difusiones: DifusionDia[];
-  /** Foto del registro de reportabilidad GG del día (null = sin foto). */
+  /** Hay Informe Diario de Turno Noche para esa fecha. */
+  tieneNoche: boolean;
+  /** Foto del registro de reportabilidad GG del Informe de Turno Noche de ese día (null = sin foto). */
   fotoGG: string | null;
 }
 
@@ -94,10 +96,12 @@ export function construirPresentacion(entradas: BorradorEntry[], semana: SemanaT
   const dias: DiaPresentacion[] = semana.dias.map(fecha => {
     const dia = buscar(fecha, 'dia');
     const noche = buscar(fecha, 'noche');
-    const foto = (dia && fotoGGDe(dia)) || (noche && fotoGGDe(noche)) || null;
+    // La reportabilidad GG sale del Informe de Turno Noche (y su fecha es la de ese turno).
+    const foto = noche ? fotoGGDe(noche) : null;
     return {
       fecha,
       tieneInforme: Boolean(dia),
+      tieneNoche: Boolean(noche),
       resumen: dia ? resumenDeDia(dia) : [],
       difusiones: dia ? difusionesDeDia(dia) : [],
       fotoGG: foto,

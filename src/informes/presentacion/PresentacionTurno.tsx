@@ -22,6 +22,8 @@ export default function PresentacionTurno({ onBack }: PresentacionTurnoProps) {
   // Observaciones de Turno Noche editadas por semana (si no se editan, salen las de los informes).
   const [observacionesEditadas, setObservacionesEditadas] = useState<Record<string, string>>({});
   const [generando, setGenerando] = useState(false);
+  // Avisos de la última presentación generada (fotos que no caben, fotos que no se pudieron preparar...).
+  const [avisos, setAvisos] = useState<string[]>([]);
   const [toast, setToast] = useState<{ text: string; isError?: boolean } | null>(null);
 
   const semana = useMemo(() => semanaDeFecha(fechaSemana), [fechaSemana]);
@@ -40,17 +42,20 @@ export default function PresentacionTurno({ onBack }: PresentacionTurnoProps) {
   }, [toast]);
 
   const hayInformes = datos.dias.some(d => d.tieneInforme);
-  const sinFotoGG = datos.dias.filter(d => d.tieneInforme && !d.fotoGG).length;
+  // Días con informe (o con Turno Noche) cuyo recuadro de reportabilidad GG queda sin foto.
+  const sinFotoGG = datos.dias.filter(d => (d.tieneInforme || d.tieneNoche) && !d.fotoGG).length;
 
   const generar = async () => {
     setGenerando(true);
     try {
       const observaciones = textoObservaciones.split('\n').map(s => s.trim()).filter(Boolean);
-      const blob = await generarPresentacionTurno({ ...datos, observacionesNoche: observaciones });
+      const { blob, avisos: nuevosAvisos } = await generarPresentacionTurno({ ...datos, observacionesNoche: observaciones });
       saveAs(blob, nombreArchivoPresentacion(datos));
-      setToast({ text: 'Presentación generada.' });
+      setAvisos(nuevosAvisos);
+      setToast({ text: nuevosAvisos.length ? 'Presentación generada, revisa los avisos.' : 'Presentación generada.' });
     } catch (error) {
       console.error(error);
+      setAvisos([]);
       setToast({ text: 'No se pudo generar la presentación. Revisa la conexión e intenta de nuevo.', isError: true });
     } finally {
       setGenerando(false);
@@ -107,16 +112,20 @@ export default function PresentacionTurno({ onBack }: PresentacionTurnoProps) {
                 {dia.tieneInforme ? (
                   <span className="text-xs text-gray-600">
                     {dia.resumen.length} {dia.resumen.length === 1 ? 'actividad' : 'actividades'} · {dia.difusiones.length} {dia.difusiones.length === 1 ? 'difusión' : 'difusiones'}
-                    {dia.fotoGG ? ' · reportabilidad GG con foto' : ' · sin foto de reportabilidad GG'}
                   </span>
                 ) : (
                   <span className="text-xs text-gray-500">Sin Informe Diario de Turno Día.</span>
+                )}
+                {(dia.tieneInforme || dia.tieneNoche) && (
+                  <span className="text-xs text-gray-600">
+                    {dia.fotoGG ? '· reportabilidad GG con foto (Turno Noche)' : '· sin foto de reportabilidad GG (Turno Noche)'}
+                  </span>
                 )}
               </div>
             ))}
           </div>
           <p className="text-xs text-gray-500 mt-3">
-            Se generan: portada, resumen de Turno Día y Turno Noche, reportabilidad GG (foto del registro de cada día) y una lámina de difusiones por día.
+            Se generan: portada, resumen de Turno Día y Turno Noche, reportabilidad GG (foto del registro del Informe de Turno Noche de cada día) y una lámina de difusiones por día.
             Las actividades de rutina individual (checklist, fatiga, hidratación, protector solar, etc.) no aparecen en el resumen.
           </p>
         </section>
@@ -139,7 +148,7 @@ export default function PresentacionTurno({ onBack }: PresentacionTurnoProps) {
           )}
           {hayInformes && sinFotoGG > 0 && (
             <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-md p-2 mb-3">
-              {sinFotoGG === 1 ? 'Un día no tiene' : `${sinFotoGG} días no tienen`} foto del registro de reportabilidad GG; su recuadro quedará marcado como “sin foto” para completarlo a mano.
+              {sinFotoGG === 1 ? 'Un día no tiene' : `${sinFotoGG} días no tienen`} foto de reportabilidad GG en su Informe de Turno Noche; su recuadro quedará marcado como “sin foto” para completarlo a mano.
             </p>
           )}
           <button
@@ -152,6 +161,14 @@ export default function PresentacionTurno({ onBack }: PresentacionTurnoProps) {
             {generando ? 'Generando presentación…' : 'Generar presentación (.pptx)'}
           </button>
           <p className="text-xs text-gray-500 mt-2">{formatFechaLarga(datos.inicio)} al {formatFechaLarga(datos.fin)}</p>
+          {avisos.length > 0 && (
+            <div className="text-xs text-amber-900 bg-amber-50 border border-amber-200 rounded-md p-2 mt-3">
+              <p className="font-bold mb-1">Revisa antes de presentar:</p>
+              <ul className="list-disc pl-4 space-y-0.5">
+                {avisos.map((aviso, i) => <li key={i}>{aviso}</li>)}
+              </ul>
+            </div>
+          )}
         </section>
       </main>
 

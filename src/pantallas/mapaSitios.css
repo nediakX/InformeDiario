@@ -91,7 +91,8 @@
 
 /* Vista previa en el panel principal */
 .dash-minimapa .dash-gg__cabecera h2 { display: inline-flex; align-items: center; gap: 6px; }
-.dash-minimapa__lienzo { position: relative; display: block; width: 100%; height: 260px; padding: 0; border: 1px solid #dce1e6; border-radius: 12px; overflow: hidden; cursor: pointer; background: #2b3036; }
+/* Aislado: los paneles de Leaflet (z-index hasta 1000) no deben tapar los diálogos de la pantalla. */
+.dash-minimapa__lienzo { position: relative; display: block; width: 100%; height: 260px; padding: 0; border: 1px solid #dce1e6; border-radius: 12px; overflow: hidden; cursor: pointer; background: #2b3036; isolation: isolate; }
 .dash-minimapa__lienzo:hover { box-shadow: 0 4px 14px rgba(14, 70, 96, 0.18); }
 .dash-minimapa__lienzo:focus-visible { outline: 3px solid #f5b300; outline-offset: 2px; }
 .dash-minimapa__mapa { position: absolute; inset: 0; pointer-events: none; }
