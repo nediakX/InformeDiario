@@ -105,3 +105,6 @@
 .mapa-pin--mini { transform: translate(-5px, -5px); }
 .mapa-pin--mini .mapa-pin__texto { font-size: 9px; padding: 2px 3px; }
 @media (max-width: 760px) { .dash-minimapa__lienzo { height: 210px; } }
+
+/* Reportabilidad aún cargando o sin conexión: punto gris claro (no se confunde con un estado) */
+.mapa-pin[data-gg="cargando"] .mapa-pin__punto { background: #cfd6da; }

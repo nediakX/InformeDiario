@@ -329,7 +329,7 @@ export const COORDENADAS_CONOCIDAS: Record<string, string> = {
   // Las del mapa de sitios (datos/sitiosMapa.ts); las de los reportes originales mandan sobre ellas.
   ...coordenadasPorCarro(),
   LTE_CMF_09: '-26.254449, -69.540413',
-  LTE_11: '-26.162619, -69.334636',
+  // LTE_11 (= LTE_CMF_11) toma la ubicación actual del mapa; la de Ventiladores 3 era una anterior.
   LTE_CMM_11: '-26.162619, -69.334636',
 };
 

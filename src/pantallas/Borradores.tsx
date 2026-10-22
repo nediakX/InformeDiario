@@ -147,7 +147,7 @@ export default function Borradores({
   // --- Mantenimiento / Falla: sin calendario de turno, un borrador por carro/generador ---
   const configOtro = tipoTab === 'mantenimiento'
     ? {
-        titulo: 'Mantenimiento de Generador',
+        titulo: 'Mantenimiento de generador y mantención preventiva',
         icono: <Wrench size={16} />,
         lista: [...borradoresMantenimiento].sort(porGuardadoDesc),
         onAbrir: onAbrirMantenimiento,

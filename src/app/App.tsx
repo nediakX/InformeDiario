@@ -521,6 +521,11 @@ function AppContenido() {
   }
 
   if (view === 'mantenimiento') {
+    // Un enlace /mantenimiento/<id> de una mantención preventiva abre su propio formulario (si se abriera
+    // en el de generador, el autoguardado reemplazaría sus datos).
+    if (mantenimientoDeRuta && esPreventiva(mantenimientoDeRuta.datos)) {
+      return <CargandoPantalla><InformePreventiva key={`${mantenimientoInstancia}-${mantenimientoDeRuta.id}`} onBack={() => setView('dashboard')} borradorInicial={mantenimientoDeRuta} /></CargandoPantalla>;
+    }
     return <CargandoPantalla><InformeMantenimiento key={`${mantenimientoInstancia}-${mantenimientoDeRuta?.id ?? 'nuevo'}`} onBack={() => setView('dashboard')} borradorInicial={mantenimientoDeRuta} /></CargandoPantalla>;
   }
 

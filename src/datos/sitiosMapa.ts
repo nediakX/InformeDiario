@@ -25,11 +25,12 @@ const RAJO_INCA: SitioMapa[] = [
   { codigo: 'LTE_CMF_01', lat: -26.272367, lon: -69.589742, altitud: 2486, azimuts: [90, 210, 330] },
   { codigo: 'LTE_CMF_02', lat: -26.255425, lon: -69.592775, altitud: 2458, azimuts: [30, 110, 180] },
   { codigo: 'LTE_CMF_04', lat: -26.239322, lon: -69.557997, altitud: 2763, azimuts: [10, 90, 210] },
-  { codigo: 'LTE_CMF_05', gg: 'LTE_CMM_05', lat: -26.249131, lon: -69.561597, altitud: 2781, nota: 'En el KMZ figura como "CMM_05 FIN" (se muestra la reportabilidad de LTE_CMM_05).' },
+  // En el listado figura como LTE_CMF_05 y en el KMZ como "CMM_05 FIN": es el carro LTE_CMM_05.
+  { codigo: 'LTE_CMM_05', lat: -26.249131, lon: -69.561597, altitud: 2781 },
   { codigo: 'LTE_CMF_08', lat: -26.245128, lon: -69.539831, altitud: 2919, azimuts: [40, 160, 270] },
-  { codigo: 'LTE_CMF_08 (2)', carro: 'LTE_CMF_08', gg: 'LTE_CMF_08', lat: -26.2497311, lon: -69.5638686, nota: 'Segunda coordenada de LTE_CMF_08 en el listado (no está en el KMZ): revisar cuál es la vigente.' },
   { codigo: 'LTE_CMF_09', lat: -26.254431, lon: -69.540383, altitud: 3193, azimuts: [180, 240, 350] },
-  { codigo: 'LTE_CMF_11', lat: -26.273938, lon: -69.562873, altitud: 2986, azimuts: [30, 90, 270] },
+  // Es el carro que se reporta como "LTE_11" (en la app y en la Reportabilidad de GG).
+  { codigo: 'LTE_CMF_11', carro: 'LTE_11', gg: 'LTE_11', lat: -26.273938, lon: -69.562873, altitud: 2986, azimuts: [30, 90, 270] },
   { codigo: 'LTE_CMM_03', lat: -26.245211, lon: -69.576033, altitud: 2626, azimuts: [80, 170, 260] },
   { codigo: 'LTE_CMM_06', lat: -26.259114, lon: -69.549489, altitud: 3202, azimuts: [20, 270, 320] },
   { codigo: 'LTE_CMM_07', lat: -26.232131, lon: -69.54165, altitud: 2836, azimuts: [120, 250, 330] },

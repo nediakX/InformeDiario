@@ -43,7 +43,7 @@ const antiguedad = (g: SitioGG) => (g.diasSinReporte === 0 ? 'hoy' : g.diasSinRe
 
 /** Bloque de reportabilidad para el globo del carro. */
 function htmlReportabilidad(g: SitioGG | null | undefined): string {
-  if (g === undefined) return '<div class="mapa-gg mapa-gg--cargando">Cargando reportabilidad de GG…</div>';
+  if (g === undefined) return '<div class="mapa-gg mapa-gg--cargando">Reportabilidad de GG no disponible por ahora (cargando o sin conexión).</div>';
   if (g === null) return '<div class="mapa-gg mapa-gg--na">Sin generador en la reportabilidad de GG.</div>';
   const u = g.ultimo;
   const filas = u ? [

@@ -18,7 +18,8 @@ export function useGGSitios(division: Division, sitios: SitioMapa[]): Map<string
     let vivo = true;
     todosLosReportesGG({ division, desde, hasta: hoy })
       .then(r => { if (vivo) setReportes(r); })
-      .catch(() => { if (vivo) setReportes([]); });
+      // Sin conexión no se marcan los carros como "sin reportes": quedan como sin datos (gris).
+      .catch(() => { if (vivo) setReportes(null); });
     return () => { vivo = false; };
   }, [division, desde, hoy, version, sitios.length]);
   useEffect(() => (sitios.length ? suscribirReportesGG(division, () => setVersion(v => v + 1)) : undefined), [division, sitios.length]);

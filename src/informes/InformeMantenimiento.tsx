@@ -1039,10 +1039,10 @@ export default function InformeMantenimiento({ onBack, borradorInicial = null }:
           </div>
           <div className="space-y-2">
             {repuestos.map(r => (
-              <div key={r.id} className="grid grid-cols-[1fr_1fr_2fr_auto] gap-2">
+              <div key={r.id} className="grid grid-cols-[0.9fr_0.7fr_auto] sm:grid-cols-[1fr_1fr_2fr_auto] gap-2 [&>input]:min-w-0">
                 <input type="text" value={r.parte} onChange={e => updateRow(setRepuestos, r.id, { parte: e.target.value })} placeholder="N° parte" className="p-2 border border-[#DCE1E6] rounded-md text-sm" />
                 <input type="text" value={r.cantidad} onChange={e => updateRow(setRepuestos, r.id, { cantidad: e.target.value })} placeholder="Cantidad" className="p-2 border border-[#DCE1E6] rounded-md text-sm" />
-                <input type="text" value={r.detalle} onChange={e => updateRow(setRepuestos, r.id, { detalle: e.target.value })} placeholder="Detalle" className="p-2 border border-[#DCE1E6] rounded-md text-sm" />
+                <input type="text" value={r.detalle} onChange={e => updateRow(setRepuestos, r.id, { detalle: e.target.value })} placeholder="Detalle" className="p-2 border border-[#DCE1E6] rounded-md text-sm col-span-2 sm:col-span-1 order-last sm:order-none" />
                 <button type="button" onClick={() => removeRow(setRepuestos, r.id, repuestos)} className="bg-red-50 text-red-700 p-2 rounded-md hover:bg-red-100"><Trash2 size={15} /></button>
               </div>
             ))}
@@ -1059,7 +1059,7 @@ export default function InformeMantenimiento({ onBack, borradorInicial = null }:
           <p className="text-xs font-bold text-[#0E4660] mb-2">Filtros — aceite, refrigerante, combustible</p>
           <div className="space-y-2 mb-4">
             {filtros.map(f => (
-              <div key={f.id} className="grid grid-cols-[1.4fr_0.8fr_1fr_1.4fr] gap-2">
+              <div key={f.id} className="grid grid-cols-2 sm:grid-cols-[1.4fr_0.8fr_1fr_1.4fr] gap-2 [&>input]:min-w-0 pb-2 sm:pb-0 border-b sm:border-0 border-[#eef1f2]">
                 <input type="text" value={f.nombre} onChange={e => updateRow(setFiltros, f.id, { nombre: e.target.value })} className="p-2 border border-[#DCE1E6] rounded-md text-sm" />
                 <input type="text" value={f.estado} onChange={e => updateRow(setFiltros, f.id, { estado: e.target.value })} placeholder="Estado" className="p-2 border border-[#DCE1E6] rounded-md text-sm" />
                 <input type="text" value={f.tipo} onChange={e => updateRow(setFiltros, f.id, { tipo: e.target.value })} placeholder="Tipo / N° parte" className="p-2 border border-[#DCE1E6] rounded-md text-sm" />
@@ -1084,10 +1084,10 @@ export default function InformeMantenimiento({ onBack, borradorInicial = null }:
           <p className="text-xs font-bold text-[#0E4660] mb-2">Verificaciones generales</p>
           <div className="space-y-2">
             {verificaciones.map(v => (
-              <div key={v.id} className="grid grid-cols-[1.6fr_0.8fr_1.6fr] gap-2">
+              <div key={v.id} className="grid grid-cols-[1fr_5rem] sm:grid-cols-[1.6fr_0.8fr_1.6fr] gap-2 [&>input]:min-w-0 pb-2 sm:pb-0 border-b sm:border-0 border-[#eef1f2]">
                 <input type="text" value={v.label} onChange={e => updateRow(setVerificaciones, v.id, { label: e.target.value })} className="p-2 border border-[#DCE1E6] rounded-md text-sm" />
                 <input type="text" value={v.estado} onChange={e => updateRow(setVerificaciones, v.id, { estado: e.target.value })} placeholder="Estado" className="p-2 border border-[#DCE1E6] rounded-md text-sm" />
-                <input type="text" value={v.observaciones} onChange={e => updateRow(setVerificaciones, v.id, { observaciones: e.target.value })} placeholder="Observaciones" className="p-2 border border-[#DCE1E6] rounded-md text-sm" />
+                <input type="text" value={v.observaciones} onChange={e => updateRow(setVerificaciones, v.id, { observaciones: e.target.value })} placeholder="Observaciones" className="p-2 border border-[#DCE1E6] rounded-md text-sm col-span-2 sm:col-span-1" />
               </div>
             ))}
           </div>
@@ -1111,8 +1111,8 @@ export default function InformeMantenimiento({ onBack, borradorInicial = null }:
           <p className="text-xs font-bold text-[#0E4660] mb-2">Plan preventivo</p>
           <div className="space-y-2">
             {planPreventivo.map(p => (
-              <div key={p.id} className="grid grid-cols-[2fr_1fr_1fr_auto] gap-2">
-                <input type="text" value={p.detalle} onChange={e => updateRow(setPlanPreventivo, p.id, { detalle: e.target.value })} placeholder="Detalle" className="p-2 border border-[#DCE1E6] rounded-md text-sm" />
+              <div key={p.id} className="grid grid-cols-[1fr_1fr_auto] sm:grid-cols-[2fr_1fr_1fr_auto] gap-2 [&>input]:min-w-0">
+                <input type="text" value={p.detalle} onChange={e => updateRow(setPlanPreventivo, p.id, { detalle: e.target.value })} placeholder="Detalle" className="p-2 border border-[#DCE1E6] rounded-md text-sm col-span-3 sm:col-span-1" />
                 <input type="text" value={p.cantidad} onChange={e => updateRow(setPlanPreventivo, p.id, { cantidad: e.target.value })} placeholder="Cantidad" className="p-2 border border-[#DCE1E6] rounded-md text-sm" />
                 <input type="text" value={p.parte} onChange={e => updateRow(setPlanPreventivo, p.id, { parte: e.target.value })} placeholder="N° parte" className="p-2 border border-[#DCE1E6] rounded-md text-sm" />
                 <button type="button" onClick={() => removeRow(setPlanPreventivo, p.id, planPreventivo)} className="bg-red-50 text-red-700 p-2 rounded-md hover:bg-red-100"><Trash2 size={15} /></button>
