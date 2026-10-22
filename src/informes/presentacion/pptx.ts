@@ -32,6 +32,16 @@ const dmy = (iso: string) => { const [y, m, d] = iso.split('-'); return `${d}/${
 /** "2026-08-26" -> "26 AGOSTO" */
 const diaMesMayuscula = (iso: string) => { const [, m, d] = iso.split('-').map(Number); return `${String(d).padStart(2, '0')} ${MESES_MAYUSCULA[m - 1]}`; };
 
+/** Meses abreviados en mayúscula, como en el título de la lámina de mantenimiento: "21 OCT 2026". */
+const MESES_ABREV = ['ENE', 'FEB', 'MAR', 'ABR', 'MAY', 'JUN', 'JUL', 'AGO', 'SEP', 'OCT', 'NOV', 'DIC'];
+const fechaCortaMayuscula = (iso: string) => { const [y, m, d] = iso.split('-').map(Number); return `${String(d).padStart(2, '0')} ${MESES_ABREV[m - 1]} ${y}`; };
+/** "2026-10-27" -> "27-10-2026" */
+const dmyGuion = (iso: string) => dmy(iso).replace(/\//g, '-');
+/** Número de serie de Excel (días desde 1899-12-30), que es como guarda las fechas el gráfico. */
+const serieExcel = (iso: string) => { const [y, m, d] = iso.split('-').map(Number); return Math.round((Date.UTC(y, m - 1, d) - Date.UTC(1899, 11, 30)) / 86400000); };
+/** Suma días a una fecha ISO ("2026-10-21" + 6 -> "2026-10-27"). */
+const sumarDias = (iso: string, n: number) => { const [y, m, d] = iso.split('-').map(Number); return new Date(Date.UTC(y, m - 1, d + n)).toISOString().slice(0, 10); };
+
 // ---------------------------------------------------------------------------------------
 // Utilidades de XML (DOM del navegador)
 // ---------------------------------------------------------------------------------------
@@ -485,6 +495,320 @@ async function llenarGG(ctx: Contexto, lamina: Lamina, dias: DiaPresentacion[], 
 }
 
 // ---- Difusiones (una lámina por día) ----------------------------------------------------
+// Las fotos de difusión van en cascada a la izquierda y las de ART (actividades) a la derecha; el marco
+// del centro ya no se usa. Cada recuadro es una copia del de la plantilla (con su leyenda y su animación
+// de clic). Si hay más fotos que recuadros se agregan copias; si aun así no caben, se avisa.
+// Todos los recuadros de la lámina tienen el mismo tamaño: el que necesita el lado con más fotos.
+
+const EMU_POR_PULGADA = 914400;
+const aEmu = (pulgadas: number) => Math.round(pulgadas * EMU_POR_PULGADA);
+/** Un recuadro con el centro a la izquierda de esto (pulgadas) es de difusión; a la derecha de aquello, de ART. */
+const CENTRO_IZQUIERDA_MAX = 4.4;
+const CENTRO_DERECHA_MIN = 8.9;
+/** Ningún recuadro se achica por debajo de esta escala; si con eso no caben, se avisa. */
+const ESCALA_MINIMA = 0.55;
+
+type LadoDifusion = 'izquierda' | 'derecha';
+interface Paso { x: number; y: number }
+
+interface Cascada {
+  /** Desplazamiento de un recuadro al siguiente (pulgadas), medido en las láminas de referencia. */
+  paso: Paso;
+  /** Desplazamiento más apretado, si con el normal no caben todos. */
+  pasoMinimo: Paso;
+  /** Hasta dónde puede llegar la cascada (pulgadas). */
+  limite: Paso;
+}
+
+const CASCADA: Record<LadoDifusion, Cascada> = {
+  izquierda: { paso: { x: 0.2, y: 0.34 }, pasoMinimo: { x: 0.16, y: 0.3 }, limite: { x: 3.6, y: 7.15 } },
+  derecha: { paso: { x: 0.27, y: 0.32 }, pasoMinimo: { x: 0.25, y: 0.28 }, limite: { x: 13.15, y: 7.15 } },
+};
+
+interface Rectangulo { x: number; y: number; w: number; h: number }
+
+/** Recuadro de la plantilla que sirve de modelo para las copias de su lado (se guarda antes de quitar nada). */
+interface Prototipo {
+  grupo: Element;
+  id: string;
+  origen: { x: number; y: number };
+  base: { w: number; h: number };
+  /** Posición absoluta de cada forma del recuadro (leyenda y foto), en su mismo orden. */
+  formas: Rectangulo[];
+  /** Animación de clic del recuadro; cada recuadro nuevo recibe una copia. null si la plantilla no le ponía animación. */
+  clic: Element | null;
+}
+
+interface Disposicion { cantidad: number; escala: number; paso: Paso }
+interface FotoDeDifusion { lado: LadoDifusion; foto: FotoLista; titulo: string }
+
+const formasDeGrupo = (grupo: Element) =>
+  Array.from(grupo.children).filter(c => c.namespaceURI === NS_P && ['sp', 'pic'].includes(c.localName));
+const xfrmDe = (forma: Element) => forma.getElementsByTagNameNS(NS_A, 'xfrm')[0];
+
+/** Posición absoluta (EMU) de una forma dentro de su grupo, con la escala del grupo. */
+function rectanguloAbsoluto(grupo: Element, forma: Element): Rectangulo {
+  const xf = xfrmDe(grupo);
+  const valor = (nodo: string, atributo: string) =>
+    Number(xf.getElementsByTagNameNS(NS_A, nodo)[0]?.getAttribute(atributo) ?? 0);
+  const gx = valor('off', 'x'), gy = valor('off', 'y'), gw = valor('ext', 'cx'), gh = valor('ext', 'cy');
+  const cx0 = valor('chOff', 'x'), cy0 = valor('chOff', 'y'), cw = valor('chExt', 'cx'), ch = valor('chExt', 'cy');
+  const sx = cw > 0 ? gw / cw : 1;
+  const sy = ch > 0 ? gh / ch : 1;
+  const local = marco(forma);
+  return { x: gx + (local.x - cx0) * sx, y: gy + (local.y - cy0) * sy, w: local.w * sx, h: local.h * sy };
+}
+
+/** Escribe una posición (EMU) en un xfrm. En un grupo también fija su sistema de coordenadas (sin escala). */
+function fijarRectangulo(xf: Element, r: Rectangulo, esGrupo = false) {
+  const fijar = (nodo: string, atributos: Record<string, number>) => {
+    const el = xf.getElementsByTagNameNS(NS_A, nodo)[0];
+    for (const [clave, valor] of Object.entries(atributos)) el.setAttribute(clave, String(Math.round(valor)));
+  };
+  fijar('off', { x: r.x, y: r.y });
+  fijar('ext', { cx: r.w, cy: r.h });
+  if (esGrupo) {
+    fijar('chOff', { x: r.x, y: r.y });
+    fijar('chExt', { cx: r.w, cy: r.h });
+  }
+}
+
+const esClicPrincipal = (nodo: Element) => {
+  const padre = nodo.parentElement;
+  return padre?.localName === 'childTnLst' && padre.parentElement?.getAttribute('nodeType') === 'mainSeq';
+};
+
+/** Crea la animación de la lámina si no tenía (raíz y secuencia principal, como las de PowerPoint). */
+function crearTiempos(doc: Document): Element {
+  const raiz = doc.documentElement;
+  const nuevo = (nombre: string, atributos: Record<string, string> = {}) => {
+    const el = doc.createElementNS(NS_P, nombre);
+    for (const [clave, valor] of Object.entries(atributos)) el.setAttribute(clave, valor);
+    return el;
+  };
+  const condicion = (nombre: string, evento: string) => {
+    const lista = nuevo(nombre);
+    const cond = nuevo('p:cond', { evt: evento, delay: '0' });
+    const destino = nuevo('p:tgtEl');
+    destino.appendChild(nuevo('p:sldTgt'));
+    cond.appendChild(destino);
+    lista.appendChild(cond);
+    return lista;
+  };
+  const tiempos = nuevo('p:timing');
+  const tnLst = nuevo('p:tnLst');
+  const par = nuevo('p:par');
+  const raizCtn = nuevo('p:cTn', { id: '1', dur: 'indefinite', restart: 'never', nodeType: 'tmRoot' });
+  const listaRaiz = nuevo('p:childTnLst');
+  const seq = nuevo('p:seq', { concurrent: '1', nextAc: 'seek' });
+  const principal = nuevo('p:cTn', { id: '2', dur: 'indefinite', nodeType: 'mainSeq' });
+  principal.appendChild(nuevo('p:childTnLst'));
+  seq.appendChild(principal);
+  seq.appendChild(condicion('p:prevCondLst', 'onPrev'));
+  seq.appendChild(condicion('p:nextCondLst', 'onNext'));
+  listaRaiz.appendChild(seq);
+  raizCtn.appendChild(listaRaiz);
+  par.appendChild(raizCtn);
+  tnLst.appendChild(par);
+  tiempos.appendChild(tnLst);
+  raiz.insertBefore(tiempos, hijos(raiz, NS_P, 'extLst')[0] ?? null);
+  return tiempos;
+}
+
+/** Lista de clics de la secuencia principal. Con crear=true, crea la animación si la lámina no tenía. */
+function listaDeClics(doc: Document, crear: boolean): Element | null {
+  let tiempos: Element | undefined = descendientes(doc.documentElement, NS_P, 'timing')[0];
+  if (!tiempos) {
+    if (!crear) return null;
+    tiempos = crearTiempos(doc);
+  }
+  const principal = descendientes(tiempos, NS_P, 'cTn').find(c => c.getAttribute('nodeType') === 'mainSeq');
+  return principal ? (hijos(principal, NS_P, 'childTnLst')[0] ?? null) : null;
+}
+
+/** Clic de animación (hijo directo de la secuencia principal) que mueve la forma con ese id, o null. */
+function clicDeForma(doc: Document, spid: string): Element | null {
+  const tiempos: Element | undefined = descendientes(doc.documentElement, NS_P, 'timing')[0];
+  if (!tiempos) return null;
+  const destino = descendientes(tiempos, NS_P, 'spTgt').find(t => t.getAttribute('spid') === spid);
+  let nodo: Element | null = destino ?? null;
+  while (nodo && !esClicPrincipal(nodo)) nodo = nodo.parentElement;
+  return nodo;
+}
+
+/** Copia de un clic de animación que apunta a otra forma. */
+function clonarClic(clic: Element, spidOrigen: string, spidNuevo: string): Element {
+  const copia = clic.cloneNode(true) as Element;
+  for (const t of descendientes(copia, NS_P, 'spTgt')) {
+    if (t.getAttribute('spid') === spidOrigen) t.setAttribute('spid', spidNuevo);
+  }
+  return copia;
+}
+
+/** Numera de nuevo los nodos de la animación (ids únicos y en orden). */
+function numerarTiempos(doc: Document) {
+  const tiempos: Element | undefined = descendientes(doc.documentElement, NS_P, 'timing')[0];
+  if (!tiempos) return;
+  let numero = 1;
+  for (const nodo of descendientes(tiempos, NS_P, 'cTn')) nodo.setAttribute('id', String(numero++));
+}
+
+/** Ids nuevos para las formas de la lámina: mayor id existente + 1, + 2, ... */
+function idsNuevos(arbol: Element): () => number {
+  let mayor = 0;
+  for (const c of descendientes(arbol, NS_P, 'cNvPr')) mayor = Math.max(mayor, Number(c.getAttribute('id')) || 0);
+  let siguiente = mayor + 1;
+  return () => siguiente++;
+}
+
+/** Recuadro de la plantilla que sirve de modelo para su lado: el de más arriba. Se guarda antes de quitar nada. */
+function prototipoDe(doc: Document, grupo: Element): Prototipo {
+  const m = marco(grupo);
+  const id = descendientes(grupo, NS_P, 'cNvPr')[0]?.getAttribute('id') ?? '';
+  const clic = clicDeForma(doc, id);
+  return {
+    grupo,
+    id,
+    origen: { x: m.x, y: m.y },
+    base: { w: m.w, h: m.h },
+    formas: formasDeGrupo(grupo).map(f => rectanguloAbsoluto(grupo, f)),
+    clic: clic ? (clic.cloneNode(true) as Element) : null,
+  };
+}
+
+/** Cuántos recuadros caben en la cascada del lado (el mayor número posible), con su escala y su paso. */
+function disponerCascada(n: number, modelo: Prototipo, lado: LadoDifusion): Disposicion {
+  const cfg = CASCADA[lado];
+  for (let m = n; m >= 1; m--) {
+    for (const paso of [cfg.paso, cfg.pasoMinimo]) {
+      const escala = Math.min(
+        1,
+        (aEmu(cfg.limite.x) - modelo.origen.x - (m - 1) * aEmu(paso.x)) / modelo.base.w,
+        (aEmu(cfg.limite.y) - modelo.origen.y - (m - 1) * aEmu(paso.y)) / modelo.base.h,
+      );
+      if (escala >= ESCALA_MINIMA) return { cantidad: m, escala, paso };
+    }
+  }
+  return { cantidad: 0, escala: 1, paso: cfg.paso };
+}
+
+/** Copia de un recuadro de la plantilla, a escala y en la esquina dadas (el grupo queda sin escala propia). */
+function construirRecuadro(modelo: Prototipo, esquina: { x: number; y: number }, escala: number, nuevoId: () => number) {
+  const copia = modelo.grupo.cloneNode(true) as Element;
+  for (const c of descendientes(copia, NS_P, 'cNvPr')) {
+    c.setAttribute('id', String(nuevoId()));
+    for (const extra of hijos(c, NS_A, 'extLst')) c.removeChild(extra);
+  }
+  const idGrupo = descendientes(copia, NS_P, 'cNvPr')[0]?.getAttribute('id') ?? '';
+  formasDeGrupo(copia).forEach((forma, i) => {
+    const r = modelo.formas[i];
+    fijarRectangulo(xfrmDe(forma), {
+      x: esquina.x + (r.x - modelo.origen.x) * escala,
+      y: esquina.y + (r.y - modelo.origen.y) * escala,
+      w: r.w * escala,
+      h: r.h * escala,
+    });
+  });
+  fijarRectangulo(xfrmDe(copia), { x: esquina.x, y: esquina.y, w: modelo.base.w * escala, h: modelo.base.h * escala }, true);
+  const pic = hijos(copia, NS_P, 'pic')[0];
+  return { grupo: copia, idGrupo, pic, leyenda: leyendaDe(pic) };
+}
+
+/** Quita los recuadros de la plantilla y pone una cascada por lado, con las fotos y su animación. */
+async function colocarDifusiones(ctx: Contexto, lamina: Lamina, fotos: FotoDeDifusion[], fecha: string, avisos: string[]) {
+  const doc = lamina.doc;
+  const arbol = arbolDeLamina(lamina);
+  const marcos = marcosDeFoto(lamina).map(pic => {
+    const padre = pic.parentElement as Element;
+    const grupo = padre.localName === 'grpSp' ? padre : null;
+    return { pic, grupo, forma: grupo ?? pic };
+  });
+  const ladoDeMarco = (forma: Element): LadoDifusion | 'centro' => {
+    const m = marco(forma);
+    const centro = (m.x + m.w / 2) / EMU_POR_PULGADA;
+    return centro < CENTRO_IZQUIERDA_MAX ? 'izquierda' : centro > CENTRO_DERECHA_MIN ? 'derecha' : 'centro';
+  };
+
+  // Modelos: el recuadro más alto de cada lado (antes de quitar nada).
+  const modelos: Partial<Record<LadoDifusion, Prototipo>> = {};
+  for (const lado of ['izquierda', 'derecha'] as const) {
+    const primero = marcos
+      .filter(m => m.grupo && ladoDeMarco(m.forma) === lado)
+      .sort((a, b) => marco(a.forma).y - marco(b.forma).y)[0];
+    if (primero?.grupo) modelos[lado] = prototipoDe(doc, primero.grupo);
+  }
+
+  // Tamaño común: el que necesita el lado con más fotos (así todos los recuadros de la lámina quedan iguales).
+  const disposicion: Record<LadoDifusion, Disposicion> = {
+    izquierda: { cantidad: 0, escala: 1, paso: CASCADA.izquierda.paso },
+    derecha: { cantidad: 0, escala: 1, paso: CASCADA.derecha.paso },
+  };
+  for (const lado of ['izquierda', 'derecha'] as const) {
+    const n = fotos.filter(f => f.lado === lado).length;
+    const modelo = modelos[lado];
+    if (n > 0 && modelo) disposicion[lado] = disponerCascada(n, modelo, lado);
+  }
+  const conRecuadros = (['izquierda', 'derecha'] as const).filter(l => disposicion[l].cantidad > 0);
+  const escala = conRecuadros.length ? Math.min(...conRecuadros.map(l => disposicion[l].escala)) : 1;
+
+  // Dónde van los recuadros nuevos: antes del primer elemento que no es marco (así el orden de capas no cambia).
+  const marcosSet = new Set<Element>(marcos.map(m => m.forma));
+  let antesDe: Element | null = null;
+  if (marcos.length) {
+    for (let el = marcos[0].forma.nextElementSibling; el; el = el.nextElementSibling) {
+      if (!marcosSet.has(el)) { antesDe = el; break; }
+    }
+  }
+  const finArbol = antesDe ?? hijos(arbol, NS_P, 'extLst')[0] ?? null;
+
+  // Animaciones: los clics nuevos van donde estaban los de los marcos (antes del primer clic que no es de un marco).
+  const idsMarcos = new Set(marcos.flatMap(m => descendientes(m.forma, NS_P, 'cNvPr').map(c => c.getAttribute('id') ?? '')));
+  const clics = listaDeClics(doc, false);
+  let clicAntes: Element | null = null;
+  if (clics) {
+    let vistoMarco = false;
+    for (const clic of hijos(clics, NS_P, 'par')) {
+      const esMarco = descendientes(clic, NS_P, 'spTgt').some(t => idsMarcos.has(t.getAttribute('spid') ?? ''));
+      if (esMarco) vistoMarco = true;
+      else if (vistoMarco) { clicAntes = clic; break; }
+    }
+  }
+
+  // Se quitan todos los marcos (con su animación).
+  for (const m of marcos) quitarImagen(lamina, m.pic);
+
+  // Recuadros nuevos en el orden de la lista de difusiones; la animación sigue ese mismo orden.
+  const nuevoId = idsNuevos(arbol);
+  const cuenta: Record<LadoDifusion, number> = { izquierda: 0, derecha: 0 };
+  const sinModelo: Record<LadoDifusion, number> = { izquierda: 0, derecha: 0 };
+  const sinCaber: Record<LadoDifusion, number> = { izquierda: 0, derecha: 0 };
+  for (const { lado, foto, titulo } of fotos) {
+    const modelo = modelos[lado];
+    const i = cuenta[lado]++;
+    if (!modelo) { sinModelo[lado]++; continue; }
+    if (i >= disposicion[lado].cantidad) { sinCaber[lado]++; continue; }
+    const esquina = {
+      x: modelo.origen.x + i * aEmu(disposicion[lado].paso.x),
+      y: modelo.origen.y + i * aEmu(disposicion[lado].paso.y),
+    };
+    const recuadro = construirRecuadro(modelo, esquina, escala, nuevoId);
+    arbol.insertBefore(recuadro.grupo, finArbol);
+    if (modelo.clic) {
+      const lista = listaDeClics(doc, true);
+      const clic = clonarClic(modelo.clic, modelo.id, recuadro.idGrupo);
+      lista?.insertBefore(clic, clicAntes && clicAntes.parentElement === lista ? clicAntes : null);
+    }
+    if (recuadro.leyenda) ajustarLeyenda(recuadro.leyenda, titulo);
+    await ponerFoto(ctx, lamina, recuadro.pic, foto);
+  }
+  numerarTiempos(doc);
+
+  for (const lado of ['izquierda', 'derecha'] as const) {
+    const tipo = lado === 'izquierda' ? 'de difusión' : 'de ART';
+    if (sinModelo[lado]) avisos.push(`Difusiones del ${dmy(fecha)}: la lámina no tiene recuadros ${tipo}; ${sinModelo[lado]} foto(s) no se incluyeron.`);
+    if (sinCaber[lado]) avisos.push(`Difusiones del ${dmy(fecha)}: ${sinCaber[lado]} foto(s) ${tipo} no caben en la lámina y no se incluyeron.`);
+  }
+}
 
 async function llenarDifusiones(ctx: Contexto, lamina: Lamina, dia: DiaPresentacion, avisos: string[]) {
   const arbol = arbolDeLamina(lamina);
@@ -506,30 +830,99 @@ async function llenarDifusiones(ctx: Contexto, lamina: Lamina, dia: DiaPresentac
     reemplazarParrafos(cuerpo, items.map(t => copiaDe(modelo, t, sz)));
   }
 
-  // Fotos: en orden de aparición en la lámina, cada una con el título de su actividad.
-  const pendientes = dia.difusiones.flatMap(d => d.fotos.map(src => ({ src, titulo: d.titulo })));
-  const imagenes = marcosDeFoto(lamina);
-  const sobrantes: Element[] = [];
-  for (let i = 0; i < imagenes.length; i++) {
-    const pic = imagenes[i];
-    const entrada = pendientes[i];
-    if (!entrada) { sobrantes.push(pic); continue; }
-    const foto = await fotoDe(ctx, entrada.src);
-    if (!foto) {
-      sobrantes.push(pic);
-      avisos.push(`No se pudo preparar una foto de "${entrada.titulo}" (${dmy(dia.fecha)}).`);
-      continue;
+  // Fotos en el orden de la lista: las de ART (actividades) a la derecha; las de difusión, a la izquierda.
+  const fotos: FotoDeDifusion[] = [];
+  for (const difusion of dia.difusiones) {
+    const lado: LadoDifusion = /^ART:/i.test(difusion.titulo.trim()) ? 'derecha' : 'izquierda';
+    for (const src of difusion.fotos) {
+      const foto = await fotoDe(ctx, src);
+      if (foto) fotos.push({ lado, foto, titulo: difusion.titulo.toUpperCase() });
+      else avisos.push(`No se pudo preparar una foto de "${difusion.titulo}" (${dmy(dia.fecha)}).`);
     }
-    const leyenda = leyendaDe(pic);
-    if (leyenda) ajustarLeyenda(leyenda, entrada.titulo.toUpperCase());
-    await ponerFoto(ctx, lamina, pic, foto);
   }
-  for (const pic of sobrantes) {
-    if (pic.parentNode) quitarImagen(lamina, pic);
+  await colocarDifusiones(ctx, lamina, fotos, dia.fecha, avisos);
+}
+
+// ---- Fechas de corte y de periodo en láminas fijas ---------------------------------------
+// Solo cambian las fechas de encabezado: el periodo del turno, "Hasta la fecha", la fecha de corte
+// de la tabla de GG, el sello de la lámina de avances y los días del gráfico semanal.
+// Las cifras y las fechas de planificación de las tablas son datos: no se tocan.
+
+/** Cambia solo el fragmento (run) que cumple el patrón, conservando su formato; los demás fragmentos del párrafo no se tocan. */
+function fijarFragmento(p: Element, patron: RegExp, texto: string): boolean {
+  const fragmento = hijos(p, NS_A, 'r').find(r => patron.test(textoDe(r)));
+  const t = fragmento ? descendientes(fragmento, NS_A, 't')[0] : undefined;
+  if (t) t.textContent = textoSeguro(texto);
+  return Boolean(t);
+}
+
+async function fijarFechasDeCorte(ctx: Contexto, datos: DatosPresentacion) {
+  const fin = datos.fin;
+  const textosDe = (lamina: Lamina) => descendientes(arbolDeLamina(lamina), NS_P, 'sp');
+
+  // Lámina 8: "Detalle de Mantenimientos" con el periodo entre paréntesis.
+  for (const sp of textosDe(await abrirLamina(ctx, 8))) {
+    const tx = txBodyDe(sp);
+    if (!tx) continue;
+    for (const p of parrafosDe(tx)) {
+      const patronPeriodo = /\(\d{1,2} [A-Z]{3} \d{4} AL \d{1,2} [A-Z]{3} \d{4}\)/;
+      if (patronPeriodo.test(textoDe(p))) {
+        const texto = `(${fechaCortaMayuscula(datos.inicio)} AL ${fechaCortaMayuscula(fin)})`;
+        if (!fijarFragmento(p, patronPeriodo, texto)) fijarTexto(p, texto);
+      }
+    }
   }
-  if (pendientes.length > imagenes.length) {
-    const sinLugar = pendientes.length - imagenes.length;
-    avisos.push(`Difusiones del ${dmy(dia.fecha)}: ${sinLugar} foto(s) no caben en la lámina y no se incluyeron.`);
+
+  // Láminas 20 y 21: "Hasta la fecha dd-mm-aaaa".
+  for (const numero of [20, 21]) {
+    for (const sp of textosDe(await abrirLamina(ctx, numero))) {
+      const tx = txBodyDe(sp);
+      if (!tx) continue;
+      for (const p of parrafosDe(tx)) {
+        if (/^Hasta la fecha \d{2}-\d{2}-\d{4}$/.test(textoDe(p).trim())) fijarTexto(p, `Hasta la fecha ${dmyGuion(fin)}`);
+      }
+    }
+  }
+
+  // Lámina 21: fecha de corte del encabezado de la tabla de GG ("08-06-2026").
+  const tabla = descendientes(arbolDeLamina(await abrirLamina(ctx, 21)), NS_A, 'tbl')[0];
+  const encabezado = tabla ? hijos(tabla, NS_A, 'tr')[0] : undefined;
+  for (const celda of encabezado ? hijos(encabezado, NS_A, 'tc') : []) {
+    if (/^\d{2}-\d{2}-\d{4}$/.test(textoDe(celda).replace(/​/g, '').trim())) {
+      const p = descendientes(celda, NS_A, 'p')[0];
+      if (p) fijarTexto(p, dmyGuion(fin));
+    }
+  }
+
+  // Lámina 23: sello de fecha "08/10/2025".
+  for (const sp of textosDe(await abrirLamina(ctx, 23))) {
+    const tx = txBodyDe(sp);
+    if (!tx) continue;
+    for (const p of parrafosDe(tx)) {
+      if (/^\d{2}\/\d{2}\/\d{4}$/.test(textoDe(p).trim())) fijarTexto(p, dmy(fin));
+    }
+  }
+
+  // Lámina 24: gráfico semanal. Sus categorías son fechas: se ponen los días del periodo, en orden.
+  const grafico = await abrirLamina(ctx, 24);
+  const relGrafico = Array.from(grafico.rels.documentElement.children)
+    .find(r => (r.getAttribute('Type') ?? '').endsWith('/chart'));
+  const nombreGrafico = (relGrafico?.getAttribute('Target') ?? '').split('/').pop();
+  const rutaGrafico = nombreGrafico ? `ppt/charts/${nombreGrafico}` : '';
+  const archivoGrafico = rutaGrafico ? ctx.zip.file(rutaGrafico) : null;
+  if (archivoGrafico) {
+    const NS_C = 'http://schemas.openxmlformats.org/drawingml/2006/chart';
+    const doc = leer(await archivoGrafico.async('string'));
+    for (const cat of descendientes(doc.documentElement, NS_C, 'cat')) {
+      const numerico = descendientes(cat, NS_C, 'numCache').length > 0;
+      for (const pt of descendientes(cat, NS_C, 'pt')) {
+        const v = descendientes(pt, NS_C, 'v')[0];
+        if (!v) continue;
+        const dia = sumarDias(datos.inicio, Number(pt.getAttribute('idx')));
+        v.textContent = numerico ? String(serieExcel(dia)) : dmy(dia);
+      }
+    }
+    ctx.zip.file(rutaGrafico, escribir(doc), { createFolders: false });
   }
 }
 
@@ -561,6 +954,8 @@ export async function generarPresentacionTurno(datos: DatosPresentacion): Promis
     if (!dia) break;
     await llenarDifusiones(ctx, await abrirLamina(ctx, LAMINAS_DIFUSIONES[i]), dia, avisos);
   }
+
+  await fijarFechasDeCorte(ctx, datos);
 
   for (const lamina of ctx.laminas.values()) {
     zip.file(`ppt/slides/slide${lamina.numero}.xml`, escribir(lamina.doc), { createFolders: false });
