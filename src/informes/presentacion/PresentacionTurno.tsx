@@ -9,16 +9,20 @@ import { semanaDeFecha } from '../../datos/turnos';
 import { useSesion } from '../../auth/sesion';
 import { construirPresentacion, nombreArchivoPresentacion } from './modelo';
 import { generarPresentacionTurno } from './pptx';
+import PresentacionFds from './PresentacionFds';
 
 interface PresentacionTurnoProps {
   onBack: () => void;
 }
 
-/** Presentación del turno (solo DSAL): arma el .pptx con el formato de las presentaciones de referencia. */
+type Modo = 'completo' | 'fds';
+
+/** Presentación del turno (solo DSAL): arma el .pptx del turno completo o del fin de semana, con el formato de las referencias. */
 export default function PresentacionTurno({ onBack }: PresentacionTurnoProps) {
   const { division } = useSesion();
   const [borradores, setBorradores] = useState<BorradorEntry[]>([]);
   const [fechaSemana, setFechaSemana] = useState(() => hoyLocalISO());
+  const [modo, setModo] = useState<Modo>('completo');
   // Observaciones de Turno Noche editadas por semana (si no se editan, salen las de los informes).
   const [observacionesEditadas, setObservacionesEditadas] = useState<Record<string, string>>({});
   const [generando, setGenerando] = useState(false);
@@ -62,6 +66,17 @@ export default function PresentacionTurno({ onBack }: PresentacionTurnoProps) {
     }
   };
 
+  const botonModo = (valor: Modo, texto: string) => (
+    <button
+      type="button"
+      aria-pressed={modo === valor}
+      onClick={() => setModo(valor)}
+      className={`px-3 py-1.5 font-bold ${modo === valor ? 'bg-[#0E4660] text-white' : 'bg-white text-[#0E4660]'}`}
+    >
+      {texto}
+    </button>
+  );
+
   return (
     <div className="min-h-screen text-[#222] font-sans pb-24">
       <header className="site-header">
@@ -75,7 +90,9 @@ export default function PresentacionTurno({ onBack }: PresentacionTurnoProps) {
                 Presentación del turno
               </div>
               <div className="site-header__meta text-xs truncate">
-                Láminas del turno completo a partir de los Informes Diarios
+                {modo === 'completo'
+                  ? 'Láminas del turno completo a partir de los Informes Diarios'
+                  : 'Láminas del fin de semana (viernes a domingo)'}
               </div>
             </div>
           </div>
@@ -92,7 +109,7 @@ export default function PresentacionTurno({ onBack }: PresentacionTurnoProps) {
         </button>
 
         <section className="panel p-5">
-          <div className="flex flex-wrap items-center gap-2 mb-3">
+          <div className="flex flex-wrap items-center gap-2">
             <span className="text-xs text-[#6B6B6B] font-bold">Semana de turno:</span>
             <div className="inline-flex items-center gap-1 rounded-full border border-[#DCE1E6] bg-white px-1 py-0.5 text-xs text-[#0E4660]">
               <button type="button" aria-label="Semana anterior" onClick={() => setFechaSemana(sumarDias(semana.inicio, -7))} className="p-1 rounded-full hover:bg-[#e3edf3]"><ChevronLeft size={15} /></button>
@@ -103,73 +120,86 @@ export default function PresentacionTurno({ onBack }: PresentacionTurnoProps) {
               <button type="button" onClick={() => setFechaSemana(hoyLocalISO())} className="text-xs font-bold text-[#0E4660] underline">Volver al turno en curso</button>
             )}
           </div>
-
-          <div className="space-y-2">
-            {datos.dias.map(dia => (
-              <div key={dia.fecha} className={`flex flex-wrap items-center gap-x-4 gap-y-1 p-3 rounded-md border ${dia.tieneInforme ? 'border-[#0E4660] bg-[#E8F1FB]' : 'border-[#DCE1E6] bg-white'}`}>
-                {dia.tieneInforme ? <CircleCheckBig size={18} className="text-[#0E4660] flex-shrink-0" /> : <Circle size={18} className="text-gray-300 flex-shrink-0" />}
-                <span className="text-sm font-bold text-[#0E4660] min-w-[150px]">{formatFechaLarga(dia.fecha)}</span>
-                {dia.tieneInforme ? (
-                  <span className="text-xs text-gray-600">
-                    {dia.resumen.length} {dia.resumen.length === 1 ? 'actividad' : 'actividades'} · {dia.difusiones.length} {dia.difusiones.length === 1 ? 'difusión' : 'difusiones'}
-                  </span>
-                ) : (
-                  <span className="text-xs text-gray-500">Sin Informe Diario de Turno Día.</span>
-                )}
-                {(dia.tieneInforme || dia.tieneNoche) && (
-                  <span className="text-xs text-gray-600">
-                    {dia.fotoGG ? '· reportabilidad GG con foto (Turno Noche)' : '· sin foto de reportabilidad GG (Turno Noche)'}
-                  </span>
-                )}
-              </div>
-            ))}
+          <div className="mt-3 inline-flex overflow-hidden rounded-md border border-[#0E4660] text-sm">
+            {botonModo('completo', 'Turno completo')}
+            {botonModo('fds', 'Fin de semana')}
           </div>
-          <p className="text-xs text-gray-500 mt-3">
-            Se generan: portada, resumen de Turno Día y Turno Noche, reportabilidad GG (foto del registro del Informe de Turno Noche de cada día) y una lámina de difusiones por día.
-            Las actividades de rutina individual (checklist, fatiga, hidratación, protector solar, etc.) no aparecen en el resumen.
-          </p>
         </section>
 
-        <section className="panel p-5">
-          <label htmlFor="obs-noche" className="block text-sm font-bold text-[#0E4660] mb-1">Observaciones del Turno Noche</label>
-          <p className="text-xs text-gray-500 mb-2">Una observación por línea. Vienen de los Informes Diarios de la semana; puedes editarlas antes de generar.</p>
-          <textarea
-            id="obs-noche"
-            value={textoObservaciones}
-            onChange={e => setObservacionesEditadas(prev => ({ ...prev, [semana.inicio]: e.target.value }))}
-            rows={5}
-            className="w-full p-2 border border-[#DCE1E6] rounded-md text-sm"
-          />
-        </section>
-
-        <section className="panel p-5">
-          {!hayInformes && (
-            <p className="text-sm text-gray-500 mb-3">Esta semana de turno no tiene Informes Diarios de Turno Día todavía.</p>
-          )}
-          {hayInformes && sinFotoGG > 0 && (
-            <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-md p-2 mb-3">
-              {sinFotoGG === 1 ? 'Un día no tiene' : `${sinFotoGG} días no tienen`} foto de reportabilidad GG en su Informe de Turno Noche; su recuadro quedará marcado como “sin foto” para completarlo a mano.
-            </p>
-          )}
-          <button
-            type="button"
-            onClick={generar}
-            disabled={!hayInformes || generando}
-            className="inline-flex items-center gap-2 bg-[#0E4660] text-white px-4 py-2.5 rounded-md text-sm font-bold disabled:opacity-50"
-          >
-            {generando ? <Loader2 size={16} className="animate-spin" /> : <Presentation size={16} />}
-            {generando ? 'Generando presentación…' : 'Generar presentación (.pptx)'}
-          </button>
-          <p className="text-xs text-gray-500 mt-2">{formatFechaLarga(datos.inicio)} al {formatFechaLarga(datos.fin)}</p>
-          {avisos.length > 0 && (
-            <div className="text-xs text-amber-900 bg-amber-50 border border-amber-200 rounded-md p-2 mt-3">
-              <p className="font-bold mb-1">Revisa antes de presentar:</p>
-              <ul className="list-disc pl-4 space-y-0.5">
-                {avisos.map((aviso, i) => <li key={i}>{aviso}</li>)}
-              </ul>
+        {/* Se mantienen montados al cambiar de modo para no perder lo que se editó. */}
+        <div hidden={modo !== 'completo'} className="space-y-4">
+          <section className="panel p-5">
+            <div className="space-y-2">
+              {datos.dias.map(dia => (
+                <div key={dia.fecha} className={`flex flex-wrap items-center gap-x-4 gap-y-1 p-3 rounded-md border ${dia.tieneInforme ? 'border-[#0E4660] bg-[#E8F1FB]' : 'border-[#DCE1E6] bg-white'}`}>
+                  {dia.tieneInforme ? <CircleCheckBig size={18} className="text-[#0E4660] flex-shrink-0" /> : <Circle size={18} className="text-gray-300 flex-shrink-0" />}
+                  <span className="text-sm font-bold text-[#0E4660] min-w-[150px]">{formatFechaLarga(dia.fecha)}</span>
+                  {dia.tieneInforme ? (
+                    <span className="text-xs text-gray-600">
+                      {dia.resumen.length} {dia.resumen.length === 1 ? 'actividad' : 'actividades'} · {dia.difusiones.length} {dia.difusiones.length === 1 ? 'difusión' : 'difusiones'}
+                    </span>
+                  ) : (
+                    <span className="text-xs text-gray-500">Sin Informe Diario de Turno Día.</span>
+                  )}
+                  {(dia.tieneInforme || dia.tieneNoche) && (
+                    <span className="text-xs text-gray-600">
+                      {dia.fotoGG ? '· reportabilidad GG con foto (Turno Noche)' : '· sin foto de reportabilidad GG (Turno Noche)'}
+                    </span>
+                  )}
+                </div>
+              ))}
             </div>
-          )}
-        </section>
+            <p className="text-xs text-gray-500 mt-3">
+              Se generan: portada, resumen de Turno Día y Turno Noche, reportabilidad GG (foto del registro del Informe de Turno Noche de cada día) y una lámina de difusiones por día.
+              Las actividades de rutina individual (checklist, fatiga, hidratación, protector solar, etc.) no aparecen en el resumen.
+            </p>
+          </section>
+
+          <section className="panel p-5">
+            <label htmlFor="obs-noche" className="block text-sm font-bold text-[#0E4660] mb-1">Observaciones del Turno Noche</label>
+            <p className="text-xs text-gray-500 mb-2">Una observación por línea. Vienen de los Informes Diarios de la semana; puedes editarlas antes de generar.</p>
+            <textarea
+              id="obs-noche"
+              value={textoObservaciones}
+              onChange={e => setObservacionesEditadas(prev => ({ ...prev, [semana.inicio]: e.target.value }))}
+              rows={5}
+              className="w-full p-2 border border-[#DCE1E6] rounded-md text-sm"
+            />
+          </section>
+
+          <section className="panel p-5">
+            {!hayInformes && (
+              <p className="text-sm text-gray-500 mb-3">Esta semana de turno no tiene Informes Diarios de Turno Día todavía.</p>
+            )}
+            {hayInformes && sinFotoGG > 0 && (
+              <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-md p-2 mb-3">
+                {sinFotoGG === 1 ? 'Un día no tiene' : `${sinFotoGG} días no tienen`} foto de reportabilidad GG en su Informe de Turno Noche; su recuadro quedará marcado como “sin foto” para completarlo a mano.
+              </p>
+            )}
+            <button
+              type="button"
+              onClick={generar}
+              disabled={!hayInformes || generando}
+              className="inline-flex items-center gap-2 bg-[#0E4660] text-white px-4 py-2.5 rounded-md text-sm font-bold disabled:opacity-50"
+            >
+              {generando ? <Loader2 size={16} className="animate-spin" /> : <Presentation size={16} />}
+              {generando ? 'Generando presentación…' : 'Generar presentación (.pptx)'}
+            </button>
+            <p className="text-xs text-gray-500 mt-2">{formatFechaLarga(datos.inicio)} al {formatFechaLarga(datos.fin)}</p>
+            {avisos.length > 0 && (
+              <div className="text-xs text-amber-900 bg-amber-50 border border-amber-200 rounded-md p-2 mt-3">
+                <p className="font-bold mb-1">Revisa antes de presentar:</p>
+                <ul className="list-disc pl-4 space-y-0.5">
+                  {avisos.map((aviso, i) => <li key={i}>{aviso}</li>)}
+                </ul>
+              </div>
+            )}
+          </section>
+        </div>
+
+        <div hidden={modo !== 'fds'}>
+          <PresentacionFds semana={semana} borradores={borradores} />
+        </div>
       </main>
 
       {toast && (

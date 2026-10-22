@@ -6,18 +6,18 @@ import plantillaUrl from '../../assets/plantillas/presentacion_turno.pptx?url';
 import { comprimirDataUrl } from '../../lib/fotos';
 import type { DatosPresentacion, DiaPresentacion } from './modelo';
 
-const NS_P = 'http://schemas.openxmlformats.org/presentationml/2006/main';
-const NS_A = 'http://schemas.openxmlformats.org/drawingml/2006/main';
-const NS_R = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
-const NS_PR = 'http://schemas.openxmlformats.org/package/2006/relationships';
-const MIME_PPTX = 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
+export const NS_P = 'http://schemas.openxmlformats.org/presentationml/2006/main';
+export const NS_A = 'http://schemas.openxmlformats.org/drawingml/2006/main';
+export const NS_R = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
+export const NS_PR = 'http://schemas.openxmlformats.org/package/2006/relationships';
+export const MIME_PPTX = 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
 
 const LAMINA_PORTADA = 1;
 const LAMINA_RESUMEN_DIA = 3;
 const LAMINA_RESUMEN_NOCHE = 4;
 const LAMINAS_GG = [10, 11];
 const LAMINAS_DIFUSIONES = [13, 14, 15, 16, 17, 18, 19];
-const MESES_MAYUSCULA = ['ENERO', 'FEBRERO', 'MARZO', 'ABRIL', 'MAYO', 'JUNIO', 'JULIO', 'AGOSTO', 'SEPTIEMBRE', 'OCTUBRE', 'NOVIEMBRE', 'DICIEMBRE'];
+export const MESES_MAYUSCULA = ['ENERO', 'FEBRERO', 'MARZO', 'ABRIL', 'MAYO', 'JUNIO', 'JULIO', 'AGOSTO', 'SEPTIEMBRE', 'OCTUBRE', 'NOVIEMBRE', 'DICIEMBRE'];
 const FOTO_LADO = 1400;
 const FOTO_CALIDAD = 0.85;
 
@@ -46,12 +46,12 @@ const sumarDias = (iso: string, n: number) => { const [y, m, d] = iso.split('-')
 // Utilidades de XML (DOM del navegador)
 // ---------------------------------------------------------------------------------------
 
-const leer = (xml: string) => {
+export const leer = (xml: string) => {
   const doc = new DOMParser().parseFromString(xml, 'application/xml');
   if (doc.getElementsByTagName('parsererror').length) throw new Error('Una lámina de la plantilla no se pudo leer.');
   return doc;
 };
-const escribir = (doc: Document) => {
+export const escribir = (doc: Document) => {
   const xml = new XMLSerializer().serializeToString(doc);
   return xml.startsWith('<?xml') ? xml : '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n' + xml;
 };
@@ -60,7 +60,7 @@ const escribir = (doc: Document) => {
  * Quita los caracteres que XML 1.0 no admite (un texto con ellos deja la lámina dañada para PowerPoint).
  * Los pares sustitutos válidos (emojis, letras raras) se conservan.
  */
-const textoSeguro = (texto: string) => {
+export const textoSeguro = (texto: string) => {
   let salida = '';
   for (let i = 0; i < texto.length; i++) {
     const c = texto.charCodeAt(i);
@@ -74,18 +74,18 @@ const textoSeguro = (texto: string) => {
   return salida;
 };
 
-const hijos = (el: Element, ns: string, local: string) =>
+export const hijos = (el: Element, ns: string, local: string) =>
   Array.from(el.children).filter(c => c.localName === local && c.namespaceURI === ns);
-const descendientes = (el: Element, ns: string, local: string) => Array.from(el.getElementsByTagNameNS(ns, local));
-const textoDe = (el: Element) => descendientes(el, NS_A, 't').map(t => t.textContent ?? '').join('');
-const parrafosDe = (el: Element) => hijos(el, NS_A, 'p');
-const txBodyDe = (sp: Element) => hijos(sp, NS_P, 'txBody')[0] ?? sp.getElementsByTagNameNS(NS_P, 'txBody')[0];
-const tieneVinetas = (p: Element) => p.getElementsByTagNameNS(NS_A, 'buChar').length > 0;
+export const descendientes = (el: Element, ns: string, local: string) => Array.from(el.getElementsByTagNameNS(ns, local));
+export const textoDe = (el: Element) => descendientes(el, NS_A, 't').map(t => t.textContent ?? '').join('');
+export const parrafosDe = (el: Element) => hijos(el, NS_A, 'p');
+export const txBodyDe = (sp: Element) => hijos(sp, NS_P, 'txBody')[0] ?? sp.getElementsByTagNameNS(NS_P, 'txBody')[0];
+export const tieneVinetas = (p: Element) => p.getElementsByTagNameNS(NS_A, 'buChar').length > 0;
 const tieneNumeracion = (p: Element) => p.getElementsByTagNameNS(NS_A, 'buAutoNum').length > 0;
-const tieneTexto = (p: Element) => descendientes(p, NS_A, 'r').length > 0;
+export const tieneTexto = (p: Element) => descendientes(p, NS_A, 'r').length > 0;
 
 /** Posición y tamaño de una forma de primer nivel (EMU). */
-const marco = (forma: Element) => {
+export const marco = (forma: Element) => {
   const xfrm = forma.getElementsByTagNameNS(NS_A, 'xfrm')[0];
   const off = xfrm?.getElementsByTagNameNS(NS_A, 'off')[0];
   const ext = xfrm?.getElementsByTagNameNS(NS_A, 'ext')[0];
@@ -96,7 +96,7 @@ const marco = (forma: Element) => {
 };
 
 /** Cambia el texto de un párrafo conservando el formato del primer fragmento. */
-function fijarTexto(p: Element, texto: string) {
+export function fijarTexto(p: Element, texto: string) {
   const runs = hijos(p, NS_A, 'r');
   if (!runs.length) {
     const r = p.ownerDocument.createElementNS(NS_A, 'a:r');
@@ -115,12 +115,12 @@ function fijarTexto(p: Element, texto: string) {
   t.textContent = textoSeguro(texto);
 }
 
-const fijarTamano = (p: Element, sz: number) => {
+export const fijarTamano = (p: Element, sz: number) => {
   for (const r of descendientes(p, NS_A, 'rPr')) r.setAttribute('sz', String(sz));
 };
 
 /** Copia de un párrafo de ejemplo con otro texto (y tamaño opcional). */
-function copiaDe(modelo: Element, texto: string, sz?: number) {
+export function copiaDe(modelo: Element, texto: string, sz?: number) {
   const copia = modelo.cloneNode(true) as Element;
   fijarTexto(copia, texto);
   if (sz) fijarTamano(copia, sz);
@@ -128,24 +128,24 @@ function copiaDe(modelo: Element, texto: string, sz?: number) {
 }
 
 /** Reemplaza todos los párrafos de una forma de texto por los dados. */
-function reemplazarParrafos(sp: Element, nuevos: Element[]) {
+export function reemplazarParrafos(sp: Element, nuevos: Element[]) {
   const cuerpo = txBodyDe(sp);
   for (const p of parrafosDe(cuerpo)) cuerpo.removeChild(p);
   for (const p of nuevos) cuerpo.appendChild(p);
 }
 
 /** Deja la forma con un único párrafo de texto (conserva su formato). */
-function fijarUnico(sp: Element, texto: string) {
+export function fijarUnico(sp: Element, texto: string) {
   const parrafos = parrafosDe(txBodyDe(sp));
   const base = parrafos.find(tieneTexto) ?? parrafos[0];
   reemplazarParrafos(sp, [copiaDe(base, texto)]);
 }
 
-const primerParrafoCon = (sp: Element, pred: (p: Element) => boolean) =>
+export const primerParrafoCon = (sp: Element, pred: (p: Element) => boolean) =>
   parrafosDe(txBodyDe(sp)).find(p => tieneTexto(p) && pred(p));
 
 /** Tamaño real (pt) de una forma de la lámina, con la escala de su grupo si la tiene. */
-function tamanoEnPt(forma: Element): { ancho: number; alto: number } {
+export function tamanoEnPt(forma: Element): { ancho: number; alto: number } {
   const { w, h } = marco(forma);
   let sx = 1, sy = 1;
   const grupo = forma.parentElement;
@@ -164,7 +164,7 @@ function tamanoEnPt(forma: Element): { ancho: number; alto: number } {
 }
 
 /** Tamaño de letra (centésimas de punto) que trae la plantilla en un párrafo, si lo trae. */
-function tamanoDePlantilla(p: Element | undefined): number | null {
+export function tamanoDePlantilla(p: Element | undefined): number | null {
   if (!p) return null;
   const con = [...descendientes(p, NS_A, 'rPr'), ...descendientes(p, NS_A, 'endParaRPr')].find(r => r.getAttribute('sz'));
   const sz = Number(con?.getAttribute('sz'));
@@ -172,7 +172,7 @@ function tamanoDePlantilla(p: Element | undefined): number | null {
 }
 
 /** Tamaños a probar: primero el de la plantilla (así se ve igual) y después cada vez más chicos. */
-function tamanosPosibles(base: number | null, respaldo: number[]): number[] {
+export function tamanosPosibles(base: number | null, respaldo: number[]): number[] {
   if (!base) return respaldo;
   const lista = [base];
   for (let sz = base - 50; sz >= 500; sz -= 50) lista.push(sz);
@@ -180,7 +180,7 @@ function tamanosPosibles(base: number | null, respaldo: number[]): number[] {
 }
 
 /** Mayor tamaño de letra (centésimas de punto) con el que los textos caben en la caja. Cálculo aproximado. */
-function tamanoQueCabe(caja: { ancho: number; alto: number }, textos: string[], tamanos: number[]): number {
+export function tamanoQueCabe(caja: { ancho: number; alto: number }, textos: string[], tamanos: number[]): number {
   for (const sz of tamanos) {
     const pt = sz / 100;
     const porLinea = Math.max(10, (caja.ancho - 20) / (pt * 0.7));
@@ -834,11 +834,12 @@ async function llenarDifusiones(ctx: Contexto, lamina: Lamina, dia: DiaPresentac
   const fotos: FotoDeDifusion[] = [];
   for (const difusion of dia.difusiones) {
     const lado: LadoDifusion = /^ART:/i.test(difusion.titulo.trim()) ? 'derecha' : 'izquierda';
-    for (const src of difusion.fotos) {
-      const foto = await fotoDe(ctx, src);
-      if (foto) fotos.push({ lado, foto, titulo: difusion.titulo.toUpperCase() });
-      else avisos.push(`No se pudo preparar una foto de "${difusion.titulo}" (${dmy(dia.fecha)}).`);
-    }
+    // Solo la portada: la primera foto de cada difusión o actividad.
+    const [portada] = difusion.fotos;
+    if (!portada) continue;
+    const foto = await fotoDe(ctx, portada);
+    if (foto) fotos.push({ lado, foto, titulo: difusion.titulo.toUpperCase() });
+    else avisos.push(`No se pudo preparar la foto de "${difusion.titulo}" (${dmy(dia.fecha)}).`);
   }
   await colocarDifusiones(ctx, lamina, fotos, dia.fecha, avisos);
 }
@@ -846,7 +847,7 @@ async function llenarDifusiones(ctx: Contexto, lamina: Lamina, dia: DiaPresentac
 // ---- Fechas de corte y de periodo en láminas fijas ---------------------------------------
 // Solo cambian las fechas de encabezado: el periodo del turno, "Hasta la fecha", la fecha de corte
 // de la tabla de GG, el sello de la lámina de avances y los días del gráfico semanal.
-// Las cifras y las fechas de planificación de las tablas son datos: no se tocan.
+// Las cifras de las tablas son datos: no se tocan. Las fechas planificadas de mantenciones (lámina 8) sí se corren a la semana del turno.
 
 /** Cambia solo el fragmento (run) que cumple el patrón, conservando su formato; los demás fragmentos del párrafo no se tocan. */
 function fijarFragmento(p: Element, patron: RegExp, texto: string): boolean {
@@ -856,12 +857,45 @@ function fijarFragmento(p: Element, patron: RegExp, texto: string): boolean {
   return Boolean(t);
 }
 
+/** Semana de la plantilla en que están fechadas las mantenciones (lámina 8: del 26 AGO al 01 SEP 2026). */
+const PLAN_PLANTILLA_INICIO = '2026-08-26';
+
+/**
+ * Corre las fechas planificadas de la tabla de mantenciones a la semana del turno, conservando el día relativo
+ * de cada una (la plantilla trae el plan de una semana completa). Una fecha anterior al inicio de ese plan
+ * es del mes siguiente (ej: "01-08" en un plan que termina el 01 SEP).
+ */
+function fijarFechasPlanificadas(lamina: Lamina, inicio: string) {
+  const tabla = descendientes(arbolDeLamina(lamina), NS_A, 'tbl')[0];
+  const filas = tabla ? hijos(tabla, NS_A, 'tr') : [];
+  const columna = filas.length
+    ? hijos(filas[0], NS_A, 'tc').findIndex(c => textoDe(c).toUpperCase().includes('FECHA PLANIFICADA'))
+    : -1;
+  if (columna < 0) return;
+  for (const fila of filas.slice(1)) {
+    const celda = hijos(fila, NS_A, 'tc')[columna];
+    const p = celda ? descendientes(celda, NS_A, 'p')[0] : undefined;
+    const coincide = /^(\d{2})-(\d{2})-(\d{4})$/.exec(celda ? textoDe(celda).trim() : '');
+    if (!p || !coincide) continue;
+    const [, d, m, y] = coincide;
+    let fecha = `${y}-${m}-${d}`;
+    if (fecha < PLAN_PLANTILLA_INICIO) {
+      // Date.UTC recibe el mes en base 0: pasar el mes tal cual lo deja en el mes siguiente.
+      fecha = new Date(Date.UTC(Number(y), Number(m), Number(d))).toISOString().slice(0, 10);
+    }
+    const dias = Math.round((Date.parse(fecha) - Date.parse(PLAN_PLANTILLA_INICIO)) / 86400000);
+    fijarTexto(p, dmyGuion(sumarDias(inicio, dias)));
+  }
+}
+
 async function fijarFechasDeCorte(ctx: Contexto, datos: DatosPresentacion) {
   const fin = datos.fin;
   const textosDe = (lamina: Lamina) => descendientes(arbolDeLamina(lamina), NS_P, 'sp');
 
-  // Lámina 8: "Detalle de Mantenimientos" con el periodo entre paréntesis.
-  for (const sp of textosDe(await abrirLamina(ctx, 8))) {
+  // Lámina 8: "Detalle de Mantenimientos" con el periodo entre paréntesis y las fechas planificadas de la tabla.
+  const laminaMantenciones = await abrirLamina(ctx, 8);
+  fijarFechasPlanificadas(laminaMantenciones, datos.inicio);
+  for (const sp of textosDe(laminaMantenciones)) {
     const tx = txBodyDe(sp);
     if (!tx) continue;
     for (const p of parrafosDe(tx)) {
@@ -888,7 +922,7 @@ async function fijarFechasDeCorte(ctx: Contexto, datos: DatosPresentacion) {
   const tabla = descendientes(arbolDeLamina(await abrirLamina(ctx, 21)), NS_A, 'tbl')[0];
   const encabezado = tabla ? hijos(tabla, NS_A, 'tr')[0] : undefined;
   for (const celda of encabezado ? hijos(encabezado, NS_A, 'tc') : []) {
-    if (/^\d{2}-\d{2}-\d{4}$/.test(textoDe(celda).replace(/​/g, '').trim())) {
+    if (/^\d{2}-\d{2}-\d{4}$/.test(textoDe(celda).replace(/\u200B/g, '').trim())) {
       const p = descendientes(celda, NS_A, 'p')[0];
       if (p) fijarTexto(p, dmyGuion(fin));
     }
