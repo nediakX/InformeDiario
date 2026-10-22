@@ -65,8 +65,130 @@ export function esquinasPorDefecto(ancho: number, alto: number): Esquinas {
   return [{ x: mx, y: my }, { x: ancho - mx, y: my }, { x: ancho - mx, y: alto - my }, { x: mx, y: alto - my }];
 }
 
+// --- Detección de la hoja ---------------------------------------------------------------------
+// Se prueban varias formas de encontrar la hoja y se queda con la mejor:
+//  1. Por color: la hoja es la zona clara y sin color más grande (funciona muy bien sobre mesas de
+//     madera, ropa o fondos oscuros, aunque los bordes estén poco nítidos o la hoja esté curvada).
+//  2. Por bordes (Canny) con umbrales que se ajustan a la luz de la foto.
+//  3. Por brillo (Otsu), como respaldo.
+// En los tres casos las esquinas se calculan cruzando las rectas de los 4 lados (ajustadas con todos
+// los puntos de cada lado), así calzan aunque la hoja tenga una punta doblada o las esquinas redondas.
+
+type Candidato = { esquinas: Punto[]; area: number; relleno: number; metodo: number };
+
+/** Puntos de un contorno de OpenCV como arreglo. */
+function puntosDe(contorno: Cv): Punto[] {
+  const d = contorno.data32S as Int32Array;
+  const r: Punto[] = [];
+  for (let i = 0; i < d.length; i += 2) r.push({ x: d[i], y: d[i + 1] });
+  return r;
+}
+
+const areaPoligono = (p: Punto[]) => Math.abs(p.reduce((n, a, i) => { const b = p[(i + 1) % p.length]; return n + a.x * b.y - b.x * a.y; }, 0)) / 2;
+
+/** Recta que mejor pasa por los puntos (centro + dirección, por componentes principales). */
+function ajustarRecta(pts: Punto[]): { c: Punto; d: Punto } | null {
+  if (pts.length < 2) return null;
+  const cx = pts.reduce((n, p) => n + p.x, 0) / pts.length;
+  const cy = pts.reduce((n, p) => n + p.y, 0) / pts.length;
+  let sxx = 0, syy = 0, sxy = 0;
+  for (const p of pts) { const dx = p.x - cx, dy = p.y - cy; sxx += dx * dx; syy += dy * dy; sxy += dx * dy; }
+  const ang = 0.5 * Math.atan2(2 * sxy, sxx - syy);
+  return { c: { x: cx, y: cy }, d: { x: Math.cos(ang), y: Math.sin(ang) } };
+}
+
+function cruce(a: { c: Punto; d: Punto }, b: { c: Punto; d: Punto }): Punto | null {
+  const det = a.d.x * b.d.y - a.d.y * b.d.x;
+  if (Math.abs(det) < 1e-6) return null;
+  const t = ((b.c.x - a.c.x) * b.d.y - (b.c.y - a.c.y) * b.d.x) / det;
+  return { x: a.c.x + t * a.d.x, y: a.c.y + t * a.d.y };
+}
+
+/** Distancia de p al segmento a–b. */
+function distSegmento(p: Punto, a: Punto, b: Punto): number {
+  const vx = b.x - a.x, vy = b.y - a.y;
+  const t = Math.max(0, Math.min(1, ((p.x - a.x) * vx + (p.y - a.y) * vy) / (vx * vx + vy * vy || 1)));
+  return Math.hypot(p.x - (a.x + t * vx), p.y - (a.y + t * vy));
+}
+
 /**
- * Busca el contorno de la hoja (el cuadrilátero más grande). null si no lo encuentra.
+ * Cuadrilátero de un contorno: se aproxima a 4 vértices (con tolerancia creciente) y después cada
+ * lado se reajusta con los puntos del contorno que caen sobre él; las esquinas son los cruces.
+ */
+function cuadrilatero(cv: Cv, contorno: Cv): Punto[] | null {
+  const casco = new cv.Mat();
+  const aprox = new cv.Mat();
+  try {
+    cv.convexHull(contorno, casco, false, true);
+    const perimetro = cv.arcLength(casco, true);
+    let vertices: Punto[] | null = null;
+    for (let eps = 0.01; eps <= 0.1 && !vertices; eps += 0.01) {
+      cv.approxPolyDP(casco, aprox, eps * perimetro, true);
+      if (aprox.rows === 4) vertices = puntosDe(aprox);
+    }
+    const pts = puntosDe(contorno);
+    if (!vertices) {
+      // Sin 4 vértices claros: los puntos extremos en las 4 diagonales.
+      vertices = ordenar(puntosDe(casco));
+    }
+    vertices = ordenar(vertices);
+    // Reajuste de los lados: puntos del contorno cerca de cada lado, sin los extremos (las esquinas
+    // pueden estar dobladas o redondeadas).
+    const diag = Math.hypot(...[vertices[2].x - vertices[0].x, vertices[2].y - vertices[0].y]);
+    const tol = Math.max(3, diag * 0.025);
+    const rectas = [0, 1, 2, 3].map(i => {
+      const a = vertices![i], b = vertices![(i + 1) % 4];
+      const largo = Math.hypot(b.x - a.x, b.y - a.y) || 1;
+      const lado = pts.filter(p => {
+        if (distSegmento(p, a, b) > tol) return false;
+        const t = ((p.x - a.x) * (b.x - a.x) + (p.y - a.y) * (b.y - a.y)) / (largo * largo);
+        return t > 0.12 && t < 0.88;
+      });
+      let recta = lado.length >= 6 ? ajustarRecta(lado) : ajustarRecta([a, b]);
+      // Segunda pasada: solo los puntos que de verdad están sobre la recta (deja fuera puntas dobladas).
+      if (recta && lado.length >= 6) {
+        const r0 = recta;
+        const cerca = lado.filter(p => Math.abs((p.x - r0.c.x) * r0.d.y - (p.y - r0.c.y) * r0.d.x) < tol / 3);
+        if (cerca.length >= Math.max(6, lado.length * 0.4)) recta = ajustarRecta(cerca);
+      }
+      return recta;
+    });
+    const esquinas = [0, 1, 2, 3].map(i => cruce(rectas[(i + 3) % 4]!, rectas[i]!));
+    if (esquinas.some(e => !e)) return vertices;
+    const finales = esquinas as Punto[];
+    // Si el reajuste se fue lejos (lados casi paralelos, ruido), se usan los vértices aproximados.
+    const lejos = finales.some((e, i) => Math.hypot(e.x - vertices![i].x, e.y - vertices![i].y) > diag * 0.12);
+    return ordenar(lejos ? vertices : finales);
+  } finally {
+    casco.delete(); aprox.delete();
+  }
+}
+
+/** ¿Tiene forma de hoja? Convexo y con ángulos razonables (vista en perspectiva incluida). */
+function esHojaValida(q: Punto[], ancho: number, alto: number): boolean {
+  const area = areaPoligono(q);
+  if (area < ancho * alto * 0.12 || area > ancho * alto * 0.985) return false;
+  let signo = 0;
+  for (let i = 0; i < 4; i++) {
+    const a = q[(i + 3) % 4], b = q[i], c = q[(i + 1) % 4];
+    const v1 = { x: a.x - b.x, y: a.y - b.y }, v2 = { x: c.x - b.x, y: c.y - b.y };
+    const cruz = v1.x * v2.y - v1.y * v2.x;
+    if (signo && Math.sign(cruz) !== signo) return false;
+    signo = Math.sign(cruz);
+    const ang = Math.acos(Math.max(-1, Math.min(1, (v1.x * v2.x + v1.y * v2.y) / ((Math.hypot(v1.x, v1.y) * Math.hypot(v2.x, v2.y)) || 1)))) * 180 / Math.PI;
+    if (ang < 45 || ang > 135) return false;
+  }
+  // Es el marco de la foto (no la hoja) si 3 o más esquinas están pegadas a las esquinas de la imagen.
+  const cerca = Math.max(ancho, alto) * 0.04;
+  const marco = [{ x: 0, y: 0 }, { x: ancho, y: 0 }, { x: ancho, y: alto }, { x: 0, y: alto }];
+  if (q.filter((p, i) => Math.hypot(p.x - marco[i].x, p.y - marco[i].y) < cerca).length >= 3) return false;
+  // Las esquinas pueden salir un poco del cuadro (hoja cortada), pero no mucho.
+  const margen = Math.max(ancho, alto) * 0.08;
+  return q.every(p => p.x > -margen && p.y > -margen && p.x < ancho + margen && p.y < alto + margen);
+}
+
+/**
+ * Busca la hoja en la imagen. null si no la encuentra.
  * @param ladoMaximo tamaño de la copia en que se busca: 800 para una foto; ~360 en la vista en vivo
  *   de la cámara (se repite varias veces por segundo y tiene que ser liviano).
  */
@@ -75,7 +197,7 @@ export async function detectarHoja(canvas: HTMLCanvasElement | HTMLVideoElement,
   const anchoOrigen = canvas instanceof HTMLVideoElement ? canvas.videoWidth : canvas.width;
   const altoOrigen = canvas instanceof HTMLVideoElement ? canvas.videoHeight : canvas.height;
   if (!anchoOrigen || !altoOrigen) return null;
-  // Se trabaja en una copia chica: más rápido y menos ruido.
+  // Se trabaja en una copia chica: más rápido y menos ruido (la textura de la mesa se pierde).
   // (Se achica con el lienzo antes de pasarla a OpenCV: en iOS su memoria es muy limitada.)
   const escala = Math.min(1, ladoMaximo / Math.max(anchoOrigen, altoOrigen));
   const reducido = nuevoLienzo(anchoOrigen * escala, altoOrigen * escala);
@@ -84,51 +206,102 @@ export async function detectarHoja(canvas: HTMLCanvasElement | HTMLVideoElement,
   rctx.drawImage(canvas, 0, 0, reducido.width, reducido.height);
   const src = cv.imread(reducido);
   liberarLienzo(reducido);
-  const chica = src.clone();
-  const gris = new cv.Mat(); const borroso = new cv.Mat(); const bordes = new cv.Mat(); const umbral = new cv.Mat();
-  const contornos = new cv.MatVector(); const jerarquia = new cv.Mat();
-  const kernel = cv.Mat.ones(5, 5, cv.CV_8U);
-  let mejor: Punto[] | null = null;
-  let mejorArea = 0;
-  const minimo = chica.cols * chica.rows * 0.12;
-  const revisar = (imagen: Cv, modo: number) => {
-    cv.findContours(imagen, contornos, jerarquia, modo, cv.CHAIN_APPROX_SIMPLE);
+  const W = src.cols, H = src.rows;
+  const areaTotal = W * H;
+  const lado = Math.max(W, H);
+  const impar = (n: number) => Math.max(3, Math.round(n) | 1);
+
+  const mats: Cv[] = [src];
+  const mat = () => { const m = new cv.Mat(); mats.push(m); return m; };
+  const candidatos: Candidato[] = [];
+  const contornos = new cv.MatVector(); const jerarquia = mat();
+
+  /** Revisa los contornos de una máscara binaria y agrega el mejor cuadrilátero. */
+  const revisar = (binaria: Cv, modo: number, metodo: number) => {
+    cv.findContours(binaria, contornos, jerarquia, modo, cv.CHAIN_APPROX_NONE);
+    // Los contornos más grandes primero (la hoja suele ser el más grande con forma de hoja).
+    const lista: { i: number; area: number }[] = [];
     for (let i = 0; i < contornos.size(); i++) {
       const c = contornos.get(i);
-      const perimetro = cv.arcLength(c, true);
-      const aprox = new cv.Mat();
-      cv.approxPolyDP(c, aprox, 0.02 * perimetro, true);
-      const area = Math.abs(cv.contourArea(aprox));
-      if (aprox.rows === 4 && area > mejorArea && area > minimo && cv.isContourConvex(aprox)) {
-        const d = aprox.data32S;
-        mejor = [0, 1, 2, 3].map(k => ({ x: d[k * 2] / escala, y: d[k * 2 + 1] / escala }));
-        mejorArea = area;
-      }
-      aprox.delete(); c.delete();
+      const area = Math.abs(cv.contourArea(c));
+      if (area > areaTotal * 0.1) lista.push({ i, area });
+      c.delete();
+    }
+    lista.sort((a, b) => b.area - a.area);
+    for (const { i, area } of lista.slice(0, 4)) {
+      const c = contornos.get(i);
+      try {
+        const q = cuadrilatero(cv, c);
+        if (q && esHojaValida(q, W, H)) {
+          const aq = areaPoligono(q);
+          candidatos.push({ esquinas: q, area: aq, relleno: Math.min(area, aq) / Math.max(area, aq), metodo });
+        }
+      } finally { c.delete(); }
     }
   };
+
   try {
-    cv.cvtColor(chica, gris, cv.COLOR_RGBA2GRAY);
-    cv.GaussianBlur(gris, borroso, new cv.Size(5, 5), 0);
-    cv.Canny(borroso, bordes, 50, 150);
-    cv.dilate(bordes, bordes, kernel); // une bordes cortados
-    revisar(bordes, cv.RETR_LIST);
-    if (!mejor) {
-      cv.threshold(borroso, umbral, 0, 255, cv.THRESH_BINARY + cv.THRESH_OTSU);
-      revisar(umbral, cv.RETR_EXTERNAL);
-    }
+    const rgb = mat(); cv.cvtColor(src, rgb, cv.COLOR_RGBA2RGB);
+    const gris = mat(); cv.cvtColor(rgb, gris, cv.COLOR_RGB2GRAY);
+
+    // 1. Por color: claro y sin color (V alto, S bajo) → "puntaje de papel" = V − S.
+    const hsv = mat(); cv.cvtColor(rgb, hsv, cv.COLOR_RGB2HSV);
+    const canales = new cv.MatVector(); cv.split(hsv, canales);
+    const s = canales.get(1), v = canales.get(2);
+    const papel = mat(); cv.subtract(v, s, papel);
+    s.delete(); v.delete(); canales.delete();
+    cv.GaussianBlur(papel, papel, new cv.Size(impar(lado / 120), impar(lado / 120)), 0);
+    const mascara = mat(); cv.threshold(papel, mascara, 0, 255, cv.THRESH_BINARY + cv.THRESH_OTSU);
+    // Cierra el texto y las líneas impresas (la hoja queda "llena") y borra vetas sueltas de la mesa.
+    const kCerrar = cv.getStructuringElement(cv.MORPH_RECT, new cv.Size(impar(lado / 40), impar(lado / 40))); mats.push(kCerrar);
+    const kAbrir = cv.getStructuringElement(cv.MORPH_RECT, new cv.Size(impar(lado / 80), impar(lado / 80))); mats.push(kAbrir);
+    cv.morphologyEx(mascara, mascara, cv.MORPH_CLOSE, kCerrar);
+    cv.morphologyEx(mascara, mascara, cv.MORPH_OPEN, kAbrir);
+    revisar(mascara, cv.RETR_EXTERNAL, 1);
+
+    // 2. Por bordes, con umbrales según el brillo típico de la foto; se dibuja un marco para cerrar
+    //    la hoja cuando toca el borde de la foto.
+    const suave = mat(); cv.bilateralFilter(gris, suave, 7, 60, 60);
+    const mediana = (() => {
+      const hist = new Array(256).fill(0);
+      const d = suave.data as Uint8Array;
+      for (let i = 0; i < d.length; i += 7) hist[d[i]]++;
+      const total = hist.reduce((n, x) => n + x, 0);
+      let acc = 0;
+      for (let i = 0; i < 256; i++) { acc += hist[i]; if (acc >= total / 2) return i; }
+      return 128;
+    })();
+    const bordes = mat(); cv.Canny(suave, bordes, Math.max(20, 0.5 * mediana), Math.min(255, Math.max(60, 1.3 * mediana)));
+    cv.rectangle(bordes, new cv.Point(0, 0), new cv.Point(W - 1, H - 1), new cv.Scalar(255), 1);
+    const k3 = cv.Mat.ones(3, 3, cv.CV_8U); mats.push(k3);
+    cv.dilate(bordes, bordes, k3);
+    revisar(bordes, cv.RETR_LIST, 2);
+
+    // 3. Por brillo (Otsu sobre la imagen en gris).
+    const umbral = mat(); cv.threshold(suave, umbral, 0, 255, cv.THRESH_BINARY + cv.THRESH_OTSU);
+    cv.morphologyEx(umbral, umbral, cv.MORPH_CLOSE, kCerrar);
+    revisar(umbral, cv.RETR_EXTERNAL, 3);
   } finally {
-    [src, chica, gris, borroso, bordes, umbral, contornos, jerarquia, kernel].forEach(m => m.delete());
+    contornos.delete();
+    mats.forEach(m => { try { m.delete(); } catch { /* ya liberado */ } });
   }
-  if (!mejor) return null;
-  // Se corre cada esquina un poco hacia adentro (1,2 %) para no arrastrar el borde de la mesa al recorte.
-  const puntos = mejor as Punto[];
+  if (!candidatos.length) return null;
+
+  // El mejor: forma más "llena" (contorno parecido al cuadrilátero) y más grande; el método por
+  // color gana a igualdad porque es el más estable sobre mesas con textura.
+  const puntaje = (c: Candidato) => c.relleno * 2 + (c.area / areaTotal) + (c.metodo === 1 ? 0.15 : 0);
+  const mejor = candidatos.reduce((a, b) => (puntaje(b) > puntaje(a) ? b : a));
+  const puntos = mejor.esquinas.map(p => ({ x: p.x / escala, y: p.y / escala }));
+  // Se entra un poco hacia el centro para no arrastrar el borde de la mesa al recorte; más cuando la
+  // detección fue sobre una copia chica (cámara en vivo), que es menos precisa.
   const cx = puntos.reduce((n, p) => n + p.x, 0) / 4;
   const cy = puntos.reduce((n, p) => n + p.y, 0) / 4;
-  // Se entra un poco hacia el centro para no arrastrar el borde del fondo; más cuando la detección
-  // fue sobre una copia chica (cámara en vivo), que es menos precisa.
-  const k = escala * Math.max(anchoOrigen, altoOrigen) < 500 ? 0.022 : 0.012;
-  return ordenar(puntos.map(p => ({ x: p.x + (cx - p.x) * k, y: p.y + (cy - p.y) * k })));
+  const k = lado < 500 ? 0.015 : 0.008;
+  const ajustadas = puntos.map(p => ({
+    x: Math.min(anchoOrigen, Math.max(0, p.x + (cx - p.x) * k)),
+    y: Math.min(altoOrigen, Math.max(0, p.y + (cy - p.y) * k)),
+  }));
+  return ordenar(ajustadas);
 }
 
 // --- Utilidades de lienzo ------------------------------------------------------------------------
