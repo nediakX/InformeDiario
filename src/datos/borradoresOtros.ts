@@ -82,6 +82,33 @@ export async function fetchBorradoresOtros(tipo: TipoInformeOtro, division: Divi
 }
 
 /**
+ * Camionetas de la división: datos del vehículo de todas las cuentas, sin el contenido de sus checklists
+ * (marcas, aptitudes, firmas, observaciones). Así la lista de camionetas es compartida aunque cada
+ * checklist sea solo de su cuenta. Sin conexión, la última lista descargada.
+ */
+export async function fetchVehiculosChecklist(division: Division): Promise<BorradorOtroEntry[]> {
+  const clave = `cache_vehiculos_checklist_${division}`;
+  try {
+    const { data, error } = await supabase.rpc("vehiculos_checklist", { p_division: division });
+    if (error) throw error;
+    const filas = (data ?? []) as { id: string; fecha: string; datos: Record<string, unknown> | null; saved_at: string }[];
+    const vehiculos = filas.map(f => rowToOtroEntry({
+      id: f.id, tipo: "checklist_camioneta", titulo: null, fecha: f.fecha, datos: f.datos, saved_at: f.saved_at, division,
+    }));
+    try { localStorage.setItem(clave, JSON.stringify(vehiculos)); } catch { /* sin almacenamiento */ }
+    return vehiculos;
+  } catch {
+    // Sin conexión, o la función todavía no existe en la base: se usa la última lista descargada.
+    try {
+      const guardada = localStorage.getItem(clave);
+      return guardada ? (JSON.parse(guardada) as BorradorOtroEntry[]) : [];
+    } catch {
+      return [];
+    }
+  }
+}
+
+/**
  * Guarda el borrador: sube las fotos pendientes (dondequiera que estén dentro de "datos") y lo
  * guarda en la nube. Sin conexión queda en la cola de este dispositivo y se sube al volver la señal.
  */

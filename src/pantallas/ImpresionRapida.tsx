@@ -74,6 +74,20 @@ interface Resultado {
   nombreBase: string;
 }
 
+/** Fecha del test de alcohol elegida para cada turno (clave: primer día del turno), guardada en este equipo. */
+const CLAVE_FECHAS_TEST = 'psinet_impresion_fechas_test_alcohol';
+function leerFechasTest(): Record<string, string> {
+  try {
+    const v: unknown = JSON.parse(localStorage.getItem(CLAVE_FECHAS_TEST) ?? '{}');
+    return v && typeof v === 'object' && !Array.isArray(v) ? (v as Record<string, string>) : {};
+  } catch {
+    return {};
+  }
+}
+function guardarFechasTest(fechas: Record<string, string>) {
+  try { localStorage.setItem(CLAVE_FECHAS_TEST, JSON.stringify(fechas)); } catch { /* sin almacenamiento */ }
+}
+
 const rango = (s: SemanaTurno) => `${formatDiaMes(s.inicio)} – ${formatDiaMes(s.fin)}`;
 
 export default function ImpresionRapida({ onBack }: ImpresionRapidaProps) {
@@ -94,13 +108,10 @@ export default function ImpresionRapida({ onBack }: ImpresionRapidaProps) {
   const [cuentas, setCuentas] = useState<{ nombre: string; rut: string | null }[]>([]);
   const [personas, setPersonas] = useState<PersonaImpresion[]>(() => personalDelTurno(semana.letra, [], division));
   const [supervisor, setSupervisor] = useState(() => getCreadorPorDefecto(semana.letra, division));
-  // Fecha del Test de Alcohol (formulario de una sola fecha): por defecto el primer día del turno; se puede elegir otro día de la semana.
-  const [fechaTest, setFechaTest] = useState(semana.dias[0]);
-  const [semanaFechaTest, setSemanaFechaTest] = useState(semana.inicio);
-  if (semanaFechaTest !== semana.inicio) {
-    setSemanaFechaTest(semana.inicio);
-    setFechaTest(semana.dias[0]);
-  }
+  // Fecha del Test de Alcohol: una sola para todo el turno (todas las copias). Por defecto, el primer día del turno;
+  // la que se elige queda guardada para ese turno en este equipo.
+  const [fechasTest, setFechasTest] = useState<Record<string, string>>(leerFechasTest);
+  const fechaTest = fechasTest[semana.inicio] ?? semana.dias[0];
   const fechaTestValida = semana.dias.includes(fechaTest) ? fechaTest : semana.dias[0];
   const [pref, setPref] = useState<Preferencias>(leerPreferencias);
   const [generando, setGenerando] = useState(false);
@@ -442,8 +453,8 @@ export default function ImpresionRapida({ onBack }: ImpresionRapidaProps) {
                   {doc.id === 'alcohol' && sel.incluir && (
                     <div className="w-full flex flex-wrap items-center gap-2 text-xs text-gray-600 pl-7">
                       <label className="flex items-center gap-2">
-                        Fecha del test (dentro de la semana):
-                        <input type="date" value={fechaTest} min={semana.dias[0]} max={semana.dias[6]} onChange={e => { setFechaTest(e.target.value); setResultado(null); }} className="border border-[#DCE1E6] rounded-md p-1.5 text-sm bg-white" />
+                        Fecha del test (todo el turno, dentro de la semana):
+                        <input type="date" value={fechaTest} min={semana.dias[0]} max={semana.dias[6]} onChange={e => { const nuevas = { ...fechasTest, [semana.inicio]: e.target.value }; setFechasTest(nuevas); guardarFechasTest(nuevas); setResultado(null); }} className="border border-[#DCE1E6] rounded-md p-1.5 text-sm bg-white" />
                       </label>
                       {fechaTest && fechaTest !== fechaTestValida && <span className="text-[#856404]">Fuera de la semana: se usará {formatDiaMes(fechaTestValida)}.</span>}
                     </div>

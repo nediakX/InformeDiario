@@ -16,7 +16,7 @@ import { useSesion, nombreVisible } from '../../auth/sesion';
 import { configDivision } from '../../datos/divisiones';
 import { hoyLocalISO, sumarDias, formatDiaMes } from '../../datos/fechas';
 import { semanaDeFecha } from '../../datos/turnos';
-import { type BorradorOtroEntry, fetchBorradoresOtros, subscribeBorradoresOtros, upsertBorradorOtro } from '../../datos/borradoresOtros';
+import { type BorradorOtroEntry, fetchBorradoresOtros, fetchVehiculosChecklist, subscribeBorradoresOtros, upsertBorradorOtro } from '../../datos/borradoresOtros';
 import { registrarDeshacer } from '../../lib/deshacer';
 import { firmasDivision } from '../../datos/perfil';
 import { registrarActividad } from '../../lib/actividad';
@@ -89,6 +89,15 @@ export default function ChecklistCamioneta({ onBack, fechaInicial = null }: { on
     return () => { vivo = false; desuscribir(); };
   }, [division]);
 
+  // Camionetas de todas las cuentas: solo sus datos de vehículo, sin los checklists de otras cuentas. Se vuelven a
+  // leer al cambiar la lista propia, porque los cambios de otras cuentas no llegan en tiempo real.
+  const [vehiculos, setVehiculos] = useState<BorradorOtroEntry[]>([]);
+  useEffect(() => {
+    let vivo = true;
+    void fetchVehiculosChecklist(division).then(v => { if (vivo) setVehiculos(v); });
+    return () => { vivo = false; };
+  }, [division, lista]);
+
   // Camionetas: las 3 del contrato y cualquier otra que se haya agregado (con sus últimos datos).
   const camionetas = useMemo(() => {
     const vistas = new Map<string, DatosChecklist>();
@@ -97,7 +106,7 @@ export default function ChecklistCamioneta({ onBack, fechaInicial = null }: { on
       vistas.set(clavePatente(c.patente), { ...d, patente: c.patente, marca: c.marca, modelo: c.modelo, anio: c.anio });
     }
     const registradas = new Set<string>();
-    for (const e of [...(lista ?? [])].sort((a, b) => b.savedAt.localeCompare(a.savedAt))) {
+    for (const e of [...vehiculos, ...(lista ?? [])].sort((a, b) => b.savedAt.localeCompare(a.savedAt))) {
       const d = normalizarChecklist(e.datos, semana.inicio, semana.letra);
       const clave = clavePatente(d.patente);
       if (!clave || registradas.has(clave)) continue;
@@ -106,7 +115,7 @@ export default function ChecklistCamioneta({ onBack, fechaInicial = null }: { on
       vistas.set(clave, fija ? { ...d, patente: fija.patente, marca: d.marca || fija.marca, modelo: d.modelo || fija.modelo, anio: d.anio || fija.anio } : d);
     }
     return vistas;
-  }, [lista, semana.inicio, semana.letra, config.camionetas]);
+  }, [lista, vehiculos, semana.inicio, semana.letra, config.camionetas]);
 
   const CLAVE_PATENTE = `psinet_checklist_patente${config.sufijoLocal}`;
   const [patente, setPatenteState] = useState<string>(() => {
