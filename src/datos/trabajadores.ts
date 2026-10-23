@@ -35,6 +35,15 @@ const EL_SALVADOR: Trabajador[] = [
   { nombre: 'Votterl German', rut: '21.177.930-6', cargo: 'Gerente' },
 ];
 
+/**
+ * Supervisores que también toman conocimiento en Impresión Rápida, además de los del Informe Diario.
+ * Se agregan solo aquí, para no cambiar las demás listas de la app.
+ */
+export const SUPERVISORES_IMPRESION_EXTRA: Record<Division, { nombre: string; cargo: string }[]> = {
+  el_salvador: [{ nombre: 'Claudia Droguett.', cargo: 'Experto SSO, S y MA' }],
+  andina: [],
+};
+
 export const TRABAJADORES: Record<Division, Trabajador[]> = {
   el_salvador: EL_SALVADOR,
   andina: [],

@@ -20,7 +20,7 @@ import { creadoPorDiario, CONFIG_DIVISION } from '../datos/divisiones';
 import { DOCUMENTOS } from '../impresion/plantillas';
 import { generarKit, type SeleccionDocumento } from '../impresion/generarKit';
 import { personalDelTurno, personaSugerida, guardarRut, normalizarNombre, type PersonaImpresion } from '../impresion/personal';
-import { TRABAJADORES, buscarTrabajador } from '../datos/trabajadores';
+import { TRABAJADORES, SUPERVISORES_IMPRESION_EXTRA, buscarTrabajador } from '../datos/trabajadores';
 
 interface ImpresionRapidaProps {
   onBack: () => void;
@@ -78,7 +78,9 @@ const rango = (s: SemanaTurno) => `${formatDiaMes(s.inicio)} – ${formatDiaMes(
 
 export default function ImpresionRapida({ onBack }: ImpresionRapidaProps) {
   const { esAdmin, division } = useSesion();
-  const CREADO_POR_ALL = creadoPorDiario(division);
+  // Supervisores del Informe Diario + los que solo figuran en Impresión Rápida (sin repetir nombres).
+  const creadoPorBase = creadoPorDiario(division);
+  const CREADO_POR_ALL = [...creadoPorBase, ...SUPERVISORES_IMPRESION_EXTRA[division].filter(s => !creadoPorBase.some(c => c.nombre === s.nombre))];
   const hoy = hoyLocalISO();
   const semanaActual = semanaDeFecha(hoy);
   const semanaSiguiente = semanaDeFecha(sumarDias(semanaActual.fin, 1));
