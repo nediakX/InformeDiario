@@ -69,6 +69,8 @@ interface DatosCierre {
   actividadesPendientes: string[];
   seccionesImagenes: SeccionImagenes[];
   camionetas: CamionetaEntry[];
+  /** Semana de turno a la que pertenecen las fotos (ISO del primer día del turno). */
+  semanaFotos: string;
 }
 
 /** Deja los datos (venga de la nube o del estado local) siempre con la misma forma y el mismo orden de claves. */
@@ -104,6 +106,7 @@ const normalizarDatosCierre = (raw: unknown, creadorPorDefecto: Firmante): Datos
     actividadesPendientes: pendientes.length ? pendientes : [''],
     seccionesImagenes: secciones,
     camionetas,
+    semanaFotos: str(d.semanaFotos, ''),
   };
 };
 
@@ -138,6 +141,9 @@ export default function InformeCierre({ onBack }: InformeCierreProps) {
   const [actividadesPendientes, setActividadesPendientes] = useState<string[]>(['']);
   const [seccionesImagenes, setSeccionesImagenes] = useState<SeccionImagenes[]>(DEFAULT_SECCIONES_IMAGENES);
   const [camionetas, setCamionetas] = useState<CamionetaEntry[]>([{ id: uid(), placa: '', antes: null, despues: null }]);
+  // Semana de turno a la que pertenecen las fotos del cierre: al empezar un turno nuevo se vacían.
+  const [semanaFotos, setSemanaFotos] = useState(() => semanaDeFecha(hoyLocalISO()).inicio);
+  const [semanaActual, setSemanaActual] = useState(() => semanaDeFecha(hoyLocalISO()).inicio);
   const [selectedPhotoSlot, setSelectedPhotoSlot] = useState<{ type: 'seccion' | 'camionetaAntes' | 'camionetaDespues'; id: string; photoIndex?: number } | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [toastMessage, setToastMessage] = useState<{ text: string; isError?: boolean } | null>(null);
@@ -170,10 +176,11 @@ export default function InformeCierre({ onBack }: InformeCierreProps) {
     setActividadesPendientes(datos.actividadesPendientes);
     setSeccionesImagenes(datos.seccionesImagenes);
     setCamionetas(datos.camionetas);
+    setSemanaFotos(datos.semanaFotos);
   };
 
   const limpiarLocal = () => {
-    const vacio = normalizarDatosCierre({}, creadorPorDefecto);
+    const vacio = normalizarDatosCierre({ semanaFotos: semanaDeFecha(hoyLocalISO()).inicio }, creadorPorDefecto);
     ultimoSnapshotRef.current = JSON.stringify(vacio);
     ultimoSavedAtRef.current = null;
     setUltimoGuardadoEn(null);
@@ -224,7 +231,7 @@ export default function InformeCierre({ onBack }: InformeCierreProps) {
   useEffect(() => {
     if (!cierreCargado || subiendoFotos > 0) return;
     const snapshot = JSON.stringify(normalizarDatosCierre({
-      creadoNombre, creadoCargo, selectedIds, actividadesPendientes, seccionesImagenes, camionetas,
+      creadoNombre, creadoCargo, selectedIds, actividadesPendientes, seccionesImagenes, camionetas, semanaFotos,
     }, creadorPorDefecto));
     if (snapshot === ultimoSnapshotRef.current) return;
 
@@ -264,7 +271,25 @@ export default function InformeCierre({ onBack }: InformeCierreProps) {
     }, 800);
     return () => { clearTimeout(timeout); guardadoPendienteRef.current = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cierreCargado, subiendoFotos, creadoNombre, creadoCargo, selectedIds, actividadesPendientes, seccionesImagenes, camionetas]);
+  }, [cierreCargado, subiendoFotos, creadoNombre, creadoCargo, selectedIds, actividadesPendientes, seccionesImagenes, camionetas, semanaFotos]);
+
+  // Semana de turno en curso (cambia al empezar el miércoles, igual que la semana que muestra el cierre). Se revisa cada minuto.
+  useEffect(() => {
+    const id = window.setInterval(() => setSemanaActual(semanaDeFecha(hoyLocalISO()).inicio), 60000);
+    return () => window.clearInterval(id);
+  }, []);
+
+  // Al empezar un turno nuevo las fotos del cierre quedan en blanco; los textos no cambian.
+  // Un cierre guardado antes de esta función no tiene semana de fotos: conserva sus fotos y se le asigna la actual.
+  // Solo se vacían si la semana guardada es anterior a la actual: así un dispositivo con el reloj atrasado no
+  // vacía fotos que ya se reiniciaron en otro. Se ajusta al renderizar (no en un efecto), como el personal en Impresión Rápida.
+  if (cierreCargado && subiendoFotos === 0 && semanaFotos < semanaActual) {
+    if (semanaFotos) {
+      setSeccionesImagenes(prev => prev.map(s => ({ ...s, photos: s.photos.map(() => null) })));
+      setCamionetas(prev => prev.map(c => ({ ...c, antes: null, despues: null })));
+    }
+    setSemanaFotos(semanaActual);
+  }
 
   /** Sube una foto recién cargada al bucket y, cuando termina, cambia la copia local por su URL (así no se re-sube en cada guardado). */
   const subirFotoEnSegundoPlano = async (dataUrl: string, reemplazar: (url: string) => void) => {
@@ -285,7 +310,7 @@ export default function InformeCierre({ onBack }: InformeCierreProps) {
     if (!window.confirm('¿Empezar un cierre nuevo? Se borrará el cierre en curso (textos y fotos) en todos los dispositivos.')) return;
     // Se puede deshacer: el borrado en la nube espera unos segundos (ver lib/deshacer).
     const anterior = normalizarDatosCierre({
-      creadoNombre, creadoCargo, selectedIds, actividadesPendientes, seccionesImagenes, camionetas,
+      creadoNombre, creadoCargo, selectedIds, actividadesPendientes, seccionesImagenes, camionetas, semanaFotos,
     }, creadorPorDefecto);
     const savedAtAnterior = ultimoSavedAtRef.current;
     borrandose.add(CIERRE_DRAFT_ID);

@@ -20,9 +20,9 @@ import { formatFechaLarga, hoyLocalISO } from '../datos/fechas';
 import { configDivision } from '../datos/divisiones';
 import type { ResultadoImportacion } from '../importar';
 import type { DescripcionImportacion } from '../componentes/ImportadorWord';
-import { DIAS_CHECKLIST, clavePatente, fechasChecklist } from '../informes/checklist/catalogo';
+import { DIAS_CHECKLIST, duenoDelChecklist, fechasChecklist, idChecklistDeCuenta } from '../informes/checklist/catalogo';
 
-import { semanaDeFecha, letraDeFecha, TURNOS_AUTOMATICOS, uuidDeterministico } from '../datos/turnos';
+import { semanaDeFecha, letraDeFecha, TURNOS_AUTOMATICOS } from '../datos/turnos';
 
 import { crearBorradorAutomatico } from '../informes/diario/constantes';
 import { useInformeDiario } from '../informes/diario/useInformeDiario';
@@ -75,7 +75,7 @@ function AppContenido() {
   // Al cambiar de pantalla, lo borrado en la anterior ya no se puede deshacer (los borrados en la nube pendientes se completan).
   useEffect(() => () => cerrarDeshacer(), [view, ruta.param]);
 
-  const { esAdmin, division } = useSesion();
+  const { esAdmin, division, perfil } = useSesion();
 
   // Pestaña (Día / Noche) que muestra la lista de Borradores; al volver desde un informe se deja la del turno de ese informe.
   const [borradoresTab, setBorradoresTab] = useState<'dia' | 'noche'>('dia');
@@ -389,7 +389,7 @@ function AppContenido() {
         return { detalles: [r.titulo, formatFechaLarga(r.fecha)] };
       case 'checklist': {
         const fechas = fechasChecklist(r.datos.semanaInicio);
-        const id = uuidDeterministico(`checklist|${division}|${r.datos.semanaInicio}|${clavePatente(r.datos.patente)}`);
+        const id = idChecklistDeCuenta(checklistsCamioneta, perfil.id, division, r.datos.semanaInicio, r.datos.patente);
         return {
           detalles: [`Camioneta ${r.datos.patente}${r.datos.marca ? ` · ${r.datos.marca} ${r.datos.modelo}` : ''}`, `Semana del ${ddmm(fechas[0])} al ${ddmm(fechas[DIAS_CHECKLIST - 1])} · Turno ${r.datos.letra}`, `Conductor: ${r.datos.conductor || '—'}`],
           aviso: checklistsCamioneta.some(c => c.id === id) ? 'Ya hay un checklist de esa camioneta para esa semana: se reemplazará por el del Word.' : undefined,
@@ -434,10 +434,10 @@ function AppContenido() {
         const d = r.datos;
         const fechas = fechasChecklist(d.semanaInicio);
         const guardado = await upsertBorradorOtro({
-          id: uuidDeterministico(`checklist|${division}|${d.semanaInicio}|${clavePatente(d.patente)}`),
+          id: idChecklistDeCuenta(checklistsCamioneta, perfil.id, division, d.semanaInicio, d.patente),
           tipo: 'checklist_camioneta', division,
           titulo: `Camioneta ${d.patente.toUpperCase()} · Turno ${d.letra} · ${ddmm(fechas[0])} al ${ddmm(fechas[DIAS_CHECKLIST - 1])}`,
-          fecha: d.semanaInicio, savedAt, datos: d as unknown as Record<string, unknown>,
+          fecha: d.semanaInicio, savedAt, datos: { ...d, propietarioId: perfil.id } as unknown as Record<string, unknown>,
         });
         setChecklistsCamioneta(prev => [guardado, ...prev.filter(c => c.id !== guardado.id)]);
         // El checklist se abre en esa camioneta y esa semana.
@@ -474,7 +474,7 @@ function AppContenido() {
         onNavigate={setView}
         borradoresMantenimiento={borradoresMantenimiento}
         borradoresFalla={borradoresFalla}
-        checklistsCamioneta={checklistsCamioneta}
+        checklistsCamioneta={checklistsCamioneta.filter(c => duenoDelChecklist(c) === perfil.id)}
         onNuevoMantenimiento={goToNuevoMantenimiento}
         onAbrirMantenimiento={goToAbrirMantenimiento}
         onNuevaPreventiva={goToNuevaPreventiva}

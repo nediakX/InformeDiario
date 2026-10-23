@@ -15,14 +15,26 @@ import logoEdificio from '../../assets/LogoEdificio.png';
 import { useSesion, nombreVisible } from '../../auth/sesion';
 import { configDivision } from '../../datos/divisiones';
 import { hoyLocalISO, sumarDias, formatDiaMes } from '../../datos/fechas';
-import { semanaDeFecha, uuidDeterministico } from '../../datos/turnos';
+import { semanaDeFecha } from '../../datos/turnos';
 import { type BorradorOtroEntry, fetchBorradoresOtros, subscribeBorradoresOtros, upsertBorradorOtro } from '../../datos/borradoresOtros';
 import { registrarDeshacer } from '../../lib/deshacer';
 import { firmasDivision } from '../../datos/perfil';
 import { registrarActividad } from '../../lib/actividad';
 import {
-  SECCIONES, DIAS_CHECKLIST, INICIALES_DIA, ETIQUETAS_DIA, fechasChecklist, checklistVacio, normalizarChecklist,
-  avanceDia, requiereAviso, clavePatente, type DatosChecklist, type Marca, type Respuesta,
+  SECCIONES,
+  DIAS_CHECKLIST,
+  INICIALES_DIA,
+  ETIQUETAS_DIA,
+  fechasChecklist,
+  checklistVacio,
+  normalizarChecklist,
+  avanceDia,
+  requiereAviso,
+  clavePatente,
+  type DatosChecklist,
+  type Marca,
+  type Respuesta,
+  idChecklistDeCuenta,
 } from './catalogo';
 import { generarChecklistWord, nombreArchivoChecklist } from './word';
 import VistaPreviaDocx from '../../componentes/VistaPreviaDocx';
@@ -110,10 +122,10 @@ export default function ChecklistCamioneta({ onBack, fechaInicial = null }: { on
   const elegida = camionetas.get(clavePatente(patente));
   const patenteActiva = elegida?.patente ?? (patente || config.camionetas[0]?.patente || [...camionetas.values()][0]?.patente || '');
 
-  const id = patenteActiva ? uuidDeterministico(`checklist|${division}|${semana.inicio}|${clavePatente(patenteActiva)}`) : '';
+  const id = patenteActiva ? idChecklistDeCuenta(lista ?? [], perfil.id, division, semana.inicio, patenteActiva) : '';
   const entrada = lista?.find(e => e.id === id) ?? null;
 
-  /** Checklist nuevo de la semana: arrastra los datos de la camioneta del último registro. */
+  /** Checklist nuevo de la semana: arrastra los datos fijos de la camioneta del último registro; el km de inicio queda en blanco. */
   const base = useMemo(() => {
     const d = checklistVacio(semana.inicio, semana.letra);
     const anterior = camionetas.get(clavePatente(patenteActiva));
@@ -127,7 +139,6 @@ export default function ChecklistCamioneta({ onBack, fechaInicial = null }: { on
       d.marca = anterior.marca; d.modelo = anterior.modelo; d.anio = anterior.anio;
       d.fechaUltimaMantencion = anterior.fechaUltimaMantencion; d.kmProximaMantencion = anterior.kmProximaMantencion;
       d.fechaControlLicencia = anterior.fechaControlLicencia; d.fechaExtintor = anterior.fechaExtintor;
-      d.kmInicio = anterior.kmFin; // el kilometraje de inicio es el de término de la semana anterior
     }
     return d;
   }, [semana.inicio, semana.letra, camionetas, patenteActiva, perfil, config.conductores]);
@@ -201,6 +212,7 @@ export default function ChecklistCamioneta({ onBack, fechaInicial = null }: { on
           <FormularioChecklist
             key={id}
             id={id}
+            cuentaId={perfil.id}
             division={division}
             conductores={config.conductores}
             entrada={entrada}
@@ -214,8 +226,10 @@ export default function ChecklistCamioneta({ onBack, fechaInicial = null }: { on
   );
 }
 
-function FormularioChecklist({ id, division, conductores, entrada, base, hoy, onGuardado }: {
+function FormularioChecklist({ id, cuentaId, division, conductores, entrada, base, hoy, onGuardado }: {
   id: string;
+  /** Cuenta que llena el checklist (dueña del registro). */
+  cuentaId: string;
   conductores: { A: string[]; B: string[] };
   /** Avisa el checklist recién guardado (la lista de camionetas se actualiza al tiro, aun sin señal). */
   onGuardado: (entry: BorradorOtroEntry) => void;
@@ -275,7 +289,7 @@ function FormularioChecklist({ id, division, conductores, entrada, base, hoy, on
         titulo: `Camioneta ${datos.patente.toUpperCase()} · Turno ${datos.letra} · ${ddmm(fechas[0])} al ${ddmm(fechas[DIAS_CHECKLIST - 1])}`,
         fecha: datos.semanaInicio,
         savedAt,
-        datos: datos as unknown as Record<string, unknown>,
+        datos: { ...datos, propietarioId: cuentaId } as unknown as Record<string, unknown>,
       };
       setGuardando(true);
       upsertBorradorOtro(entry)
@@ -292,7 +306,7 @@ function FormularioChecklist({ id, division, conductores, entrada, base, hoy, on
         .finally(() => setGuardando(false));
     }, 700);
     return () => clearTimeout(timer);
-  }, [sucio, edicion, datos, id, division, fechas, onGuardado]);
+  }, [sucio, edicion, datos, id, cuentaId, division, fechas, onGuardado]);
 
 
   useEffect(() => {

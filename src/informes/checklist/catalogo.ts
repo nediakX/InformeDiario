@@ -3,7 +3,8 @@
 // Cada ítem indica dónde va en la plantilla Word original (tabla, fila y primera columna de los
 // 8 días), así el documento generado mantiene exactamente el formato del registro oficial.
 import { sumarDias } from '../../datos/fechas';
-import { semanaDeFecha } from '../../datos/turnos';
+import { semanaDeFecha, uuidDeterministico } from '../../datos/turnos';
+import type { Division } from '../../datos/divisiones';
 
 /** Marca de un ítem en un día: ✓ (positiva), X (negativa) o vacío. */
 export type Marca = '' | 'ok' | 'x';
@@ -187,6 +188,31 @@ export const requiereAviso = (datos: DatosChecklist, dia: number) =>
 
 const normalizarPatente = (p: string) => p.toUpperCase().replace(/[^A-Z0-9]/g, '');
 export const clavePatente = normalizarPatente;
+
+/** Cuenta dueña de un checklist: la que lo guardó con esta versión o, en los anteriores, quien lo guardó por última vez. */
+export function duenoDelChecklist(e: { datos: unknown; actualizadoPor?: string | null }): string | null {
+  const propietario = (e.datos as { propietarioId?: unknown } | null)?.propietarioId;
+  return (typeof propietario === 'string' && propietario) || e.actualizadoPor || null;
+}
+
+/**
+ * Id del checklist de una cuenta para una camioneta y una semana: el que esa cuenta ya tiene o, si no,
+ * uno nuevo que solo le pertenece a ella. Así dos cuentas nunca escriben en el mismo checklist.
+ */
+export function idChecklistDeCuenta(
+  lista: { id: string; fecha: string; datos: unknown; actualizadoPor?: string | null }[],
+  cuentaId: string,
+  division: Division,
+  semanaInicio: string,
+  patente: string,
+): string {
+  const clave = clavePatente(patente);
+  const propio = lista.find(e =>
+    duenoDelChecklist(e) === cuentaId
+    && e.fecha === semanaInicio
+    && clavePatente(String((e.datos as { patente?: unknown } | null)?.patente ?? '')) === clave);
+  return propio?.id ?? uuidDeterministico(`checklist|${cuentaId}|${division}|${semanaInicio}|${clave}`);
+}
 
 /** Estado del checklist de hoy para el panel principal: cuántas camionetas ya tienen el día completo. */
 export function estadoChecklistDelDia(entradas: { fecha: string; datos: unknown }[], hoy: string, camionetasFijas: number): { texto: string; completo: boolean } {

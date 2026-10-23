@@ -24,6 +24,8 @@ export interface BorradorOtroEntry<T = Record<string, unknown>> {
   savedAt: string;
   /** División a la que pertenece el informe. */
   division: Division;
+  /** Cuenta que guardó el borrador por última vez (la registra la base de datos). */
+  actualizadoPor?: string | null;
 }
 
 export type BorradorOtroRow = {
@@ -34,6 +36,7 @@ export type BorradorOtroRow = {
   datos: Record<string, unknown> | null;
   saved_at: string;
   division?: Division | null;
+  actualizado_por?: string | null;
 };
 
 export const rowToOtroEntry = (row: BorradorOtroRow): BorradorOtroEntry => ({
@@ -44,6 +47,7 @@ export const rowToOtroEntry = (row: BorradorOtroRow): BorradorOtroEntry => ({
   datos: row.datos ?? {},
   savedAt: row.saved_at,
   division: row.division ?? 'el_salvador',
+  actualizadoPor: row.actualizado_por ?? null,
 });
 
 const otroEntryToRow = (entry: BorradorOtroEntry): BorradorOtroRow => ({

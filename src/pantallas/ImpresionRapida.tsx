@@ -94,6 +94,14 @@ export default function ImpresionRapida({ onBack }: ImpresionRapidaProps) {
   const [cuentas, setCuentas] = useState<{ nombre: string; rut: string | null }[]>([]);
   const [personas, setPersonas] = useState<PersonaImpresion[]>(() => personalDelTurno(semana.letra, [], division));
   const [supervisor, setSupervisor] = useState(() => getCreadorPorDefecto(semana.letra, division));
+  // Fecha del Test de Alcohol (formulario de una sola fecha): por defecto el primer día del turno; se puede elegir otro día de la semana.
+  const [fechaTest, setFechaTest] = useState(semana.dias[0]);
+  const [semanaFechaTest, setSemanaFechaTest] = useState(semana.inicio);
+  if (semanaFechaTest !== semana.inicio) {
+    setSemanaFechaTest(semana.inicio);
+    setFechaTest(semana.dias[0]);
+  }
+  const fechaTestValida = semana.dias.includes(fechaTest) ? fechaTest : semana.dias[0];
   const [pref, setPref] = useState<Preferencias>(leerPreferencias);
   const [generando, setGenerando] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -188,7 +196,7 @@ export default function ImpresionRapida({ onBack }: ImpresionRapidaProps) {
     setGenerando(true);
     try {
       const r = await generarKit({
-        semana: { letra: semana.letra, dias: semana.dias, supervisor },
+        semana: { letra: semana.letra, dias: semana.dias, supervisor, fechaUnica: fechaTestValida },
         personas: incluidas.map(p => ({ nombre: p.nombre.trim(), rut: p.rut.trim(), cargo: p.cargo.trim() })),
         seleccion: pref.seleccion,
         prellenar: pref.prellenar,
@@ -429,6 +437,15 @@ export default function ImpresionRapida({ onBack }: ImpresionRapidaProps) {
                       <button type="button" onClick={() => cambiarSeleccion(doc.id, { extra: Math.min(MAX_COPIAS, sel.extra + 1) })} aria-label={`Sumar copia de ${doc.nombre}`} className="w-7 h-7 flex items-center justify-center rounded-md border border-[#DCE1E6] text-[#0E4660] hover:bg-[#d5e7f8]"><Plus size={13} /></button>
                       <span>{doc.modo === 'persona' ? 'en blanco' : doc.dobleCara ? 'por turno/radio' : 'en blanco'}</span>
                       <span className="ml-1 font-bold text-[#0E4660] whitespace-nowrap">= {copias}</span>
+                    </div>
+                  )}
+                  {doc.id === 'alcohol' && sel.incluir && (
+                    <div className="w-full flex flex-wrap items-center gap-2 text-xs text-gray-600 pl-7">
+                      <label className="flex items-center gap-2">
+                        Fecha del test (dentro de la semana):
+                        <input type="date" value={fechaTest} min={semana.dias[0]} max={semana.dias[6]} onChange={e => { setFechaTest(e.target.value); setResultado(null); }} className="border border-[#DCE1E6] rounded-md p-1.5 text-sm bg-white" />
+                      </label>
+                      {fechaTest && fechaTest !== fechaTestValida && <span className="text-[#856404]">Fuera de la semana: se usará {formatDiaMes(fechaTestValida)}.</span>}
                     </div>
                   )}
                 </div>
