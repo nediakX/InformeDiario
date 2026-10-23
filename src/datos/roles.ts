@@ -4,12 +4,14 @@
 import { TRABAJADORES, buscarTrabajador, rutLimpio } from './trabajadores';
 import type { Division } from './divisiones';
 
-export type Rol = 'contrato' | 'jefe' | 'supervisor' | 'electromecanico' | 'electrico' | 'tecnico';
+export type Rol = 'contrato' | 'jefe' | 'supervisor' | 'lider_tecnico' | 'ingeniero_especialista' | 'electromecanico' | 'electrico' | 'tecnico';
 
 export const ETIQUETA_ROL: Record<Rol, string> = {
   contrato: 'Administración de contrato',
   jefe: 'Jefe de turno',
   supervisor: 'Supervisor',
+  lider_tecnico: 'Líder Técnico',
+  ingeniero_especialista: 'Ingeniero Especialista',
   electromecanico: 'Electromecánico',
   electrico: 'Técnico eléctrico',
   tecnico: 'Técnico',
@@ -17,7 +19,7 @@ export const ETIQUETA_ROL: Record<Rol, string> = {
 
 /** Nombre corto para el selector de vista del inicio. */
 export const ETIQUETA_CORTA_ROL: Record<Rol, string> = {
-  contrato: 'Contrato', jefe: 'Jefe de turno', supervisor: 'Supervisor', electromecanico: 'Electromecánico', electrico: 'Eléctrico', tecnico: 'Técnico',
+  contrato: 'Contrato', jefe: 'Jefe de turno', supervisor: 'Supervisor', lider_tecnico: 'Líder técnico', ingeniero_especialista: 'Ing. especialista', electromecanico: 'Electromecánico', electrico: 'Eléctrico', tecnico: 'Técnico',
 };
 
 const sinTildes = (t: string) => t.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
@@ -32,7 +34,7 @@ export function rolDeCargo(cargo: string): Rol {
   return 'tecnico';
 }
 
-export const ROLES: Rol[] = ['tecnico', 'electrico', 'electromecanico', 'supervisor', 'jefe', 'contrato'];
+export const ROLES: Rol[] = ['tecnico', 'electrico', 'electromecanico', 'supervisor', 'lider_tecnico', 'ingeniero_especialista', 'jefe', 'contrato'];
 export const esRol = (v: unknown): v is Rol => typeof v === 'string' && (ROLES as string[]).includes(v);
 
 /** Rol según el listado de trabajadores (sin contar el que asigne un administrador). */
@@ -73,6 +75,8 @@ export const DISENO_INICIO: Record<Rol, DisenoInicio> = {
   electrico: { principal: ['hoy', 'revisar', 'mapa'], lateral: ['accesos', 'generadoresMini', 'turnoMini'], accesos: ['falla', 'checklist', 'mantenimiento', 'borradores'] },
   electromecanico: { principal: ['generadores', 'hoy', 'mapa'], lateral: ['accesos', 'turnoMini'], accesos: ['gg', 'mantenimiento', 'checklist', 'borradores'] },
   supervisor: { principal: ['revisar', 'generadores', 'hoy', 'mapa'], lateral: ['turnoMini', 'accesos'], accesos: ['gg', 'impresion', 'cierre', 'presentacion', 'presentacionFds', 'preventiva', 'borradores'] },
+  lider_tecnico: { principal: ['revisar', 'generadores', 'hoy', 'mapa'], lateral: ['turnoMini', 'accesos'], accesos: ['gg', 'impresion', 'cierre', 'presentacion', 'presentacionFds', 'preventiva', 'borradores'] },
+  ingeniero_especialista: { principal: ['revisar', 'generadores', 'hoy', 'mapa'], lateral: ['turnoMini', 'accesos'], accesos: ['gg', 'impresion', 'cierre', 'presentacion', 'presentacionFds', 'preventiva', 'borradores'] },
   jefe: { principal: ['turno', 'revisar', 'hoy', 'mapa'], lateral: ['generadoresMini', 'accesos'], accesos: ['cierre', 'presentacion', 'presentacionFds', 'impresion', 'gg', 'borradores'] },
   contrato: { principal: ['contrato', 'turno', 'mapa'], lateral: ['generadoresMini', 'accesos'], accesos: ['admin', 'cierre', 'presentacion', 'presentacionFds', 'gg', 'borradores'] },
 };

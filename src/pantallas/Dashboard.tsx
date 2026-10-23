@@ -165,7 +165,7 @@ export default function Dashboard({
     return !v;
   });
   const diseno = DISENO_INICIO[rol];
-  const esGestion = rol === 'supervisor' || rol === 'jefe' || rol === 'contrato';
+  const esGestion = rol === 'supervisor' || rol === 'jefe' || rol === 'contrato' || rol === 'lider_tecnico' || rol === 'ingeniero_especialista';
 
   // Accesos a cada pantalla (se usan en "Accesos rápidos" del rol y en "Todas las opciones").
   const tareas: Record<IdTarea, ReactNode> = {

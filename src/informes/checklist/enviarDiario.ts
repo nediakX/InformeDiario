@@ -1,7 +1,7 @@
 // Checklist → Informe Diario: al completar el checklist de un día, las 2 hojas del registro se
 // guardan como imágenes en la evidencia "Registro de Check List de Vehículo Liviano." del Informe
-// Diario (Turno Día) de esa fecha. Cada camioneta ocupa sus propias fotos en el bloque: si se vuelve
-// a enviar, se reemplazan solo las hojas de esa patente.
+// Diario (Turno Día) de esa fecha. Hay un solo registro por día: queda el primero que se envió. Si se
+// vuelve a enviar la misma camioneta, se reemplazan sus hojas; si es otra, no se guarda (se avisa).
 import type { Division } from '../../datos/divisiones';
 import { type BorradorEntry, type EvidenceBlockLike, esSemillaSinEditar, fetchBorradores, upsertBorrador } from '../../datos/borradoresDiario';
 import { letraDeFecha } from '../../datos/turnos';
@@ -9,9 +9,18 @@ import { uploadPhotoIfNeeded } from '../../lib/storage';
 import { EVENTO_SINCRONIZADO } from '../../lib/sincronizacion';
 import { hojasDocxComoImagenes } from '../../lib/vistaDocx';
 import { actividadesSinEvidencia, crearBorradorAutomatico, EVIDENCIAS_EXCLUIDAS_DIA, formatFechaEvidencia } from '../diario/constantes';
+import { claveDelRegistro, ponerHojasEnBloque } from '../diario/mezclaFotos';
 import { clavePatente } from './catalogo';
 
 export const ACTIVIDAD_CHECKLIST = 'Registro de Check List de Vehículo Liviano.';
+
+/** Ya hay hojas de otra camioneta en el Informe Diario de ese día: solo se guarda el primer registro. */
+export class RegistroYaEnDiario extends Error {
+  constructor() {
+    super('Ya hay un checklist de otra camioneta en el Informe Diario de esta fecha: solo se guarda el primero que se envió.');
+    this.name = 'RegistroYaEnDiario';
+  }
+}
 
 /** Bloques de evidencia de un Turno Día recién creado (los mismos que arma el Informe Diario al abrirlo). */
 function bloquesDia(entry: BorradorEntry): EvidenceBlockLike[] {
@@ -31,24 +40,6 @@ function bloquesDia(entry: BorradorEntry): EvidenceBlockLike[] {
 
 /** Carpeta donde se suben las hojas del checklist de una camioneta (así se reconocen siempre). */
 const carpetaHojas = (idBorrador: string, clave: string) => `borradores/${idBorrador}/checklist/${clave || 'sin_patente'}`;
-const esHojaDe = (foto: string, clave: string, anteriores: Set<string>) =>
-  anteriores.has(foto) || foto.includes(`/checklist/${clave || 'sin_patente'}/`);
-
-/**
- * Pone las hojas de una patente en el bloque: un solo registro por camioneta. Se quitan todas las
- * hojas que ya se habían enviado de esa camioneta (las reconoce por su carpeta, aunque se haya
- * perdido la lista) y se ponen las nuevas en su lugar. Las fotos que la persona subió a mano se mantienen.
- */
-export function ponerHojasEnBloque(bloque: EvidenceBlockLike, clave: string, hojas: string[]): EvidenceBlockLike {
-  const anteriores = new Set(bloque.checklistFotos?.[clave] ?? []);
-  const primera = bloque.photos.findIndex(p => !!p && esHojaDe(p, clave, anteriores));
-  const otras = bloque.photos.filter(p => !(p && esHojaDe(p, clave, anteriores)));
-  const llenas = otras.filter(Boolean);
-  // Las hojas van donde estaban las anteriores; si es la primera vez, al comienzo del bloque.
-  const posicion = primera >= 0 ? bloque.photos.slice(0, primera).filter(p => !(p && esHojaDe(p, clave, anteriores))).filter(Boolean).length : 0;
-  const photos = [...llenas.slice(0, posicion), ...hojas, ...llenas.slice(posicion)];
-  return { ...bloque, photos, photoCount: photos.length, checklistFotos: { ...bloque.checklistFotos, [clave]: hojas } };
-}
 
 /**
  * Genera las imágenes de las hojas del checklist (`blob`) y las guarda en el Turno Día de `fecha`.
@@ -65,9 +56,6 @@ export async function enviarChecklistAlDiario({ blob, patente, fecha, division }
   const existente = lista.find(b => b.fecha === fecha && b.turno === 'dia' && b.letraTurno === letra && !esSemillaSinEditar(b));
   const base = existente ?? crearBorradorAutomatico(fecha, letra, 'dia', division);
 
-  // Se suben primero para que las fotos del bloque sean las direcciones definitivas (así se reconocen al reemplazarlas).
-  const hojas = (await Promise.all(imagenes.map(img => uploadPhotoIfNeeded(img, carpetaHojas(base.id, clave))))).filter((u): u is string => !!u);
-
   let bloques = base.evidenceBlocks.length ? [...base.evidenceBlocks] : bloquesDia(base);
   const actIndex = base.actividades.indexOf(ACTIVIDAD_CHECKLIST);
   let i = bloques.findIndex(b => !b.cuadroVertiv && b.title === ACTIVIDAD_CHECKLIST);
@@ -80,6 +68,14 @@ export async function enviarChecklistAlDiario({ blob, patente, fecha, division }
     i = fija >= 0 ? fija : bloques.length;
     bloques = [...bloques.slice(0, i), nuevo, ...bloques.slice(i)];
   }
+
+  // Un solo registro por día: si ya quedó el de otra camioneta, este no se guarda (y no se suben sus hojas).
+  const queda = claveDelRegistro(bloques[i]);
+  if (queda && queda !== clave) throw new RegistroYaEnDiario();
+
+  // Se suben primero para que las fotos del bloque sean las direcciones definitivas (así se reconocen al reemplazarlas).
+  const hojas = (await Promise.all(imagenes.map(img => uploadPhotoIfNeeded(img, carpetaHojas(base.id, clave))))).filter((u): u is string => !!u);
+  if (!hojas.length) throw new Error('No se pudieron guardar las hojas del checklist.');
   bloques[i] = ponerHojasEnBloque(bloques[i], clave, hojas);
 
   await upsertBorrador({ ...base, evidenceBlocks: bloques, savedAt: new Date().toISOString() });

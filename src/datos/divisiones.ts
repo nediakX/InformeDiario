@@ -152,7 +152,7 @@ export const CONFIG_DIVISION: Record<Division, ConfigDivision> = {
       { patente: 'TZYJ-98', marca: 'Toyota', modelo: 'Hilux', anio: '2025' },
     ],
     conductores: {
-      A: ['Carlos Moll', 'Patricio Santana', 'Claudia Droguett', 'Juan Morata', 'Juan Saavedra'],
+      A: ['Carlos Moll', 'Patricio Santana', 'Claudia Droguett', 'Juan Morata', 'Juan Saavedra', 'Max Diaz'],
       B: ['Omar Gutierrez', 'Camilo Pailapan', 'Fernando Contreras', 'Luis Fernandez', 'Alberto Arancibia'],
     },
     sitiosReportabilidad: 'LTE 01, 02, 03, 04, 06, 07, 08, 09, 10, 11 y MMOO 01',

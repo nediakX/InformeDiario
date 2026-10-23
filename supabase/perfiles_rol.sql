@@ -8,7 +8,7 @@ do $$
 begin
   if not exists (select 1 from pg_constraint where conname = 'perfiles_rol_valido') then
     alter table public.perfiles add constraint perfiles_rol_valido
-      check (rol is null or rol in ('contrato', 'jefe', 'supervisor', 'electromecanico', 'electrico', 'tecnico'));
+      check (rol is null or rol in ('contrato', 'jefe', 'supervisor', 'lider_tecnico', 'ingeniero_especialista', 'electromecanico', 'electrico', 'tecnico'));
   end if;
 end $$;
 -- Solo los administradores pueden cambiarlo: la política "perfiles_update_admin" ya limita los cambios

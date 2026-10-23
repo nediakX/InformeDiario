@@ -21,7 +21,7 @@ const fechaCorta = (iso: string) => {
  * @param firmas Firmas de las personas de la división (Mi perfil). La de cada conductor se pone en el
  *   cuadro "Firma y Nombre Conductor" del día en que figura, sobre su nombre.
  */
-export async function generarChecklistWord(datos: DatosChecklist, firmas: FirmaPersona[] = []): Promise<Blob> {
+export async function generarChecklistWord(datos: DatosChecklist, firmas: FirmaPersona[] = [], opciones: { paraDiario?: boolean } = {}): Promise<Blob> {
   const [{ default: JSZip }, respuesta] = await Promise.all([import('jszip'), fetch(plantillaUrl)]);
   if (!respuesta.ok) throw new Error('No se pudo cargar la plantilla del checklist.');
   const zip = await JSZip.loadAsync(await respuesta.arrayBuffer());
@@ -103,6 +103,20 @@ export async function generarChecklistWord(datos: DatosChecklist, firmas: FirmaP
       pPr.insertBefore(jc, marca ?? null);
     }
     jc.setAttributeNS(W, 'w:val', 'center');
+  };
+
+  /** Sangría izquierda y derecha de un párrafo (en twips): el texto no llega hasta el borde de la celda. */
+  const sangria = (p: Element, twips: number) => {
+    let pPr = hijos(p, 'pPr')[0];
+    if (!pPr) { pPr = nuevo('pPr'); p.insertBefore(pPr, p.firstChild); }
+    let ind = hijos(pPr, 'ind')[0];
+    if (!ind) {
+      ind = nuevo('ind');
+      const despues = hijos(pPr, 'jc')[0] ?? hijos(pPr, 'rPr')[0];
+      pPr.insertBefore(ind, despues ?? null);
+    }
+    ind.setAttributeNS(W, 'w:left', String(twips));
+    ind.setAttributeNS(W, 'w:right', String(twips));
   };
 
   const run = (rPr: Element, contenido: Element) => {
@@ -256,6 +270,9 @@ export async function generarChecklistWord(datos: DatosChecklist, firmas: FirmaP
       const parrafo = doc.importNode(new DOMParser().parseFromString(xml, 'application/xml').documentElement, true);
       const tc = celda(5, 1, 1 + dia);
       sinMargenes(tc);
+      // Solo en la hoja del Informe Diario: sin margen, el nombre centrado llegaba al borde de la celda y se encimaba
+      // con la tabla. El Word exportado no cambia.
+      if (opciones.paraDiario) sangria(primerParrafo(tc), 120);
       tc.insertBefore(parrafo, primerParrafo(tc));
     }
     zip.file('word/_rels/document.xml.rels', new XMLSerializer().serializeToString(rels));

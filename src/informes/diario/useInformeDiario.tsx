@@ -10,13 +10,12 @@ import logoEdificio from "../../assets/LogoEdificio.png";
 import { copiarImagenAlPortapapel } from '../../componentes/VisorFoto';
 import { N_CONTRATO, LINEA_SERVICIO } from '../../datos/catalogos';
 import { comprimirImagen } from '../../lib/fotos';
-import { enderezarAutomatico } from '../../lib/escaner';
 import { leerLocal, guardarLocal, borrarLocal } from '../../lib/almacenLocal';
 
 import { type Vista } from '../../app/rutas';
 
 import { type BorradorEntry, upsertBorrador, contarFotos, obtenerBorradorNube } from '../../datos/borradoresDiario';
-import { mezclarBloques, mezclarFotos, mismasFotos } from './mezclaFotos';
+import { mezclarBloques, mezclarFotos, mismasFotos, soloUnRegistroChecklist } from './mezclaFotos';
 
 import { hoyLocalISO } from '../../datos/fechas';
 import { VERTIV_TITLE, VERTIV_CARROS, VERTIV_ITEMS, CUADRO_VERTIV_ID, CUADRO_VERTIV_SITIOS, leyendaCuadroVertiv } from '../../datos/plantillaWord';
@@ -235,7 +234,7 @@ export function useInformeDiario({ view, setBorradores, borradoresRef, division 
       if (Array.isArray(draft.personal)) setPersonal(draft.personal);
       if (Array.isArray(draft.actividades)) setActividades(draft.actividades);
       if (Array.isArray(draft.observaciones)) setObservaciones(draft.observaciones);
-      if (Array.isArray(draft.evidenceBlocks)) setEvidenceBlocks(draft.evidenceBlocks);
+      if (Array.isArray(draft.evidenceBlocks)) setEvidenceBlocks(soloUnRegistroChecklist(draft.evidenceBlocks));
       if (Array.isArray(draft.vertivCarroPhotos)) setVertivCarroPhotos(draft.vertivCarroPhotos);
       if (Array.isArray(draft.vertivItemPhotos)) setVertivItemPhotos(draft.vertivItemPhotos);
     } catch (error) {
@@ -805,13 +804,13 @@ export function useInformeDiario({ view, setBorradores, borradoresRef, division 
   };
 
   // Handlers de fotos para el bloque fijo Vertiv: una foto por Carro y una por ítem de monitoreo.
+  // Las capturas de Vertiv no son hojas de papel: se guardan tal cual (no se buscan bordes ni se endereza).
   const assignVertivCarroPhoto = (file: File, idx: number) => {
     if (!file || !file.type.startsWith("image/")) return;
-    void comprimirImagen(file).then(async comprimida => {
-      const scannedImage = await enderezarAutomatico(comprimida);
+    void comprimirImagen(file).then(comprimida => {
       setVertivCarroPhotos(prev => {
         const updated = [...prev];
-        updated[idx] = scannedImage;
+        updated[idx] = comprimida;
         return updated;
       });
     });
@@ -950,11 +949,10 @@ export function useInformeDiario({ view, setBorradores, borradoresRef, division 
 
   const assignVertivItemPhoto = (file: File, idx: number) => {
     if (!file || !file.type.startsWith("image/")) return;
-    void comprimirImagen(file).then(async comprimida => {
-      const scannedImage = await enderezarAutomatico(comprimida);
+    void comprimirImagen(file).then(comprimida => {
       setVertivItemPhotos(prev => {
         const updated = [...prev];
-        updated[idx] = scannedImage;
+        updated[idx] = comprimida;
         return updated;
       });
     });
@@ -1705,7 +1703,7 @@ export function useInformeDiario({ view, setBorradores, borradoresRef, division 
     // Copia: así los bloques de evidencia se vuelven a armar desde las actividades aunque la lista sea la misma.
     setActividades([...entrySeleccionada.actividades]);
     setObservaciones(entrySeleccionada.observaciones);
-    setEvidenceBlocks(entrySeleccionada.evidenceBlocks as EvidenceBlock[]);
+    setEvidenceBlocks(soloUnRegistroChecklist(entrySeleccionada.evidenceBlocks as EvidenceBlock[]));
     setVertivCarroPhotos(entrySeleccionada.vertivCarroPhotos);
     setVertivItemPhotos(entrySeleccionada.vertivItemPhotos);
     setCurrentDraftId(entrySeleccionada.id);

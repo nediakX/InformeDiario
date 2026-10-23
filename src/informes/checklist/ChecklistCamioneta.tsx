@@ -26,7 +26,7 @@ import {
 } from './catalogo';
 import { generarChecklistWord, nombreArchivoChecklist } from './word';
 import VistaPreviaDocx from '../../componentes/VistaPreviaDocx';
-import { enviarChecklistAlDiario } from './enviarDiario';
+import { enviarChecklistAlDiario, RegistroYaEnDiario } from './enviarDiario';
 import { esErrorDeRed } from '../../lib/conexion';
 import './checklist.css';
 
@@ -401,7 +401,7 @@ function FormularioChecklist({ id, division, conductores, entrada, base, hoy, on
     enviandoRef.current = true;
     setEnvio({ dia: d, estado: 'enviando' });
     try {
-      const blob = await generarChecklistWord(hastaElDia(datosEnvio, d), await firmasDivision(division));
+      const blob = await generarChecklistWord(hastaElDia(datosEnvio, d), await firmasDivision(division), { paraDiario: true });
       await enviarChecklistAlDiario({ blob, patente: datosEnvio.patente, fecha: fechas[d], division });
       guardarLocal(claveEnviado(id, d), huella(datosEnvio));
       setEnvio({ dia: d, estado: 'ok' });
@@ -409,7 +409,7 @@ function FormularioChecklist({ id, division, conductores, entrada, base, hoy, on
       console.error('No se pudo guardar el checklist en el Informe Diario:', error);
       setEnvio({
         dia: d, estado: 'error',
-        texto: esErrorDeRed(error) ? 'Sin señal: no se pudieron guardar las hojas en el Informe Diario.' : 'No se pudieron guardar las hojas en el Informe Diario.',
+        texto: error instanceof RegistroYaEnDiario ? error.message : esErrorDeRed(error) ? 'Sin señal: no se pudieron guardar las hojas en el Informe Diario.' : 'No se pudieron guardar las hojas en el Informe Diario.',
       });
     } finally {
       enviandoRef.current = false;
