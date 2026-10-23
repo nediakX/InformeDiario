@@ -1,4 +1,4 @@
-import { useState, useRef, type PointerEvent as ReactPointerEvent } from 'react';
+import { useState, useRef, useLayoutEffect, type PointerEvent as ReactPointerEvent } from 'react';
 
 // Reordenar una lista arrastrando (mouse o dedo, con Pointer Events: sirve igual en el teléfono que en el
 // computador). Se usa en "Personal en Turno" y "Actividades Diarias". El elemento que llama a bind(i) —
@@ -8,7 +8,8 @@ export function useDragReorder<T>(items: T[], setItems: (items: T[]) => void, on
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const rowRefs = useRef<(HTMLElement | null)[]>([]);
   const itemsRef = useRef(items);
-  itemsRef.current = items;
+  // Se actualiza al terminar cada render (no durante el render), antes de que llegue cualquier evento del puntero.
+  useLayoutEffect(() => { itemsRef.current = items; });
 
   const setRowRef = (index: number) => (el: HTMLElement | null) => { rowRefs.current[index] = el; };
 

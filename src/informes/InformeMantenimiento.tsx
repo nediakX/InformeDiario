@@ -9,7 +9,8 @@ import EscanerDocumento from '../componentes/EscanerDocumento';
 import { pareceDocumento } from '../lib/documentosEscaneables';
 import logoPsinet from "../assets/logo_psinet.jpg";
 import logoEdificio from "../assets/LogoEdificio.png";
-import VisorFoto, { copiarImagenAlPortapapel } from '../componentes/VisorFoto';
+import VisorFoto from '../componentes/VisorFoto';
+import { copiarImagenAlPortapapel } from '../lib/copiarImagen';
 import { fileToDataUrl, uid } from '../lib/fotos';
 import { type BorradorOtroEntry, upsertBorradorOtro, deleteBorradorOtro } from '../datos/borradoresOtros';
 import { borrandose, registrarDeshacer, reinsertar } from '../lib/deshacer';
@@ -133,6 +134,15 @@ const DEFAULT_FILTROS: Omit<FiltroItem, 'id'>[] = [
 
 const withIds = <T,>(items: T[]): (T & { id: string })[] => items.map(item => ({ ...item, id: uid() }));
 
+/** Sección de la foto anterior que tiene sección (las fotos sin sección siguen con la de antes). */
+function seccionAnterior(fotos: FotoItem[], indice: number): string {
+  for (let i = indice - 1; i >= 0; i--) {
+    const seccion = fotos[i].section;
+    if (seccion) return seccion;
+  }
+  return "__none__";
+}
+
 export default function InformeMantenimiento({ onBack, borradorInicial = null }: InformeMantenimientoProps) {
   const { division } = useSesion();
   const config = configDivision(division).mantenimiento;
@@ -195,6 +205,10 @@ export default function InformeMantenimiento({ onBack, borradorInicial = null }:
 
   const [isGenerating, setIsGenerating] = useState(false);
   const [toastMessage, setToastMessage] = useState<{ text: string; isError?: boolean } | null>(null);
+  const showToast = (text: string, isError = false) => {
+    setToastMessage({ text, isError });
+    setTimeout(() => setToastMessage(null), 3500);
+  };
   const [fotoAmpliada, setFotoAmpliada] = useState<string | null>(null);
   // Casilla para la que se abrió el escáner de documentos (ART, bloqueo/LOTO, permisos…).
   const [escanearFotoId, setEscanearFotoId] = useState<string | null>(null);
@@ -214,7 +228,10 @@ export default function InformeMantenimiento({ onBack, borradorInicial = null }:
   useEffect(() => { precargarGeneracionWord(); }, []);
 
   // Al abrir el informe: si viene un borrador guardado (desde el Panel o desde Borradores), se carga.
-  useEffect(() => {
+  // Se aplica una sola vez al renderizar (no en un efecto), así el formulario arranca ya con esos datos.
+  const [borradorAplicado, setBorradorAplicado] = useState(false);
+  if (!borradorAplicado) {
+    setBorradorAplicado(true);
     const d = borradorInicial?.datos as Record<string, unknown> | undefined;
     if (d) {
       if (typeof d.fecha === 'string') setFecha(d.fecha);
@@ -250,8 +267,12 @@ export default function InformeMantenimiento({ onBack, borradorInicial = null }:
       if (typeof d.fechaProximoMantenimiento === 'string') setFechaProximoMantenimiento(d.fechaProximoMantenimiento);
       setHayBorrador(true);
       setBorradorGuardadoEn(borradorInicial?.savedAt ?? null);
-      yaGuardadoEnNubeRef.current = true;
     }
+  }
+
+  useEffect(() => {
+    // Si el informe viene con un borrador guardado, el autoguardado ya sabe que existe en la nube.
+    if (borradorInicial?.datos) yaGuardadoEnNubeRef.current = true;
     borradorCargadoRef.current = true;
     // Solo se aplica una vez, al abrir el informe con el borrador que corresponda.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -337,11 +358,6 @@ export default function InformeMantenimiento({ onBack, borradorInicial = null }:
         })
         .finally(() => borrandose.delete(idPrevio));
     });
-  };
-
-  const showToast = (text: string, isError = false) => {
-    setToastMessage({ text, isError });
-    setTimeout(() => setToastMessage(null), 3500);
   };
 
   const handleCopiarFoto = async (src: string) => {
@@ -833,8 +849,6 @@ export default function InformeMantenimiento({ onBack, borradorInicial = null }:
   // ---------------------------------------------------------------------------------------
   const placeholderImg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='75'%3E%3Crect width='100%25' height='100%25' fill='%23eee'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%23aaa' font-size='9'%3ESin foto%3C/text%3E%3C/svg%3E";
 
-  let lastSection = "__none__";
-
   return (
     <div className="min-h-screen text-[#222] font-sans pb-20">
       <header className="site-header">
@@ -970,9 +984,8 @@ export default function InformeMantenimiento({ onBack, borradorInicial = null }:
           </summary>
           <p className="text-xs text-gray-500 mb-3">Mismos bloques que el informe de referencia (antes/después, LOTO, refrigeración, filtros, Power Command, etc). Puedes editar el título, la descripción y agregar o quitar fotos. Haz clic en una casilla y pega con Ctrl+V: la selección avanza sola a la siguiente casilla (o crea una nueva al final) para poder seguir pegando fotos de corrido.</p>
           <div className="space-y-3">
-            {fotos.map(item => {
-              const showSectionHeading = item.section && item.section !== lastSection;
-              lastSection = item.section || lastSection;
+            {fotos.map((item, indice) => {
+              const showSectionHeading = item.section && item.section !== seccionAnterior(fotos, indice);
               return (
                 <div key={item.id}>
                   {showSectionHeading && <p className="text-xs font-bold text-[#0E4660] uppercase mt-2 mb-1">{item.section}</p>}

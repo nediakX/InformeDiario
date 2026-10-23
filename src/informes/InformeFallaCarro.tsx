@@ -9,7 +9,8 @@ import EscanerDocumento from '../componentes/EscanerDocumento';
 import { pareceDocumento } from '../lib/documentosEscaneables';
 import logoPsinet from "../assets/logo_psinet.jpg";
 import logoEdificio from "../assets/LogoEdificio.png";
-import VisorFoto, { copiarImagenAlPortapapel } from '../componentes/VisorFoto';
+import VisorFoto from '../componentes/VisorFoto';
+import { copiarImagenAlPortapapel } from '../lib/copiarImagen';
 import { N_CONTRATO, LINEA_SERVICIO } from '../datos/catalogos';
 import { fileToDataUrl, uid } from '../lib/fotos';
 import { type BorradorOtroEntry, upsertBorradorOtro, deleteBorradorOtro } from '../datos/borradoresOtros';
@@ -360,6 +361,10 @@ export default function InformeFallaCarro({ onBack, borradorInicial = null }: In
 
   const [isGenerating, setIsGenerating] = useState(false);
   const [toastMessage, setToastMessage] = useState<{ text: string; isError?: boolean } | null>(null);
+  const showToast = (text: string, isError = false) => {
+    setToastMessage({ text, isError });
+    setTimeout(() => setToastMessage(null), 3500);
+  };
   const [fotoAmpliada, setFotoAmpliada] = useState<string | null>(null);
   // Casilla para la que se abrió el escáner de documentos (ART, bloqueo, permisos…).
   const [escanearEn, setEscanearEn] = useState<{ grupoId: string; fotoId: string } | null>(null);
@@ -378,7 +383,10 @@ export default function InformeFallaCarro({ onBack, borradorInicial = null }: In
   useEffect(() => { precargarGeneracionWord(); }, []);
 
   // Al abrir el informe: si viene un borrador guardado (desde el Panel o desde Borradores), se carga.
-  useEffect(() => {
+  // Se aplica una sola vez al renderizar (no en un efecto), así el formulario arranca ya con esos datos.
+  const [borradorAplicado, setBorradorAplicado] = useState(false);
+  if (!borradorAplicado) {
+    setBorradorAplicado(true);
     const d = borradorInicial?.datos as Record<string, unknown> | undefined;
     if (d) {
       if (typeof d.fecha === 'string') setFecha(d.fecha);
@@ -404,8 +412,12 @@ export default function InformeFallaCarro({ onBack, borradorInicial = null }: In
       if (Array.isArray(d.grupos)) setGrupos(d.grupos as RegistroGrupo[]);
       setHayBorrador(true);
       setBorradorGuardadoEn(borradorInicial?.savedAt ?? null);
-      yaGuardadoEnNubeRef.current = true;
     }
+  }
+
+  useEffect(() => {
+    // Si el informe viene con un borrador guardado, el autoguardado ya sabe que existe en la nube.
+    if (borradorInicial?.datos) yaGuardadoEnNubeRef.current = true;
     borradorCargadoRef.current = true;
     // Solo se aplica una vez, al abrir el informe con el borrador que corresponda.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -487,11 +499,6 @@ export default function InformeFallaCarro({ onBack, borradorInicial = null }: In
         })
         .finally(() => borrandose.delete(idPrevio));
     });
-  };
-
-  const showToast = (text: string, isError = false) => {
-    setToastMessage({ text, isError });
-    setTimeout(() => setToastMessage(null), 3500);
   };
 
   const handleCopiarFoto = async (src: string) => {

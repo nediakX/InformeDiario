@@ -8,7 +8,8 @@ import {
 } from 'lucide-react';
 import logoPsinet from "../assets/logo_psinet.jpg";
 import logoEdificio from "../assets/LogoEdificio.png";
-import VisorFoto, { copiarImagenAlPortapapel } from '../componentes/VisorFoto';
+import VisorFoto from '../componentes/VisorFoto';
+import { copiarImagenAlPortapapel } from '../lib/copiarImagen';
 import { N_CONTRATO } from '../datos/catalogos';
 import { fileToDataUrl, uid } from '../lib/fotos';
 import { type BorradorEntry, fetchBorradores, subscribeBorradores, esSemillaSinEditar } from '../datos/borradoresDiario';
@@ -110,6 +111,20 @@ const normalizarDatosCierre = (raw: unknown, creadorPorDefecto: Firmante): Datos
   };
 };
 
+/** Foto del "Registro de mantenimiento de GG." del último día con foto (para Reportabilidad GG del cierre). */
+function buscarFotoReportabilidad<D extends { fecha: string; evidenceBlocks: { title: string; photos: (string | null | undefined)[] }[] }>(dias: D[]) {
+  for (let i = dias.length - 1; i >= 0; i--) {
+    const dia = dias[i];
+    const block = dia.evidenceBlocks.find(b => {
+      const t = b.title.trim().toLowerCase();
+      return t.startsWith('registro de mantenimiento de gg.') || t === 'reportabilidad gg.';
+    });
+    const photo = block?.photos.find((p): p is string => Boolean(p));
+    if (photo) return { src: photo, fecha: dia.fecha, esUltimoDia: i === dias.length - 1 };
+  }
+  return null;
+}
+
 export default function InformeCierre({ onBack }: InformeCierreProps) {
   const { division } = useSesion();
   const config = configDivision(division);
@@ -147,6 +162,7 @@ export default function InformeCierre({ onBack }: InformeCierreProps) {
   const [selectedPhotoSlot, setSelectedPhotoSlot] = useState<{ type: 'seccion' | 'camionetaAntes' | 'camionetaDespues'; id: string; photoIndex?: number } | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [toastMessage, setToastMessage] = useState<{ text: string; isError?: boolean } | null>(null);
+  const showToast = (text: string, isError?: boolean) => setToastMessage({ text, isError });
   const [fotoAmpliada, setFotoAmpliada] = useState<string | null>(null);
 
   const META_DIAS = 7;
@@ -342,8 +358,6 @@ export default function InformeCierre({ onBack }: InformeCierreProps) {
     return () => clearTimeout(timer);
   }, [toastMessage]);
 
-  const showToast = (text: string, isError?: boolean) => setToastMessage({ text, isError });
-
   const handleCopiarFoto = async (src: string | null | undefined) => {
     if (!src) return;
     const ok = await copiarImagenAlPortapapel(src);
@@ -388,18 +402,7 @@ export default function InformeCierre({ onBack }: InformeCierreProps) {
 
   // Evidencia fotográfica para Reportabilidad GG: la foto del "Registro de mantenimiento de GG."
   // del último día incluido. Si ese día no tiene foto, se usa la del día anterior más cercano que sí la tenga.
-  const fotoReportabilidad = useMemo(() => {
-    for (let i = diasSeleccionados.length - 1; i >= 0; i--) {
-      const dia = diasSeleccionados[i];
-      const block = dia.evidenceBlocks.find(b => {
-        const t = b.title.trim().toLowerCase();
-        return t.startsWith('registro de mantenimiento de gg.') || t === 'reportabilidad gg.';
-      });
-      const photo = block?.photos.find((p): p is string => Boolean(p));
-      if (photo) return { src: photo, fecha: dia.fecha, esUltimoDia: i === diasSeleccionados.length - 1 };
-    }
-    return null;
-  }, [diasSeleccionados]);
+  const fotoReportabilidad = useMemo(() => buscarFotoReportabilidad(diasSeleccionados), [diasSeleccionados]);
 
   const turnoLabel = useMemo(() => {
     const noches = diasSeleccionados.filter(d => d.turno === 'noche').length;

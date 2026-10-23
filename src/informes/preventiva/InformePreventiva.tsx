@@ -15,7 +15,8 @@ import {
 import logoPsinet from '../../assets/logo_psinet.jpg';
 import logoEdificio from '../../assets/LogoEdificio.png';
 import EscanerDocumento from '../../componentes/EscanerDocumento';
-import VisorFoto, { copiarImagenAlPortapapel } from '../../componentes/VisorFoto';
+import VisorFoto from '../../componentes/VisorFoto';
+import { copiarImagenAlPortapapel } from '../../lib/copiarImagen';
 import { pareceDocumento } from '../../lib/documentosEscaneables';
 import { fileToDataUrl, uid } from '../../lib/fotos';
 import { registrarActividad } from '../../lib/actividad';

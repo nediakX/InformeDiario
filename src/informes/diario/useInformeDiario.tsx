@@ -7,7 +7,7 @@ import { registrarActividad } from '../../lib/actividad';
 import logoPsinet from "../../assets/logo_psinet.jpg";
 import logoEdificio from "../../assets/LogoEdificio.png";
 
-import { copiarImagenAlPortapapel } from '../../componentes/VisorFoto';
+import { copiarImagenAlPortapapel } from '../../lib/copiarImagen';
 import { N_CONTRATO, LINEA_SERVICIO } from '../../datos/catalogos';
 import { comprimirImagen } from '../../lib/fotos';
 import { leerLocal, guardarLocal, borrarLocal } from '../../lib/almacenLocal';
@@ -165,13 +165,17 @@ export function useInformeDiario({ view, setBorradores, borradoresRef, division 
 
   const [fotoAmpliada, setFotoAmpliada] = useState<string | null>(null);
 
-  // Carga inicial y conversión de imágenes por defecto
-  useEffect(() => {
+  // Al cambiar de división se carga su personal y su plantilla de actividades (se ajusta al renderizar, no en un efecto).
+  const [divisionCargada, setDivisionCargada] = useState<string | null>(null);
+  if (divisionCargada !== division) {
+    setDivisionCargada(division);
     setPersonal(getPersonalGuardado('A', division));
-
     // El turno inicial es 'dia', así que cargamos su plantilla de actividades correspondiente.
     setActividades(getActividadesGuardadas('dia', division));
+  }
 
+  // Carga inicial y conversión de imágenes por defecto
+  useEffect(() => {
     // Cargar o inicializar Logo y Portada predeterminados
     const initImages = async () => {
       try {
@@ -485,7 +489,17 @@ export function useInformeDiario({ view, setBorradores, borradoresRef, division 
   }, [division]);
 
   // En turno Noche la evidencia fotográfica usa una plantilla fija independiente.
-  useEffect(() => {
+  // Los bloques se vuelven a armar cuando cambian sus datos de entrada (se ajusta al renderizar, no en un efecto).
+  const [entradasEvidencia, setEntradasEvidencia] = useState<{ actividades: string[]; fecha: string; turno: string; division: string; version: number } | null>(null);
+  if (
+    !entradasEvidencia
+    || entradasEvidencia.actividades !== actividades
+    || entradasEvidencia.fecha !== fecha
+    || entradasEvidencia.turno !== turno
+    || entradasEvidencia.division !== division
+    || entradasEvidencia.version !== versionSinEvidencia
+  ) {
+    setEntradasEvidencia({ actividades, fecha, turno, division, version: versionSinEvidencia });
     // Actividades a las que se les quitó su bloque de evidencia: no vuelven a tener bloque (ver handleRemovePhotoSlot).
     const omitidas = new Set(actividadesSinEvidencia(turno, division));
     setEvidenceBlocks(prevBlocks => {
@@ -585,7 +599,7 @@ export function useInformeDiario({ view, setBorradores, borradoresRef, division 
       newBlocks.push(mantenimientoBlock);
       return newBlocks;
     });
-  }, [actividades, fecha, turno, division, versionSinEvidencia]);
+  }
 
   const showToast = (text: string, isError = false) => {
     setToastMessage({ text, isError });
