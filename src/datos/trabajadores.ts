@@ -40,7 +40,7 @@ const EL_SALVADOR: Trabajador[] = [
  * Se agregan solo aquí, para no cambiar las demás listas de la app.
  */
 export const SUPERVISORES_IMPRESION_EXTRA: Record<Division, { nombre: string; cargo: string }[]> = {
-  el_salvador: [{ nombre: 'Claudia Droguett.', cargo: 'Experto SSO, S y MA' }],
+  el_salvador: [],
   andina: [],
 };
 

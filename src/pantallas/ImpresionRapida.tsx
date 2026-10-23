@@ -81,6 +81,7 @@ export default function ImpresionRapida({ onBack }: ImpresionRapidaProps) {
   // Supervisores del Informe Diario + los que solo figuran en Impresión Rápida (sin repetir nombres).
   const creadoPorBase = creadoPorDiario(division);
   const CREADO_POR_ALL = [...creadoPorBase, ...SUPERVISORES_IMPRESION_EXTRA[division].filter(s => !creadoPorBase.some(c => c.nombre === s.nombre))];
+  const sinPunto = (nombre: string) => nombre.replace(/\.$/, '');
   const hoy = hoyLocalISO();
   const semanaActual = semanaDeFecha(hoy);
   const semanaSiguiente = semanaDeFecha(sumarDias(semanaActual.fin, 1));
@@ -376,21 +377,24 @@ export default function ImpresionRapida({ onBack }: ImpresionRapidaProps) {
 
           <label className="block mt-4 text-sm text-gray-600">
             Supervisor que toma conocimiento:
-            <input
-              list="supervisores-impresion"
+            <select
               value={supervisor.nombre}
               onChange={e => {
-                const elegido = CREADO_POR_ALL.find(c => c.nombre === e.target.value);
-                setSupervisor(elegido ? { nombre: elegido.nombre.replace(/\.$/, ''), cargo: elegido.cargo } : { ...supervisor, nombre: e.target.value });
+                const elegido = CREADO_POR_ALL.find(c => sinPunto(c.nombre) === e.target.value);
+                if (elegido) setSupervisor({ nombre: sinPunto(elegido.nombre), cargo: elegido.cargo });
                 setResultado(null);
               }}
               className="block w-full sm:w-80 mt-1 border border-[#DCE1E6] rounded-md p-1.5 text-sm"
-            />
+            >
+              {!CREADO_POR_ALL.some(c => sinPunto(c.nombre) === supervisor.nombre) && (
+                <option value={supervisor.nombre}>{supervisor.nombre}</option>
+              )}
+              {CREADO_POR_ALL.map(c => (
+                <option key={c.nombre} value={sinPunto(c.nombre)}>{c.nombre}</option>
+              ))}
+            </select>
             <datalist id="trabajadores-impresion">
               {TRABAJADORES[division].map(t => <option key={t.rut} value={t.nombre}>{t.rut} · {t.cargo}</option>)}
-            </datalist>
-            <datalist id="supervisores-impresion">
-              {CREADO_POR_ALL.map(c => <option key={c.nombre} value={c.nombre} />)}
             </datalist>
           </label>
         </section>
