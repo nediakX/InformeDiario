@@ -38,7 +38,7 @@ interface Preferencias {
 }
 
 const preferenciasPorDefecto = (): Preferencias => ({
-  seleccion: DOCUMENTOS.map(d => ({ id: d.id, incluir: d.id !== 'fatiga' || d.cantidadSugerida > 0, extra: d.cantidadSugerida })),
+  seleccion: DOCUMENTOS.map(d => ({ id: d.id, incluir: !d.opcional || d.cantidadSugerida > 0, extra: d.cantidadSugerida })),
   prellenar: true,
   orden: 'persona',
   fatigaConNombre: true,

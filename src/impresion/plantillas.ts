@@ -32,6 +32,8 @@ export interface DocumentoImprimible {
   archivo: string;
   /** Hojas a doble cara (dúplex): se arman en un PDF aparte, alineadas a páginas pares. */
   dobleCara?: boolean;
+  /** No viene marcado por defecto: se imprime solo cuando corresponde (como la Encuesta de Fatiga). */
+  opcional?: boolean;
   /** Se imprime uno por cada persona del turno (con su nombre) o una cantidad fija para el turno. */
   modo: 'persona' | 'turno';
   /** Cantidad sugerida cuando el modo es "turno" (o copias en blanco extra si es "persona"). */
@@ -149,6 +151,7 @@ export const DOCUMENTOS: DocumentoImprimible[] = [
     nombre: 'Encuesta de Fatiga y Somnolencia',
     descripcion: 'Se usa solo si alguien presenta pérdida de alerta · una por persona',
     archivo: '/documentos/Formato_Encuesta_Fatiga_y_somnolencia.pdf',
+    opcional: true,
     modo: 'persona',
     cantidadSugerida: 0,
     // Datos del supervisor y del trabajador ya escritos: en terreno solo se marcan SI/NO, la fecha y las firmas.
@@ -159,6 +162,23 @@ export const DOCUMENTOS: DocumentoImprimible[] = [
     camposPersona: p => [
       { x: 232, base: 700.9, tamano: 9, ancho: 212, texto: p.nombre },
       { x: 232, base: 718.9, tamano: 9, ancho: 212, texto: p.cargo },
+    ],
+  },
+  {
+    id: 'alcohol',
+    nombre: 'Registro de Toma de Test de Alcohol',
+    descripcion: 'GSSO-LTE-R-TNA&D · uno por persona',
+    archivo: '/documentos/GSSO-LTE-R-TNAD_REGISTRO_TOMA_DE_TEST_DE_ALCOHOL.pdf',
+    opcional: true,
+    modo: 'persona',
+    cantidadSugerida: 0,
+    // El formulario tiene una sola fecha por trabajador: se usa el miércoles de inicio de la semana.
+    camposSemana: s => [
+      { x: 406, base: 240.9, tamano: 9, ancho: 150, texto: ddmmaaaa(s.dias[0]) },
+    ],
+    camposPersona: p => [
+      { x: 146, base: 217.3, tamano: 9, ancho: 405, texto: p.nombre },
+      { x: 146, base: 240.9, tamano: 9, ancho: 186, texto: p.cargo },
     ],
   },
 ];
