@@ -7,6 +7,7 @@ import logoPsinet from '../assets/logo_psinet.jpg';
 import logoEdificio from '../assets/LogoEdificio.png';
 import { etiquetaFaena, formatearRut, rutValido, useSesion } from '../auth/sesion';
 import { actualizarMiPerfil, cambiarContrasena } from '../datos/perfil';
+import { ETIQUETA_ROL, rolDelListado, rolDePersona } from '../datos/roles';
 import { procesarFirma } from '../lib/firma';
 import { esErrorDeRed } from '../lib/conexion';
 
@@ -25,7 +26,7 @@ function AvisoTexto({ aviso }: { aviso: Aviso }) {
 }
 
 export default function Perfil({ onBack }: { onBack: () => void }) {
-  const { perfil, recargarPerfil, esAdmin } = useSesion();
+  const { perfil, recargarPerfil, esAdmin, divisionPropia } = useSesion();
 
   const [nombre, setNombre] = useState(perfil.nombre);
   const [rut, setRut] = useState(perfil.rut ?? '');
@@ -42,6 +43,12 @@ export default function Perfil({ onBack }: { onBack: () => void }) {
 
   const firmaVista = firmaNueva === undefined ? perfil.firma ?? null : firmaNueva;
   const hayCambios = nombre.trim() !== perfil.nombre || (rut.trim() || null) !== (perfil.rut ?? null) || firmaNueva !== undefined;
+  // Rol: el cargo del listado (según el RUT guardado) o el que asignó un administrador.
+  const { rol, asignado } = rolDePersona(perfil, perfil.nombre, divisionPropia);
+  const conCargo = asignado || rolDelListado(perfil.rut, perfil.nombre, divisionPropia).cargo !== null;
+  const etiquetaRol = conCargo
+    ? `${ETIQUETA_ROL[rol]}${esAdmin ? ' · Administrador' : ''}`
+    : esAdmin ? 'Administrador' : 'Usuario';
 
   const elegirFirma = async (archivo: File) => {
     setProcesandoFirma(true);
@@ -136,7 +143,7 @@ export default function Perfil({ onBack }: { onBack: () => void }) {
             </div>
             <div>
               <span className={etiqueta}>Rol</span>
-              <p className="p-2.5 text-sm text-gray-600 bg-[#F6F8FA] rounded-md border border-[#EEF1F3]">{esAdmin ? 'Administrador' : 'Usuario'}</p>
+              <p className="p-2.5 text-sm text-gray-600 bg-[#F6F8FA] rounded-md border border-[#EEF1F3]">{etiquetaRol}</p>
             </div>
           </div>
           <p className="text-[11px] text-gray-500">La división y el rol los cambia un administrador.</p>
