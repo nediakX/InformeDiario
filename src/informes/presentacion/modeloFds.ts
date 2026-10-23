@@ -33,7 +33,7 @@ export interface DiaFds {
   /** ISO "2026-10-23". */
   fecha: string;
   actividades: FilaActividadFds[];
-  /** Difusiones del día (lámina 13, columna del día). */
+  /** Difusiones del día (lámina 13: las de los tres días van juntas en un recuadro). */
   difusiones: string[];
 }
 
@@ -59,7 +59,7 @@ export interface DatosFds {
   observaciones: string[];
   /** Lámina 17: actividades con CPE (sin el encabezado). */
   cpe: string[];
-  /** Lámina 19: conclusiones. */
+  /** Lámina 19: una conclusión por día, a partir de sus actividades (un recuadro por línea). */
   conclusiones: string[];
 }
 
@@ -280,6 +280,27 @@ export function ultimoMantenimientoDe(mantenimientos: MantenimientoFds[], carro:
   return ultimo ? { horas: numeroFds(ultimo.horometro), fecha: ultimo.fecha } : { horas: null, fecha: null };
 }
 
+/** Une palabras en una lista con comas y "Y": "A, B Y C". */
+const unirConY = (lista: string[]) => (lista.length <= 1 ? lista.join('') : `${lista.slice(0, -1).join(', ')} Y ${lista[lista.length - 1]}`);
+
+/**
+ * Conclusión de un día (lámina 19, un recuadro por día), a partir de sus actividades: qué se ejecutó y la continuidad.
+ * Si el día no tiene actividades, lo dice (se corrige en el formulario).
+ */
+function conclusionDelDia(dia: DiaFds): string {
+  const rotulo = rotuloDiaFds(dia.fecha);
+  const nombres = dia.actividades.map(a => sinAcentos(a.actividad));
+  if (!nombres.length) return `${rotulo}: SIN ACTIVIDADES REGISTRADAS EN EL INFORME DIARIO.`;
+  const hechos: string[] = [];
+  if (nombres.some(a => ES_MANTENCION.test(a))) hechos.push('MANTENIMIENTOS PREVENTIVOS');
+  if (nombres.some(a => ES_BATERIA.test(a))) hechos.push('MEDICIÓN Y VALIDACIÓN DE BANCO DE BATERÍAS');
+  if (nombres.some(a => ES_CPE.test(a))) hechos.push('TRABAJOS DE CPE');
+  if (nombres.some(a => ES_FALLA.test(a))) hechos.push('ATENCIÓN DE FALLAS');
+  if (dia.difusiones.length) hechos.push('DIFUSIONES');
+  const detalle = hechos.length ? unirConY(hechos) : `${nombres.length} ${nombres.length === 1 ? 'ACTIVIDAD' : 'ACTIVIDADES'} DE OPERACIÓN Y MANTENCIÓN`;
+  return `${rotulo}: SE EJECUTARON ${detalle}; CONTINUIDAD OPERACIONAL.`;
+}
+
 // ---------------------------------------------------------------------------------------
 // Borrador completo a partir de los informes y de los datos de la base
 // ---------------------------------------------------------------------------------------
@@ -307,7 +328,6 @@ export function construirPresentacionFds(entradas: BorradorEntry[], semana: Sema
   const mantencion = tituloRealizados(actividadesTodas, ES_MANTENCION);
   const baterias = tituloRealizados(actividadesTodas, ES_BATERIA);
   const cpe = tituloRealizados(actividadesTodas, ES_CPE);
-  const fallas = tituloRealizados(actividadesTodas, ES_FALLA);
 
   const resumenGeneral = [FRASE_ESTABLE];
   if (mantencion.length) resumenGeneral.push(`SE EJECUTARON MANTENIMIENTOS PREVENTIVOS: ${mantencion.join('; ')}`);
@@ -342,10 +362,7 @@ export function construirPresentacionFds(entradas: BorradorEntry[], semana: Sema
     controles: [...CONTROLES_FDS_PREDETERMINADOS],
     observaciones,
     cpe,
-    conclusiones: [
-      'FIN DE SEMANA CON CONTINUIDAD OPERACIONAL Y SIN INCIDENTES OPERACIONALES MAYORES REPORTADOS.',
-      ...(fallas.length ? [`SE ATENDIERON FALLAS: ${fallas.join('; ')}`] : []),
-    ],
+    conclusiones: dias.map(conclusionDelDia),
   };
 }
 
@@ -423,5 +440,8 @@ export function avisosFds(datos: DatosFds): string[] {
   if (sinUltimo.length) avisos.push(`Sin horas o fecha del último mantenimiento: ${sinUltimo.join(', ')}. Su fila quedará incompleta.`);
   const sinHoras = datos.om.filter(f => f.horasRegistradas === null).map(f => f.nombre);
   if (sinHoras.length) avisos.push(`Sin horas registradas hasta la fecha de corte: ${sinHoras.join(', ')}.`);
+  datos.dias.forEach(dia => {
+    if (!dia.actividades.length) avisos.push(`No hay actividades registradas el ${rotuloDiaFds(dia.fecha).toLowerCase()}: su conclusión (lámina 19) queda sin datos.`);
+  });
   return avisos;
 }

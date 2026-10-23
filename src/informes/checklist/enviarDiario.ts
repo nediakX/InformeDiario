@@ -8,7 +8,7 @@ import { letraDeFecha } from '../../datos/turnos';
 import { uploadPhotoIfNeeded } from '../../lib/storage';
 import { EVENTO_SINCRONIZADO } from '../../lib/sincronizacion';
 import { hojasDocxComoImagenes } from '../../lib/vistaDocx';
-import { crearBorradorAutomatico, EVIDENCIAS_EXCLUIDAS_DIA, formatFechaEvidencia } from '../diario/constantes';
+import { actividadesSinEvidencia, crearBorradorAutomatico, EVIDENCIAS_EXCLUIDAS_DIA, formatFechaEvidencia } from '../diario/constantes';
 import { clavePatente } from './catalogo';
 
 export const ACTIVIDAD_CHECKLIST = 'Registro de Check List de Vehículo Liviano.';
@@ -17,8 +17,9 @@ export const ACTIVIDAD_CHECKLIST = 'Registro de Check List de Vehículo Liviano.
 function bloquesDia(entry: BorradorEntry): EvidenceBlockLike[] {
   const sello = Date.now();
   const bloques: EvidenceBlockLike[] = [];
+  const sinEvidencia = new Set(actividadesSinEvidencia(entry.fecha, 'dia', entry.division));
   entry.actividades.forEach((titulo, actIndex) => {
-    if (EVIDENCIAS_EXCLUIDAS_DIA.has(titulo)) return;
+    if (EVIDENCIAS_EXCLUIDAS_DIA.has(titulo) || sinEvidencia.has(titulo)) return;
     bloques.push({ id: `act_${sello}__${actIndex}`, title: titulo, photoCount: 1, photos: [null], isActivity: true, actIndex });
   });
   bloques.push({

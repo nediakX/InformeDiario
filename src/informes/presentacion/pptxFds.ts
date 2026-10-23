@@ -32,8 +32,6 @@ const diaDeMes = (iso: string) => `${partesIso(iso).d} DE ${MESES_MAYUSCULA[part
 /** Periodo de la portada: "VIERNES 23 DE OCTUBRE AL DOMINGO 25 DE OCTUBRE DE 2026". */
 const periodoDe = (inicio: string, fin: string) =>
   `${nombreDia(inicio)} ${diaDeMes(inicio)} AL ${nombreDia(fin)} ${diaDeMes(fin)} DE ${partesIso(fin).y}`;
-/** Encabezado de día de la tabla: "VIERNES 23/10". */
-const diaTabla = (iso: string) => { const { m, d } = partesIso(iso); return `${nombreDia(iso)} ${String(d).padStart(2, '0')}/${String(m).padStart(2, '0')}`; };
 /** Categoría del gráfico: "VIERNES 23" (sin tilde, como en la plantilla). */
 const diaGrafico = (iso: string) => `${DIAS_SEMANA_SIN_ACENTO[fechaUtc(iso).getUTCDay()]} ${partesIso(iso).d}`;
 /** Fecha corta en minúscula para el mantenimiento: "23-sep-26". */
@@ -521,6 +519,12 @@ const NS_DGM = 'http://schemas.openxmlformats.org/drawingml/2006/diagram';
 const CASCADA_RAZON = 0.85;
 /** Alto de cada flecha / alto de cada caja (también medido en la referencia). */
 const FLECHA_RAZON = 0.65;
+/**
+ * Lado máximo de una flecha: el que tiene con tres ítems. Con menos ítems las cajas son más altas y, sin tope, la flecha
+ * se ve como una caja vacía más (con dos conclusiones pasaba eso). Solo se usa en la lámina de conclusiones: las demás
+ * cascadas (actividades principales, CPE) quedan como estaban.
+ */
+const LADO_FLECHA_MAXIMO = (alto: number) => FLECHA_RAZON * CASCADA_RAZON * (alto / (2 + CASCADA_RAZON));
 
 /** Ruta del archivo de una parte del SmartArt (dibujo o datos) de la lámina, según el tipo de relación. */
 function rutaRelacion(lamina: Lamina, fragmento: string): string {
@@ -562,7 +566,7 @@ function cabeTexto(caja: { ancho: number; alto: number }, textos: string[], sz: 
 }
 
 /** Cajas y flechas de una cascada de n ítems dentro del marco (pulgadas, relativas al marco). */
-function disponerCascada(n: number, W: number, H: number, wProto: number, hProto: number) {
+function disponerCascada(n: number, W: number, H: number, wProto: number, hProto: number, flechaMaxima: boolean) {
   const w = Math.min(wProto, W);
   if (n === 1) {
     const h = Math.min(hProto, H);
@@ -572,7 +576,7 @@ function disponerCascada(n: number, W: number, H: number, wProto: number, hProto
   const h = CASCADA_RAZON * paso;
   const pasoX = (W - w) / (n - 1);
   const cajas = Array.from({ length: n }, (_, i) => ({ x: i * pasoX, y: i * paso, w, h }));
-  const lado = FLECHA_RAZON * h;
+  const lado = flechaMaxima ? Math.min(FLECHA_RAZON * h, LADO_FLECHA_MAXIMO(H)) : FLECHA_RAZON * h;
   const flechas = cajas.slice(0, -1).map((a, i) => {
     const b = cajas[i + 1];
     const centroY = (a.y + a.h + b.y) / 2;
@@ -581,7 +585,7 @@ function disponerCascada(n: number, W: number, H: number, wProto: number, hProto
   return { cajas, flechas };
 }
 
-async function llenarCascada(ctx: Contexto, lamina: Lamina, textos: string[], avisos: string[], etiqueta: string) {
+async function llenarCascada(ctx: Contexto, lamina: Lamina, textos: string[], avisos: string[], etiqueta: string, flechaMaxima = false) {
   const arbol = arbolDe(lamina);
   const marcoDiagrama = descendientes(arbol, NS_P, 'graphicFrame')
     .find(g => descendientes(g, NS_A, 'graphicData').some(d => (d.getAttribute('uri') ?? '').includes('/diagram')));
@@ -596,7 +600,7 @@ async function llenarCascada(ctx: Contexto, lamina: Lamina, textos: string[], av
   const m = medidasDe(marcoDiagrama);
   const W = m.w / EMU, H = m.h / EMU;
   const pCaja = medidasDe(protoCaja);
-  const { cajas, flechas } = disponerCascada(items.length, W, H, pCaja.w / EMU, pCaja.h / EMU);
+  const { cajas, flechas } = disponerCascada(items.length, W, H, pCaja.w / EMU, pCaja.h / EMU, flechaMaxima);
 
   // Tamaño común: el mayor con el que todos los textos caben en su caja.
   const modelo = aFormaP(lamina, protoCaja);
@@ -676,9 +680,26 @@ async function llenarObservaciones(ctx: Contexto, lamina: Lamina, textos: string
   ctx.zip.file(rutaDatos, escribir(datos), { createFolders: false });
 }
 
-// ---- Difusiones (lámina 13): cuatro recuadros de texto (un día por recuadro y controles) -----
+// ---- Difusiones (lámina 13): un recuadro con las difusiones de los tres días y otro con los controles -----
 
-const TAMANOS_TARJETA = [1100, 1050, 1000, 950, 900, 850, 800];
+const TAMANOS_TARJETA = [1400, 1300, 1200, 1100, 1050, 1000, 950, 900, 850, 800];
+
+/** Frase fija del recuadro de difusiones: las difusiones se absorbieron en las actividades diarias del fin de semana. */
+const ENCABEZADO_DIFUSIONES = 'ABSORBIDA A TRAVÉS DE LAS ACTIVIDADES DIARIAS DEL FIN DE SEMANA, CON LAS DIFUSIONES:';
+/** Posición de los dos recuadros de la lámina 13, en pulgadas (el de difusiones ocupa el ancho de la columna). */
+const CAJA_DIFUSIONES = { x: 2.7, y: 2.3, w: 8.13, h: 2.95 };
+const CAJA_CONTROLES = { x: 2.7, y: 5.4, w: 8.13, h: 1.65 };
+
+/** Difusiones sin repetir (sin tildes ni mayúsculas), en el orden en que aparecen. */
+const difusionesSinRepetir = (lista: string[]) => {
+  const vistas = new Set<string>();
+  return lista.filter(t => {
+    const clave = t.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().trim();
+    if (!clave || vistas.has(clave)) return false;
+    vistas.add(clave);
+    return true;
+  });
+};
 
 /** Caja útil de un recuadro de difusiones, en puntos (se descuentan márgenes y la sangría de las viñetas). */
 const cajaTarjeta = (tarjeta: Element) => {
@@ -707,15 +728,20 @@ function escribirTarjeta(tarjeta: Element, encabezado: string, items: string[], 
 }
 
 function llenarDifusiones(lamina: Lamina, datos: DatosFds, avisos: string[]) {
-  const tarjetas = hijos(arbolDe(lamina), NS_P, 'sp')
-    .filter(s => nombreDe(s).startsWith('Difusion card'))
-    .sort((a, b) => (medidasDe(a).y - medidasDe(b).y) || (medidasDe(a).x - medidasDe(b).x));
-  if (tarjetas.length !== 4) throw new Error('La lámina de difusiones de la plantilla no tiene sus cuatro recuadros.');
-  // Los cuatro recuadros usan el mismo tamaño: el mayor que cabe en todos.
+  const arbol = arbolDe(lamina);
+  const tarjetas = hijos(arbol, NS_P, 'sp').filter(s => nombreDe(s).startsWith('Difusion card'));
+  const controles = tarjetas.find(s => nombreDe(s).includes('CONTROLES'));
+  const difusiones = tarjetas.find(s => s !== controles);
+  if (tarjetas.length !== 4 || !controles || !difusiones) throw new Error('La lámina de difusiones de la plantilla no tiene sus cuatro recuadros.');
+  // Las difusiones de los tres días van juntas: se quitan los recuadros por día y el de difusiones ocupa el ancho.
+  for (const t of tarjetas) if (t !== difusiones && t !== controles) arbol.removeChild(t);
+  fijarXfrm(difusiones, CAJA_DIFUSIONES.x, CAJA_DIFUSIONES.y, CAJA_DIFUSIONES.w, CAJA_DIFUSIONES.h);
+  fijarXfrm(controles, CAJA_CONTROLES.x, CAJA_CONTROLES.y, CAJA_CONTROLES.w, CAJA_CONTROLES.h);
   const filas = [
-    ...datos.dias.map((dia, k) => ({ tarjeta: tarjetas[k], encabezado: diaTabla(dia.fecha), items: dia.difusiones, etiqueta: `difusiones del ${diaTabla(dia.fecha)}` })),
-    { tarjeta: tarjetas[3], encabezado: 'CONTROLES TRANSVERSALES', items: datos.controles, etiqueta: 'controles transversales' },
+    { tarjeta: difusiones, encabezado: ENCABEZADO_DIFUSIONES, items: difusionesSinRepetir(datos.dias.flatMap(d => d.difusiones)), etiqueta: 'difusiones' },
+    { tarjeta: controles, encabezado: 'CONTROLES TRANSVERSALES', items: datos.controles, etiqueta: 'controles transversales' },
   ];
+  // Los dos recuadros usan el mismo tamaño: el mayor que cabe en ambos.
   const sz = Math.min(...filas.map(f => tamanoTarjeta(f.tarjeta, f.encabezado, f.items)));
   for (const f of filas) {
     escribirTarjeta(f.tarjeta, f.encabezado, f.items, sz);
@@ -874,7 +900,7 @@ export async function generarPresentacionFds(datos: DatosFds): Promise<Resultado
     avisos,
     'CPE',
   );
-  await llenarCascada(ctx, await abrirLamina(ctx, LAMINA.conclusiones), datos.conclusiones, avisos, 'conclusiones');
+  await llenarCascada(ctx, await abrirLamina(ctx, LAMINA.conclusiones), datos.conclusiones, avisos, 'conclusiones', true);
 
   for (const lamina of ctx.laminas.values()) {
     zip.file(`ppt/slides/slide${lamina.numero}.xml`, escribir(lamina.doc), { createFolders: false });

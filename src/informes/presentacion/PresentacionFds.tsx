@@ -275,12 +275,12 @@ export default function PresentacionFds({ semana, borradores, auto, cargando, er
           ))}
           <Campo id="fds-cascada" titulo="Cascada de actividades (lámina 11)" valor={valor('cascada')} onChange={t => cambiar('cascada', t)} filas={3} />
           {diasFds.map((fecha, k) => (
-            <Campo key={`dif-${fecha}`} id={`fds-dif-${k}`} titulo={`Difusiones · ${rotuloDiaFds(fecha)} (lámina 13)`} valor={valor(`dif${k}`)} onChange={t => cambiar(`dif${k}`, t)} filas={3} />
+            <Campo key={`dif-${fecha}`} id={`fds-dif-${k}`} titulo={`Difusiones · ${rotuloDiaFds(fecha)} (lámina 13, van juntas)`} valor={valor(`dif${k}`)} onChange={t => cambiar(`dif${k}`, t)} filas={3} />
           ))}
           <Campo id="fds-controles" titulo="Controles transversales (lámina 13)" valor={valor('controles')} onChange={t => cambiar('controles', t)} filas={4} />
           <Campo id="fds-observaciones" titulo="Observaciones y mejoras (lámina 15)" valor={valor('observaciones')} onChange={t => cambiar('observaciones', t)} filas={4} />
           <Campo id="fds-cpe" titulo="Actividades con CPE (lámina 17)" valor={valor('cpe')} onChange={t => cambiar('cpe', t)} filas={3} />
-          <Campo id="fds-conclusiones" titulo="Conclusiones (lámina 19)" valor={valor('conclusiones')} onChange={t => cambiar('conclusiones', t)} filas={3} />
+          <Campo id="fds-conclusiones" titulo="Conclusiones (lámina 19, una línea por recuadro)" valor={valor('conclusiones')} onChange={t => cambiar('conclusiones', t)} filas={3} />
         </div>
       </details>
 

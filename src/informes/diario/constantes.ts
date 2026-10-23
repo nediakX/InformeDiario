@@ -293,6 +293,53 @@ export const getActividadesGuardadas = (turno: 'dia' | 'noche', division: Divisi
   }
 };
 
+// Actividades cuyo bloque de evidencia se quitó en un informe. La actividad sigue en la lista diaria; solo deja de
+// volver a crearse su bloque al recargar la página o al armar el informe. Se guarda en este equipo, por fecha y turno.
+const LS_KEY_SIN_EVIDENCIA = "psinet_sin_evidencia_v1";
+const claveSinEvidencia = (fecha: string, turno: 'dia' | 'noche', division: Division) => `${fecha}|${turno}|${division}`;
+
+const leerSinEvidencia = (): Record<string, string[]> => {
+  try {
+    const todas = JSON.parse(localStorage.getItem(LS_KEY_SIN_EVIDENCIA) ?? '{}');
+    return todas && typeof todas === 'object' ? todas : {};
+  } catch {
+    return {};
+  }
+};
+
+/** Actividades a las que se les quitó su bloque de evidencia en el informe de esa fecha y turno. */
+export const actividadesSinEvidencia = (fecha: string, turno: 'dia' | 'noche', division: Division): string[] => {
+  const lista = leerSinEvidencia()[claveSinEvidencia(fecha, turno, division)];
+  return Array.isArray(lista) ? lista : [];
+};
+
+const guardarActividadesSinEvidencia = (fecha: string, turno: 'dia' | 'noche', division: Division, lista: string[]) => {
+  try {
+    const todas = leerSinEvidencia();
+    const clave = claveSinEvidencia(fecha, turno, division);
+    if (lista.length) todas[clave] = lista;
+    else delete todas[clave];
+    // Se descartan los informes de más de 60 días para que el registro no crezca sin límite.
+    const limite = new Date(Date.parse(`${fecha}T12:00:00Z`) - 60 * 864e5).toISOString().slice(0, 10);
+    Object.keys(todas).forEach(k => { if (k.slice(0, 10) < limite) delete todas[k]; });
+    localStorage.setItem(LS_KEY_SIN_EVIDENCIA, JSON.stringify(todas));
+  } catch (error) {
+    console.error("No se pudo guardar qué bloques de evidencia se quitaron:", error);
+  }
+};
+
+export const marcarActividadSinEvidencia = (fecha: string, turno: 'dia' | 'noche', division: Division, actividad: string) =>
+  guardarActividadesSinEvidencia(fecha, turno, division, [...new Set([...actividadesSinEvidencia(fecha, turno, division), actividad])]);
+
+export const desmarcarActividadSinEvidencia = (fecha: string, turno: 'dia' | 'noche', division: Division, actividad: string) =>
+  guardarActividadesSinEvidencia(fecha, turno, division, actividadesSinEvidencia(fecha, turno, division).filter(a => a !== actividad));
+
+/** true = actividad predeterminada: su bloque de evidencia siempre se arma (no se puede quitar de forma permanente). */
+export const esActividadPredeterminada = (actividad: string, turno: 'dia' | 'noche', division: Division) =>
+  turno === 'dia'
+    ? DEFAULT_ACTIVIDADES_DIA.includes(actividad)
+    : DEFAULT_ACTIVIDADES_NOCHE.includes(actividad) || actividadesNoche(division).includes(actividad);
+
 export const getCreadorPorDefecto = (letra: string, division: Division = 'el_salvador') =>
   CONFIG_DIVISION[division].diario.creadorPorDefecto[letra === 'B' ? 'B' : 'A'];
 

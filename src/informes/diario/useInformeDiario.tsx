@@ -27,7 +27,7 @@ import { registrarDeshacer, reinsertar } from '../../lib/deshacer';
 import { mapaFotosSubidas, aplicarFotosSubidas } from '../../lib/storage';
 
 import type { Dispatch, SetStateAction, RefObject } from 'react';
-import { BLUE, type BorradorLocal, DECORACIONES_MENSUALES, DEFAULT_ACTIVIDADES_DIA, DEFAULT_ACTIVIDADES_NOCHE, DEFAULT_EVIDENCIAS_NOCHE, EVIDENCIAS_CON_TAMANO_FOTOGRAFICO_SOLICITADO, EVIDENCIAS_EXCLUIDAS_DIA, type EvidenceBlock, INDICADORES_BULLETS, indicadoresIntro, actividadesNoche, MESES, OBS_FINAL_BULLETS, ORANGE, PREFIJO_MANTENCION_CARRO, type PersonalItem, type ScannerTarget, formatFechaEvidencia, getActividadesGuardadas, getCreadorPorDefecto, getDefaultPersonal, getPersonalGuardado, lsKeyActividades, lsKeyBorradorLocal, lsKeyPersonal, urlToBase64, vertivVacio } from './constantes';
+import { BLUE, type BorradorLocal, DECORACIONES_MENSUALES, DEFAULT_ACTIVIDADES_DIA, DEFAULT_ACTIVIDADES_NOCHE, DEFAULT_EVIDENCIAS_NOCHE, EVIDENCIAS_CON_TAMANO_FOTOGRAFICO_SOLICITADO, EVIDENCIAS_EXCLUIDAS_DIA, type EvidenceBlock, INDICADORES_BULLETS, indicadoresIntro, actividadesNoche, MESES, OBS_FINAL_BULLETS, ORANGE, PREFIJO_MANTENCION_CARRO, type PersonalItem, type ScannerTarget, formatFechaEvidencia, getActividadesGuardadas, getCreadorPorDefecto, getDefaultPersonal, getPersonalGuardado, lsKeyActividades, lsKeyBorradorLocal, lsKeyPersonal, urlToBase64, vertivVacio, actividadesSinEvidencia, desmarcarActividadSinEvidencia, esActividadPredeterminada, marcarActividadSinEvidencia } from './constantes';
 import { CONFIG_DIVISION, type Division } from '../../datos/divisiones';
 import { useDragReorder } from './useDragReorder';
 
@@ -471,6 +471,8 @@ export function useInformeDiario({ view, setBorradores, borradoresRef, division 
 
   // En turno Noche la evidencia fotográfica usa una plantilla fija independiente.
   useEffect(() => {
+    // Actividades a las que se les quitó su bloque en este informe: no vuelven a tener bloque (ver handleRemovePhotoSlot).
+    const omitidas = new Set(actividadesSinEvidencia(fecha, turno, division));
     setEvidenceBlocks(prevBlocks => {
       const mantenimientoTitle = `Registro de mantenimiento de GG. (${formatFechaEvidencia(fecha)})`;
       const existingMantenimiento = prevBlocks.find(block => block.isFixed && block.title.startsWith("Registro de mantenimiento de GG."));
@@ -525,9 +527,11 @@ export function useInformeDiario({ view, setBorradores, borradoresRef, division 
         const extraActivityBlocks = actividades
           .map((actText, index) => ({ actText, index }))
           .filter(({ actText }) => actText.trim() && !DEFAULT_ACTIVIDADES_NOCHE.includes(actText) && !actividadesNoche(division).includes(actText))
-          .map(({ actText, index }) => {
+          .flatMap(({ actText, index }) => {
             const existing = tomarBloque(actText, index);
-            return existing
+            // Quitado en este informe y sin fotos: no vuelve a tener bloque.
+            if (omitidas.has(actText) && !existing?.photos.some(Boolean)) return [];
+            return [existing
               ? { ...existing, title: actText, actIndex: index }
               : {
                   id: `act_noche_${Date.now()}__${index}`,
@@ -536,7 +540,7 @@ export function useInformeDiario({ view, setBorradores, borradoresRef, division 
                   photos: [null],
                   isActivity: true,
                   actIndex: index,
-                };
+                }];
           });
 
         return [...fixedBlocks, ...extraActivityBlocks];
@@ -546,6 +550,8 @@ export function useInformeDiario({ view, setBorradores, borradoresRef, division 
       actividades.forEach((actText, idx) => {
         if (EVIDENCIAS_EXCLUIDAS_DIA.has(actText)) return;
         const existing = tomarBloque(actText, idx);
+        // Quitado en este informe y sin fotos: la actividad sigue en la lista, pero no vuelve a tener bloque.
+        if (omitidas.has(actText) && !existing?.photos.some(Boolean)) return;
         if (existing) {
           newBlocks.push({ ...existing, title: actText, actIndex: idx });
         } else {
@@ -671,6 +677,7 @@ export function useInformeDiario({ view, setBorradores, borradoresRef, division 
     setActividades(updated);
     persistActividades(updated);
     if (quitada === undefined) return;
+    desmarcarActividadSinEvidencia(fecha, turno, division, quitada);
     registrarDeshacer(`Se quitó la actividad «${quitada.trim() || 'sin texto'}»`, () => {
       setActividades(actual => {
         const restauradas = reinsertar(actual, index, quitada);
@@ -760,7 +767,10 @@ export function useInformeDiario({ view, setBorradores, borradoresRef, division 
     const bloque = evidenceBlocks[blockIndex];
     if (bloque) {
       const foto = bloque.photos[photoIndex] ?? null;
+      // Quitar el último espacio de una actividad no predeterminada elimina su bloque: se recuerda para que no vuelva al recargar.
+      const quitaBloque = bloque.isActivity && bloque.photos.length === 1 && !esActividadPredeterminada(bloque.title, turno, division);
       registrarDeshacer(foto ? `Se eliminó una foto de «${bloque.title}»` : `Se quitó un espacio de foto de «${bloque.title}»`, () => {
+        if (quitaBloque) desmarcarActividadSinEvidencia(fecha, turno, division, bloque.title);
         setEvidenceBlocks(actual => {
           const i = actual.findIndex(b => b.id === bloque.id);
           if (i < 0) return reinsertar(actual, blockIndex, bloque);
@@ -768,6 +778,7 @@ export function useInformeDiario({ view, setBorradores, borradoresRef, division 
           return actual.map((b, k) => k === i ? { ...b, photos, photoCount: photos.length } : b);
         });
       });
+      if (quitaBloque) marcarActividadSinEvidencia(fecha, turno, division, bloque.title);
     }
     setEvidenceBlocks(prev => prev.flatMap((block, bi) => {
       if (bi !== blockIndex) return [block];
