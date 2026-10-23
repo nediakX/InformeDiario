@@ -400,7 +400,6 @@ export default function InformeDiario({ d, volverABorradores, goToNewInforme }: 
                       onClick={e => { if (vertivCarroPhotos[i]) { e.stopPropagation(); setFotoAmpliada(vertivCarroPhotos[i]); } }}
                       className={`w-[92px] h-[70px] object-cover rounded mx-auto mb-1 bg-gray-100 ${vertivCarroPhotos[i] ? 'cursor-zoom-in' : ''}`}
                     />
-                    <button type="button" onClick={() => openDocumentScanner({ type: 'vertivCarro', index: i })} className="w-full bg-[#0E4660] text-white rounded px-1 py-1 mb-1 text-[9px] font-bold">Escanear documento</button>
                     <span className="block text-[9px] text-gray-500">Imagen, cámara o app de escaneo:</span>
                     <input type="file" accept="image/*" onChange={e => e.target.files?.[0] && assignVertivCarroPhoto(e.target.files[0], i)} className="text-[9px] w-full" />
                   </div>
@@ -440,7 +439,6 @@ export default function InformeDiario({ d, volverABorradores, goToNewInforme }: 
                       onClick={e => { if (vertivItemPhotos[i]) { e.stopPropagation(); setFotoAmpliada(vertivItemPhotos[i]); } }}
                       className={`w-[92px] h-[70px] object-cover rounded mx-auto mb-1 bg-gray-100 ${vertivItemPhotos[i] ? 'cursor-zoom-in' : ''}`}
                     />
-                    <button type="button" onClick={() => openDocumentScanner({ type: 'vertivItem', index: i })} className="w-full bg-[#0E4660] text-white rounded px-1 py-1 mb-1 text-[9px] font-bold">Escanear documento</button>
                     <span className="block text-[9px] text-gray-500">Imagen, cámara o app de escaneo:</span>
                     <input type="file" accept="image/*" onChange={e => e.target.files?.[0] && assignVertivItemPhoto(e.target.files[0], i)} className="text-[9px] w-full" />
                   </div>

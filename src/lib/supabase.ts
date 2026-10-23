@@ -43,3 +43,5 @@ export const EVIDENCIAS_BUCKET = "evidencias";
 // Borradores de Mantenimiento de Generador e Informe de Falla — Carro: una sola tabla genérica,
 // con "tipo" para distinguirlos y "datos" (JSONB) con el estado completo del formulario.
 export const BORRADORES_OTROS_TABLE = "borradores_otros";
+// Marcas "sin evidencia" del Informe Diario (actividades cuyo bloque de evidencia se quitó), compartidas entre equipos.
+export const SIN_EVIDENCIA_TABLE = "sin_evidencia";

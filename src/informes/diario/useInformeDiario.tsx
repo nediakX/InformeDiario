@@ -26,7 +26,8 @@ import { registrarDeshacer, reinsertar } from '../../lib/deshacer';
 import { mapaFotosSubidas, aplicarFotosSubidas } from '../../lib/storage';
 
 import type { Dispatch, SetStateAction, RefObject } from 'react';
-import { BLUE, type BorradorLocal, DECORACIONES_MENSUALES, DEFAULT_ACTIVIDADES_DIA, DEFAULT_ACTIVIDADES_NOCHE, DEFAULT_EVIDENCIAS_NOCHE, EVIDENCIAS_CON_TAMANO_FOTOGRAFICO_SOLICITADO, EVIDENCIAS_EXCLUIDAS_DIA, type EvidenceBlock, INDICADORES_BULLETS, indicadoresIntro, actividadesNoche, MESES, OBS_FINAL_BULLETS, ORANGE, PREFIJO_MANTENCION_CARRO, type PersonalItem, type ScannerTarget, formatFechaEvidencia, getActividadesGuardadas, getCreadorPorDefecto, getDefaultPersonal, getPersonalGuardado, lsKeyActividades, lsKeyBorradorLocal, lsKeyPersonal, urlToBase64, vertivVacio, actividadesSinEvidencia, desmarcarActividadSinEvidencia, esActividadPredeterminada, marcarActividadSinEvidencia } from './constantes';
+import { BLUE, type BorradorLocal, DECORACIONES_MENSUALES, DEFAULT_ACTIVIDADES_DIA, DEFAULT_ACTIVIDADES_NOCHE, DEFAULT_EVIDENCIAS_NOCHE, EVIDENCIAS_CON_TAMANO_FOTOGRAFICO_SOLICITADO, EVIDENCIAS_EXCLUIDAS_DIA, type EvidenceBlock, INDICADORES_BULLETS, indicadoresIntro, actividadesNoche, MESES, OBS_FINAL_BULLETS, ORANGE, PREFIJO_MANTENCION_CARRO, type PersonalItem, type ScannerTarget, formatFechaEvidencia, getActividadesGuardadas, getCreadorPorDefecto, getDefaultPersonal, getPersonalGuardado, lsKeyActividades, lsKeyBorradorLocal, lsKeyPersonal, urlToBase64, vertivVacio, actividadesSinEvidencia, esActividadPredeterminada } from './constantes';
+import { cargarSinEvidencia, desmarcarSinEvidencia, marcarSinEvidencia, suscribirSinEvidencia } from '../../datos/sinEvidencia';
 import { CONFIG_DIVISION, type Division } from '../../datos/divisiones';
 import { useDragReorder } from './useDragReorder';
 
@@ -468,6 +469,21 @@ export function useInformeDiario({ view, setBorradores, borradoresRef, division 
     borradoresRef,
   ]);
 
+  // Marcas "sin evidencia" compartidas: se cargan al abrir el informe y cuando cambian en otro equipo
+  // (o al subir los cambios pendientes de este). Si cambian, los bloques de evidencia se vuelven a armar.
+  const [versionSinEvidencia, setVersionSinEvidencia] = useState(0);
+  useEffect(() => {
+    let activo = true;
+    const refrescar = () => {
+      cargarSinEvidencia(division)
+        .then(cambio => { if (activo && cambio) setVersionSinEvidencia(v => v + 1); })
+        .catch(error => console.error('No se pudieron cargar las actividades sin evidencia:', error));
+    };
+    refrescar();
+    const dejarDeEscuchar = suscribirSinEvidencia(division, refrescar);
+    return () => { activo = false; dejarDeEscuchar(); };
+  }, [division]);
+
   // En turno Noche la evidencia fotográfica usa una plantilla fija independiente.
   useEffect(() => {
     // Actividades a las que se les quitó su bloque de evidencia: no vuelven a tener bloque (ver handleRemovePhotoSlot).
@@ -569,7 +585,7 @@ export function useInformeDiario({ view, setBorradores, borradoresRef, division 
       newBlocks.push(mantenimientoBlock);
       return newBlocks;
     });
-  }, [actividades, fecha, turno, division]);
+  }, [actividades, fecha, turno, division, versionSinEvidencia]);
 
   const showToast = (text: string, isError = false) => {
     setToastMessage({ text, isError });
@@ -676,7 +692,7 @@ export function useInformeDiario({ view, setBorradores, borradoresRef, division 
     setActividades(updated);
     persistActividades(updated);
     if (quitada === undefined) return;
-    desmarcarActividadSinEvidencia(turno, division, quitada);
+    desmarcarSinEvidencia(turno, division, quitada);
     registrarDeshacer(`Se quitó la actividad «${quitada.trim() || 'sin texto'}»`, () => {
       setActividades(actual => {
         const restauradas = reinsertar(actual, index, quitada);
@@ -769,7 +785,7 @@ export function useInformeDiario({ view, setBorradores, borradoresRef, division 
       // Quitar el último espacio de una actividad no predeterminada elimina su bloque: se recuerda para que no vuelva a crearse en ningún día.
       const quitaBloque = bloque.isActivity && bloque.photos.length === 1 && !esActividadPredeterminada(bloque.title, turno, division);
       registrarDeshacer(foto ? `Se eliminó una foto de «${bloque.title}»` : `Se quitó un espacio de foto de «${bloque.title}»`, () => {
-        if (quitaBloque) desmarcarActividadSinEvidencia(turno, division, bloque.title);
+        if (quitaBloque) desmarcarSinEvidencia(turno, division, bloque.title);
         setEvidenceBlocks(actual => {
           const i = actual.findIndex(b => b.id === bloque.id);
           if (i < 0) return reinsertar(actual, blockIndex, bloque);
@@ -777,7 +793,7 @@ export function useInformeDiario({ view, setBorradores, borradoresRef, division 
           return actual.map((b, k) => k === i ? { ...b, photos, photoCount: photos.length } : b);
         });
       });
-      if (quitaBloque) marcarActividadSinEvidencia(turno, division, bloque.title);
+      if (quitaBloque) marcarSinEvidencia(turno, division, bloque.title);
     }
     setEvidenceBlocks(prev => prev.flatMap((block, bi) => {
       if (bi !== blockIndex) return [block];
@@ -983,10 +999,6 @@ export function useInformeDiario({ view, setBorradores, borradoresRef, division 
         photos[destino.photoIndex] = documento;
         return { ...block, photos };
       }));
-    } else if (destino.type === 'vertivCarro') {
-      setVertivCarroPhotos(prev => prev.map((photo, index) => index === destino.index ? documento : photo));
-    } else {
-      setVertivItemPhotos(prev => prev.map((photo, index) => index === destino.index ? documento : photo));
     }
     closeDocumentScanner();
   };

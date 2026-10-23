@@ -4,7 +4,7 @@
 import { TRABAJADORES, buscarTrabajador, rutLimpio } from './trabajadores';
 import type { Division } from './divisiones';
 
-export type Rol = 'contrato' | 'jefe' | 'supervisor' | 'lider_tecnico' | 'ingeniero_especialista' | 'electromecanico' | 'electrico' | 'tecnico';
+export type Rol = 'contrato' | 'jefe' | 'supervisor' | 'lider_tecnico' | 'ingeniero_especialista' | 'experto_sso' | 'electromecanico' | 'electrico' | 'tecnico';
 
 export const ETIQUETA_ROL: Record<Rol, string> = {
   contrato: 'Administración de contrato',
@@ -15,11 +15,12 @@ export const ETIQUETA_ROL: Record<Rol, string> = {
   electromecanico: 'Electromecánico',
   electrico: 'Técnico eléctrico',
   tecnico: 'Técnico',
+  experto_sso: 'Experto SSO',
 };
 
 /** Nombre corto para el selector de vista del inicio. */
 export const ETIQUETA_CORTA_ROL: Record<Rol, string> = {
-  contrato: 'Contrato', jefe: 'Jefe de turno', supervisor: 'Supervisor', lider_tecnico: 'Líder técnico', ingeniero_especialista: 'Ing. especialista', electromecanico: 'Electromecánico', electrico: 'Eléctrico', tecnico: 'Técnico',
+  contrato: 'Contrato', jefe: 'Jefe de turno', supervisor: 'Supervisor', lider_tecnico: 'Líder técnico', ingeniero_especialista: 'Ing. especialista', electromecanico: 'Electromecánico', electrico: 'Eléctrico', tecnico: 'Técnico', experto_sso: 'Experto SSO',
 };
 
 const sinTildes = (t: string) => t.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
@@ -28,7 +29,10 @@ export function rolDeCargo(cargo: string): Rol {
   const c = sinTildes(cargo);
   if (/administrador de contrato|gerente|director/.test(c)) return 'contrato';
   if (/jefe de turno/.test(c)) return 'jefe';
-  if (/supervisor|lider tecnico|experto sso/.test(c)) return 'supervisor';
+  if (/supervisor/.test(c)) return 'supervisor';
+  if (/experto sso/.test(c)) return 'experto_sso';
+  if (/lider tecnico/.test(c)) return 'lider_tecnico';
+  if (/ingeniero especialista/.test(c)) return 'ingeniero_especialista';
   if (/electromecanic/.test(c)) return 'electromecanico';
   if (/electric/.test(c)) return 'electrico';
   return 'tecnico';
@@ -72,6 +76,7 @@ export interface DisenoInicio {
 
 export const DISENO_INICIO: Record<Rol, DisenoInicio> = {
   tecnico: { principal: ['hoy', 'revisar', 'mapa'], lateral: ['accesos', 'turnoMini', 'generadoresMini'], accesos: ['checklist', 'gg', 'falla', 'borradores'] },
+  experto_sso: { principal: ['hoy', 'revisar', 'mapa'], lateral: ['accesos', 'turnoMini', 'generadoresMini'], accesos: ['checklist', 'gg', 'falla', 'borradores'] },
   electrico: { principal: ['hoy', 'revisar', 'mapa'], lateral: ['accesos', 'generadoresMini', 'turnoMini'], accesos: ['falla', 'checklist', 'mantenimiento', 'borradores'] },
   electromecanico: { principal: ['generadores', 'hoy', 'mapa'], lateral: ['accesos', 'turnoMini'], accesos: ['gg', 'mantenimiento', 'checklist', 'borradores'] },
   supervisor: { principal: ['revisar', 'generadores', 'hoy', 'mapa'], lateral: ['turnoMini', 'accesos'], accesos: ['gg', 'impresion', 'cierre', 'presentacion', 'presentacionFds', 'preventiva', 'borradores'] },

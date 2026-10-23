@@ -32,10 +32,7 @@ export interface EvidenceBlock {
   checklistFotos?: Record<string, string[]>;
 }
 
-export type ScannerTarget =
-  | { type: 'evidence'; blockIndex: number; photoIndex: number }
-  | { type: 'vertivCarro'; index: number }
-  | { type: 'vertivItem'; index: number };
+export type ScannerTarget = { type: 'evidence'; blockIndex: number; photoIndex: number };
 
 export type CvMat = {
   rows: number;
@@ -330,6 +327,19 @@ export const marcarActividadSinEvidencia = (turno: 'dia' | 'noche', division: Di
 
 export const desmarcarActividadSinEvidencia = (turno: 'dia' | 'noche', division: Division, actividad: string) =>
   guardarActividadesSinEvidencia(turno, division, actividadesSinEvidencia(turno, division).filter(a => a !== actividad));
+
+/** Reemplaza las marcas de un turno y división (lo usa la sincronización con la nube). */
+export const reemplazarActividadesSinEvidencia = (turno: 'dia' | 'noche', division: Division, lista: string[]) =>
+  guardarActividadesSinEvidencia(turno, division, [...new Set(lista)]);
+
+/** Todas las marcas guardadas en este equipo (para subir a la nube las que aún no están). */
+export const todasLasMarcasLocales = (): { turno: 'dia' | 'noche'; division: Division; actividad: string }[] =>
+  Object.entries(leerSinEvidencia()).flatMap(([clave, lista]) => {
+    const [turno, division] = clave.split('|');
+    return Array.isArray(lista)
+      ? lista.map(actividad => ({ turno: turno as 'dia' | 'noche', division: division as Division, actividad }))
+      : [];
+  });
 
 /** true = actividad predeterminada: su bloque de evidencia siempre se arma (no se puede quitar de forma permanente). */
 export const esActividadPredeterminada = (actividad: string, turno: 'dia' | 'noche', division: Division) =>

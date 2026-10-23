@@ -11,7 +11,7 @@ import { useSyncExternalStore } from 'react';
 import { leerLocal, guardarLocal, borrarLocal } from './almacenLocal';
 import { esErrorDeRed, hayConexion, suscribirConexion } from './conexion';
 
-export type TablaSync = 'borradores' | 'borradores_otros';
+export type TablaSync = 'borradores' | 'borradores_otros' | 'sin_evidencia';
 
 export interface OperacionPendiente {
   /** `${tabla}:${id}` — un lugar por informe en la cola. */
@@ -206,6 +206,15 @@ export async function listaConCambiosLocales<T extends { id: string }>(
 export const tieneCambiosPendientes = (tabla: TablaSync, id: string) => cola.has(claveCola(tabla, id));
 
 // --- Sincronización ------------------------------------------------------------------------
+/**
+ * Encola un cambio pequeño (p. ej. una marca de evidencia) y lo sube en cuanto haya conexión.
+ * Si la subida falla, el cambio queda en la cola y se reintenta: no se pierde.
+ */
+export async function encolarCambio(op: Omit<OperacionPendiente, 'clave' | 'encoladoEn' | 'intentos'>): Promise<void> {
+  await ponerEnCola(op);
+  if (hayConexion()) void sincronizar();
+}
+
 export const EVENTO_SINCRONIZADO = 'psinet:sincronizado';
 
 /** Sube a la nube todo lo que quedó en cola, en orden. Se detiene si se vuelve a perder la señal. */
