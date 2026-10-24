@@ -3,6 +3,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Download, Loader2, Minus, Plus, X } from 'lucide-react';
 import { dibujarDocx } from '../lib/vistaDocx';
+import './vistaPreviaDocx.css';
 
 const ZOOM_MIN = 0.3;
 const ZOOM_MAX = 2.5;
@@ -18,6 +19,7 @@ export default function VistaPreviaDocx({ blob, titulo, onDescargar, onCerrar }:
   const [estado, setEstado] = useState<'cargando' | 'listo' | 'error'>('cargando');
   const [paginas, setPaginas] = useState(0);
   const [anchoHoja, setAnchoHoja] = useState(0);
+  const [altoHoja, setAltoHoja] = useState(0);
   // null = ajustado al ancho de la pantalla.
   const [zoomManual, setZoomManual] = useState<number | null>(null);
   const [anchoArea, setAnchoArea] = useState(0);
@@ -26,11 +28,15 @@ export default function VistaPreviaDocx({ blob, titulo, onDescargar, onCerrar }:
     let vivo = true;
     const destino = hojasRef.current;
     if (!destino) return;
-    dibujarDocx(blob, destino)
+    // Las letras de Word se cargan antes de dibujar: así el texto se corta en las mismas líneas que en el documento.
+    Promise.all([document.fonts.load('10pt "Calibri Vista"'), document.fonts.load('700 10pt "Calibri Vista"')])
+      .catch(() => undefined)
+      .then(() => dibujarDocx(blob, destino, { comoWord: true }))
       .then(hojas => {
         if (!vivo) return;
         setPaginas(hojas.length);
         setAnchoHoja(Math.max(...hojas.map(h => h.offsetWidth), 1) + 60); // + margen gris del visor (30 px por lado)
+        setAltoHoja(destino.offsetHeight);
         setEstado('listo');
       })
       .catch(error => {
@@ -88,8 +94,11 @@ export default function VistaPreviaDocx({ blob, titulo, onDescargar, onCerrar }:
         {estado === 'error' && (
           <p className="text-white text-sm text-center py-10 px-4">No se pudo mostrar la vista previa. Puedes descargar el Word igual.</p>
         )}
-        <div className="vista-docx mx-auto" style={{ zoom, width: anchoHoja ? anchoHoja : undefined, visibility: estado === 'listo' ? 'visible' : 'hidden' }}>
-          <div ref={hojasRef} />
+        {/* El zoom escala la hoja ya maquetada (transform): al alejar o acercar, el texto no cambia de líneas. */}
+        <div className="mx-auto" style={{ width: anchoHoja * zoom, height: altoHoja * zoom, visibility: estado === 'listo' ? 'visible' : 'hidden' }}>
+          <div className="vista-docx" style={{ width: anchoHoja || undefined, transform: `scale(${zoom})`, transformOrigin: '0 0' }}>
+            <div ref={hojasRef} />
+          </div>
         </div>
       </div>
     </div>

@@ -1,0 +1,45 @@
+/* Vista previa de los Word (checklist de camioneta, etc.) para que se vea como el Word o el PDF, también en el
+   teléfono. Solo afecta a .vista-docx: no cambia el Word descargado ni las imágenes del Informe Diario. */
+
+/* Calibri es la letra de las plantillas, pero no viene en Android ni en iPhone. Carlito tiene las mismas medidas:
+   así el texto se corta en las mismas líneas que en el Word. En PC se usa la Calibri instalada. */
+@font-face {
+  font-family: "Calibri Vista";
+  font-style: normal;
+  font-weight: 400;
+  font-display: block;
+  src: local("Calibri"), local("Calibri Regular"), url("../assets/fuentes/Carlito-Regular.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Calibri Vista";
+  font-style: normal;
+  font-weight: 700;
+  font-display: block;
+  src: local("Calibri Bold"), local("Calibri-Bold"), url("../assets/fuentes/Carlito-Bold.woff2") format("woff2");
+}
+
+.vista-docx .docx,
+.vista-docx .docx * {
+  font-family: "Calibri Vista", Calibri, sans-serif !important;
+  /* Word no parte palabras sin avisar; el navegador sí (dejaba "Confec-ción" en el teléfono). */
+  hyphens: manual !important;
+  /* Word no aplica el kerning (ajuste entre pares de letras) si la plantilla no lo activa. */
+  font-kerning: none;
+}
+
+/* Los ✓ del registro son Segoe UI Symbol (como en Word): se conserva cuando el equipo la tiene. */
+.vista-docx .docx span[style*="Segoe"] {
+  font-family: "Segoe UI Symbol", sans-serif !important;
+}
+
+/* La plantilla no define margen arriba ni abajo en las celdas (Word usa 0); el navegador pone 1 px. */
+.vista-docx .docx td {
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+}
+
+/* Celdas que Word no parte (w:noWrap en la plantilla): el texto de dentro tampoco se corta en el visor. */
+.vista-docx .docx td.sin-salto,
+.vista-docx .docx td.sin-salto * {
+  white-space: nowrap !important;
+}

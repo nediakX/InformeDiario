@@ -2,8 +2,11 @@
 // También sirve para sacar una imagen de cada hoja (ej: las 2 hojas del checklist para el Informe Diario).
 // Las librerías se descargan solo cuando se usan.
 
-/** Dibuja el documento dentro de `contenedor` (una "hoja" blanca por página). */
-export async function dibujarDocx(blob: Blob, contenedor: HTMLElement): Promise<HTMLElement[]> {
+/**
+ * Dibuja el documento dentro de `contenedor` (una "hoja" blanca por página).
+ * `comoWord`: ajustes extra para que la vista previa se corte igual que en Word (las imágenes del Informe Diario no los usan).
+ */
+export async function dibujarDocx(blob: Blob, contenedor: HTMLElement, opciones: { comoWord?: boolean } = {}): Promise<HTMLElement[]> {
   const { renderAsync } = await import('docx-preview');
   contenedor.innerHTML = '';
   await renderAsync(blob, contenedor, undefined, {
@@ -21,6 +24,7 @@ export async function dibujarDocx(blob: Blob, contenedor: HTMLElement): Promise<
   const hojas = Array.from(contenedor.querySelectorAll<HTMLElement>('section.docx'));
   ajustarComoWord(contenedor, hojas);
   await aplicarSangriasTablas(blob, hojas).catch(() => undefined);
+  if (opciones.comoWord) await aplicarSinSaltoDeLinea(blob, hojas).catch(() => undefined);
   hojas.forEach(separarImagenesDeTablas);
   return hojas;
 }
@@ -79,6 +83,41 @@ async function aplicarSangriasTablas(blob: Blob, hojas: HTMLElement[]) {
   };
   aplicar(hojas.flatMap(h => Array.from(h.querySelectorAll<HTMLTableElement>('article table'))), cuerpo);
   hojas.forEach(h => h.querySelectorAll('header').forEach(enc => aplicar(Array.from(enc.querySelectorAll<HTMLTableElement>('table')), encabezado)));
+}
+
+/**
+ * Las celdas que Word deja "sin saltos de línea" (ej: "Fecha última Mantención:") no se cortan en el documento,
+ * pero el visor sí. Se marca cada celda igual que en el XML del Word (se omite si las tablas no calzan).
+ */
+async function aplicarSinSaltoDeLinea(blob: Blob, hojas: HTMLElement[]) {
+  const { default: JSZip } = await import('jszip');
+  const zip = await JSZip.loadAsync(blob);
+  const xml = await zip.file('word/document.xml')?.async('string') ?? '';
+  const doc = new DOMParser().parseFromString(xml, 'application/xml');
+  const hijos = (el: Element, nombre: string) => Array.from(el.children).filter(c => c.localName === nombre);
+  const sinSalto = Array.from(doc.getElementsByTagNameNS('*', 'tbl')).map(tbl =>
+    hijos(tbl, 'tr').map(tr => hijos(tr, 'tc').map(tc => hijos(tc, 'tcPr').some(pr => hijos(pr, 'noWrap').length > 0))),
+  );
+  const tablas = hojas.flatMap(h => Array.from(h.querySelectorAll<HTMLTableElement>('article table')));
+  if (tablas.length !== sinSalto.length) return; // no calzan: mejor no tocar nada
+  tablas.forEach((tabla, i) => {
+    const filas = Array.from(tabla.rows);
+    if (filas.length !== sinSalto[i].length) return;
+    filas.forEach((tr, r) => {
+      const celdas = Array.from(tr.cells);
+      if (celdas.length !== sinSalto[i][r].length) return;
+      celdas.forEach((td, c) => { if (sinSalto[i][r][c]) td.classList.add('sin-salto'); });
+    });
+  });
+  // Solo queda en una línea si el texto cabe en su casilla; si es más largo, Word lo parte igual.
+  hojas.forEach(h => h.querySelectorAll<HTMLTableCellElement>('td.sin-salto').forEach(td => {
+    const caja = td.getBoundingClientRect();
+    const escala = caja.width / (td.offsetWidth || 1) || 1;
+    const rango = document.createRange();
+    rango.selectNodeContents(td);
+    const sale = Array.from(rango.getClientRects()).some(x => x.width > 0 && (x.right > caja.right + escala || x.left < caja.left - escala));
+    if (sale) td.classList.remove('sin-salto');
+  }));
 }
 
 /** Retoques para que la vista se parezca a lo que muestra Word. */
