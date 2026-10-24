@@ -417,23 +417,29 @@ function FormularioChecklist({ id, cuentaId, division, conductores, entrada, bas
   };
 
   // --- Hojas del checklist → Informe Diario (Turno Día de la misma fecha) -----------------------
-  const [envio, setEnvio] = useState<{ dia: number; estado: 'enviando' | 'ok' | 'error'; texto?: string } | null>(null);
+  const [envio, setEnvio] = useState<{ dia: number; estado: 'enviando' | 'ok' | 'error' | 'conflicto' | 'conservado'; texto?: string } | null>(null);
   const enviandoRef = useRef(false);
-  const enviarAlDiario = async (d: number, datosEnvio: DatosChecklist) => {
+  const enviarAlDiario = async (d: number, datosEnvio: DatosChecklist, reemplazar = false) => {
     if (enviandoRef.current) return;
     enviandoRef.current = true;
     setEnvio({ dia: d, estado: 'enviando' });
     try {
       const blob = await generarChecklistWord(hastaElDia(datosEnvio, d), await firmasDivision(division), { paraDiario: true });
-      await enviarChecklistAlDiario({ blob, patente: datosEnvio.patente, fecha: fechas[d], division });
+      await enviarChecklistAlDiario({ blob, patente: datosEnvio.patente, fecha: fechas[d], division, reemplazar });
       guardarLocal(claveEnviado(id, d), huella(datosEnvio));
       setEnvio({ dia: d, estado: 'ok' });
     } catch (error) {
       console.error('No se pudo guardar el checklist en el Informe Diario:', error);
-      setEnvio({
-        dia: d, estado: 'error',
-        texto: error instanceof RegistroYaEnDiario ? error.message : esErrorDeRed(error) ? 'Sin señal: no se pudieron guardar las hojas en el Informe Diario.' : 'No se pudieron guardar las hojas en el Informe Diario.',
-      });
+      if (error instanceof RegistroYaEnDiario) {
+        // No es una falla: la persona decide si reemplaza el registro que ya está en el Informe Diario.
+        setEnvio({ dia: d, estado: 'conflicto', texto: `Ya hay un checklist de otra camioneta en el Informe Diario del ${ddmm(fechas[d])}. Queda el que se envió primero.` });
+      } else {
+        const detalle = error instanceof Error && error.message ? ` (${error.message.slice(0, 140)})` : '';
+        setEnvio({
+          dia: d, estado: 'error',
+          texto: esErrorDeRed(error) ? 'Sin señal: no se pudieron guardar las hojas en el Informe Diario.' : `No se pudieron guardar las hojas en el Informe Diario${detalle}.`,
+        });
+      }
     } finally {
       enviandoRef.current = false;
     }
@@ -534,19 +540,26 @@ function FormularioChecklist({ id, cuentaId, division, conductores, entrada, bas
           </div>
         </div>
         {completo && (
-          <div className={`checklist-diario ${envio?.dia === dia && envio.estado === 'error' ? 'checklist-diario--error' : ''}`} role="status">
+          <div className={`checklist-diario ${envio?.dia === dia && envio.estado === 'error' ? 'checklist-diario--error' : envio?.dia === dia && (envio.estado === 'conflicto' || envio.estado === 'conservado') ? 'checklist-diario--aviso' : ''}`} role="status">
             {envio?.dia === dia && envio.estado === 'enviando' ? (
               <span className="flex items-center gap-1.5"><Loader2 size={14} className="animate-spin" /> Guardando las 2 hojas en el Informe Diario del {ddmm(fechas[dia])}…</span>
             ) : envio?.dia === dia && envio.estado === 'ok' ? (
               <span className="flex items-center gap-1.5"><Check size={14} /> Hojas guardadas en el Informe Diario (Turno Día {ddmm(fechas[dia])}) · «Registro de Check List de Vehículo Liviano.»</span>
-            ) : envio?.dia === dia && envio.estado === 'error' ? (
+            ) : envio?.dia === dia && (envio.estado === 'error' || envio.estado === 'conflicto' || envio.estado === 'conservado') ? (
               <span>{envio.texto}</span>
             ) : (
               <span>Día completo. Sus 2 hojas van como imagen al Informe Diario del {ddmm(fechas[dia])} (Registro de Check List de Vehículo Liviano.).</span>
             )}
-            <button type="button" disabled={envio?.estado === 'enviando'} onClick={() => void enviarAlDiario(dia, datos)} className="checklist-accion">
-              <Send size={14} /> {envio?.dia === dia && envio.estado === 'error' ? 'Reintentar' : envio?.dia === dia && envio.estado === 'ok' ? 'Volver a enviar' : 'Enviar al Informe Diario'}
-            </button>
+            {envio?.dia === dia && envio.estado === 'conflicto' ? (
+              <div className="flex flex-wrap gap-1.5">
+                <button type="button" onClick={() => void enviarAlDiario(dia, datos, true)} className="checklist-accion"><Send size={14} /> Reemplazar por esta camioneta</button>
+                <button type="button" onClick={() => setEnvio({ dia, estado: 'conservado', texto: `Se dejó el checklist que ya estaba en el Informe Diario del ${ddmm(fechas[dia])}.` })} className="checklist-accion"><Check size={14} /> Dejar el que está</button>
+              </div>
+            ) : (
+              <button type="button" disabled={envio?.estado === 'enviando'} onClick={() => void enviarAlDiario(dia, datos)} className="checklist-accion">
+                <Send size={14} /> {envio?.dia === dia && envio.estado === 'error' ? 'Reintentar' : envio?.dia === dia && envio.estado === 'ok' ? 'Volver a enviar' : 'Enviar al Informe Diario'}
+              </button>
+            )}
           </div>
         )}
         <p className="text-xs text-gray-500 mb-4">Marca <strong>✓</strong> si está bien y <strong>X</strong> si está malo o falta. "Todo ✓" completa solo lo que esté vacío (no cambia las X).</p>

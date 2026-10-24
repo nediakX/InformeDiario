@@ -79,3 +79,4 @@
   background: #e6f6e6; color: #0b5d1e; font-size: .78rem; font-weight: 600;
 }
 .checklist-diario--error { background: #fbe9e9; color: #a32626; }
+.checklist-diario--aviso { background: #fff4e0; color: #7a4b00; }

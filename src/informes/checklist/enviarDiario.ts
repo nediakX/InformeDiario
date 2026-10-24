@@ -1,7 +1,8 @@
 // Checklist → Informe Diario: al completar el checklist de un día, las 2 hojas del registro se
 // guardan como imágenes en la evidencia "Registro de Check List de Vehículo Liviano." del Informe
 // Diario (Turno Día) de esa fecha. Hay un solo registro por día: queda el primero que se envió. Si se
-// vuelve a enviar la misma camioneta, se reemplazan sus hojas; si es otra, no se guarda (se avisa).
+// vuelve a enviar la misma camioneta, se reemplazan sus hojas; si es otra, no se guarda salvo que se elija
+// reemplazarla (se avisa).
 import type { Division } from '../../datos/divisiones';
 import { type BorradorEntry, type EvidenceBlockLike, esSemillaSinEditar, fetchBorradores, upsertBorrador } from '../../datos/borradoresDiario';
 import { letraDeFecha } from '../../datos/turnos';
@@ -19,6 +20,7 @@ export class RegistroYaEnDiario extends Error {
   constructor() {
     super('Ya hay un checklist de otra camioneta en el Informe Diario de esta fecha: solo se guarda el primero que se envió.');
     this.name = 'RegistroYaEnDiario';
+    Object.setPrototypeOf(this, RegistroYaEnDiario.prototype);
   }
 }
 
@@ -44,10 +46,11 @@ const carpetaHojas = (idBorrador: string, clave: string) => `borradores/${idBorr
 /**
  * Genera las imágenes de las hojas del checklist (`blob`) y las guarda en el Turno Día de `fecha`.
  */
-export async function enviarChecklistAlDiario({ blob, patente, fecha, division }: {
-  blob: Blob; patente: string; fecha: string; division: Division;
+export async function enviarChecklistAlDiario({ blob, patente, fecha, division, reemplazar = false }: {
+  blob: Blob; patente: string; fecha: string; division: Division; reemplazar?: boolean;
 }): Promise<void> {
-  const clave = clavePatente(patente);
+  // Igual que la carpeta de las hojas: una patente vacía se guarda como «sin_patente» (así se reconoce después).
+  const clave = clavePatente(patente) || 'sin_patente';
   const imagenes = await hojasDocxComoImagenes(blob, 2);
   if (!imagenes.length) throw new Error('No se pudieron sacar las hojas del checklist.');
 
@@ -69,9 +72,10 @@ export async function enviarChecklistAlDiario({ blob, patente, fecha, division }
     bloques = [...bloques.slice(0, i), nuevo, ...bloques.slice(i)];
   }
 
-  // Un solo registro por día: si ya quedó el de otra camioneta, este no se guarda (y no se suben sus hojas).
+  // Un solo registro por día: si ya quedó el de otra camioneta, este no se guarda (y no se suben sus hojas),
+  // salvo que la persona elija reemplazarlo: entonces ponerHojasEnBloque quita las hojas anteriores.
   const queda = claveDelRegistro(bloques[i]);
-  if (queda && queda !== clave) throw new RegistroYaEnDiario();
+  if (!reemplazar && queda && queda !== clave) throw new RegistroYaEnDiario();
 
   // Se suben primero para que las fotos del bloque sean las direcciones definitivas (así se reconocen al reemplazarlas).
   const hojas = (await Promise.all(imagenes.map(img => uploadPhotoIfNeeded(img, carpetaHojas(base.id, clave))))).filter((u): u is string => !!u);
