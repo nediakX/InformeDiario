@@ -38,7 +38,7 @@ import {
 } from './catalogo';
 import { generarChecklistWord, nombreArchivoChecklist } from './word';
 import VistaPreviaDocx from '../../componentes/VistaPreviaDocx';
-import { enviarChecklistAlDiario, RegistroYaEnDiario } from './enviarDiario';
+import { enviarChecklistAlDiario, etiquetaPatente, RegistroYaEnDiario } from './enviarDiario';
 import { esErrorDeRed } from '../../lib/conexion';
 import './checklist.css';
 
@@ -432,7 +432,7 @@ function FormularioChecklist({ id, cuentaId, division, conductores, entrada, bas
       console.error('No se pudo guardar el checklist en el Informe Diario:', error);
       if (error instanceof RegistroYaEnDiario) {
         // No es una falla: la persona decide si reemplaza el registro que ya está en el Informe Diario.
-        setEnvio({ dia: d, estado: 'conflicto', texto: `Ya hay un checklist de otra camioneta en el Informe Diario del ${ddmm(fechas[d])}. Queda el que se envió primero.` });
+        setEnvio({ dia: d, estado: 'conflicto', texto: `Ya hay un checklist de la camioneta ${etiquetaPatente(error.claveActual)} en el Informe Diario del ${ddmm(fechas[d])}. ¿Desea reemplazarlo por el de esta camioneta?` });
       } else {
         const detalle = error instanceof Error && error.message ? ` (${error.message.slice(0, 140)})` : '';
         setEnvio({
@@ -552,8 +552,8 @@ function FormularioChecklist({ id, cuentaId, division, conductores, entrada, bas
             )}
             {envio?.dia === dia && envio.estado === 'conflicto' ? (
               <div className="flex flex-wrap gap-1.5">
-                <button type="button" onClick={() => void enviarAlDiario(dia, datos, true)} className="checklist-accion"><Send size={14} /> Reemplazar por esta camioneta</button>
-                <button type="button" onClick={() => setEnvio({ dia, estado: 'conservado', texto: `Se dejó el checklist que ya estaba en el Informe Diario del ${ddmm(fechas[dia])}.` })} className="checklist-accion"><Check size={14} /> Dejar el que está</button>
+                <button type="button" onClick={() => void enviarAlDiario(dia, datos, true)} className="checklist-accion"><Send size={14} /> Sí, reemplazar</button>
+                <button type="button" onClick={() => setEnvio({ dia, estado: 'conservado', texto: `Se dejó el checklist que ya estaba en el Informe Diario del ${ddmm(fechas[dia])}.` })} className="checklist-accion">No, dejar el actual</button>
               </div>
             ) : (
               <button type="button" disabled={envio?.estado === 'enviando'} onClick={() => void enviarAlDiario(dia, datos)} className="checklist-accion">

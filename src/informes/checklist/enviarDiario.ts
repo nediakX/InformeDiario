@@ -17,12 +17,18 @@ export const ACTIVIDAD_CHECKLIST = 'Registro de Check List de Vehículo Liviano.
 
 /** Ya hay hojas de otra camioneta en el Informe Diario de ese día: solo se guarda el primer registro. */
 export class RegistroYaEnDiario extends Error {
-  constructor() {
+  /** Clave (patente normalizada) de la camioneta cuyo checklist ya está en el Informe Diario de ese día. */
+  readonly claveActual: string;
+  constructor(claveActual: string) {
     super('Ya hay un checklist de otra camioneta en el Informe Diario de esta fecha: solo se guarda el primero que se envió.');
     this.name = 'RegistroYaEnDiario';
+    this.claveActual = claveActual;
     Object.setPrototypeOf(this, RegistroYaEnDiario.prototype);
   }
 }
+
+/** Patente como se lee en la app (VCTD93 → VCTD-93); «sin_patente» se muestra como «sin patente». */
+export const etiquetaPatente = (clave: string) => (clave === 'sin_patente' ? 'sin patente' : clave.replace(/^([A-Z]+)(\d+)$/, '$1-$2'));
 
 /** Bloques de evidencia de un Turno Día recién creado (los mismos que arma el Informe Diario al abrirlo). */
 function bloquesDia(entry: BorradorEntry): EvidenceBlockLike[] {
@@ -75,7 +81,7 @@ export async function enviarChecklistAlDiario({ blob, patente, fecha, division, 
   // Un solo registro por día: si ya quedó el de otra camioneta, este no se guarda (y no se suben sus hojas),
   // salvo que la persona elija reemplazarlo: entonces ponerHojasEnBloque quita las hojas anteriores.
   const queda = claveDelRegistro(bloques[i]);
-  if (!reemplazar && queda && queda !== clave) throw new RegistroYaEnDiario();
+  if (!reemplazar && queda && queda !== clave) throw new RegistroYaEnDiario(queda);
 
   // Se suben primero para que las fotos del bloque sean las direcciones definitivas (así se reconocen al reemplazarlas).
   const hojas = (await Promise.all(imagenes.map(img => uploadPhotoIfNeeded(img, carpetaHojas(base.id, clave))))).filter((u): u is string => !!u);
