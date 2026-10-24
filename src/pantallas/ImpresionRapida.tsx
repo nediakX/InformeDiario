@@ -108,7 +108,7 @@ export default function ImpresionRapida({ onBack }: ImpresionRapidaProps) {
   const [cuentas, setCuentas] = useState<{ nombre: string; rut: string | null }[]>([]);
   const [personas, setPersonas] = useState<PersonaImpresion[]>(() => personalDelTurno(semana.letra, [], division));
   const [supervisor, setSupervisor] = useState(() => getCreadorPorDefecto(semana.letra, division));
-  // Fecha del Test de Alcohol: una sola para todo el turno (todas las copias). Por defecto, el primer día del turno;
+  // Fecha del Test de Alcohol y de la Encuesta de Fatiga: una sola para todo el turno (todas las copias). Por defecto, el primer día del turno;
   // la que se elige queda guardada para ese turno en este equipo.
   const [fechasTest, setFechasTest] = useState<Record<string, string>>(leerFechasTest);
   const fechaTest = fechasTest[semana.inicio] ?? semana.dias[0];
@@ -450,10 +450,12 @@ export default function ImpresionRapida({ onBack }: ImpresionRapidaProps) {
                       <span className="ml-1 font-bold text-[#0E4660] whitespace-nowrap">= {copias}</span>
                     </div>
                   )}
-                  {doc.id === 'alcohol' && sel.incluir && (
+                  {(doc.id === 'alcohol' || (doc.id === 'fatiga' && !pref.seleccion.some(s => s.id === 'alcohol' && s.incluir))) && sel.incluir && (
                     <div className="w-full flex flex-wrap items-center gap-2 text-xs text-gray-600 pl-7">
                       <label className="flex items-center gap-2">
-                        Fecha del test (todo el turno, dentro de la semana):
+                        {doc.id === 'alcohol'
+                          ? `Fecha del test${pref.seleccion.some(s => s.id === 'fatiga' && s.incluir) ? ' y de la encuesta de fatiga' : ''} (todo el turno, dentro de la semana):`
+                          : 'Fecha de la encuesta (todo el turno, dentro de la semana):'}
                         <input type="date" value={fechaTest} min={semana.dias[0]} max={semana.dias[6]} onChange={e => { const nuevas = { ...fechasTest, [semana.inicio]: e.target.value }; setFechasTest(nuevas); guardarFechasTest(nuevas); setResultado(null); }} className="border border-[#DCE1E6] rounded-md p-1.5 text-sm bg-white" />
                       </label>
                       {fechaTest && fechaTest !== fechaTestValida && <span className="text-[#856404]">Fuera de la semana: se usará {formatDiaMes(fechaTestValida)}.</span>}

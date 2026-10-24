@@ -23,7 +23,7 @@ export interface ContextoSemana {
   letra: 'A' | 'B';
   dias: string[];        // 7 fechas ISO (miércoles a martes)
   supervisor: { nombre: string; cargo: string };
-  /** Fecha de los formularios de una sola fecha (Test de Alcohol). Por defecto, el primer día del turno. */
+  /** Fecha de los formularios de una sola fecha (Test de Alcohol y Encuesta de Fatiga). Por defecto, el primer día del turno. */
   fechaUnica?: string;
 }
 
@@ -156,10 +156,12 @@ export const DOCUMENTOS: DocumentoImprimible[] = [
     opcional: true,
     modo: 'persona',
     cantidadSugerida: 0,
-    // Datos del supervisor y del trabajador ya escritos: en terreno solo se marcan SI/NO, la fecha y las firmas.
+    // Datos del supervisor, del trabajador y la fecha ya escritos: en terreno solo se marcan SI/NO y las firmas.
     camposSemana: s => [
       { x: 232, base: 665.4, tamano: 9, ancho: 212, texto: s.supervisor.nombre },
       { x: 232, base: 684.1, tamano: 9, ancho: 212, texto: s.supervisor.cargo },
+      // Fila "Fecha" del pie: la misma fecha que el Test de Alcohol del turno.
+      { x: 232, base: 733.9, tamano: 9, ancho: 212, texto: ddmmaaaa(s.fechaUnica ?? s.dias[0]) },
     ],
     camposPersona: p => [
       { x: 232, base: 700.9, tamano: 9, ancho: 212, texto: p.nombre },
