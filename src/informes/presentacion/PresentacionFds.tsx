@@ -114,7 +114,7 @@ export default function PresentacionFds({ semana, borradores, auto, cargando, er
   const agregarPersonal = () => {
     const [letra = '', indice = ''] = seleccionPersonal.split('-');
     const elegido = getDefaultPersonal(letra, division)[Number(indice)];
-    if (elegido && !personal.some(p => p.nombre === elegido.nombre)) guardarPersonal([...personal, elegido]);
+    if (elegido && !personal.some(q => q.nombre === elegido.nombre)) guardarPersonal([...personal, elegido]);
     setSeleccionPersonal('');
   };
 
@@ -344,6 +344,7 @@ export default function PresentacionFds({ semana, borradores, auto, cargando, er
         <p className="text-xs text-gray-500">Solo para este formulario: no cambia la lista del Informe Diario y no sale en el .pptx (no hay lámina de personal).</p>
       </section>
 
+
       <section className="panel p-5 space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h3 className={TITULO_BLOQUE}>Mantenimiento preventivo</h3>
@@ -397,16 +398,16 @@ export default function PresentacionFds({ semana, borradores, auto, cargando, er
         <div className="space-y-4">
           <Campo id="fds-resumen" titulo="Resumen general (lámina 3)" valor={valor('resumen')} onChange={t => cambiar('resumen', t)} filas={5} />
           {diasFds.map((fecha, k) => (
-            <Campo key={`act-${fecha}`} id={`fds-act-${k}`} titulo={`Actividades destacadas · ${rotuloDiaFds(fecha)} (lámina 5)`} valor={valor(`act${k}`)} onChange={t => cambiar(`act${k}`, t)} filas={3} />
+            <Campo key={`act-${fecha}`} id={`fds-act-${k}`} titulo={`Actividades de trabajo · ${rotuloDiaFds(fecha)} (lámina 5)`} valor={valor(`act${k}`)} onChange={t => cambiar(`act${k}`, t)} filas={3} />
           ))}
-          <Campo id="fds-cascada" titulo="Cascada de actividades (lámina 11)" valor={valor('cascada')} onChange={t => cambiar('cascada', t)} filas={3} />
+          <Campo id="fds-cascada" titulo="Actividades principales (lámina 11)" valor={valor('cascada')} onChange={t => cambiar('cascada', t)} filas={3} />
           {diasFds.map((fecha, k) => (
-            <Campo key={`dif-${fecha}`} id={`fds-dif-${k}`} titulo={`Difusiones · ${rotuloDiaFds(fecha)} (lámina 13, van juntas)`} valor={valor(`dif${k}`)} onChange={t => cambiar(`dif${k}`, t)} filas={3} />
+            <Campo key={`dif-${fecha}`} id={`fds-dif-${k}`} titulo={`Difusiones · ${rotuloDiaFds(fecha)} (lámina 13, un recuadro por día)`} valor={valor(`dif${k}`)} onChange={t => cambiar(`dif${k}`, t)} filas={3} />
           ))}
           <Campo id="fds-controles" titulo="Controles transversales (lámina 13)" valor={valor('controles')} onChange={t => cambiar('controles', t)} filas={4} />
           <Campo id="fds-observaciones" titulo="Observaciones y mejoras (lámina 15)" valor={valor('observaciones')} onChange={t => cambiar('observaciones', t)} filas={4} />
           <Campo id="fds-cpe" titulo="Actividades con CPE (lámina 17)" valor={valor('cpe')} onChange={t => cambiar('cpe', t)} filas={3} />
-          <Campo id="fds-conclusiones" titulo="Conclusiones (lámina 19, una línea por recuadro)" valor={valor('conclusiones')} onChange={t => cambiar('conclusiones', t)} filas={3} />
+          <Campo id="fds-conclusiones" titulo="Conclusiones (lámina 19, una línea por recuadro; la primera es fija)" valor={valor('conclusiones')} onChange={t => cambiar('conclusiones', t)} filas={3} />
         </div>
       </details>
 
