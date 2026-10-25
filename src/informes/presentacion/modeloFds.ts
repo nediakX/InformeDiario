@@ -1,7 +1,7 @@
 // Presentación de fin de semana (viernes a domingo de la semana de turno). Los textos salen de los
-// Informes Diarios como borradores; la reportabilidad GG, las horas registradas y el último
-// mantenimiento salen de la base (ver datosFds.ts). La pantalla permite corregirlo todo antes de
-// generar el .pptx.
+// Informes Diarios como borradores; las horas registradas y el último mantenimiento salen de la base
+// (ver datosFds.ts). La reportabilidad GG parte en 100 % cada día. La pantalla permite corregirlo todo
+// antes de generar el .pptx.
 import { esSemillaSinEditar, type BorradorEntry, type EvidenceBlockLike } from '../../datos/borradoresDiario';
 import type { BorradorOtroEntry } from '../../datos/borradoresOtros';
 import type { SemanaTurno } from '../../datos/turnos';
@@ -300,20 +300,11 @@ export function parseOmFds(texto: string): FilaOmFds[] {
 const lineasDe = (texto: string) => texto.split('\n').map(l => l.trim()).filter(Boolean);
 
 // ---------------------------------------------------------------------------------------
-// Reportabilidad, horas y último mantenimiento (datos que salen de la base)
+// Reportabilidad por defecto, horas y último mantenimiento (estos dos últimos salen de la base)
 // ---------------------------------------------------------------------------------------
 
-/** Sitios de la Reportabilidad de GG (los 12 grupos del formulario). */
-const SITIOS_GG_FDS = new Set(SITIOS_FDS.flatMap(s => (s.gg ? [claveSitio(s.gg)] : [])));
-
-/**
- * Reportabilidad de GG de un día: sitios de GG con al menos un reporte ese día, sobre el total de sitios
- * (0-1). null si ningún sitio reportó: la lámina no tiene dato y así se avisa.
- */
-export function reportabilidadDeDia(reportes: { sitio: string; fecha: string }[], fecha: string): number | null {
-  const reportados = new Set(reportes.filter(r => r.fecha === fecha).map(r => claveSitio(r.sitio)).filter(s => SITIOS_GG_FDS.has(s)));
-  return reportados.size > 0 ? reportados.size / SITIOS_GG_FDS.size : null;
-}
+/** Reportabilidad de GG de cada día del fin de semana, por defecto: 100 % (0-1). El formulario la deja así y se puede cambiar. */
+const REPORTABILIDAD_GG_PREDETERMINADA = 1;
 
 /** Horas registradas de un sitio de GG: el último horómetro reportado hasta la fecha de corte (null = sin dato). */
 export const horasRegistradasDe = (auto: DatosAutoFds, gg: string | null): number | null =>
@@ -409,7 +400,7 @@ export function construirPresentacionFds(entradas: BorradorEntry[], semana: Sema
     fin,
     resumenGeneral,
     dias,
-    reportabilidadGG: fechas.map(fecha => reportabilidadDeDia(auto.reportesFds, fecha)),
+    reportabilidadGG: fechas.map(() => REPORTABILIDAD_GG_PREDETERMINADA),
     fechaCorteOm: corte,
     om: SITIOS_FDS.map(s => {
       const ultimo = ultimoMantenimientoDe(auto.mantenimientos, s.carro, corte);

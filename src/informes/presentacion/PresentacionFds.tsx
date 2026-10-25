@@ -202,7 +202,7 @@ export default function PresentacionFds({ semana, borradores, auto, cargando, er
                 </div>
               ))}
             </div>
-            <p className="text-xs text-gray-500 mt-1">Sitios de GG con reporte ese día, sobre 12. Lo que corrijas a mano se mantiene al actualizar.</p>
+            <p className="text-xs text-gray-500 mt-1">Por defecto, 100 % cada día. Lo que corrijas a mano se mantiene al actualizar.</p>
           </div>
           <div>
             <label htmlFor="fds-fecha-corte" className={TITULO_CAMPO}>Fecha de corte de las horas</label>
