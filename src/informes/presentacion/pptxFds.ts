@@ -1,6 +1,6 @@
 // Genera la presentación de fin de semana (.pptx) sobre la plantilla de DSAL del fin de semana: se conservan
 // las láminas fijas (portadas, fotos, cierre) y se reemplazan los textos, la tabla de actividades, el gráfico,
-// la tabla de mantenimiento y las cascadas, que se rearman como formas para admitir cualquier cantidad de ítems.
+// la tabla de mantenimiento y las cascadas (SmartArt «Proceso escalonado», que sigue siendo editable en PowerPoint).
 import JSZip from 'jszip';
 import plantillaUrl from '../../assets/plantillas/presentacion_fds.pptx?url';
 import type { DatosFds } from './modeloFds';
@@ -510,9 +510,9 @@ function llenarOm(lamina: Lamina, datos: DatosFds) {
 }
 
 // ---- Cascadas (láminas 11, 17 y 19) y observaciones (lámina 15): SmartArt -------------------
-// Las cascadas se reconstruyen como formas nativas (mismo diseño que el SmartArt de la plantilla) para
-// poder mostrar cualquier cantidad de ítems. La lámina 15 es un SmartArt de un solo nodo: se cambia su texto.
-
+// Las cascadas son el SmartArt «Proceso escalonado» de la plantilla: cada ítem es un nodo, que se puede seguir editando
+// en PowerPoint. Ese diseño admite hasta cinco nodos: con más ítems, los sobrantes van agrupados dentro de los nodos.
+// La lámina 15 es un SmartArt de un solo nodo: se cambia su texto.
 const NS_DSP = 'http://schemas.microsoft.com/office/drawing/2008/diagram';
 const NS_DGM = 'http://schemas.openxmlformats.org/drawingml/2006/diagram';
 /** Alto de cada caja de la cascada / paso vertical entre cajas (medido en las cascadas de referencia). */
@@ -526,6 +526,16 @@ const FLECHA_RAZON = 0.65;
  */
 const LADO_FLECHA_MAXIMO = (alto: number) => FLECHA_RAZON * CASCADA_RAZON * (alto / (2 + CASCADA_RAZON));
 
+/** Parte del ancho de cada caja que ocupa el texto: el resto queda para la flecha que baja a la caja siguiente
+ *  (la plantilla tiene el texto a unos cuatro quintos del ancho). */
+const FRACCION_TEXTO_CASCADA = 0.8;
+/** Tamaño (centésimas de punto) por debajo del cual el texto de una cascada ya no se lee bien en la lámina. */
+const TAMANO_MINIMO_CASCADA = 800;
+/** Nodos máximos del diseño «Proceso escalonado» (vProcess5): con más ítems, los sobrantes se agrupan en los nodos. */
+const NODOS_MAXIMO = 5;
+/** Nombre de los nodos en el diseño de la plantilla según su cantidad (OneNode_1, TwoNodes_1, …). */
+const NOMBRE_NODOS = ['', 'One', 'Two', 'Three', 'Four', 'Five'];
+
 /** Ruta del archivo de una parte del SmartArt (dibujo o datos) de la lámina, según el tipo de relación. */
 function rutaRelacion(lamina: Lamina, fragmento: string): string {
   const rel = Array.from(lamina.rels.documentElement.children).find(r => (r.getAttribute('Type') ?? '').includes(fragmento));
@@ -533,36 +543,21 @@ function rutaRelacion(lamina: Lamina, fragmento: string): string {
   return 'ppt/' + (rel.getAttribute('Target') ?? '').replace(/^\.\.\//, '');
 }
 
-/** Quita de la lámina las relaciones con sus partes de SmartArt (el diagrama ya no se usa). */
-function quitarRelacionesDiagrama(lamina: Lamina) {
-  for (const rel of Array.from(lamina.rels.documentElement.children)) {
-    if ((rel.getAttribute('Type') ?? '').includes('diagram')) lamina.rels.documentElement.removeChild(rel);
-  }
-}
-
 const prst = (el: Element) => el.getElementsByTagNameNS(NS_A, 'prstGeom')[0]?.getAttribute('prst') ?? '';
-
-/** Copia una forma del dibujo del SmartArt como forma nativa de la lámina (p:sp), sin el id del modelo. */
-function aFormaP(lamina: Lamina, sp: Element): Element {
-  const serie = new XMLSerializer().serializeToString(sp)
-    .replace(/^<dsp:sp\b/, '<p:sp')
-    .replace(/<(\/?)dsp:/g, '<$1p:')
-    .replace(/\smodelId="[^"]*"/, '');
-  const envoltorio = leer(`<raiz xmlns:p="${NS_P}" xmlns:a="${NS_A}" xmlns:r="${NS_R}">${serie}</raiz>`);
-  const forma = lamina.doc.importNode(envoltorio.documentElement.firstElementChild!, true) as Element;
-  // txXfrm solo existe en los diagramas (posición del texto relativa al diagrama): en una lámina movería el texto.
-  for (const hijo of Array.from(forma.children)) if (hijo.localName === 'txXfrm') forma.removeChild(hijo);
-  // En un diagrama, la forma no lleva p:nvPr; en una lámina el esquema lo exige (PowerPoint pide "reparar" sin él).
-  const nvSpPr = forma.getElementsByTagNameNS(NS_P, 'nvSpPr')[0];
-  if (nvSpPr && !hijos(nvSpPr, NS_P, 'nvPr').length) nvSpPr.appendChild(lamina.doc.createElementNS(NS_P, 'p:nvPr'));
-  return forma;
-}
 
 /** Si los textos (un párrafo cada uno, tal como se dibujan) caben en la caja, con el tamaño dado (caja en puntos). */
 function cabeTexto(caja: { ancho: number; alto: number }, textos: string[], sz: number): boolean {
   const pt = sz / 100;
   const lineas = textos.reduce((n, t) => n + lineasDe(t, caja.ancho - 6, pt), 0);
   return lineas * pt * 1.2 + textos.length * pt * 0.3 <= caja.alto - 8;
+}
+
+/** Si los textos de un nodo de cascada caben en su área de texto (puntos) con el tamaño dado. Los textos van en un
+ *  solo párrafo (cada ítem en su línea), con interlineado de sobra y el espacio posterior de la plantilla (35 %). */
+function cabeCascada(caja: { ancho: number; alto: number }, textos: string[], sz: number): boolean {
+  const pt = sz / 100;
+  const lineas = textos.reduce((n, t) => n + lineasDe(t, caja.ancho - 6, pt), 0);
+  return lineas * pt * 1.2 + pt * 0.42 <= caja.alto;
 }
 
 /** Cajas y flechas de una cascada de n ítems dentro del marco (pulgadas, relativas al marco). */
@@ -585,53 +580,233 @@ function disponerCascada(n: number, W: number, H: number, wProto: number, hProto
   return { cajas, flechas };
 }
 
+/** Reparte los ítems entre los nodos: uno por nodo. Si hay más ítems que nodos, cada nodo recibe un tramo de ítems
+ *  seguidos, de modo que el nodo más cargado (según su costo, p. ej. líneas de texto) quede lo más liviano posible y,
+ *  a igualdad, los tramos queden lo más parejos. Dentro de un nodo agrupado, cada ítem va en su línea. */
+function repartirEnNodos(items: string[], costo: (grupo: string[]) => number = grupo => grupo.length): string[][] {
+  const n = Math.min(items.length, NODOS_MAXIMO);
+  // mejor[k][i]: reparto de los primeros i ítems en k nodos, con la carga máxima y la suma de cuadrados más bajas.
+  const mejor: { carga: number; cuadrados: number; corte: number }[][] = Array.from({ length: n + 1 }, () =>
+    Array.from({ length: items.length + 1 }, () => ({ carga: Infinity, cuadrados: Infinity, corte: -1 })));
+  mejor[0][0] = { carga: 0, cuadrados: 0, corte: -1 };
+  for (let k = 1; k <= n; k++) {
+    for (let i = k; i <= items.length; i++) {
+      for (let j = k - 1; j < i; j++) {
+        const previo = mejor[k - 1][j];
+        const c = costo(items.slice(j, i));
+        const candidato = { carga: Math.max(previo.carga, c), cuadrados: previo.cuadrados + c * c, corte: j };
+        const actual = mejor[k][i];
+        if (candidato.carga < actual.carga || (candidato.carga === actual.carga && candidato.cuadrados < actual.cuadrados)) {
+          mejor[k][i] = candidato;
+        }
+      }
+    }
+  }
+  const grupos: string[][] = [];
+  let fin = items.length;
+  for (let k = n; k >= 1; k--) {
+    const inicio = mejor[k][fin].corte;
+    grupos.unshift(items.slice(inicio, fin));
+    fin = inicio;
+  }
+  return grupos;
+}
+
+/** Líneas de un nodo: su ítem o, si agrupa varios, cada uno con su viñeta. */
+const lineasDeNodo = (grupo: string[]) => (grupo.length > 1 ? grupo.map(t => `• ${t}`) : grupo);
+
+/** Identificador nuevo de una pieza del SmartArt (GUID entre llaves y en mayúsculas, como los de PowerPoint). */
+function guidNuevo(): string {
+  const bloque = (n: number) => Array.from({ length: n }, () => Math.floor(Math.random() * 16).toString(16)).join('');
+  return `{${bloque(8)}-${bloque(4)}-${bloque(4)}-${bloque(4)}-${bloque(12)}}`.toUpperCase();
+}
+
+/** Texto para XML: quita lo que XML no admite y escapa los signos reservados. */
+const xmlTexto = (texto: string) => textoSeguro(texto).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+/** Párrafo de un nodo (en los datos o en el dibujo del SmartArt), con el formato de la plantilla. */
+function parrafoDeNodo(lineas: string[], sz: number, enDibujo: boolean): string {
+  const rPr = `<a:rPr lang="es-ES" sz="${sz}" b="1"${enDibujo ? ' kern="1200"' : ''} dirty="0"><a:solidFill><a:srgbClr val="FFFFFF"/></a:solidFill><a:latin typeface="Arial"/></a:rPr>`;
+  const pPr = enDibujo
+    ? '<a:pPr marL="0" lvl="0" indent="0" algn="l" defTabSz="533400"><a:lnSpc><a:spcPct val="90000"/></a:lnSpc><a:spcBef><a:spcPct val="0"/></a:spcBef><a:spcAft><a:spcPct val="35000"/></a:spcAft><a:buNone/></a:pPr>'
+    : '<a:pPr algn="l"><a:buNone/></a:pPr>';
+  const cuerpo = lineas.map(t => `<a:r>${rPr}<a:t>${xmlTexto(t)}</a:t></a:r>`).join(`<a:br>${rPr}</a:br>`);
+  return `<a:p>${pPr}${cuerpo}</a:p>`;
+}
+
+/** Elementos de un fragmento XML escrito aparte, con los espacios de nombres del SmartArt. */
+function piezasXml(xml: string): Element[] {
+  const raiz = leer(`<raiz xmlns:a="${NS_A}" xmlns:dgm="${NS_DGM}">${xml}</raiz>`).documentElement;
+  return Array.from(raiz.children);
+}
+
+/** Cambia los párrafos de un texto (del modelo de datos o del dibujo) por los dados, con su formato. */
+function ponerParrafos(contenedor: Element, xml: string) {
+  for (const p of hijos(contenedor, NS_A, 'p')) contenedor.removeChild(p);
+  for (const p of piezasXml(xml)) contenedor.appendChild(contenedor.ownerDocument.importNode(p, true));
+}
+
+/** Posición y tamaño (EMU, dentro del marco del diagrama) de un elemento que tiene a:off y a:ext. */
+function ponerPosicion(elemento: Element, x: number, y: number, w: number, h: number) {
+  const off = hijos(elemento, NS_A, 'off')[0];
+  const ext = hijos(elemento, NS_A, 'ext')[0];
+  off.setAttribute('x', String(Math.round(x)));
+  off.setAttribute('y', String(Math.round(y)));
+  ext.setAttribute('cx', String(Math.round(w)));
+  ext.setAttribute('cy', String(Math.round(h)));
+}
+
+/**
+ * Puntos de presentación y conexiones de un SmartArt de n nodos con el diseño «Proceso escalonado» de la plantilla
+ * (vProcess5): la caja de cada nodo, la flecha entre dos nodos seguidos y el texto de cada nodo. Los nombres y el orden
+ * son los que PowerPoint escribe para ese diseño (se comprobó con las láminas 11, 17 y 19 de la plantilla).
+ */
+function presentacionSmartArt(docId: string, presId: string, nodos: { id: string; sib: string }[]) {
+  const n = nodos.length;
+  const prefijo = NOMBRE_NODOS[n];
+  const conVariables = '<dgm:presLayoutVars><dgm:bulletEnabled val="1"/></dgm:presLayoutVars>';
+  const punto = (id: string, atributos: string, variables: string) =>
+    `<dgm:pt modelId="${id}" type="pres"><dgm:prSet presAssocID="${docId}" ${atributos}>${variables}</dgm:prSet><dgm:spPr/></dgm:pt>`;
+  const conexion = (tipo: 'presOf' | 'presParOf', origen: string, destino: string, orden: number) =>
+    `<dgm:cxn modelId="${guidNuevo()}" type="${tipo}" srcId="${origen}" destId="${destino}" srcOrd="${orden}" destOrd="0" presId="${presId}"/>`;
+
+  const exterior = guidNuevo();
+  const relleno = guidNuevo();
+  const cajas = nodos.map(() => guidNuevo());
+  const flechas = nodos.slice(1).map(() => guidNuevo());
+  const textos = n > 1 ? nodos.map(() => guidNuevo()) : [];
+
+  const pts = [
+    punto(exterior, 'presName="outerComposite" presStyleCnt="0"', '<dgm:presLayoutVars><dgm:chMax val="5"/><dgm:dir/><dgm:resizeHandles val="exact"/></dgm:presLayoutVars>'),
+    punto(relleno, 'presName="dummyMaxCanvas" presStyleCnt="0"', '<dgm:presLayoutVars/>'),
+    ...cajas.map((id, i) => punto(id, `presName="${n === 1 ? 'OneNode_1' : `${prefijo}Nodes_${i + 1}`}" presStyleLbl="node1" presStyleIdx="${i}" presStyleCnt="${n}"`, conVariables)),
+    ...flechas.map((id, i) => punto(id, `presName="${prefijo}Conn_${i + 1}-${i + 2}" presStyleLbl="fgAccFollowNode1" presStyleIdx="${i}" presStyleCnt="${n - 1}"`, conVariables)),
+    ...textos.map((id, i) => punto(id, `presName="${prefijo}Nodes_${i + 1}_text" presStyleLbl="node1" presStyleIdx="${n - 1}" presStyleCnt="${n}"`, conVariables)),
+  ];
+  const cxns = [
+    conexion('presOf', docId, exterior, 0),
+    ...nodos.flatMap((nodo, i) => (n > 1
+      ? [conexion('presOf', nodo.id, cajas[i], 0), conexion('presOf', nodo.id, textos[i], 1)]
+      : [conexion('presOf', nodo.id, cajas[i], 0)])),
+    ...flechas.map((id, i) => conexion('presOf', nodos[i].sib, id, 0)),
+    conexion('presParOf', exterior, relleno, 0),
+    ...cajas.map((id, i) => conexion('presParOf', exterior, id, i + 1)),
+    ...flechas.map((id, i) => conexion('presParOf', exterior, id, n + i + 1)),
+    ...textos.map((id, i) => conexion('presParOf', exterior, id, 2 * n + i)),
+  ];
+  return { pts, cxns, cajas, flechas };
+}
+
+/**
+ * Cascada de la plantilla (SmartArt «Proceso escalonado») con los ítems: se rehacen los nodos del modelo de datos y el
+ * dibujo que muestra PowerPoint (cajas y flechas en cascada). El SmartArt sigue siendo editable en PowerPoint.
+ */
 async function llenarCascada(ctx: Contexto, lamina: Lamina, textos: string[], avisos: string[], etiqueta: string, flechaMaxima = false) {
-  const arbol = arbolDe(lamina);
-  const marcoDiagrama = descendientes(arbol, NS_P, 'graphicFrame')
+  const marcoDiagrama = descendientes(arbolDe(lamina), NS_P, 'graphicFrame')
     .find(g => descendientes(g, NS_A, 'graphicData').some(d => (d.getAttribute('uri') ?? '').includes('/diagram')));
   if (!marcoDiagrama) throw new Error(`La lámina de ${etiqueta} de la plantilla no tiene su diagrama.`);
-  const dibujo = leer(await ctx.zip.file(rutaRelacion(lamina, 'diagramDrawing'))!.async('string'));
+  const rutaDatos = rutaRelacion(lamina, 'diagramData');
+  const rutaDibujo = rutaRelacion(lamina, 'diagramDrawing');
+  const datos = leer(await ctx.zip.file(rutaDatos)!.async('string'));
+  const dibujo = leer(await ctx.zip.file(rutaDibujo)!.async('string'));
+
+  const items = textos.length ? textos.map(t => t.toUpperCase()) : ['SIN DATOS REGISTRADOS.'];
+  const numeroNodos = Math.min(items.length, NODOS_MAXIMO);
+
+  // Geometría: la cascada de la plantilla dentro del marco del diagrama (pulgadas, relativas al marco).
   const formas = Array.from(dibujo.getElementsByTagNameNS(NS_DSP, 'sp'));
   const protoCaja = formas.find(s => prst(s) === 'roundRect');
   const protoFlecha = formas.find(s => prst(s) === 'downArrow');
   if (!protoCaja) throw new Error(`La cascada de ${etiqueta} no tiene cajas en la plantilla.`);
-
-  const items = textos.length ? textos.map(t => t.toUpperCase()) : ['SIN DATOS REGISTRADOS.'];
   const m = medidasDe(marcoDiagrama);
-  const W = m.w / EMU, H = m.h / EMU;
   const pCaja = medidasDe(protoCaja);
-  const { cajas, flechas } = disponerCascada(items.length, W, H, pCaja.w / EMU, pCaja.h / EMU, flechaMaxima);
+  const { cajas, flechas } = disponerCascada(numeroNodos, m.w / EMU, m.h / EMU, pCaja.w / EMU, pCaja.h / EMU, flechaMaxima);
 
-  // Tamaño común: el mayor con el que todos los textos caben en su caja.
-  const modelo = aFormaP(lamina, protoCaja);
-  const parrafoModelo = parrafosDe(txBodyDe(modelo))[0];
-  const insetPt = (45720 / EMU) * 72;
-  const cajaTexto = { ancho: cajas[0].w * 72 - 2 * insetPt, alto: cajas[0].h * 72 - 2 * insetPt };
+  // Tamaño de cada nodo: el mayor con el que su texto cabe en su caja (un nodo con varios ítems queda más chico).
+  const parrafoModelo = hijos(protoCaja.getElementsByTagNameNS(NS_DSP, 'txBody')[0], NS_A, 'p')[0];
   const sizes = tamanosPosibles(tamanoDePlantilla(parrafoModelo), [1400, 1200, 1100, 1000, 900, 800]);
-  let sz = sizes[sizes.length - 1];
-  for (const candidato of sizes) if (items.every(t => cabeTexto(cajaTexto, [t], candidato))) { sz = candidato; break; }
-  if (!items.every(t => cabeTexto(cajaTexto, [t], sz))) avisos.push(`Los textos de ${etiqueta} no caben completos en la lámina: acórtalos.`);
+  const anchoTexto = (numeroNodos > 1 ? FRACCION_TEXTO_CASCADA : 1) * cajas[0].w;
+  // Área de texto de cada nodo, como la dibuja PowerPoint: la caja menos el redondeo de la esquina y los márgenes
+  // del cuerpo de la plantilla (en puntos).
+  const bodyPr = protoCaja.getElementsByTagNameNS(NS_DSP, 'txBody')[0].getElementsByTagNameNS(NS_A, 'bodyPr')[0];
+  const enPuntos = (atributo: string) => (Number(bodyPr.getAttribute(atributo) ?? 0) / EMU) * 72;
+  const dPt = 0.029289 * Math.min(cajas[0].w, cajas[0].h) * 72;
+  const cajaTexto = {
+    ancho: anchoTexto * 72 - 2 * dPt - enPuntos('lIns') - enPuntos('rIns'),
+    alto: cajas[0].h * 72 - 2 * dPt - enPuntos('tIns') - enPuntos('bIns'),
+  };
+  // Con ítems agrupados, el reparto mide cada tramo en líneas al tamaño base de la plantilla.
+  const referencia = (tamanoDePlantilla(parrafoModelo) ?? 1000) / 100;
+  const grupos = repartirEnNodos(items, grupo =>
+    lineasDeNodo(grupo).reduce((n, linea) => n + lineasDe(linea, cajaTexto.ancho - 6, referencia), 0));
+  const tamanos = grupos.map(g => sizes.find(candidato => cabeCascada(cajaTexto, lineasDeNodo(g), candidato)) ?? sizes[sizes.length - 1]);
+  if (tamanos.some(t => t < TAMANO_MINIMO_CASCADA)) avisos.push(`Los textos de ${etiqueta} quedan muy chicos en la lámina: acórtalos.`);
 
-  let siguiente = idMayor(arbol) + 1;
+  // Modelo de datos: el documento (tipo y diseño) y los formatos son los de la plantilla; se rehacen los nodos.
+  const ptLst = datos.getElementsByTagNameNS(NS_DGM, 'ptLst')[0];
+  const cxnLst = datos.getElementsByTagNameNS(NS_DGM, 'cxnLst')[0];
+  const puntos = hijos(ptLst, NS_DGM, 'pt');
+  const docPt = puntos.find(pt => pt.getAttribute('type') === 'doc');
+  const nodoPlantilla = puntos.find(pt => (pt.getAttribute('type') ?? 'node') === 'node');
+  const parPlantilla = puntos.find(pt => pt.getAttribute('type') === 'parTrans');
+  const sibPlantilla = puntos.find(pt => pt.getAttribute('type') === 'sibTrans');
+  if (!docPt || !nodoPlantilla || !parPlantilla || !sibPlantilla) {
+    throw new Error(`El SmartArt de ${etiqueta} de la plantilla no tiene la estructura esperada.`);
+  }
+  const docId = docPt.getAttribute('modelId') ?? '';
+  const presId = hijos(docPt, NS_DGM, 'prSet')[0].getAttribute('loTypeId') ?? '';
+  for (const pt of puntos) if (pt !== docPt) ptLst.removeChild(pt);
+  for (const cxn of Array.from(cxnLst.children)) cxnLst.removeChild(cxn);
+
+  const nodos = grupos.map(() => ({ id: guidNuevo(), par: guidNuevo(), sib: guidNuevo(), cxn: guidNuevo() }));
+  grupos.forEach((grupo, i) => {
+    const nodo = nodos[i];
+    const pNodo = nodoPlantilla.cloneNode(true) as Element;
+    pNodo.setAttribute('modelId', nodo.id);
+    ponerParrafos(hijos(pNodo, NS_DGM, 't')[0], parrafoDeNodo(lineasDeNodo(grupo), tamanos[i], false));
+    const pPar = parPlantilla.cloneNode(true) as Element;
+    pPar.setAttribute('modelId', nodo.par);
+    pPar.setAttribute('cxnId', nodo.cxn);
+    const pSib = sibPlantilla.cloneNode(true) as Element;
+    pSib.setAttribute('modelId', nodo.sib);
+    pSib.setAttribute('cxnId', nodo.cxn);
+    ptLst.appendChild(pNodo);
+    ptLst.appendChild(pPar);
+    ptLst.appendChild(pSib);
+  });
+  const presentacion = presentacionSmartArt(docId, presId, nodos);
+  for (const pieza of piezasXml(presentacion.pts.join(''))) ptLst.appendChild(datos.importNode(pieza, true));
+  const parOf = nodos.map((nodo, i) =>
+    `<dgm:cxn modelId="${nodo.cxn}" srcId="${docId}" destId="${nodo.id}" srcOrd="${i}" destOrd="0" parTransId="${nodo.par}" sibTransId="${nodo.sib}"/>`);
+  for (const pieza of piezasXml([...parOf, ...presentacion.cxns].join(''))) cxnLst.appendChild(datos.importNode(pieza, true));
+
+  // Dibujo (lo que se muestra): una caja por nodo y una flecha entre cada par de cajas seguidas.
+  const arbolDibujo = dibujo.getElementsByTagNameNS(NS_DSP, 'spTree')[0];
   const nuevas: Element[] = [];
   cajas.forEach((c, i) => {
-    const forma = i === 0 ? modelo : aFormaP(lamina, protoCaja);
-    fijarId(forma, siguiente++);
-    fijarXfrm(forma, m.x / EMU + c.x, m.y / EMU + c.y, c.w, c.h);
-    reemplazarParrafos(forma, [copiaTexto(parrafoModelo, items[i], sz)]);
+    const forma = protoCaja.cloneNode(true) as Element;
+    forma.setAttribute('modelId', presentacion.cajas[i]);
+    // El texto de una caja redondeada (ajuste del 10 %) queda a 0,29 del radio dentro de su borde, como en la plantilla.
+    const d = 0.029289 * Math.min(c.w, c.h);
+    ponerPosicion(hijos(forma.getElementsByTagNameNS(NS_DSP, 'spPr')[0], NS_A, 'xfrm')[0], aEmu(c.x), aEmu(c.y), aEmu(c.w), aEmu(c.h));
+    ponerPosicion(hijos(forma, NS_DSP, 'txXfrm')[0], aEmu(c.x + d), aEmu(c.y + d), aEmu(anchoTexto - 2 * d), aEmu(c.h - 2 * d));
+    ponerParrafos(forma.getElementsByTagNameNS(NS_DSP, 'txBody')[0], parrafoDeNodo(lineasDeNodo(grupos[i]), tamanos[i], true));
     nuevas.push(forma);
   });
-  if (protoFlecha) {
-    for (const f of flechas) {
-      const flecha = aFormaP(lamina, protoFlecha);
-      fijarId(flecha, siguiente++);
-      fijarXfrm(flecha, m.x / EMU + f.x, m.y / EMU + f.y, f.w, f.h);
-      nuevas.push(flecha);
-    }
-  }
-  for (const forma of nuevas) arbol.insertBefore(forma, marcoDiagrama);
-  arbol.removeChild(marcoDiagrama);
-  quitarRelacionesDiagrama(lamina);
+  flechas.forEach((f, i) => {
+    if (!protoFlecha) return;
+    const forma = protoFlecha.cloneNode(true) as Element;
+    forma.setAttribute('modelId', presentacion.flechas[i]);
+    ponerPosicion(hijos(forma.getElementsByTagNameNS(NS_DSP, 'spPr')[0], NS_A, 'xfrm')[0], aEmu(f.x), aEmu(f.y), aEmu(f.w), aEmu(f.h));
+    const txXfrm = hijos(forma, NS_DSP, 'txXfrm')[0];
+    if (txXfrm) ponerPosicion(txXfrm, aEmu(f.x + 0.225 * f.w), aEmu(f.y), aEmu(0.55 * f.w), aEmu(0.7526 * f.w));
+    nuevas.push(forma);
+  });
+  for (const sp of hijos(arbolDibujo, NS_DSP, 'sp')) arbolDibujo.removeChild(sp);
+  for (const forma of nuevas) arbolDibujo.appendChild(forma);
+
+  ctx.zip.file(rutaDatos, escribir(datos), { createFolders: false });
+  ctx.zip.file(rutaDibujo, escribir(dibujo), { createFolders: false });
 }
 
 /** Reemplaza los párrafos de un contenedor de texto (a:p) por uno por cada ítem, con el mismo formato. */
