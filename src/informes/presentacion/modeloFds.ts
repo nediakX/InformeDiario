@@ -7,7 +7,6 @@ import type { BorradorOtroEntry } from '../../datos/borradoresOtros';
 import type { SemanaTurno } from '../../datos/turnos';
 import { nombreDiaSemana, sumarDias } from '../../datos/fechas';
 import { esPreventiva } from '../preventiva/modelo';
-import { resumenDeDia } from './modelo';
 
 /** Una fila de la tabla de actividades (lámina 5). */
 export interface FilaActividadFds {
@@ -33,7 +32,7 @@ export interface DiaFds {
   /** ISO "2026-10-23". */
   fecha: string;
   actividades: FilaActividadFds[];
-  /** Difusiones del día (lámina 13: las de los tres días van juntas en un recuadro). */
+  /** Difusiones del día (lámina 13: un recuadro por día). */
   difusiones: string[];
 }
 
@@ -59,7 +58,7 @@ export interface DatosFds {
   observaciones: string[];
   /** Lámina 17: actividades con CPE (sin el encabezado). */
   cpe: string[];
-  /** Lámina 19: una conclusión por día, a partir de sus actividades (un recuadro por línea). */
+  /** Lámina 19: la conclusión fija del fin de semana y después una por día, a partir de sus actividades. */
   conclusiones: string[];
 }
 
@@ -95,6 +94,30 @@ export const SITIOS_FDS: SitioFds[] = [
   { sitio: 'O&M_LTE_CMM_07', nombre: 'Campamento Antiguo', dias: 210, carro: 'LTE_CMM_07', gg: 'LTE_CMM_07' },
 ];
 
+/** Valores de la tabla de mantenimiento (lámina 9) que se usan cuando la base no tiene el dato del sitio. */
+interface OmPredeterminada {
+  horasUltimo: number;
+  /** ISO. */
+  fechaUltimo: string;
+  horasRegistradas: number;
+}
+
+/** Clave: carro del sitio (SitioFds.carro). Son los valores de la tabla de referencia del equipo. */
+const OM_PREDETERMINADA: Partial<Record<string, OmPredeterminada>> = {
+  LTE_CMM_03: { horasUltimo: 4872, fechaUltimo: '2026-09-23', horasRegistradas: 4912 },
+  LTE_CMF_09: { horasUltimo: 4983, fechaUltimo: '2026-09-24', horasRegistradas: 5009 },
+  MMOO_01: { horasUltimo: 228, fechaUltimo: '2025-08-27', horasRegistradas: 372 },
+  LTE_CMF_04: { horasUltimo: 4636, fechaUltimo: '2026-08-27', horasRegistradas: 4852 },
+  LTE_CMM_06: { horasUltimo: 4406, fechaUltimo: '2026-08-31', horasRegistradas: 4584 },
+  LTE_CMM_10: { horasUltimo: 4382, fechaUltimo: '2026-09-02', horasRegistradas: 4532 },
+  LTE_CMF_02: { horasUltimo: 2954, fechaUltimo: '2026-08-28', horasRegistradas: 3080 },
+  LTE_CMF_08: { horasUltimo: 3080, fechaUltimo: '2026-08-29', horasRegistradas: 3201 },
+  LTE_CMM_05: { horasUltimo: 3151, fechaUltimo: '2026-09-03', horasRegistradas: 3211 },
+  LTE_CMF_01: { horasUltimo: 3829, fechaUltimo: '2026-09-07', horasRegistradas: 3951 },
+  LTE_11: { horasUltimo: 1208, fechaUltimo: '2026-09-02', horasRegistradas: 1263 },
+  LTE_CMM_07: { horasUltimo: 2525, fechaUltimo: '2026-08-26', horasRegistradas: 2554 },
+};
+
 /** Controles transversales que salen en la lámina del fin de semana de referencia. */
 export const CONTROLES_FDS_PREDETERMINADOS = [
   'Charla inicio de turno',
@@ -103,8 +126,16 @@ export const CONTROLES_FDS_PREDETERMINADOS = [
   'Protección solar, hidratación, ART y test alcohol/drogas',
 ];
 
-/** Frase de apertura del resumen (la usa el equipo en todas las presentaciones de fin de semana). */
-const FRASE_ESTABLE = 'OPERACIÓN GENERAL ESTABLE DURANTE EL FIN DE SEMANA.';
+/** Lámina 3: frases fijas de apertura del resumen (después van las generadas del resumen de actividades). */
+const RESUMEN_FIJO_FDS = [
+  'OPERACIÓN GENERAL ESTABLE DURANTE EL FIN DE SEMANA.',
+  'SE MANTUVO CONTROL DOCUMENTAL Y SSO: ART, CHECK LIST, FATIGA Y SOMNOLENCIA, TEST ALCOHOL Y DROGAS, PROTECCIÓN SOLAR E HIDRATACIÓN.',
+  'SE MANTIENE SEGUIMIENTO A LTE_CMM_05: SE REALIZA REPORTABILIDAD DE CARROS EN TURNO NOCHE.',
+];
+/** Lámina 15: avance fijo de documentación (después van las mejoras de las actividades). */
+const OBSERVACION_FIJA_FDS = '•SE LOGRA REALIZAR AVANCES EN DOCUMENTACIÓN Y RFs.';
+/** Lámina 19: conclusión fija del fin de semana (después van las de cada día). */
+const CONCLUSION_FIJA_FDS = 'FIN DE SEMANA CON CONTINUIDAD OPERACIONAL Y SIN INCIDENTES OPERACIONALES MAYORES REPORTADOS.';
 
 /** Un mantenimiento de generador leído de la base: sitio, fecha y el horómetro tal como se escribió. */
 export interface MantenimientoFds {
@@ -134,8 +165,16 @@ const sinAcentos = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toL
 const ES_CPE = /\bcpe\b|motoniveladora|wheeldozer|antena/;
 const ES_BATERIA = /bateria/;
 const ES_MANTENCION = /mantenimiento|mantencion/;
-const ES_DIFUSION_FLASH = /flash|difusion|charla|reunion/;
 const ES_FALLA = /falla|atencion|fallas/;
+/** Difusiones (lámina 13; no son actividades de trabajo): flash, charlas, reuniones y capacitaciones. */
+const ES_DIFUSION = /flash|difusion|charla|reunion|capacitacion|induccion|sensibilizacion|entrenamiento/;
+/**
+ * Rutina y controles SSO: no van en las actividades de trabajo (lámina 5) ni en las difusiones. Son los registros
+ * diarios (inicio de turno, checklist, fatiga, alcohol y drogas...) y lo que ya sale en el resumen o en los controles.
+ */
+const ES_RUTINA = /inicio de turno|autoevaluacion|check ?list|l200|fatiga|somnolencia|alta visibilidad|\bropa\b|proteccion solar|hidratacion|tareas administrativas|actividades administrativas|planificacion|alcohol|drogas|reportabilidad|registro art|^art\b|verificacion de entorno|controles? sso/;
+/** Mejoras que se agregan en las actividades diarias (lámina 15). */
+const ES_MEJORA = /\bmejora/;
 
 const sinRepetidos = (lista: string[]) => {
   const vistos = new Set<string>();
@@ -149,14 +188,39 @@ const sinRepetidos = (lista: string[]) => {
 
 /** Responsable sugerido para una actividad: los flash y difusiones los da el asesor HSE. */
 const responsableDe = (actividad: string) =>
-  ES_DIFUSION_FLASH.test(sinAcentos(actividad)) && !ES_MANTENCION.test(sinAcentos(actividad)) ? 'ASESOR HSE' : 'TURNO A';
+  ES_DIFUSION.test(sinAcentos(actividad)) && !ES_MANTENCION.test(sinAcentos(actividad)) ? 'ASESOR HSE' : 'TURNO A';
 
-/** Difusiones del día para la lámina de texto: todas las no rutinarias con título (no solo las que tienen foto). */
-const difusionesTextoDe = (entrada: BorradorEntry): string[] =>
+/** Título de una actividad para las láminas: sin el "Registro de" inicial (ej: "Reunión inicio de turno."). */
+const sinRegistroDe = (texto: string) => texto.trim().replace(/^registro de\s+/i, '');
+
+/** Actividades de trabajo de un día (lámina 5): sin la rutina ni las difusiones, que van en la lámina 13. */
+const actividadesDeTrabajoDe = (entrada: BorradorEntry): string[] =>
   sinRepetidos(
-    entrada.evidenceBlocks
-      .filter((b: EvidenceBlockLike) => !b.cuadroVertiv && !b.isFixed && !/reportabilidad gg|registro de mantenimiento de gg/.test(sinAcentos(b.title)))
-      .map(b => b.title.trim().replace(/^registro art\.?\s*/i, 'ART: ')),
+    entrada.actividades.filter(a => {
+      const clave = sinAcentos(a);
+      return clave !== '' && !ES_RUTINA.test(clave) && !ES_DIFUSION.test(clave);
+    }),
+  ).map(sinRegistroDe);
+
+/** Difusiones de un día (lámina 13): de sus actividades y de sus evidencias (sin las fijas ni el Cuadro Vertiv). */
+const difusionesDe = (entrada: BorradorEntry | null): string[] => {
+  if (!entrada) return [];
+  const titulos = [
+    ...entrada.actividades,
+    ...entrada.evidenceBlocks.filter((b: EvidenceBlockLike) => !b.cuadroVertiv && !b.isFixed).map(b => b.title),
+  ].map(t => t.trim());
+  return sinRepetidos(
+    titulos.filter(t => {
+      const clave = sinAcentos(t);
+      return clave !== '' && !ES_RUTINA.test(clave) && ES_DIFUSION.test(clave);
+    }),
+  );
+};
+
+/** Mejoras que se agregaron en las actividades diarias (lámina 15), como viñetas. */
+const mejorasDe = (entradas: (BorradorEntry | null)[]): string[] =>
+  sinRepetidos(entradas.flatMap(e => (e ? e.actividades : [])).filter(a => ES_MEJORA.test(sinAcentos(a)))).map(
+    a => `•${sinRegistroDe(a)}`,
   );
 
 const tituloRealizados = (lista: string[], patron: RegExp) =>
@@ -290,7 +354,7 @@ const unirConY = (lista: string[]) => (lista.length <= 1 ? lista.join('') : `${l
 function conclusionDelDia(dia: DiaFds): string {
   const rotulo = rotuloDiaFds(dia.fecha);
   const nombres = dia.actividades.map(a => sinAcentos(a.actividad));
-  if (!nombres.length) return `${rotulo}: SIN ACTIVIDADES REGISTRADAS EN EL INFORME DIARIO.`;
+  if (!nombres.length && !dia.difusiones.length) return `${rotulo}: SIN ACTIVIDADES DE TRABAJO REGISTRADAS EN EL INFORME DIARIO.`;
   const hechos: string[] = [];
   if (nombres.some(a => ES_MANTENCION.test(a))) hechos.push('MANTENIMIENTOS PREVENTIVOS');
   if (nombres.some(a => ES_BATERIA.test(a))) hechos.push('MEDICIÓN Y VALIDACIÓN DE BANCO DE BATERÍAS');
@@ -311,12 +375,14 @@ export function construirPresentacionFds(entradas: BorradorEntry[], semana: Sema
   const buscar = (fecha: string, turno: 'dia' | 'noche') => validas.find(e => e.fecha === fecha && e.turno === turno) ?? null;
 
   const { fechas, inicio, fin, corte } = fdsDeSemana(semana);
-  const dias: DiaFds[] = fechas.map(fecha => {
-    const dia = buscar(fecha, 'dia');
-    const actividades = dia
-      ? resumenDeDia(dia).map(a => ({ actividad: a.toUpperCase(), responsable: responsableDe(a) }))
-      : [];
-    return { fecha, actividades, difusiones: dia ? difusionesTextoDe(dia) : [] };
+  const diurnos = fechas.map(fecha => buscar(fecha, 'dia'));
+  const dias: DiaFds[] = fechas.map((fecha, k) => {
+    const dia = diurnos[k];
+    return {
+      fecha,
+      actividades: dia ? actividadesDeTrabajoDe(dia).map(a => ({ actividad: a.toUpperCase(), responsable: responsableDe(a) })) : [],
+      difusiones: difusionesDe(dia),
+    };
   });
 
   const noches = fechas.map(f => buscar(f, 'noche')).filter((e): e is BorradorEntry => Boolean(e));
@@ -328,13 +394,15 @@ export function construirPresentacionFds(entradas: BorradorEntry[], semana: Sema
   const mantencion = tituloRealizados(actividadesTodas, ES_MANTENCION);
   const baterias = tituloRealizados(actividadesTodas, ES_BATERIA);
   const cpe = tituloRealizados(actividadesTodas, ES_CPE);
+  const fallas = tituloRealizados(actividadesTodas, ES_FALLA);
 
-  const resumenGeneral = [FRASE_ESTABLE];
+  // Lámina 3: las frases fijas y después lo que sale del resumen de actividades de los informes.
+  const resumenGeneral = [...RESUMEN_FIJO_FDS];
   if (mantencion.length) resumenGeneral.push(`SE EJECUTARON MANTENIMIENTOS PREVENTIVOS: ${mantencion.join('; ')}`);
   if (cpe.length) resumenGeneral.push(`SE EJECUTARON TRABAJOS DE CPE: ${cpe.join('; ')}`);
+  if (fallas.length) resumenGeneral.push(`SE ATENDIERON FALLAS: ${fallas.join('; ')}`);
   if (baterias.length) resumenGeneral.push(`SE REALIZÓ MEDICIÓN Y VALIDACIÓN DE BANCO DE BATERÍAS: ${baterias.join('; ')}`);
 
-  const observaciones = sinRepetidos(noches.flatMap(n => n.observaciones.map(o => o.trim())));
   return {
     letra: semana.letra,
     inicio,
@@ -345,24 +413,28 @@ export function construirPresentacionFds(entradas: BorradorEntry[], semana: Sema
     fechaCorteOm: corte,
     om: SITIOS_FDS.map(s => {
       const ultimo = ultimoMantenimientoDe(auto.mantenimientos, s.carro, corte);
+      // La base manda; lo que no tiene se completa con la tabla de referencia.
+      const predeterminada = OM_PREDETERMINADA[s.carro];
       return {
         sitio: s.sitio,
         nombre: s.nombre,
-        horasUltimo: ultimo.horas,
-        fechaUltimo: ultimo.fecha,
+        horasUltimo: ultimo.horas ?? predeterminada?.horasUltimo ?? null,
+        fechaUltimo: ultimo.fecha ?? predeterminada?.fechaUltimo ?? null,
         dias: s.dias,
-        horasRegistradas: horasRegistradasDe(auto, s.gg),
+        horasRegistradas: horasRegistradasDe(auto, s.gg) ?? predeterminada?.horasRegistradas ?? null,
       };
     }),
+    // Lámina 11: lo más importante de la semana, en líneas cortas (las mismas familias que el resumen).
     cascadaActividades: [
       ...(mantencion.length ? [`MANTENIMIENTOS PREVENTIVOS EJECUTADOS: ${mantencion.join('; ')}`] : []),
-      ...(baterias.length ? [`SE REALIZÓ MEDICIÓN Y VALIDACIÓN DE BANCO DE BATERÍAS DE LOS CARROS LTE.`] : []),
-      'SE MANTIENE CONTROL DOCUMENTAL EN TERRENO.',
+      ...(cpe.length ? [`TRABAJOS DE CPE: ${cpe.join('; ')}`] : []),
+      ...(fallas.length ? [`ATENCIÓN DE FALLAS: ${fallas.join('; ')}`] : []),
+      ...(baterias.length ? ['SE REALIZÓ MEDICIÓN Y VALIDACIÓN DE BANCO DE BATERÍAS DE LOS CARROS LTE.'] : []),
     ],
     controles: [...CONTROLES_FDS_PREDETERMINADOS],
-    observaciones,
+    observaciones: [OBSERVACION_FIJA_FDS, ...mejorasDe([...diurnos, ...noches])],
     cpe,
-    conclusiones: dias.map(conclusionDelDia),
+    conclusiones: [CONCLUSION_FIJA_FDS, ...dias.map(conclusionDelDia)],
   };
 }
 
@@ -441,7 +513,7 @@ export function avisosFds(datos: DatosFds): string[] {
   const sinHoras = datos.om.filter(f => f.horasRegistradas === null).map(f => f.nombre);
   if (sinHoras.length) avisos.push(`Sin horas registradas hasta la fecha de corte: ${sinHoras.join(', ')}.`);
   datos.dias.forEach(dia => {
-    if (!dia.actividades.length) avisos.push(`No hay actividades registradas el ${rotuloDiaFds(dia.fecha).toLowerCase()}: su conclusión (lámina 19) queda sin datos.`);
+    if (!dia.actividades.length) avisos.push(`No hay actividades de trabajo registradas el ${rotuloDiaFds(dia.fecha).toLowerCase()}: su conclusión (lámina 19) queda sin datos.`);
   });
   return avisos;
 }

@@ -320,7 +320,7 @@ function llenarActividades(lamina: Lamina, dias: DatosFds['dias'], avisos: strin
 
   const grupos = dias.map(d => ({
     fecha: d.fecha,
-    filas: d.actividades.length ? d.actividades : [{ actividad: 'SIN ACTIVIDADES REGISTRADAS.', responsable: '' }],
+    filas: d.actividades.length ? d.actividades : [{ actividad: 'SIN ACTIVIDADES DE TRABAJO REGISTRADAS.', responsable: '' }],
   }));
   const todas = grupos.flatMap(g => g.filas);
   const altoCabecera = Number(cabecera.getAttribute('h')) / EMU;
@@ -680,26 +680,9 @@ async function llenarObservaciones(ctx: Contexto, lamina: Lamina, textos: string
   ctx.zip.file(rutaDatos, escribir(datos), { createFolders: false });
 }
 
-// ---- Difusiones (lámina 13): un recuadro con las difusiones de los tres días y otro con los controles -----
+// ---- Difusiones (lámina 13): un recuadro por día y otro con los controles -----
 
 const TAMANOS_TARJETA = [1400, 1300, 1200, 1100, 1050, 1000, 950, 900, 850, 800];
-
-/** Frase fija del recuadro de difusiones: las difusiones se absorbieron en las actividades diarias del fin de semana. */
-const ENCABEZADO_DIFUSIONES = 'ABSORBIDA A TRAVÉS DE LAS ACTIVIDADES DIARIAS DEL FIN DE SEMANA, CON LAS DIFUSIONES:';
-/** Posición de los dos recuadros de la lámina 13, en pulgadas (el de difusiones ocupa el ancho de la columna). */
-const CAJA_DIFUSIONES = { x: 2.7, y: 2.3, w: 8.13, h: 2.95 };
-const CAJA_CONTROLES = { x: 2.7, y: 5.4, w: 8.13, h: 1.65 };
-
-/** Difusiones sin repetir (sin tildes ni mayúsculas), en el orden en que aparecen. */
-const difusionesSinRepetir = (lista: string[]) => {
-  const vistas = new Set<string>();
-  return lista.filter(t => {
-    const clave = t.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().trim();
-    if (!clave || vistas.has(clave)) return false;
-    vistas.add(clave);
-    return true;
-  });
-};
 
 /** Caja útil de un recuadro de difusiones, en puntos (se descuentan márgenes y la sangría de las viñetas). */
 const cajaTarjeta = (tarjeta: Element) => {
@@ -707,46 +690,76 @@ const cajaTarjeta = (tarjeta: Element) => {
   return { ancho: (m.w / EMU - 0.12 - 0.19) * 72, alto: (m.h / EMU - 0.11) * 72 };
 };
 
+/** Lo que se escribe en un recuadro: sus ítems o, si no hay ninguno, el aviso de que está vacío. */
+const itemsTarjeta = (items: string[], vacio: string) => (items.length ? items : [vacio]);
+
 /** Mayor tamaño (de la lista común) con el que el encabezado y las viñetas caben en el recuadro. */
-function tamanoTarjeta(tarjeta: Element, encabezado: string, items: string[]): number {
-  const textos = [encabezado, '', ...(items.length ? items : ['SIN DIFUSIONES REGISTRADAS.'])];
+function tamanoTarjeta(tarjeta: Element, encabezado: string, items: string[], vacio: string): number {
+  const textos = [encabezado, '', ...itemsTarjeta(items, vacio)];
   const caja = cajaTarjeta(tarjeta);
   return TAMANOS_TARJETA.find(sz => cabeTexto(caja, textos, sz)) ?? TAMANOS_TARJETA[TAMANOS_TARJETA.length - 1];
 }
 
-function escribirTarjeta(tarjeta: Element, encabezado: string, items: string[], sz: number) {
+function escribirTarjeta(tarjeta: Element, encabezado: string, items: string[], vacio: string, sz: number) {
   const parrafos = parrafosDe(txBodyDe(tarjeta));
   const modeloEncabezado = parrafos[0];
-  const modeloVacio = parrafos[1];
+  const modeloLinea = parrafos[1];
   const modeloVineta = parrafos.find(tieneVinetas);
-  if (!modeloEncabezado || !modeloVacio || !modeloVineta) throw new Error('Un recuadro de difusiones de la plantilla no tiene el formato esperado.');
-  const lista = items.length ? items : ['SIN DIFUSIONES REGISTRADAS.'];
-  const vacio = modeloVacio.cloneNode(true) as Element;
-  for (const r of descendientes(vacio, NS_A, 'endParaRPr')) r.setAttribute('sz', String(sz));
-  const nuevos: Element[] = [copiaTexto(modeloEncabezado, encabezado, sz), vacio, ...lista.map(t => copiaTexto(modeloVineta, t, sz))];
+  if (!modeloEncabezado || !modeloLinea || !modeloVineta) throw new Error('Un recuadro de difusiones de la plantilla no tiene el formato esperado.');
+  const linea = modeloLinea.cloneNode(true) as Element;
+  for (const r of descendientes(linea, NS_A, 'endParaRPr')) r.setAttribute('sz', String(sz));
+  const nuevos: Element[] = [
+    copiaTexto(modeloEncabezado, encabezado, sz),
+    linea,
+    ...itemsTarjeta(items, vacio).map(t => copiaTexto(modeloVineta, t, sz)),
+  ];
   reemplazarParrafos(tarjeta, nuevos);
 }
 
+/** Sin tildes y en mayúsculas: para reconocer el día en el nombre de cada recuadro de la plantilla. */
+const claveNombre = (texto: string) => texto.normalize('NFD').replace(/\p{M}/gu, '').toUpperCase();
+
+/** Encabezado de un día en su recuadro: "VIERNES 23/10", como en la plantilla. */
+const rotuloDiaLamina = (iso: string) => {
+  const { m, d } = partesIso(iso);
+  return `${nombreDia(iso)} ${String(d).padStart(2, '0')}/${String(m).padStart(2, '0')}`;
+};
+
+/**
+ * Lámina 13: un recuadro por día (viernes, sábado y domingo, en su lugar de la plantilla) con las difusiones de ese día,
+ * y el de controles transversales. Los cuatro usan el mismo tamaño de letra: el mayor con el que caben todos.
+ */
 function llenarDifusiones(lamina: Lamina, datos: DatosFds, avisos: string[]) {
   const arbol = arbolDe(lamina);
   const tarjetas = hijos(arbol, NS_P, 'sp').filter(s => nombreDe(s).startsWith('Difusion card'));
-  const controles = tarjetas.find(s => nombreDe(s).includes('CONTROLES'));
-  const difusiones = tarjetas.find(s => s !== controles);
-  if (tarjetas.length !== 4 || !controles || !difusiones) throw new Error('La lámina de difusiones de la plantilla no tiene sus cuatro recuadros.');
-  // Las difusiones de los tres días van juntas: se quitan los recuadros por día y el de difusiones ocupa el ancho.
-  for (const t of tarjetas) if (t !== difusiones && t !== controles) arbol.removeChild(t);
-  fijarXfrm(difusiones, CAJA_DIFUSIONES.x, CAJA_DIFUSIONES.y, CAJA_DIFUSIONES.w, CAJA_DIFUSIONES.h);
-  fijarXfrm(controles, CAJA_CONTROLES.x, CAJA_CONTROLES.y, CAJA_CONTROLES.w, CAJA_CONTROLES.h);
+  const tarjetaDe = (clave: string) => tarjetas.find(s => claveNombre(nombreDe(s)).includes(claveNombre(clave)));
+  const controles = tarjetaDe('CONTROLES');
+  const porDia = datos.dias.map(dia => ({ dia, tarjeta: tarjetaDe(nombreDia(dia.fecha)) }));
+  if (tarjetas.length !== 4 || !controles || porDia.some(p => !p.tarjeta)) {
+    throw new Error('La lámina de difusiones de la plantilla no tiene sus cuatro recuadros.');
+  }
   const filas = [
-    { tarjeta: difusiones, encabezado: ENCABEZADO_DIFUSIONES, items: difusionesSinRepetir(datos.dias.flatMap(d => d.difusiones)), etiqueta: 'difusiones' },
-    { tarjeta: controles, encabezado: 'CONTROLES TRANSVERSALES', items: datos.controles, etiqueta: 'controles transversales' },
+    ...porDia.map(({ dia, tarjeta }) => ({
+      tarjeta: tarjeta as Element,
+      encabezado: rotuloDiaLamina(dia.fecha),
+      items: dia.difusiones,
+      vacio: 'SIN DIFUSIONES REGISTRADAS.',
+      etiqueta: `difusiones del ${nombreDia(dia.fecha).toLowerCase()}`,
+    })),
+    {
+      tarjeta: controles,
+      encabezado: 'CONTROLES TRANSVERSALES',
+      items: datos.controles,
+      vacio: 'SIN CONTROLES REGISTRADOS.',
+      etiqueta: 'controles transversales',
+    },
   ];
-  // Los dos recuadros usan el mismo tamaño: el mayor que cabe en ambos.
-  const sz = Math.min(...filas.map(f => tamanoTarjeta(f.tarjeta, f.encabezado, f.items)));
+  const sz = Math.min(...filas.map(f => tamanoTarjeta(f.tarjeta, f.encabezado, f.items, f.vacio)));
   for (const f of filas) {
-    escribirTarjeta(f.tarjeta, f.encabezado, f.items, sz);
-    const textos = [f.encabezado, '', ...(f.items.length ? f.items : ['SIN DIFUSIONES REGISTRADAS.'])];
-    if (!cabeTexto(cajaTarjeta(f.tarjeta), textos, sz)) avisos.push(`Las ${f.etiqueta} no caben completas en su recuadro: acórtalas.`);
+    escribirTarjeta(f.tarjeta, f.encabezado, f.items, f.vacio, sz);
+    if (!cabeTexto(cajaTarjeta(f.tarjeta), [f.encabezado, '', ...itemsTarjeta(f.items, f.vacio)], sz)) {
+      avisos.push(`Las ${f.etiqueta} no caben completas en su recuadro: acórtalas.`);
+    }
   }
 }
 
