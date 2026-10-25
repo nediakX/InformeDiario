@@ -241,7 +241,7 @@ const tituloRealizados = (lista: string[], patron: RegExp) =>
   sinRepetidos(lista.filter(a => patron.test(sinAcentos(a))));
 
 /**
- * Lo que se lee de los informes de la semana para las láminas por tema: primero las actividades (día y noche), sin
+ * Lo que se lee de los informes de la semana para las láminas por tema: primero las actividades, sin
  * rutina; después los títulos de las evidencias, salvo los que repiten una actividad (ej: "CAPACITACIÓN DE RIT (FOTOS)").
  */
 const lecturaDeSemana = (entradas: (BorradorEntry | null)[]): string[] => {
@@ -409,8 +409,8 @@ export function construirPresentacionFds(entradas: BorradorEntry[], semana: Sema
   });
 
   const noches = fechas.map(f => buscar(f, 'noche')).filter((e): e is BorradorEntry => Boolean(e));
-  // Lo que se lee de los informes de la semana (actividades y evidencias de día y de noche).
-  const lectura = lecturaDeSemana([...diurnos, ...noches]);
+  // Lo que se lee de los informes de la semana: actividades y evidencias del turno de día, como en las láminas por día.
+  const lectura = lecturaDeSemana(diurnos);
 
   const mantencion = tituloRealizados(lectura, ES_MANTENCION);
   const baterias = tituloRealizados(lectura, ES_BATERIA);
