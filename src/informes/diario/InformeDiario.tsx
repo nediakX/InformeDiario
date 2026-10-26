@@ -3,6 +3,7 @@
 import { ChevronDown, Trash2, ClipboardList, Users, ListChecks, BatteryCharging, MessageSquare, Camera, Loader2, ArrowLeft, Plus, GripVertical, Copy, LayoutGrid, X as Cerrar, CheckCircle2, RotateCcw } from 'lucide-react';
 import logoPsinet from "../../assets/logo_psinet.jpg";
 import logoEdificio from "../../assets/LogoEdificio.png";
+import BotonAccionesInforme from '../../componentes/BotonAccionesInforme';
 
 import VisorFoto from '../../componentes/VisorFoto';
 import { gruposTareas } from '../../datos/catalogos';
@@ -664,6 +665,7 @@ export default function InformeDiario({ d, volverABorradores, goToNewInforme }: 
         <p className="text-center text-gray-500 text-xs mt-4">
           El archivo .docx mantendrá fielmente el formato, proporciones, imágenes y portada original de PSINet.
         </p>
+        <div className="h-24" aria-hidden="true" />
       </main>
 
       <div className="fixed bottom-1 left-1/2 -translate-x-1/2 text-[#F4F6F8] text-[10px] italic cursor-text whitespace-nowrap z-10 select-text">
@@ -749,6 +751,15 @@ export default function InformeDiario({ d, volverABorradores, goToNewInforme }: 
           </div>
         </div>
       )}
+
+      <BotonAccionesInforme
+        onExportar={() => void generarDocumento()}
+        exportando={isGenerating}
+        finalizado={d.estadoEnLista === 'finalizado'}
+        finalizadoAMano={Boolean(d.finalizadoEn)}
+        enNube={d.estadoEnLista !== null}
+        onAlternarFinalizado={() => void d.alternarFinalizado()}
+      />
 
       {/* Toast Notification */}
       {toastMessage && (

@@ -24,6 +24,7 @@ import { mapaFotosSubidas, aplicarFotosSubidas } from '../../lib/storage';
 import { borrandose, registrarDeshacer, reinsertar } from '../../lib/deshacer';
 import { type BorradorOtroEntry, upsertBorradorOtro, deleteBorradorOtro, contarFotosGenerico } from '../../datos/borradoresOtros';
 import { marcarFinalizado, mensajeErrorFinalizar } from '../../datos/finalizarInforme';
+import BotonAccionesInforme from '../../componentes/BotonAccionesInforme';
 import { hoyLocalISO } from '../../datos/fechas';
 import { letraDeFecha } from '../../datos/turnos';
 import { configDivision } from '../../datos/divisiones';
@@ -541,7 +542,17 @@ export default function InformePreventiva({ onBack, borradorInicial = null }: Pr
             {generando ? <><Loader2 size={18} className="animate-spin" /> Generando informe…</> : `Generar Word (${fotosListas} fotos)`}
           </button>
         </div>
+        <div className="h-24" aria-hidden="true" />
       </main>
+
+      <BotonAccionesInforme
+        onExportar={() => void generar()}
+        exportando={generando}
+        finalizado={Boolean(finalizadoEn) || fotosCompletas}
+        finalizadoAMano={Boolean(finalizadoEn)}
+        enNube={Boolean(guardadoEn)}
+        onAlternarFinalizado={() => void alternarFinalizado()}
+      />
 
       {toast && (
         <div role="status" className={`toast-anim fixed bottom-5 left-1/2 -translate-x-1/2 ${toast.error ? 'bg-red-800' : 'bg-[#0E4660]'} text-white py-3 px-5 rounded-lg text-sm shadow-lg z-50`}>{toast.text}</div>

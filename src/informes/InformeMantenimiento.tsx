@@ -14,6 +14,7 @@ import { copiarImagenAlPortapapel } from '../lib/copiarImagen';
 import { fileToDataUrl, uid } from '../lib/fotos';
 import { type BorradorOtroEntry, upsertBorradorOtro, deleteBorradorOtro, contarFotosGenerico } from '../datos/borradoresOtros';
 import { marcarFinalizado, mensajeErrorFinalizar } from '../datos/finalizarInforme';
+import BotonAccionesInforme from '../componentes/BotonAccionesInforme';
 import { borrandose, registrarDeshacer, reinsertar } from '../lib/deshacer';
 import { hoyLocalISO, formatFechaLarga } from '../datos/fechas';
 import { BLUE, ORANGE } from '../datos/plantillaWord';
@@ -1175,7 +1176,17 @@ export default function InformeMantenimiento({ onBack, borradorInicial = null }:
             {isGenerating ? (<><Loader2 size={18} className="animate-spin" /> Generando informe...</>) : "Generar Informe de Mantenimiento"}
           </button>
         </div>
+        <div className="h-24" aria-hidden="true" />
       </main>
+
+      <BotonAccionesInforme
+        onExportar={() => void generarDocumento()}
+        exportando={isGenerating}
+        finalizado={Boolean(finalizadoEn) || fotosCompletas}
+        finalizadoAMano={Boolean(finalizadoEn)}
+        enNube={hayBorrador}
+        onAlternarFinalizado={() => void alternarFinalizado()}
+      />
 
       {toastMessage && (
         <div className={`toast-anim fixed bottom-5 left-1/2 -translate-x-1/2 ${toastMessage.isError ? 'bg-red-800' : 'bg-[#0E4660]'} text-white py-3 px-5 rounded-lg text-sm shadow-lg z-50`}>
