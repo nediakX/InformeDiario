@@ -7,6 +7,7 @@ import { type BorradorEntry, contarFotos, esSemillaSinEditar, estadoBorrador } f
 import { type BorradorOtroEntry, contarFotosGenerico, estadoBorradorOtro } from '../datos/borradoresOtros';
 import { formatDiaMes, formatFechaLarga, hoyLocalISO, nombreDiaSemana, sumarDias } from '../datos/fechas';
 import { type SemanaTurno, DIAS_POR_TURNO, semanaDeFecha } from '../datos/turnos';
+import { esPreventiva } from '../informes/preventiva/modelo';
 
 type TipoBorradorTab = 'diario' | 'mantenimiento' | 'falla';
 
@@ -163,6 +164,14 @@ export default function Borradores({
         onNuevo: onNuevaFalla,
         vacio: 'Aún no hay borradores de Falla. Se crean solos al usar "Nuevo informe" y guardar la primera foto.',
       }
+    : null;
+
+  // Mantenimiento: la mantención preventiva y el mantenimiento de generador son informes distintos, cada uno con su lista.
+  const gruposOtro = tipoTab === 'mantenimiento' && configOtro
+    ? [
+        { clave: 'preventiva', titulo: 'Mantención preventiva', vacio: 'Aún no hay borradores de mantención preventiva.', lista: configOtro.lista.filter(e => esPreventiva(e.datos)) },
+        { clave: 'generador', titulo: 'Mantenimiento de generador', vacio: 'Aún no hay borradores de mantenimiento de generador.', lista: configOtro.lista.filter(e => !esPreventiva(e.datos)) },
+      ]
     : null;
 
   const renderEntryOtro = (entry: BorradorOtroEntry) => {
@@ -371,6 +380,24 @@ export default function Borradores({
               <div className="panel p-8 text-center text-gray-500">
                 <FolderOpen size={32} className="mx-auto mb-2 text-gray-300" />
                 <p className="text-sm">{configOtro?.vacio}</p>
+              </div>
+            ) : gruposOtro ? (
+              <div className="space-y-5">
+                {gruposOtro.map(grupo => (
+                  <section key={grupo.clave} className="space-y-3">
+                    <div className="text-sm font-bold text-[#0E4660]">
+                      {grupo.titulo}
+                      <span className="ml-2 text-xs font-normal text-gray-500">
+                        {grupo.lista.length} borrador{grupo.lista.length === 1 ? '' : 'es'}
+                      </span>
+                    </div>
+                    {grupo.lista.length === 0 ? (
+                      <p className="panel p-4 text-center text-sm text-gray-500">{grupo.vacio}</p>
+                    ) : (
+                      <div className="space-y-3">{grupo.lista.map(renderEntryOtro)}</div>
+                    )}
+                  </section>
+                ))}
               </div>
             ) : (
               <div className="space-y-3">{configOtro?.lista.map(renderEntryOtro)}</div>
