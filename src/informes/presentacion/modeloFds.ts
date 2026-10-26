@@ -427,7 +427,8 @@ export function construirPresentacionFds(entradas: BorradorEntry[], semana: Sema
   const cpe = tituloRealizados(lectura, ES_CPE).filter(a => !ES_MANTENCION.test(sinAcentos(a)));
   const fallas = tituloRealizados(lectura, ES_FALLA);
   const repliegues = tituloRealizados(lectura, ES_REPLIEGUE);
-  const principales = tituloRealizados(lectura, ES_PRINCIPAL_DIFUSION);
+  // Un repliegue también dice «tronadura»: ya va en repliegues, así que no se repite en las principales.
+  const principales = tituloRealizados(lectura, ES_PRINCIPAL_DIFUSION).filter(a => !ES_REPLIEGUE.test(sinAcentos(a)));
 
   // Lámina 3: las frases fijas y después lo que sale del resumen de actividades de los informes.
   const resumenGeneral = [...RESUMEN_FIJO_FDS];
