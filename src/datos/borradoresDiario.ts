@@ -47,6 +47,8 @@ export interface BorradorEntry {
   savedAt: string;
   /** División a la que pertenece el informe. */
   division: Division;
+  /** Hora en que se marcó como finalizado a mano (sin valor = no). La cambia solo marcarFinalizado. */
+  finalizadoEn?: string | null;
 }
 
 export const LS_KEY_BORRADORES = "psinet_borradores_v1";
@@ -75,6 +77,7 @@ export type BorradorRow = {
   vertiv_item_photos: (string | null)[] | null;
   saved_at: string;
   division?: Division | null;
+  finalizado_en?: string | null;
 };
 
 export const rowToEntry = (row: BorradorRow): BorradorEntry => ({
@@ -99,8 +102,10 @@ export const rowToEntry = (row: BorradorRow): BorradorEntry => ({
   vertivItemPhotos: row.vertiv_item_photos ?? [],
   savedAt: row.saved_at,
   division: row.division ?? 'el_salvador',
+  finalizadoEn: row.finalizado_en ?? null,
 });
 
+// finalizado_en no va aquí: solo lo cambia marcarFinalizado, así un guardado viejo no lo pisa.
 const entryToRow = (entry: BorradorEntry) => ({
   id: entry.id,
   turno: entry.turno,
@@ -236,12 +241,16 @@ export const contarFotos = (entry: BorradorEntry) => {
 
 export type EstadoBorrador = 'pendiente' | 'iniciado' | 'finalizado';
 
-/** Pendiente: sin fotos. Iniciado: al menos una foto. Finalizado: todas las fotos cargadas. */
-export const estadoBorrador = (entry: BorradorEntry): EstadoBorrador => {
+/** Según las fotos cargadas: pendiente sin fotos, iniciado con alguna, finalizado con todas. */
+const estadoPorFotos = (entry: BorradorEntry): EstadoBorrador => {
   const { total, llenas } = contarFotos(entry);
   if (llenas === 0) return 'pendiente';
   return llenas >= total ? 'finalizado' : 'iniciado';
 };
+
+/** Finalizado si se marcó a mano o si ya están todas las fotos; si no, lo que digan las fotos. */
+export const estadoBorrador = (entry: BorradorEntry): EstadoBorrador =>
+  entry.finalizadoEn ? 'finalizado' : estadoPorFotos(entry);
 
 /** Elimina varios borradores de la nube de una sola vez. */
 export async function deleteBorradores(ids: string[]): Promise<void> {

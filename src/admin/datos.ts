@@ -2,7 +2,7 @@
 // Todo se calcula en el navegador a partir de las mismas tablas que usa la app.
 import { supabase, BORRADORES_TABLE, BORRADORES_OTROS_TABLE } from '../lib/supabase';
 import { type BorradorEntry, type BorradorRow, rowToEntry, estadoBorrador, contarFotos, type EstadoBorrador } from '../datos/borradoresDiario';
-import { type BorradorOtroRow, type BorradorOtroEntry, rowToOtroEntry, contarFotosGenerico, estadoBorradorGenerico } from '../datos/borradoresOtros';
+import { type BorradorOtroRow, type BorradorOtroEntry, rowToOtroEntry, contarFotosGenerico, estadoBorradorOtro } from '../datos/borradoresOtros';
 import { hoyLocalISO, sumarDias } from '../datos/fechas';
 import { letraDeFecha, semanaDeFecha, TURNOS_AUTOMATICOS } from '../datos/turnos';
 import type { Faena, Perfil } from '../auth/sesion';
@@ -189,7 +189,7 @@ export function calcularEstadisticas(datos: DatosAdmin, rango: Rango, ahora = ne
       fecha: b.fecha, estado: estadoBorrador(b), autor: b.actualizadoPor ? nombrePorId.get(b.actualizadoPor) ?? '—' : '—', savedAt: b.savedAt,
     })),
     ...datos.otros.map(o => ({
-      id: o.id, tipo: etiquetaTipo[o.tipo] ?? o.tipo, titulo: o.titulo, fecha: o.fecha, estado: estadoBorradorGenerico(o.datos),
+      id: o.id, tipo: etiquetaTipo[o.tipo] ?? o.tipo, titulo: o.titulo, fecha: o.fecha, estado: estadoBorradorOtro(o),
       autor: o.actualizadoPor ? nombrePorId.get(o.actualizadoPor) ?? '—' : '—', savedAt: o.savedAt,
     })),
   ].sort((a, b) => b.savedAt.localeCompare(a.savedAt)).slice(0, 12);

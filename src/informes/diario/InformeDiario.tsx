@@ -1,6 +1,6 @@
 
 
-import { ChevronDown, Trash2, ClipboardList, Users, ListChecks, BatteryCharging, MessageSquare, Camera, Loader2, ArrowLeft, Plus, GripVertical, Copy, LayoutGrid, X as Cerrar } from 'lucide-react';
+import { ChevronDown, Trash2, ClipboardList, Users, ListChecks, BatteryCharging, MessageSquare, Camera, Loader2, ArrowLeft, Plus, GripVertical, Copy, LayoutGrid, X as Cerrar, CheckCircle2, RotateCcw } from 'lucide-react';
 import logoPsinet from "../../assets/logo_psinet.jpg";
 import logoEdificio from "../../assets/LogoEdificio.png";
 
@@ -135,9 +135,23 @@ export default function InformeDiario({ d, volverABorradores, goToNewInforme }: 
           <button type="button" onClick={volverABorradores} className="btn-outline text-[#0E4660] px-3 py-1.5 rounded-md text-xs font-bold hover:bg-[#d5e7f8] flex items-center gap-1.5">
             <ArrowLeft size={14} /> Volver a borradores
           </button>
-          <button type="button" onClick={() => goToNewInforme()} className="bg-[#0E4660] text-white px-3 py-1.5 rounded-md text-xs font-bold hover:bg-[#0a3549] flex items-center gap-1.5">
-            <Plus size={14} /> Nuevo informe
-          </button>
+          <div className="flex flex-wrap items-center gap-2">
+            {d.estadoEnLista === 'finalizado' && (
+              <span className="inline-flex items-center gap-1 text-xs font-bold px-2.5 py-1.5 rounded-md bg-green-100 text-green-700"><CheckCircle2 size={14} /> Finalizado</span>
+            )}
+            {d.finalizadoEn ? (
+              <button type="button" onClick={() => void d.alternarFinalizado()} className="btn-outline text-[#0E4660] px-3 py-1.5 rounded-md text-xs font-bold hover:bg-[#d5e7f8] flex items-center gap-1.5">
+                <RotateCcw size={14} /> Reabrir informe
+              </button>
+            ) : d.estadoEnLista && d.estadoEnLista !== 'finalizado' ? (
+              <button type="button" onClick={() => void d.alternarFinalizado()} className="btn-outline text-green-700 px-3 py-1.5 rounded-md text-xs font-bold hover:bg-green-50 flex items-center gap-1.5">
+                <CheckCircle2 size={14} /> Finalizar informe
+              </button>
+            ) : null}
+            <button type="button" onClick={() => goToNewInforme()} className="bg-[#0E4660] text-white px-3 py-1.5 rounded-md text-xs font-bold hover:bg-[#0a3549] flex items-center gap-1.5">
+              <Plus size={14} /> Nuevo informe
+            </button>
+          </div>
         </div>
 
         {/* Section 1: Datos Generales */}

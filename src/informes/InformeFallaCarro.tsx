@@ -3,7 +3,7 @@ import type * as docx from 'docx';
 import { saveAs } from 'file-saver';
 import { registrarActividad } from '../lib/actividad';
 import {
-  ArrowLeft, Loader2, AlertTriangle, ListChecks, ShieldCheck, Camera, Plus, Trash2, ClipboardList, Sparkles, Save, X, Copy, ScanLine,
+  ArrowLeft, Loader2, AlertTriangle, ListChecks, ShieldCheck, Camera, Plus, Trash2, ClipboardList, Sparkles, Save, X, Copy, ScanLine, CheckCircle2, RotateCcw,
 } from 'lucide-react';
 import EscanerDocumento from '../componentes/EscanerDocumento';
 import { pareceDocumento } from '../lib/documentosEscaneables';
@@ -13,7 +13,8 @@ import VisorFoto from '../componentes/VisorFoto';
 import { copiarImagenAlPortapapel } from '../lib/copiarImagen';
 import { N_CONTRATO, LINEA_SERVICIO } from '../datos/catalogos';
 import { fileToDataUrl, uid } from '../lib/fotos';
-import { type BorradorOtroEntry, upsertBorradorOtro, deleteBorradorOtro } from '../datos/borradoresOtros';
+import { type BorradorOtroEntry, upsertBorradorOtro, deleteBorradorOtro, contarFotosGenerico } from '../datos/borradoresOtros';
+import { marcarFinalizado, mensajeErrorFinalizar } from '../datos/finalizarInforme';
 import { borrandose, registrarDeshacer, reinsertar } from '../lib/deshacer';
 import { hoyLocalISO, formatFechaLarga } from '../datos/fechas';
 import { BLUE, ORANGE } from '../datos/plantillaWord';
@@ -378,6 +379,10 @@ export default function InformeFallaCarro({ onBack, borradorInicial = null }: In
   const [hayBorrador, setHayBorrador] = useState(false);
   const [borradorGuardadoEn, setBorradorGuardadoEn] = useState<string | null>(null);
   const [guardandoBorrador, setGuardandoBorrador] = useState(false);
+  // Finalizado a mano (lo guarda la nube). La marca va ligada al borrador abierto: uno nuevo empieza sin marca.
+  const [finalizadoDe, setFinalizadoDe] = useState<{ id: string; en: string | null }>(() => ({ id: borradorInicial?.id ?? '', en: borradorInicial?.finalizadoEn ?? null }));
+  const finalizadoEn = finalizadoDe.id === currentDraftId ? finalizadoDe.en : null;
+  const fotosCompletas = (() => { const c = contarFotosGenerico({ grupos }); return c.total > 0 && c.llenas >= c.total; })();
 
   // Deja lista la librería del Word y los logos mientras se completa el formulario.
   useEffect(() => { precargarGeneracionWord(); }, []);
@@ -472,6 +477,18 @@ export default function InformeFallaCarro({ onBack, borradorInicial = null }: In
     solucionIntro, hallazgos, accionesSolucion,
     verificacionTexto, verificacionCheckItem, grupos,
   ]);
+
+  // Finaliza (o reabre) el informe a mano: la nube guarda la marca y el formulario sigue igual.
+  const alternarFinalizado = async () => {
+    const finalizar = finalizadoEn === null;
+    try {
+      const en = await marcarFinalizado('borradores_otros', currentDraftId, finalizar);
+      setFinalizadoDe({ id: currentDraftId, en });
+      showToast(finalizar ? 'Informe finalizado: ya no aparece en la lista para continuar.' : 'Informe reabierto.');
+    } catch (error) {
+      showToast(mensajeErrorFinalizar(error, finalizar), true);
+    }
+  };
 
   const borrarBorrador = () => {
     const idPrevio = currentDraftId;
@@ -946,6 +963,20 @@ export default function InformeFallaCarro({ onBack, borradorInicial = null }: In
                 <button type="button" onClick={borrarBorrador} className="inline-flex items-center gap-1 text-gray-500 hover:text-red-700 underline">
                   <X size={12} /> Borrar borrador
                 </button>
+                {finalizadoEn ? (
+                  <>
+                    <span className="inline-flex items-center gap-1 font-bold text-green-700"><CheckCircle2 size={12} /> Finalizado</span>
+                    <button type="button" onClick={() => void alternarFinalizado()} className="inline-flex items-center gap-1 text-gray-500 hover:text-[#0E4660] underline">
+                      <RotateCcw size={12} /> Reabrir
+                    </button>
+                  </>
+                ) : fotosCompletas ? (
+                  <span className="inline-flex items-center gap-1 font-bold text-green-700"><CheckCircle2 size={12} /> Finalizado</span>
+                ) : (
+                  <button type="button" onClick={() => void alternarFinalizado()} className="inline-flex items-center gap-1 font-bold text-green-700 hover:text-green-800 underline">
+                    <CheckCircle2 size={12} /> Finalizar informe
+                  </button>
+                )}
               </>
             ) : (
               <span>Se guarda como borrador (nube) apenas cargues la primera foto.</span>

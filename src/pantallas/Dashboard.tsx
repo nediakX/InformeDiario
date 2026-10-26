@@ -7,7 +7,7 @@ import SelectorDivision from '../componentes/SelectorDivision';
 import logoPsinet from "../assets/logo_psinet.jpg";
 import logoEdificio from "../assets/LogoEdificio.png";
 import { type BorradorEntry, estadoBorrador, contarFotos, esSemillaSinEditar } from '../datos/borradoresDiario';
-import { type BorradorOtroEntry, estadoBorradorGenerico, contarFotosGenerico } from '../datos/borradoresOtros';
+import { type BorradorOtroEntry, estadoBorradorOtro, contarFotosGenerico } from '../datos/borradoresOtros';
 import { hoyLocalISO, formatDiaMes, formatFechaLarga } from '../datos/fechas';
 import { semanaDeFecha, DIAS_POR_TURNO } from '../datos/turnos';
 import { estadoChecklistDelDia } from '../informes/checklist/catalogo';
@@ -93,8 +93,11 @@ export default function Dashboard({
   const [modalMant, setModalMant] = useState<null | 'generador' | 'preventiva'>(null);
   const modalMantenimientoOpen = modalMant !== null;
   const setModalMantenimientoOpen = (abierto: false) => { if (!abierto) setModalMant(null); };
-  const borradoresGenerador = borradoresMantenimiento.filter(e => !esPreventiva(e.datos));
-  const borradoresPreventiva = borradoresMantenimiento.filter(e => esPreventiva(e.datos));
+  // Los informes finalizados no se ofrecen para continuar (siguen guardados en Borradores).
+  const sinFinalizar = (e: BorradorOtroEntry) => estadoBorradorOtro(e) !== 'finalizado';
+  const borradoresGenerador = borradoresMantenimiento.filter(e => !esPreventiva(e.datos) && sinFinalizar(e));
+  const borradoresPreventiva = borradoresMantenimiento.filter(e => esPreventiva(e.datos) && sinFinalizar(e));
+  const borradoresFallaEnCurso = borradoresFalla.filter(sinFinalizar);
   const borradoresModalMant = modalMant === 'preventiva' ? borradoresPreventiva : borradoresGenerador;
   const [modalFallaOpen, setModalFallaOpen] = useState(false);
 
@@ -142,7 +145,7 @@ export default function Dashboard({
   };
 
   const detalleOtro = (entry: BorradorOtroEntry) => {
-    const estado = estadoBorradorGenerico(entry.datos);
+    const estado = estadoBorradorOtro(entry);
     const fotos = contarFotosGenerico(entry.datos);
     return `${ESTADO_OTRO_LABEL[estado]} · ${fotos.llenas} de ${fotos.total} fotos`;
   };
@@ -183,7 +186,7 @@ export default function Dashboard({
     presentacionFds: division === 'el_salvador' ? <Tarea icono={CalendarDays} color="#7B3FA0" titulo="Presentación fin de semana" onClick={() => onNavigate('presentacion-fds')}
       estado="Viernes a domingo: láminas del fin de semana" /> : null,
     falla: <Tarea icono={AlertTriangle} color="#B3261E" titulo="Informe de falla de carro" onClick={() => setModalFallaOpen(true)}
-      estado={borradoresFalla.length ? `${borradoresFalla.length} borrador${borradoresFalla.length === 1 ? '' : 'es'}` : 'Sin borradores'}
+      estado={borradoresFallaEnCurso.length ? `${borradoresFallaEnCurso.length} borrador${borradoresFallaEnCurso.length === 1 ? '' : 'es'}` : 'Sin borradores'}
       etiqueta="En desarrollo" />,
     mantenimiento: <Tarea icono={Wrench} color="#55636B" titulo="Mantenimiento de generador" onClick={() => setModalMant('generador')}
       estado={borradoresGenerador.length ? `${borradoresGenerador.length} borrador${borradoresGenerador.length === 1 ? '' : 'es'}` : 'Sin borradores'}
@@ -456,7 +459,7 @@ export default function Dashboard({
               </p>
             </div>
 
-            {informesHoy.map(informe => (
+            {informesHoy.filter(informe => estadoBorrador(informe) !== 'finalizado').map(informe => (
               <button
                 key={informe.id}
                 type="button"
@@ -596,7 +599,7 @@ export default function Dashboard({
               <p className="text-sm text-gray-500 mt-1">Continúa un borrador guardado o crea uno nuevo.</p>
             </div>
 
-            {borradoresFalla.slice(0, 4).map(entry => (
+            {borradoresFallaEnCurso.slice(0, 4).map(entry => (
               <button
                 key={entry.id}
                 type="button"
@@ -614,13 +617,13 @@ export default function Dashboard({
               </button>
             ))}
 
-            {borradoresFalla.length > 4 && (
+            {borradoresFallaEnCurso.length > 4 && (
               <button
                 type="button"
                 onClick={() => { setModalFallaOpen(false); onVerBorradores('falla'); }}
                 className="text-xs font-bold text-[#0E4660] underline"
               >
-                Ver los {borradoresFalla.length} borradores guardados
+                Ver los {borradoresFallaEnCurso.length} borradores guardados
               </button>
             )}
 

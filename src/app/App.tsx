@@ -90,7 +90,7 @@ function AppContenido() {
   useEffect(() => { borradoresRef.current = borradores; }, [borradores]);
 
   // Estado y lógica del Informe Diario (ver src/informes/diario/useInformeDiario.tsx).
-  const diario = useInformeDiario({ view, setBorradores, borradoresRef, division });
+  const diario = useInformeDiario({ view, setBorradores, borradoresRef, division, borradores });
   const { turno, currentDraftId, setCurrentDraftId, flushSyncRef, generarDocumento, showToast, startNewReport, cargarBorrador } = diario;
 
   /** Cambia de pantalla. Si se sale del Informe Diario, primero guarda lo pendiente. */
@@ -257,10 +257,14 @@ function AppContenido() {
 
   // Informes de hoy (Día y Noche) del turno de trabajo (A o B) que corresponde; sirven para "Continuar" en el Panel.
   // No se asume Día o Noche según la hora: cada persona elige con cuál trabajar.
+  // Si hay varios del mismo turno, se prefiere el que aún no está finalizado (así uno nuevo reemplaza al finalizado en la tarjeta).
   const informesHoy = useMemo(() => {
     const letraHoy = letraDeFecha(hoy);
     return TURNOS_AUTOMATICOS
-      .map(t => borradoresVisibles.find(b => b.fecha === hoy && b.letraTurno === letraHoy && b.turno === t))
+      .map(t => {
+        const delTurno = borradoresVisibles.filter(b => b.fecha === hoy && b.letraTurno === letraHoy && b.turno === t);
+        return delTurno.find(b => estadoBorrador(b) !== 'finalizado') ?? delTurno[0];
+      })
       .filter((b): b is BorradorEntry => Boolean(b));
   }, [borradoresVisibles, hoy]);
 

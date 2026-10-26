@@ -14,7 +14,8 @@ import { leerLocal, guardarLocal, borrarLocal } from '../../lib/almacenLocal';
 
 import { type Vista } from '../../app/rutas';
 
-import { type BorradorEntry, upsertBorrador, contarFotos, obtenerBorradorNube } from '../../datos/borradoresDiario';
+import { type BorradorEntry, upsertBorrador, contarFotos, obtenerBorradorNube, estadoBorrador } from '../../datos/borradoresDiario';
+import { marcarFinalizado, mensajeErrorFinalizar } from '../../datos/finalizarInforme';
 import { mezclarBloques, mezclarFotos, mismasFotos, soloUnRegistroChecklist } from './mezclaFotos';
 
 import { hoyLocalISO } from '../../datos/fechas';
@@ -36,6 +37,8 @@ export interface OpcionesInformeDiario {
   view: Vista | null;
   setBorradores: Dispatch<SetStateAction<BorradorEntry[]>>;
   borradoresRef: RefObject<BorradorEntry[]>;
+  /** Lista de borradores de la app: de ahí sale si el informe abierto ya está finalizado. */
+  borradores: BorradorEntry[];
   /** División con la que se trabaja: define faena, firmas, personal y si existe el bloque Vertiv. */
   division: Division;
 }
@@ -45,7 +48,7 @@ export interface OpcionesInformeDiario {
  * y generación del Word). Vive en App —no en la pantalla— para que el informe en curso se conserve
  * al ir y volver de otras pantallas, y para que el Panel/Borradores puedan abrir o descargar informes.
  */
-export function useInformeDiario({ view, setBorradores, borradoresRef, division }: OpcionesInformeDiario) {
+export function useInformeDiario({ view, setBorradores, borradoresRef, division, borradores }: OpcionesInformeDiario) {
   const config = CONFIG_DIVISION[division];
   // Estados de datos generales
   const [turno, setTurno] = useState<'dia' | 'noche'>('dia');
@@ -380,9 +383,10 @@ export function useInformeDiario({ view, setBorradores, borradoresRef, division 
     const yaEstaEnLaNube = borradoresRef.current.some(b => b.id === currentDraftId);
     if (contarFotos(entry).llenas === 0 && !yaEstaEnLaNube) return;
 
+    // Al guardar el contenido se conserva la marca de finalizado que ya tiene la lista (solo la cambia el botón).
     const mezclar = (prev: BorradorEntry[], item: BorradorEntry) => {
       const idx = prev.findIndex(b => b.id === item.id);
-      if (idx >= 0) { const next = [...prev]; next[idx] = item; return next; }
+      if (idx >= 0) { const next = [...prev]; next[idx] = { ...item, finalizadoEn: prev[idx].finalizadoEn }; return next; }
       return [...prev, item];
     };
 
@@ -1738,10 +1742,28 @@ export function useInformeDiario({ view, setBorradores, borradoresRef, division 
     setDraftPromptOpen(false);
   };
 
+  // Finalizar o reabrir el informe abierto a mano. La marca la guarda la nube; el resto del informe no cambia.
+  const entryEnLista = borradores.find(b => b.id === currentDraftId) ?? null;
+  const finalizadoEn = entryEnLista?.finalizadoEn ?? null;
+  const estadoEnLista = entryEnLista ? estadoBorrador(entryEnLista) : null;
+  const alternarFinalizado = async () => {
+    const finalizar = finalizadoEn === null;
+    try {
+      const valor = await marcarFinalizado('borradores', currentDraftId, finalizar);
+      setBorradores(prev => prev.map(b => (b.id === currentDraftId ? { ...b, finalizadoEn: valor } : b)));
+      showToast(finalizar ? 'Informe finalizado: ya no aparece en la lista para continuar.' : 'Informe reabierto.');
+    } catch (error) {
+      showToast(mensajeErrorFinalizar(error, finalizar), true);
+    }
+  };
+
   const mesDeFecha = fecha ? Number(fecha.split("-")[1]) : 0;
   const decoracionMensual = DECORACIONES_MENSUALES[mesDeFecha];
 
   return {
+    alternarFinalizado,
+    estadoEnLista,
+    finalizadoEn,
     recibirListaRemota,
     division,
     config,

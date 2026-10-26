@@ -26,6 +26,8 @@ export interface BorradorOtroEntry<T = Record<string, unknown>> {
   division: Division;
   /** Cuenta que guardó el borrador por última vez (la registra la base de datos). */
   actualizadoPor?: string | null;
+  /** Hora en que se marcó como finalizado a mano (sin valor = no). La cambia solo marcarFinalizado. */
+  finalizadoEn?: string | null;
 }
 
 export type BorradorOtroRow = {
@@ -37,6 +39,7 @@ export type BorradorOtroRow = {
   saved_at: string;
   division?: Division | null;
   actualizado_por?: string | null;
+  finalizado_en?: string | null;
 };
 
 export const rowToOtroEntry = (row: BorradorOtroRow): BorradorOtroEntry => ({
@@ -48,8 +51,10 @@ export const rowToOtroEntry = (row: BorradorOtroRow): BorradorOtroEntry => ({
   savedAt: row.saved_at,
   division: row.division ?? 'el_salvador',
   actualizadoPor: row.actualizado_por ?? null,
+  finalizadoEn: row.finalizado_en ?? null,
 });
 
+// finalizado_en no va aquí: solo lo cambia marcarFinalizado.
 const otroEntryToRow = (entry: BorradorOtroEntry): BorradorOtroRow => ({
   id: entry.id,
   tipo: entry.tipo,
@@ -182,3 +187,7 @@ export const estadoBorradorGenerico = (datos: unknown): EstadoBorrador => {
   if (llenas === 0) return 'pendiente';
   return total > 0 && llenas >= total ? 'finalizado' : 'iniciado';
 };
+
+/** Finalizado si se marcó a mano o si ya están todas las fotos; si no, lo que digan las fotos. */
+export const estadoBorradorOtro = (entry: BorradorOtroEntry): EstadoBorrador =>
+  entry.finalizadoEn ? 'finalizado' : estadoBorradorGenerico(entry.datos);

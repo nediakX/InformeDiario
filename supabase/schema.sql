@@ -203,6 +203,8 @@ create table if not exists public.borradores (
 alter table public.borradores add column if not exists division text not null default 'el_salvador'
   check (division in ('el_salvador', 'andina'));
 create index if not exists borradores_division_fecha_idx on public.borradores (division, fecha);
+-- Marca de "finalizado a mano": un informe finalizado deja de aparecer en la lista para continuar.
+alter table public.borradores add column if not exists finalizado_en timestamptz;
 
 alter table public.borradores enable row level security;
 
@@ -291,6 +293,7 @@ alter table public.borradores_otros enable row level security;
 
 -- La columna actualizado_por se crea antes de las políticas que la usan.
 alter table public.borradores_otros add column if not exists actualizado_por uuid references auth.users (id) on delete set null;
+alter table public.borradores_otros add column if not exists finalizado_en timestamptz;
 
 drop policy if exists "borradores_otros_select_shared" on public.borradores_otros;
 create policy "borradores_otros_select_shared" on public.borradores_otros

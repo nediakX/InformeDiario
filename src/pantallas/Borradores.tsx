@@ -4,7 +4,7 @@ import SelectorDivision from '../componentes/SelectorDivision';
 import logoPsinet from "../assets/logo_psinet.jpg";
 import logoEdificio from "../assets/LogoEdificio.png";
 import { type BorradorEntry, contarFotos, esSemillaSinEditar, estadoBorrador } from '../datos/borradoresDiario';
-import { type BorradorOtroEntry, contarFotosGenerico, estadoBorradorGenerico } from '../datos/borradoresOtros';
+import { type BorradorOtroEntry, contarFotosGenerico, estadoBorradorOtro } from '../datos/borradoresOtros';
 import { formatDiaMes, formatFechaLarga, hoyLocalISO, nombreDiaSemana, sumarDias } from '../datos/fechas';
 import { type SemanaTurno, DIAS_POR_TURNO, semanaDeFecha } from '../datos/turnos';
 
@@ -166,7 +166,7 @@ export default function Borradores({
     : null;
 
   const renderEntryOtro = (entry: BorradorOtroEntry) => {
-    const estado = ESTADOS[estadoBorradorGenerico(entry.datos)];
+    const estado = ESTADOS[estadoBorradorOtro(entry)];
     const fotos = contarFotosGenerico(entry.datos);
     return (
       <div key={entry.id} className="panel p-4 flex flex-col sm:flex-row sm:items-center gap-3">
@@ -281,7 +281,7 @@ export default function Borradores({
               </div>
               <p className="text-xs text-gray-500">
                 Aquí aparecen los 7 días del turno según el calendario 7x7. Cada informe queda <b>Pendiente</b> hasta que adjuntas su primera foto:
-                entonces se guarda en Supabase como <b>Iniciado</b>, y pasa a <b>Finalizado</b> cuando están todas las fotos. El {formatDiaMes(proxima.inicio)} empieza
+                entonces se guarda en Supabase como <b>Iniciado</b>, y pasa a <b>Finalizado</b> cuando están todas las fotos o cuando lo finalizas a mano desde el informe. El {formatDiaMes(proxima.inicio)} empieza
                 el Turno {proxima.letra} y aquí aparecerán sus 7 días; esta semana pasará a "Semanas anteriores".
               </p>
               <div className="flex items-center justify-between gap-2 text-sm text-gray-500 mt-3">
@@ -363,7 +363,7 @@ export default function Borradores({
               </div>
               <p className="text-xs text-gray-500">
                 Estos borradores no dependen del calendario de turno: cada uno es un carro o un generador distinto, y quedan guardados
-                hasta que los termines o los elimines. Se guardan en la nube apenas tienen la primera foto.
+                hasta que los termines o los elimines. Se guardan en la nube apenas tienen la primera foto. Los finalizados dejan de aparecer para continuar, pero siguen aquí.
               </p>
             </div>
 
