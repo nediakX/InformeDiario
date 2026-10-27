@@ -614,6 +614,8 @@ interface FotoDeDifusion { lado: LadoDifusion; foto: FotoLista; titulo: string }
 const formasDeGrupo = (grupo: Element) =>
   Array.from(grupo.children).filter(c => c.namespaceURI === NS_P && ['sp', 'pic'].includes(c.localName));
 const xfrmDe = (forma: Element) => forma.getElementsByTagNameNS(NS_A, 'xfrm')[0];
+/** Giro de la forma en grados módulo 180: 90 si está acostada (la barra azul con el nombre), 0 si no. */
+const giroDe = (forma: Element) => (Number(xfrmDe(forma).getAttribute('rot') ?? 0) / 60000) % 180;
 
 /** Posición absoluta (EMU) de una forma dentro de su grupo, con la escala del grupo. */
 function rectanguloAbsoluto(grupo: Element, forma: Element): Rectangulo {
@@ -625,7 +627,14 @@ function rectanguloAbsoluto(grupo: Element, forma: Element): Rectangulo {
   const sx = cw > 0 ? gw / cw : 1;
   const sy = ch > 0 ? gh / ch : 1;
   const local = marco(forma);
-  return { x: gx + (local.x - cx0) * sx, y: gy + (local.y - cy0) * sy, w: local.w * sx, h: local.h * sy };
+  // Una forma acostada (la barra azul con el nombre) gira dentro del grupo: su largo sigue el alto del grupo y su grosor
+  // el ancho. Se devuelve el recuadro sin girar, centrado donde queda la forma; a las demás formas no les cambia nada.
+  const acostada = giroDe(forma) === 90;
+  const w = acostada ? local.w * sy : local.w * sx;
+  const h = acostada ? local.h * sx : local.h * sy;
+  const centroX = gx + (local.x + local.w / 2 - cx0) * sx;
+  const centroY = gy + (local.y + local.h / 2 - cy0) * sy;
+  return { x: centroX - w / 2, y: centroY - h / 2, w, h };
 }
 
 /** Escribe una posición (EMU) en un xfrm. En un grupo también fija su sistema de coordenadas (sin escala). */
