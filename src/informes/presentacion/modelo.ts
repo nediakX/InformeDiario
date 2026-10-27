@@ -1,6 +1,7 @@
 // Presentación del turno (DSAL): qué sale en cada lámina, a partir de los Informes Diarios de la semana de turno.
 import { esSemillaSinEditar, type BorradorEntry, type EvidenceBlockLike } from '../../datos/borradoresDiario';
 import type { SemanaTurno } from '../../datos/turnos';
+import { consolidarActividades, esMantencion, sinAcentos } from './criterios';
 
 export interface DifusionDia {
   /** Título de la actividad tal como sale en la lámina (ej: "ART: Conducción vehículo liviano."). */
@@ -33,9 +34,9 @@ export interface DatosPresentacion {
   resumenNoche: string[];
   /** Observaciones de Turno Noche (sin repetir). Se pueden editar antes de generar. */
   observacionesNoche: string[];
+  /** Actividades de mantención de los Informes Diarios del periodo, tal como se escribieron. Marcan REALIZADO en la lámina 8. */
+  mantenciones: string[];
 }
-
-const sinAcentos = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
 
 // Registros individuales de rutina: no entran al resumen del turno.
 const RUTINA_RESUMEN = /check ?list|l200|autoevaluacion|fatiga|alta visibilidad|proteccion solar|hidratacion|tareas administrativas|ropa|registro art/;
@@ -109,13 +110,19 @@ export function construirPresentacion(entradas: BorradorEntry[], semana: SemanaT
   });
 
   const noches = semana.dias.map(f => buscar(f, 'noche')).filter((e): e is BorradorEntry => Boolean(e));
+  // Mantenciones de todo el periodo (turno día y noche), tal como las escribieron en los informes.
+  const delPeriodo = validas.filter(e => semana.dias.includes(e.fecha));
+  const mantenciones = sinRepetidos(
+    delPeriodo.flatMap(e => [...e.actividades, ...e.evidenceBlocks.map(b => b.title)]).map(t => t.trim()).filter(esMantencion),
+  );
   return {
     letra: semana.letra,
     inicio: semana.inicio,
     fin: semana.fin,
     dias,
-    resumenNoche: sinRepetidos(noches.flatMap(n => n.actividades.map(a => a.trim()))),
+    resumenNoche: consolidarActividades(sinRepetidos(noches.flatMap(n => n.actividades.map(a => a.trim())))),
     observacionesNoche: sinRepetidos(noches.flatMap(n => n.observaciones.map(o => o.trim()))),
+    mantenciones,
   };
 }
 

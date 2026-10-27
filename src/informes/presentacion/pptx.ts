@@ -5,6 +5,7 @@ import JSZip from 'jszip';
 import plantillaUrl from '../../assets/plantillas/presentacion_turno.pptx?url';
 import { comprimirDataUrl } from '../../lib/fotos';
 import type { DatosPresentacion, DiaPresentacion } from './modelo';
+import { esDifusion, mencionaSitio } from './criterios';
 
 export const NS_P = 'http://schemas.openxmlformats.org/presentationml/2006/main';
 export const NS_A = 'http://schemas.openxmlformats.org/drawingml/2006/main';
@@ -188,6 +189,25 @@ export function tamanoQueCabe(caja: { ancho: number; alto: number }, textos: str
     if (lineas * pt * 1.2 + textos.length * pt * 0.3 <= caja.alto - 8) return sz;
   }
   return tamanos[tamanos.length - 1];
+}
+
+/**
+ * Mayor tamaño (centésimas de punto) con el que una lista de viñetas cabe en la caja, repartida en una o dos columnas.
+ * Null si ni el menor tamaño cabe. Cálculo aproximado: la letra de la plantilla es estrecha (~0,58 em por carácter).
+ */
+export function tamanoEnColumnas(caja: { ancho: number; alto: number }, textos: string[], tamanos: number[], columnas: 1 | 2): number | null {
+  const ESPACIO_ENTRE_COLUMNAS = 18; // pt
+  const SANGRIA = 22; // pt: márgenes internos y sangría de la viñeta
+  for (const sz of tamanos) {
+    const pt = sz / 100;
+    const anchoColumna = (caja.ancho - (columnas - 1) * ESPACIO_ENTRE_COLUMNAS) / columnas - SANGRIA;
+    const porLinea = Math.max(10, anchoColumna / (pt * 0.58));
+    const lineas = textos.reduce((n, t) => n + Math.max(1, Math.ceil(t.length / porLinea)), 0);
+    const porColumna = Math.ceil(lineas / columnas) + 1; // margen: el reparto entre columnas no es exacto
+    const alto = porColumna * pt * 1.2 + Math.ceil(textos.length / columnas) * pt * 0.2;
+    if (alto <= caja.alto - 10) return sz;
+  }
+  return null;
 }
 
 // ---------------------------------------------------------------------------------------
@@ -436,6 +456,49 @@ function llenarResumenDia(lamina: Lamina, dias: DiaPresentacion[]) {
 
 // ---- Resumen de Turno Noche + observaciones --------------------------------------------
 
+/** Alto (pt) del encabezado de fechas, arriba de la caja de actividades de Turno Noche. */
+const ALTO_ENCABEZADO_PT = 36;
+
+/** Caja de texto sin relleno ni borde, para escribir encima de otra caja. */
+function cajaTransparente(sp: Element) {
+  const estilo = hijos(sp, NS_P, 'style')[0];
+  if (estilo) sp.removeChild(estilo);
+  const spPr = hijos(sp, NS_P, 'spPr')[0];
+  if (!spPr) return;
+  for (const hijo of Array.from(spPr.children)) {
+    if (['noFill', 'solidFill', 'gradFill', 'blipFill', 'pattFill', 'grpFill', 'ln'].includes(hijo.localName)) spPr.removeChild(hijo);
+  }
+  const relleno = spPr.ownerDocument.createElementNS(NS_A, 'a:noFill');
+  const linea = spPr.ownerDocument.createElementNS(NS_A, 'a:ln');
+  linea.appendChild(spPr.ownerDocument.createElementNS(NS_A, 'a:noFill'));
+  const geometria = Array.from(spPr.children).find(h => h.localName === 'prstGeom' || h.localName === 'custGeom');
+  if (geometria) geometria.after(relleno, linea);
+  else spPr.append(relleno, linea);
+}
+
+/** Encabezado de fechas: una caja sin relleno encima de la parte superior de la caja de actividades. */
+function crearEncabezadoFechas(lamina: Lamina, rango: Element, cabecera: Element, texto: string, altoCajaPt: number) {
+  const encabezado = rango.cloneNode(true) as Element;
+  const nombre = descendientes(encabezado, NS_P, 'cNvPr')[0];
+  nombre.setAttribute('id', String(idsNuevos(arbolDeLamina(lamina))()));
+  nombre.setAttribute('name', 'Encabezado de fechas');
+  cajaTransparente(encabezado);
+  reemplazarParrafos(encabezado, [copiaDe(cabecera, texto)]);
+  const r = marco(rango);
+  fijarRectangulo(xfrmDe(encabezado), { x: r.x, y: r.y, w: r.w, h: (r.h * ALTO_ENCABEZADO_PT) / altoCajaPt });
+  rango.parentElement?.insertBefore(encabezado, rango.nextSibling);
+}
+
+/** Reparte el texto de una caja en columnas, deja libre arriba el encabezado y quita su ajuste de altura (la caja no crece). */
+function fijarColumnas(sp: Element, columnas: 1 | 2) {
+  const propiedades = hijos(txBodyDe(sp), NS_A, 'bodyPr')[0];
+  if (!propiedades) return;
+  propiedades.setAttribute('numCol', String(columnas));
+  if (columnas > 1) propiedades.setAttribute('spcCol', String(aEmu(0.25)));
+  propiedades.setAttribute('tIns', String(ALTO_ENCABEZADO_PT * 12700));
+  for (const ajuste of hijos(propiedades, NS_A, 'spAutoFit')) propiedades.removeChild(ajuste);
+}
+
 function llenarResumenNoche(lamina: Lamina, datos: DatosPresentacion) {
   const formas = descendientes(arbolDeLamina(lamina), NS_P, 'sp');
   const rango = formas.find(sp => /\d{2}\/\d{2}\/\d{4}\s*al\s*\d{2}\/\d{2}\/\d{4}/.test(textoDe(sp)));
@@ -444,11 +507,17 @@ function llenarResumenNoche(lamina: Lamina, datos: DatosPresentacion) {
     const modelo = primerParrafoCon(rango, tieneVinetas);
     const items = datos.resumenNoche.length ? datos.resumenNoche.map(t => t.toUpperCase()) : ['SIN ACTIVIDADES REGISTRADAS EN TURNO NOCHE.'];
     const caja = tamanoEnPt(rango);
-    // Se descuenta la línea de fechas (encabezado) para calcular el tamaño de las actividades.
-    const sz = tamanoQueCabe({ ancho: caja.ancho, alto: caja.alto - 36 }, items, tamanosPosibles(tamanoDePlantilla(modelo), [1000, 900, 800, 700, 650]));
-    const nuevos = [copiaDe(cabecera, `${dmy(datos.inicio)} al ${dmy(datos.fin)}`)];
-    if (modelo) nuevos.push(...items.map(t => copiaDe(modelo, t, sz)));
-    reemplazarParrafos(rango, nuevos);
+    // El encabezado de fechas va en su propia caja, arriba; la lista empieza debajo y puede repartirse en dos columnas.
+    const area = { ancho: caja.ancho - 14, alto: caja.alto - ALTO_ENCABEZADO_PT - 4 };
+    const tamanos = tamanosPosibles(tamanoDePlantilla(modelo), [1000, 900, 800, 700, 600]);
+    // Una columna si el texto cabe con buen tamaño; si no, se reparte en dos columnas (se lee mejor que achicando la letra).
+    const unaColumna = tamanoEnColumnas(area, items, tamanos, 1);
+    const dosColumnas = tamanoEnColumnas(area, items, tamanos, 2);
+    const dos = dosColumnas !== null && (unaColumna === null || dosColumnas > unaColumna);
+    const sz = (dos ? dosColumnas : unaColumna) ?? tamanos[tamanos.length - 1];
+    crearEncabezadoFechas(lamina, rango, cabecera, `${dmy(datos.inicio)} al ${dmy(datos.fin)}`, caja.alto);
+    fijarColumnas(rango, dos ? 2 : 1);
+    reemplazarParrafos(rango, modelo ? items.map(t => copiaDe(modelo, t, sz)) : []);
   }
   const obs = formas.find(sp => textoDe(sp).trim().startsWith('OBSERVACIONES'));
   if (obs) {
@@ -804,7 +873,7 @@ async function colocarDifusiones(ctx: Contexto, lamina: Lamina, fotos: FotoDeDif
   numerarTiempos(doc);
 
   for (const lado of ['izquierda', 'derecha'] as const) {
-    const tipo = lado === 'izquierda' ? 'de difusión' : 'de ART';
+    const tipo = lado === 'izquierda' ? 'de difusión' : 'de actividades de trabajo';
     if (sinModelo[lado]) avisos.push(`Difusiones del ${dmy(fecha)}: la lámina no tiene recuadros ${tipo}; ${sinModelo[lado]} foto(s) no se incluyeron.`);
     if (sinCaber[lado]) avisos.push(`Difusiones del ${dmy(fecha)}: ${sinCaber[lado]} foto(s) ${tipo} no caben en la lámina y no se incluyeron.`);
   }
@@ -833,7 +902,7 @@ async function llenarDifusiones(ctx: Contexto, lamina: Lamina, dia: DiaPresentac
   // Fotos en el orden de la lista: las de ART (actividades) a la derecha; las de difusión, a la izquierda.
   const fotos: FotoDeDifusion[] = [];
   for (const difusion of dia.difusiones) {
-    const lado: LadoDifusion = /^ART:/i.test(difusion.titulo.trim()) ? 'derecha' : 'izquierda';
+    const lado: LadoDifusion = esDifusion(difusion.titulo) ? 'izquierda' : 'derecha';
     // Solo la portada: la primera foto de cada difusión o actividad.
     const [portada] = difusion.fotos;
     if (!portada) continue;
@@ -888,6 +957,36 @@ function fijarFechasPlanificadas(lamina: Lamina, inicio: string) {
   }
 }
 
+/** Color del texto de un formato (rPr): reemplaza el relleno de la letra por un color sólido. */
+function colorDeTexto(rPr: Element, hex: string) {
+  const relleno = hijos(rPr, NS_A, 'solidFill')[0];
+  if (!relleno) return;
+  for (const hijo of Array.from(relleno.children)) relleno.removeChild(hijo);
+  const color = rPr.ownerDocument.createElementNS(NS_A, 'a:srgbClr');
+  color.setAttribute('val', hex);
+  relleno.appendChild(color);
+}
+
+/** Lámina 8: ESTADO pasa a REALIZADO (verde) cuando un Informe Diario del periodo registra la mantención del sitio. */
+function fijarEstadosMantenciones(lamina: Lamina, mantenciones: string[]) {
+  const tabla = descendientes(arbolDeLamina(lamina), NS_A, 'tbl')[0];
+  const filas = tabla ? hijos(tabla, NS_A, 'tr') : [];
+  if (filas.length < 2) return;
+  const titulos = hijos(filas[0], NS_A, 'tc').map(c => textoDe(c).trim().toUpperCase());
+  const colSitio = titulos.indexOf('SITIO');
+  const colEstado = titulos.indexOf('ESTADO');
+  if (colSitio < 0 || colEstado < 0) return;
+  for (const fila of filas.slice(1)) {
+    const celdas = hijos(fila, NS_A, 'tc');
+    const sitio = celdas[colSitio] ? textoDe(celdas[colSitio]).trim() : '';
+    const p = celdas[colEstado] ? descendientes(celdas[colEstado], NS_A, 'p')[0] : undefined;
+    if (!p || !sitio) continue;
+    const realizado = mantenciones.some(t => mencionaSitio(t, sitio));
+    fijarTexto(p, realizado ? 'REALIZADO' : 'NO REALIZADO');
+    if (realizado) for (const rPr of descendientes(p, NS_A, 'rPr')) colorDeTexto(rPr, '92D050');
+  }
+}
+
 async function fijarFechasDeCorte(ctx: Contexto, datos: DatosPresentacion) {
   const fin = datos.fin;
   const textosDe = (lamina: Lamina) => descendientes(arbolDeLamina(lamina), NS_P, 'sp');
@@ -895,6 +994,7 @@ async function fijarFechasDeCorte(ctx: Contexto, datos: DatosPresentacion) {
   // Lámina 8: "Detalle de Mantenimientos" con el periodo entre paréntesis y las fechas planificadas de la tabla.
   const laminaMantenciones = await abrirLamina(ctx, 8);
   fijarFechasPlanificadas(laminaMantenciones, datos.inicio);
+  fijarEstadosMantenciones(laminaMantenciones, datos.mantenciones);
   for (const sp of textosDe(laminaMantenciones)) {
     const tx = txBodyDe(sp);
     if (!tx) continue;
