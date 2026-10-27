@@ -1,7 +1,7 @@
 // Presentación del turno (DSAL): qué sale en cada lámina, a partir de los Informes Diarios de la semana de turno.
 import { esSemillaSinEditar, type BorradorEntry, type EvidenceBlockLike } from '../../datos/borradoresDiario';
 import type { SemanaTurno } from '../../datos/turnos';
-import { consolidarActividades, esMantencion, sinAcentos } from './criterios';
+import { conPorDefecto, consolidarActividades, esMantencion, repiteActividad, sinAcentos } from './criterios';
 
 export interface DifusionDia {
   /** Título de la actividad tal como sale en la lámina (ej: "ART: Conducción vehículo liviano."). */
@@ -30,9 +30,9 @@ export interface DatosPresentacion {
   fin: string;
   /** Un elemento por cada día de la semana de turno, en orden. */
   dias: DiaPresentacion[];
-  /** Actividades de Turno Noche de toda la semana (sin repetir). */
+  /** Actividades de Turno Noche: primero las fijas de la referencia y después las demás de la semana (sin repetir). */
   resumenNoche: string[];
-  /** Observaciones de Turno Noche (sin repetir). Se pueden editar antes de generar. */
+  /** Observaciones de Turno Noche (sin repetir ni las actividades ya declaradas). Se pueden editar antes de generar. */
   observacionesNoche: string[];
   /** Actividades de mantención de los Informes Diarios del periodo, tal como se escribieron. Marcan REALIZADO en la lámina 8. */
   mantenciones: string[];
@@ -43,10 +43,23 @@ const RUTINA_RESUMEN = /check ?list|l200|autoevaluacion|fatiga|alta visibilidad|
 // Rutina diaria, monitoreo y bloques que tienen su propia lámina: no son difusiones.
 const RUTINA_DIFUSION = /inicio de turno|check ?list|l200|autoevaluacion|fatiga|alta visibilidad|proteccion solar|hidratacion|tareas administrativas|ropa|planificacion|controles? sso|monitoreo|vertiv|verificacion de entorno|reportabilidad|registro de mantenimiento de gg/;
 
+// Actividades fijas de Turno Noche en la lámina 4: salen siempre primero, con la redacción de la referencia.
+const ACTIVIDADES_NOCHE_POR_DEFECTO = [
+  'Planificación actividades diarias.',
+  'Control de fatiga y somnolencia (Encuesta gestión de alerta temprana).',
+  'Confección de Análisis de Riesgo del Trabajo (ART).',
+  'Se realiza reportabilidad diaria GG. LTE 01, 02, 03, 04, 06, 07, 08, 09, 10, 11 Y MMOO-01.',
+  'Monitoreo General status ENODO B.',
+  'Monitoreo general status de energía.',
+];
+// Rutina de Turno Noche que la lámina 4 no muestra (la referencia no la trae).
+const RUTINA_NOCHE_LAMINA = /actividades administrativas|tareas administrativas/;
+
+/** Quita los repetidos sin distinguir tildes, mayúsculas, puntuación ni espacios de más. */
 const sinRepetidos = (lista: string[]) => {
   const vistos = new Set<string>();
   return lista.filter(t => {
-    const clave = sinAcentos(t);
+    const clave = sinAcentos(t).replace(/[^a-z0-9]+/g, ' ').trim();
     if (!clave || vistos.has(clave)) return false;
     vistos.add(clave);
     return true;
@@ -115,13 +128,20 @@ export function construirPresentacion(entradas: BorradorEntry[], semana: SemanaT
   const mantenciones = sinRepetidos(
     delPeriodo.flatMap(e => [...e.actividades, ...e.evidenceBlocks.map(b => b.title)]).map(t => t.trim()).filter(esMantencion),
   );
+  // Actividades declaradas en el periodo: una observación que las repite no sale.
+  const declaradas = delPeriodo.flatMap(e => e.actividades.map(a => a.trim())).filter(Boolean);
+  // Turno Noche sin la rutina administrativa (la referencia no la trae).
+  const actividadesNoche = noches.flatMap(n => n.actividades.map(a => a.trim())).filter(a => a && !RUTINA_NOCHE_LAMINA.test(sinAcentos(a)));
   return {
     letra: semana.letra,
     inicio: semana.inicio,
     fin: semana.fin,
     dias,
-    resumenNoche: consolidarActividades(sinRepetidos(noches.flatMap(n => n.actividades.map(a => a.trim())))),
-    observacionesNoche: sinRepetidos(noches.flatMap(n => n.observaciones.map(o => o.trim()))),
+    resumenNoche: conPorDefecto(ACTIVIDADES_NOCHE_POR_DEFECTO, sinRepetidos(actividadesNoche)),
+    // Sin las que repiten una actividad declarada, y las que dicen lo mismo con otras palabras se unen en una.
+    observacionesNoche: consolidarActividades(
+      sinRepetidos(noches.flatMap(n => n.observaciones.map(o => o.trim()))).filter(o => !repiteActividad(o, declaradas)),
+    ),
     mantenciones,
   };
 }

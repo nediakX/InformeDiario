@@ -83,3 +83,46 @@ export const consolidarActividades = (actividades: string[]): string[] => {
   }
   return grupos.map(g => g.texto);
 };
+
+// Palabras que dicen el estado de un equipo o sitio y no el motivo: "fuera de servicio" y "replegado" dicen lo mismo.
+const PALABRAS_DE_ESTADO = new Set([
+  'fuera', 'servicio', 'replegado', 'replegada', 'carro', 'equipo', 'sitio', 'operativo', 'operativa', 'funcionando',
+  'realizado', 'realizada', 'se', 'encuentra', 'encuentran', 'por', 'debido', 'que',
+]);
+
+/** Números de sitio o equipo y motivo de un texto (sin el estado). Los plurales cuentan como singular. */
+const eventoDe = (texto: string) => {
+  const { palabras, numeros } = partesDe(texto);
+  const motivo = [...palabras]
+    .map(p => (p.length > 4 && p.endsWith('s') ? p.slice(0, -1) : p))
+    .filter(p => !PALABRAS_DE_ESTADO.has(p))
+    .sort()
+    .join(' ');
+  return { numeros, motivo };
+};
+
+/** Misma actividad aunque esté escrita distinto (la misma regla que usa consolidarActividades). */
+export const sonLaMismaActividad = (a: string, b: string): boolean => sonLaMisma(partesDe(a), partesDe(b));
+
+/**
+ * ¿La observación repite una actividad ya declarada? Es el mismo sitio o equipo (mismos números) con el mismo motivo:
+ * "CARRO CMM-05 REPLEGADO POR TRONADURA" repite "CARRO CMM-05. FUERA DE SERVICIO POR TRONADURA.".
+ * Si no hay número de sitio o motivo, no se considera repetida.
+ */
+export const repiteActividad = (observacion: string, actividades: string[]): boolean => {
+  const o = eventoDe(observacion);
+  if (!o.numeros.size || !o.motivo) return false;
+  return actividades.some(a => {
+    const x = eventoDe(a);
+    return x.numeros.size === o.numeros.size && incluido(x.numeros, o.numeros) && x.motivo === o.motivo;
+  });
+};
+
+/**
+ * Lista de una lámina: primero las actividades fijas tal como están escritas y después las demás, sin repetir las fijas
+ * ni las variantes de una misma actividad.
+ */
+export const conPorDefecto = (porDefecto: string[], actividades: string[]): string[] => {
+  const extras = consolidarActividades(actividades).filter(a => !porDefecto.some(d => sonLaMismaActividad(d, a)));
+  return [...porDefecto, ...extras];
+};
