@@ -651,7 +651,6 @@ export default function Dashboard({
       )}
 
       <div className="fixed bottom-1 left-1/2 -translate-x-1/2 text-[#F4F6F8] text-[10px] italic cursor-text whitespace-nowrap z-10 select-text">
-        creado con amor &lt;3
       </div>
     </div>
   );
