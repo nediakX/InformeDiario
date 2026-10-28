@@ -22,7 +22,7 @@ import type { ResultadoImportacion } from '../importar';
 import type { DescripcionImportacion } from '../componentes/ImportadorWord';
 import { DIAS_CHECKLIST, duenoDelChecklist, fechasChecklist, idChecklistDeCuenta } from '../informes/checklist/catalogo';
 
-import { semanaDeFecha, letraDeFecha, TURNOS_AUTOMATICOS } from '../datos/turnos';
+import { semanaDeFecha, letraDeFecha, turnosDeDivision } from '../datos/turnos';
 
 import { crearBorradorAutomatico } from '../informes/diario/constantes';
 import { useInformeDiario } from '../informes/diario/useInformeDiario';
@@ -239,7 +239,7 @@ function AppContenido() {
       .catch(error => console.error("No se pudieron limpiar los borradores vacíos:", error));
   }, [division]);
 
-  // Lista que ve el usuario: lo guardado en Supabase + los 7 días del turno que toca hoy (Día y Noche) que aún no tienen fotos.
+  // Lista que ve el usuario: lo guardado en Supabase + los 7 días del turno que toca hoy (Día y Noche; Andina solo Día) que aún no tienen fotos.
   const hoy = hoyLocalISO();
 
   const borradoresVisibles = useMemo(() => {
@@ -248,7 +248,7 @@ function AppContenido() {
     const existentes = new Set(guardados.map(b => `${b.fecha}|${b.letraTurno}|${b.turno}`));
     const virtuales: BorradorEntry[] = [];
     semana.dias.forEach(fecha => {
-      TURNOS_AUTOMATICOS.forEach(turno => {
+      turnosDeDivision(division).forEach(turno => {
         if (!existentes.has(`${fecha}|${semana.letra}|${turno}`)) virtuales.push(crearBorradorAutomatico(fecha, semana.letra, turno, division));
       });
     });
@@ -260,13 +260,13 @@ function AppContenido() {
   // Si hay varios del mismo turno, se prefiere el que aún no está finalizado (así uno nuevo reemplaza al finalizado en la tarjeta).
   const informesHoy = useMemo(() => {
     const letraHoy = letraDeFecha(hoy);
-    return TURNOS_AUTOMATICOS
+    return turnosDeDivision(division)
       .map(t => {
         const delTurno = borradoresVisibles.filter(b => b.fecha === hoy && b.letraTurno === letraHoy && b.turno === t);
         return delTurno.find(b => estadoBorrador(b) !== 'finalizado') ?? delTurno[0];
       })
       .filter((b): b is BorradorEntry => Boolean(b));
-  }, [borradoresVisibles, hoy]);
+  }, [borradoresVisibles, hoy, division]);
 
   // Informes de esta semana de turno que ya les toca (hasta hoy, Día y Noche) y todavía no están finalizados (aviso del Panel).
   const informesPorCompletar = useMemo(() => {

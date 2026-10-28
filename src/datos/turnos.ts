@@ -14,6 +14,10 @@ export const DIAS_POR_TURNO = 7;
 // Qué informes aparecen (como borrador por completar) por cada día del turno.
 export const TURNOS_AUTOMATICOS: ('dia' | 'noche')[] = ['dia', 'noche'];
 
+// Turnos que trabaja cada división. Andina trabaja solo el Turno Día (no tiene Turno Noche ni Vertiv).
+export const turnosDeDivision = (division: Division): ('dia' | 'noche')[] =>
+  division === 'andina' ? ['dia'] : TURNOS_AUTOMATICOS;
+
 export interface SemanaTurno {
   letra: 'A' | 'B';
   inicio: string; // ISO yyyy-mm-dd

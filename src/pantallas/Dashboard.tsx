@@ -9,7 +9,7 @@ import logoEdificio from "../assets/LogoEdificio.png";
 import { type BorradorEntry, estadoBorrador, contarFotos, esSemillaSinEditar } from '../datos/borradoresDiario';
 import { type BorradorOtroEntry, estadoBorradorOtro, contarFotosGenerico } from '../datos/borradoresOtros';
 import { hoyLocalISO, formatDiaMes, formatFechaLarga } from '../datos/fechas';
-import { semanaDeFecha, DIAS_POR_TURNO } from '../datos/turnos';
+import { semanaDeFecha, turnosDeDivision, DIAS_POR_TURNO } from '../datos/turnos';
 import { estadoChecklistDelDia } from '../informes/checklist/catalogo';
 import MonitorGeneradores from './MonitorGeneradores';
 import { esPreventiva } from '../informes/preventiva/modelo';
@@ -117,9 +117,13 @@ export default function Dashboard({
     if (!b || esSemillaSinEditar(b)) return fecha > hoy ? 'futuro' : 'pendiente';
     return estadoBorrador(b);
   };
+  // Turnos de la división: Andina trabaja solo el Turno Día, así que su panel muestra una sola marca por día.
+  const turnos = turnosDeDivision(division);
+  const nombreTurno = (turno: 'dia' | 'noche') => (turno === 'dia' ? 'Día' : 'Noche');
+  const resumenDia = (fecha: string) => turnos.map(t => `${nombreTurno(t)} ${ETIQUETA_ESTADO[estadoDe(fecha, t)]}`).join(', ');
   const diasQueTocan = semanaHoy.dias.filter(f => f <= hoy);
-  const informesQueTocan = diasQueTocan.length * 2;
-  const finalizadosSemana = diasQueTocan.reduce((n, f) => n + (estadoDe(f, 'dia') === 'finalizado' ? 1 : 0) + (estadoDe(f, 'noche') === 'finalizado' ? 1 : 0), 0);
+  const informesQueTocan = diasQueTocan.length * turnos.length;
+  const finalizadosSemana = diasQueTocan.reduce((n, f) => n + turnos.filter(t => estadoDe(f, t) === 'finalizado').length, 0);
   const diasConInformeDia = semanaHoy.dias.filter(f => ['iniciado', 'finalizado'].includes(estadoDe(f, 'dia'))).length;
 
   const algunModalOpen = modalInformeOpen || modalMantenimientoOpen || modalFallaOpen;
@@ -230,13 +234,12 @@ export default function Dashboard({
         <h2 id="dash-turno-mini-titulo" className="font-display">Turno {semanaHoy.letra}</h2>
         <span>Día {diaDelTurno} de {DIAS_POR_TURNO} · {formatDiaMes(semanaHoy.inicio)} al {formatDiaMes(semanaHoy.fin)}</span>
       </div>
-      <ol className="dash-turno-mini__dias" aria-label="Informes de la semana: arriba Día, abajo Noche">
+      <ol className="dash-turno-mini__dias" aria-label={turnos.length > 1 ? 'Informes de la semana: arriba Día, abajo Noche' : 'Informes de la semana'}>
         {semanaHoy.dias.map(fecha => (
           <li key={fecha} className={`${fecha === hoy ? 'hoy' : ''} ${fecha > hoy ? 'futuro' : ''}`}
-            title={`${formatFechaLarga(fecha)}: Día ${ETIQUETA_ESTADO[estadoDe(fecha, 'dia')]}, Noche ${ETIQUETA_ESTADO[estadoDe(fecha, 'noche')]}`}>
+            title={`${formatFechaLarga(fecha)}: ${resumenDia(fecha)}`}>
             <span className="dash-turno-mini__dia">{INICIAL_DIA[new Date(`${fecha}T12:00:00`).getDay()]}{Number(fecha.slice(8, 10))}</span>
-            <span className={`dash-pip dash-pip--${estadoDe(fecha, 'dia')}`} />
-            <span className={`dash-pip dash-pip--${estadoDe(fecha, 'noche')}`} />
+            {turnos.map(t => <span key={t} className={`dash-pip dash-pip--${estadoDe(fecha, t)}`} />)}
           </li>
         ))}
       </ol>
@@ -263,7 +266,7 @@ export default function Dashboard({
     revisar: (
       <PorRevisar
         titulo={esGestion ? 'Por revisar' : 'Pendientes del turno'}
-        dias={semanaHoy.dias} hoy={hoy} semana={borradoresSemana} checklist={checklistHoy}
+        dias={semanaHoy.dias} hoy={hoy} semana={borradoresSemana} turnos={turnos} checklist={checklistHoy}
         onAbrirInforme={onAbrirInforme} onVerBorradores={() => onVerBorradores('diario')} onChecklist={() => onNavigate('checklist')}
       />
     ),
@@ -293,9 +296,8 @@ export default function Dashboard({
                 <li key={fecha} className={`dash-dia ${fecha === hoy ? 'dash-dia--hoy' : ''} ${futuro ? 'dash-dia--futuro' : ''}`}>
                   <span className="dash-dia__nombre">{INICIAL_DIA[new Date(`${fecha}T12:00:00`).getDay()]}</span>
                   <span className="dash-dia__fecha font-display">{Number(fecha.slice(8, 10))}</span>
-                  <span className="dash-dia__pips" aria-label={`${formatFechaLarga(fecha)}: Día ${ETIQUETA_ESTADO[estadoDe(fecha, 'dia')]}, Noche ${ETIQUETA_ESTADO[estadoDe(fecha, 'noche')]}`}>
-                    <span className={`dash-pip dash-pip--${estadoDe(fecha, 'dia')}`} title="Turno Día" />
-                    <span className={`dash-pip dash-pip--${estadoDe(fecha, 'noche')}`} title="Turno Noche" />
+                  <span className="dash-dia__pips" aria-label={`${formatFechaLarga(fecha)}: ${resumenDia(fecha)}`}>
+                    {turnos.map(t => <span key={t} className={`dash-pip dash-pip--${estadoDe(fecha, t)}`} title={`Turno ${nombreTurno(t)}`} />)}
                   </span>
                   {i === 0 && <span className="sr-only">Primer día del turno</span>}
                 </li>
@@ -306,7 +308,7 @@ export default function Dashboard({
             <span><span className="dash-pip dash-pip--finalizado" /> Finalizado</span>
             <span><span className="dash-pip dash-pip--iniciado" /> En curso</span>
             <span><span className="dash-pip dash-pip--pendiente" /> Sin fotos</span>
-            <span className="dash-leyenda__nota">Arriba Día · abajo Noche</span>
+            {turnos.length > 1 && <span className="dash-leyenda__nota">Arriba Día · abajo Noche</span>}
           </p>
         </section>
         </>,
@@ -319,8 +321,8 @@ export default function Dashboard({
               <FilePlus size={14} aria-hidden="true" /> Crear otro informe
             </button>
           </div>
-          <div className="dash-hoy__turnos">
-            {(['dia', 'noche'] as const).map(turno => {
+          <div className="dash-hoy__turnos" style={turnos.length === 1 ? { gridTemplateColumns: '1fr' } : undefined}>
+            {turnos.map(turno => {
               const informe = informesHoy.find(b => b.turno === turno);
               const estado = informe ? estadoBorrador(informe) : 'pendiente';
               const fotos = informe ? contarFotos(informe) : { llenas: 0, total: 0 };
@@ -368,7 +370,7 @@ export default function Dashboard({
             </div>
             <div className="min-w-0">
               <div className="site-header__title font-display font-bold text-xl leading-tight truncate">
-                Panel de Informes
+                {division === 'andina' ? CONFIG_DIVISION[division].nombre : 'Panel de Informes'}
               </div>
               <div className="site-header__meta text-xs truncate">
                 {CONFIG_DIVISION[division].sigla} / Reportes de turno
@@ -488,10 +490,10 @@ export default function Dashboard({
                 </span>
                 <span className="min-w-0">
                   <span className="block font-display font-bold text-[#0E4660]">Crear uno nuevo</span>
-                  <span className="block text-xs text-gray-500 mt-0.5">Parte en blanco con la fecha de hoy. ¿De qué turno?</span>
+                  <span className="block text-xs text-gray-500 mt-0.5">{turnos.length > 1 ? 'Parte en blanco con la fecha de hoy. ¿De qué turno?' : 'Parte en blanco con la fecha de hoy.'}</span>
                 </span>
               </div>
-              <div className="grid grid-cols-2 gap-2 mt-3">
+              <div className={turnos.length > 1 ? 'grid grid-cols-2 gap-2 mt-3' : 'mt-3'}>
                 <button
                   type="button"
                   onClick={() => { setModalInformeOpen(false); onNuevoInforme('dia'); }}
@@ -499,13 +501,15 @@ export default function Dashboard({
                 >
                   <Sun size={15} /> Turno Día
                 </button>
-                <button
-                  type="button"
-                  onClick={() => { setModalInformeOpen(false); onNuevoInforme('noche'); }}
-                  className="flex items-center justify-center gap-2 px-3 py-2 rounded-md text-sm font-bold bg-[#0E4660] text-white hover:bg-[#0a3549]"
-                >
-                  <Moon size={15} /> Turno Noche
-                </button>
+                {turnos.includes('noche') && (
+                  <button
+                    type="button"
+                    onClick={() => { setModalInformeOpen(false); onNuevoInforme('noche'); }}
+                    className="flex items-center justify-center gap-2 px-3 py-2 rounded-md text-sm font-bold bg-[#0E4660] text-white hover:bg-[#0a3549]"
+                  >
+                    <Moon size={15} /> Turno Noche
+                  </button>
+                )}
               </div>
             </div>
 

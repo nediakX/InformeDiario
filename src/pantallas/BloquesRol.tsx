@@ -9,6 +9,7 @@ import { rowToEntry, type BorradorRow } from '../datos/borradoresDiario';
 import { rowToOtroEntry, type BorradorOtroRow } from '../datos/borradoresOtros';
 import { calcularEstadisticas, rangoDePeriodo, type Kpis } from '../admin/datos';
 import type { Division } from '../datos/divisiones';
+import { turnosDeDivision } from '../datos/turnos';
 
 const DIAS = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
 /** "Mié 21/10" */
@@ -16,12 +17,14 @@ const fechaCorta = (iso: string) => `${DIAS[new Date(`${iso}T12:00:00`).getDay()
 
 interface Fila { clave: string; texto: string; detalle: string; tono: 'critico' | 'atencion'; Icono: typeof Sun; onClick: () => void }
 
-export function PorRevisar({ titulo, dias, hoy, semana, checklist, onAbrirInforme, onVerBorradores, onChecklist }: {
+export function PorRevisar({ titulo, dias, hoy, semana, turnos, checklist, onAbrirInforme, onVerBorradores, onChecklist }: {
   titulo: string;
   /** Días de la semana de turno (ISO). */
   dias: string[];
   hoy: string;
   semana: BorradorEntry[];
+  /** Turnos de la división (Andina: solo Día). */
+  turnos: ('dia' | 'noche')[];
   checklist: { texto: string; completo: boolean };
   onAbrirInforme: (b: BorradorEntry) => void;
   onVerBorradores: () => void;
@@ -29,7 +32,7 @@ export function PorRevisar({ titulo, dias, hoy, semana, checklist, onAbrirInform
 }) {
   const filas: Fila[] = [];
   for (const fecha of dias.filter(f => f <= hoy).reverse()) {
-    for (const turno of ['dia', 'noche'] as const) {
+    for (const turno of turnos) {
       const b = semana.find(x => x.fecha === fecha && x.turno === turno);
       const Icono = turno === 'dia' ? Sun : Moon;
       const nombre = `${fecha === hoy ? 'Hoy' : fechaCorta(fecha)} · Turno ${turno === 'dia' ? 'Día' : 'Noche'}`;
@@ -94,7 +97,7 @@ export function ResumenContrato({ division, onVerMas }: { division: Division; on
         diarios: (d.data as BorradorRow[]).map(r => ({ ...rowToEntry(r), actualizadoPor: null })),
         otros: (o.data as BorradorOtroRow[]).map(r => ({ ...rowToOtroEntry(r), actualizadoPor: null })),
         perfiles: [],
-      }, rango);
+      }, rango, new Date(), turnosDeDivision(division));
       setKpis(stats.kpis);
     }).catch(() => { if (vivo) setError(true); });
     return () => { vivo = false; };

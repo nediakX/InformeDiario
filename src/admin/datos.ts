@@ -104,7 +104,7 @@ const ordenarDesc = (mapa: Map<string, number>, max = 10): Barra[] =>
 
 const sumar = (mapa: Map<string, number>, clave: string, n = 1) => mapa.set(clave, (mapa.get(clave) ?? 0) + n);
 
-export function calcularEstadisticas(datos: DatosAdmin, rango: Rango, ahora = new Date()): Estadisticas {
+export function calcularEstadisticas(datos: DatosAdmin, rango: Rango, ahora = new Date(), turnos: ('dia' | 'noche')[] = TURNOS_AUTOMATICOS): Estadisticas {
   const hoy = rango.hasta;
   const horaActual = ahora.getHours();
   const nombrePorId = new Map(datos.perfiles.map(p => [p.id, p.nombre.trim() || p.email]));
@@ -124,7 +124,7 @@ export function calcularEstadisticas(datos: DatosAdmin, rango: Rango, ahora = ne
 
   const celdas: CeldaTurno[] = [];
   for (const fecha of rango.dias) {
-    for (const turno of TURNOS_AUTOMATICOS) {
+    for (const turno of turnos) {
       const b = porTurno.get(`${fecha}|${turno}`);
       const est = b ? estadoBorrador(b) : null;
       let estado: EstadoCelda;

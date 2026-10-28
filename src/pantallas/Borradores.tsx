@@ -6,7 +6,8 @@ import logoEdificio from "../assets/LogoEdificio.png";
 import { type BorradorEntry, contarFotos, esSemillaSinEditar, estadoBorrador } from '../datos/borradoresDiario';
 import { type BorradorOtroEntry, contarFotosGenerico, estadoBorradorOtro } from '../datos/borradoresOtros';
 import { formatDiaMes, formatFechaLarga, hoyLocalISO, nombreDiaSemana, sumarDias } from '../datos/fechas';
-import { type SemanaTurno, DIAS_POR_TURNO, semanaDeFecha } from '../datos/turnos';
+import { type SemanaTurno, DIAS_POR_TURNO, semanaDeFecha, turnosDeDivision } from '../datos/turnos';
+import { useSesion } from '../auth/sesion';
 import { esPreventiva } from '../informes/preventiva/modelo';
 
 type TipoBorradorTab = 'diario' | 'mantenimiento' | 'falla';
@@ -58,6 +59,11 @@ export default function Borradores({
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [confirmDeleteOtro, setConfirmDeleteOtro] = useState<{ id: string; onConfirm: () => void } | null>(null);
   const [nuevoOpen, setNuevoOpen] = useState(false);
+  const { division } = useSesion();
+  // Andina trabaja solo el Turno Día: la pestaña Noche y la opción de crear uno de noche aparecen
+  // únicamente si quedó algún informe de noche guardado.
+  const mostrarNoche = turnosDeDivision(division).includes('noche') || borradores.some(b => b.turno === 'noche');
+  const tabVisible: 'dia' | 'noche' = mostrarNoche ? tab : 'dia';
 
   // Calendario 7x7: solo se muestran los 7 días del turno que está trabajando hoy (A o B).
   // Cuando empieza la semana del otro turno, aquí aparecen sus 7 días y la semana anterior pasa a "Semanas anteriores".
@@ -67,13 +73,13 @@ export default function Borradores({
 
   const delTurnoActual = (turno: 'dia' | 'noche') =>
     borradores.filter(b => b.turno === turno && b.fecha >= semana.inicio && b.fecha <= semana.fin);
-  const lista = delTurnoActual(tab).sort(porFechaAsc);
+  const lista = delTurnoActual(tabVisible).sort(porFechaAsc);
   const finalizados = lista.filter(b => estadoBorrador(b) === 'finalizado').length;
   const enCurso = lista.filter(b => estadoBorrador(b) === 'iniciado').length;
 
   // Semanas ya terminadas: siguen guardadas en la base de datos y se muestran agrupadas, de la más reciente a la más antigua.
   const mapaAnteriores = new Map<string, { semana: SemanaTurno; entries: BorradorEntry[] }>();
-  borradores.filter(b => b.turno === tab && b.fecha < semana.inicio).sort(porFechaAsc).forEach(entry => {
+  borradores.filter(b => b.turno === tabVisible && b.fecha < semana.inicio).sort(porFechaAsc).forEach(entry => {
     const sem = semanaDeFecha(entry.fecha);
     const grupo = mapaAnteriores.get(sem.inicio) ?? { semana: sem, entries: [] };
     grupo.entries.push(entry);
@@ -86,7 +92,8 @@ export default function Borradores({
     { key: 'dia', titulo: 'Turno Día', icono: <Sun size={16} /> },
     { key: 'noche', titulo: 'Turno Noche', icono: <Moon size={16} /> },
   ] as const;
-  const tituloTab = tab === 'dia' ? 'Turno Día' : 'Turno Noche';
+  const pestanas: readonly (typeof turnos)[number][] = mostrarNoche ? turnos : turnos.filter(t => t.key === 'dia');
+  const tituloTab = tabVisible === 'dia' ? 'Turno Día' : 'Turno Noche';
 
   const chipEnTurno = (
     <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#F5B300] text-white">En turno</span>
@@ -304,8 +311,8 @@ export default function Borradores({
             </div>
 
             <div role="tablist" aria-label="Turno" className="flex gap-2">
-              {turnos.map(t => {
-                const activo = tab === t.key;
+              {pestanas.map(t => {
+                const activo = tabVisible === t.key;
                 return (
                   <button
                     key={t.key}
@@ -410,8 +417,8 @@ export default function Borradores({
         <div className="fixed inset-0 z-50 bg-black/50 p-4 flex items-center justify-center" onClick={() => setNuevoOpen(false)}>
           <div className="modal-anim w-full max-w-md bg-white rounded-xl p-6 shadow-xl space-y-4" onClick={event => event.stopPropagation()}>
             <h2 className="text-lg font-bold text-[#0E4660]">Nuevo informe diario</h2>
-            <p className="text-sm text-gray-600">Parte en blanco con la fecha de hoy. ¿De qué turno?</p>
-            <div className="grid grid-cols-2 gap-2">
+            <p className="text-sm text-gray-600">{mostrarNoche ? 'Parte en blanco con la fecha de hoy. ¿De qué turno?' : 'Parte en blanco con la fecha de hoy.'}</p>
+            <div className={mostrarNoche ? 'grid grid-cols-2 gap-2' : undefined}>
               <button
                 type="button"
                 onClick={() => { setNuevoOpen(false); onNew('dia'); }}
@@ -419,13 +426,15 @@ export default function Borradores({
               >
                 <Sun size={15} /> Turno Día
               </button>
-              <button
-                type="button"
-                onClick={() => { setNuevoOpen(false); onNew('noche'); }}
-                className="flex items-center justify-center gap-2 px-3 py-2.5 rounded-md text-sm font-bold bg-[#0E4660] text-white hover:bg-[#0a3549]"
-              >
-                <Moon size={15} /> Turno Noche
-              </button>
+              {mostrarNoche && (
+                <button
+                  type="button"
+                  onClick={() => { setNuevoOpen(false); onNew('noche'); }}
+                  className="flex items-center justify-center gap-2 px-3 py-2.5 rounded-md text-sm font-bold bg-[#0E4660] text-white hover:bg-[#0a3549]"
+                >
+                  <Moon size={15} /> Turno Noche
+                </button>
+              )}
             </div>
             <div className="flex justify-end">
               <button type="button" onClick={() => setNuevoOpen(false)} className="border border-[#DCE1E6] text-[#333] rounded-md px-3 py-2 text-sm font-bold hover:bg-gray-50">
