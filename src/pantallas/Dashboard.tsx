@@ -17,7 +17,7 @@ import { SITIOS_MAPA } from '../datos/sitiosMapa';
 // La vista previa del mapa trae Leaflet: se carga aparte para no demorar el panel.
 const MiniMapaSitios = lazy(() => import('./MiniMapaSitios'));
 import { PorRevisar, ResumenContrato } from './BloquesRol';
-import { DISENO_INICIO, ETIQUETA_CORTA_ROL, ETIQUETA_ROL, ORDEN_COMPLETO, rolDePersona, type BloqueInicio, type IdTarea } from '../datos/roles';
+import { DISENO_INICIO, DISENO_INICIO_ANDINA, ETIQUETA_CORTA_ROL, ETIQUETA_ROL, ORDEN_COMPLETO, ORDEN_COMPLETO_ANDINA, rolDePersona, type BloqueInicio, type IdTarea } from '../datos/roles';
 
 type TipoBorradorTab = 'diario' | 'mantenimiento' | 'falla';
 type EstadoPip = 'pendiente' | 'iniciado' | 'finalizado' | 'futuro';
@@ -171,14 +171,19 @@ export default function Dashboard({
     try { localStorage.setItem('psinet_inicio_completo', v ? '0' : '1'); } catch { /* sin almacenamiento */ }
     return !v;
   });
-  const diseno = DISENO_INICIO[rol];
+  // Andina tiene su propio inicio: sin generadores, sin Reportabilidad de GG y sin mapa.
+  const esAndina = division === 'andina';
+  const diseno = esAndina ? DISENO_INICIO_ANDINA[rol] : DISENO_INICIO[rol];
+  // Columna lateral del rol. En Andina los accesos no van aquí, sino en una franja de ancho completo debajo.
+  const ladoLateral = diseno.lateral.filter(b => !(esAndina && b === 'accesos'));
   const esGestion = rol === 'supervisor' || rol === 'jefe' || rol === 'contrato' || rol === 'lider_tecnico' || rol === 'ingeniero_especialista';
 
   // Accesos a cada pantalla (se usan en "Accesos rápidos" del rol y en "Todas las opciones").
   const tareas: Record<IdTarea, ReactNode> = {
     checklist: <Tarea icono={ClipboardCheck} color="#1E8E3E" titulo="Checklist de camioneta" onClick={() => onNavigate('checklist')}
       estado={checklistHoy.texto} tono={checklistHoy.completo ? 'ok' : 'aviso'} />,
-    gg: <Tarea icono={Fuel} color="#9a5b00" titulo="Reportabilidad de GG" onClick={() => onNavigate('reportabilidad-gg')}
+    // Andina no hace reportabilidad de GG: ese acceso no se ofrece en su inicio.
+    gg: esAndina ? null : <Tarea icono={Fuel} color="#9a5b00" titulo="Reportabilidad de GG" onClick={() => onNavigate('reportabilidad-gg')}
       estado="Combustible, horómetro, niveles y temperatura" ayuda />,
     impresion: <Tarea icono={Printer} color="#0E4660" titulo="Impresión rápida" onClick={() => onNavigate('impresion')}
       estado={diaDelTurno === 1 ? 'Imprime el kit de formularios de esta semana' : diaDelTurno >= DIAS_POR_TURNO - 1 ? 'Prepara el kit de la próxima semana' : 'Formularios de faena listos para imprimir'}
@@ -253,7 +258,7 @@ export default function Dashboard({
   );
 
   const accesos = (
-    <section className="dash-accesos" aria-labelledby="dash-accesos-titulo">
+    <section className={`dash-accesos${esAndina ? ' dash-accesos--compactos' : ''}`} aria-labelledby="dash-accesos-titulo">
       <h2 id="dash-accesos-titulo" className="dash-grupo__titulo">Accesos rápidos</h2>
       <div className="dash-grupo__lista">
         {diseno.accesos.filter(id => tareas[id]).map(id => <Fragment key={id}>{tareas[id]}</Fragment>)}
@@ -353,9 +358,9 @@ export default function Dashboard({
           </div>
         </section>
         </>,
-    generadores: <MonitorGeneradores onAbrir={() => onNavigate('reportabilidad-gg')} detalleInicial={rol === 'electromecanico' ? true : rol === 'contrato' ? false : undefined} />,
+    generadores: esAndina ? null : <MonitorGeneradores onAbrir={() => onNavigate('reportabilidad-gg')} detalleInicial={rol === 'electromecanico' ? true : rol === 'contrato' ? false : undefined} />,
     turnoMini,
-    generadoresMini: <MonitorGeneradores compacto onAbrir={() => onNavigate('reportabilidad-gg')} />,
+    generadoresMini: esAndina ? null : <MonitorGeneradores compacto onAbrir={() => onNavigate('reportabilidad-gg')} />,
     mapa: SITIOS_MAPA[division] ? <Suspense fallback={null}><MiniMapaSitios onAbrir={() => onNavigate('mapa')} /></Suspense> : null,
     accesos,
   };
@@ -404,7 +409,7 @@ export default function Dashboard({
         <div className="dash-top">
           <div className="min-w-0">
             <h1 className="dash-saludo font-display">{saludo}, {primerNombre}</h1>
-            <p className="dash-fecha">{fechaHoyTexto}</p>
+            <p className="dash-fecha">{esAndina ? `${fechaHoyTexto} · Turno Día, 08:00 a 20:00` : fechaHoyTexto}</p>
           </div>
           <div className="dash-cuenta">
             <SelectorDivision />
@@ -425,15 +430,16 @@ export default function Dashboard({
 
         {verTodo ? (
           <>
-            {ORDEN_COMPLETO.map(b => <Fragment key={b}>{bloques[b]}</Fragment>)}
+            {(esAndina ? ORDEN_COMPLETO_ANDINA : ORDEN_COMPLETO).map(b => <Fragment key={b}>{bloques[b]}</Fragment>)}
             {opciones}
           </>
         ) : (
           <>
-            <div className="dash-rol">
+            <div className={`dash-rol${ladoLateral.length ? '' : ' dash-rol--solo'}`}>
               <div className="dash-rol__principal">{diseno.principal.map(b => <Fragment key={b}>{bloques[b]}</Fragment>)}</div>
-              <aside className="dash-rol__lateral" aria-label="Resumen y accesos">{diseno.lateral.map(b => <Fragment key={b}>{bloques[b]}</Fragment>)}</aside>
+              {ladoLateral.length > 0 && <aside className="dash-rol__lateral" aria-label="Resumen y accesos">{ladoLateral.map(b => <Fragment key={b}>{bloques[b]}</Fragment>)}</aside>}
             </div>
+            {esAndina && diseno.lateral.includes('accesos') && accesos}
             <details className="dash-mas">
               <summary><ChevronDown size={16} aria-hidden="true" /> Todas las opciones</summary>
               {opciones}

@@ -250,6 +250,7 @@
 
 /* Vista por rol: columna principal (lo del rol, en grande) + columna lateral (contexto corto y accesos) */
 .dash-rol { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr); gap: 22px; align-items: start; }
+.dash-rol--solo { grid-template-columns: minmax(0, 1fr); }
 .dash-rol__principal, .dash-rol__lateral { display: grid; gap: 22px; min-width: 0; }
 .dash-rol__principal .dash-hoy__turnos { grid-template-columns: 1fr 1fr; }
 .dash-rol .dash-gg-sitios { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
@@ -319,4 +320,16 @@
   .dash-cuenta { flex-wrap: nowrap; gap: 6px; }
   .dash-cuenta > [role='radiogroup'] > svg { display: none; }
   .dash-cuenta > [role='radiogroup'] > button { padding-left: 10px; padding-right: 10px; }
+}
+
+/* Andina: accesos en una franja de ancho completo (4 columnas; 2 en el celular), sin flecha */
+.dash-accesos--compactos .dash-grupo__lista { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.dash-accesos--compactos .dash-tarea { flex-direction: column; align-items: flex-start; gap: 10px; height: 100%; padding: 14px; }
+.dash-accesos--compactos .dash-tarea__icono { width: 36px; height: 36px; }
+.dash-accesos--compactos .dash-tarea__texto { gap: 4px; }
+.dash-accesos--compactos .dash-tarea__titulo { font-size: 0.92rem; line-height: 1.25; }
+.dash-accesos--compactos .dash-tarea__estado { font-size: 0.76rem; line-height: 1.35; }
+.dash-accesos--compactos .dash-tarea__flecha { display: none; }
+@media (max-width: 720px) {
+  .dash-accesos--compactos .dash-grupo__lista { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
