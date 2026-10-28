@@ -178,9 +178,8 @@ export default function Dashboard({
   const tareas: Record<IdTarea, ReactNode> = {
     checklist: <Tarea icono={ClipboardCheck} color="#1E8E3E" titulo="Checklist de camioneta" onClick={() => onNavigate('checklist')}
       estado={checklistHoy.texto} tono={checklistHoy.completo ? 'ok' : 'aviso'} />,
-    // Andina no hace reportabilidad de GG: no ve este acceso ni el monitor de generadores.
-    gg: division === 'el_salvador' ? <Tarea icono={Fuel} color="#9a5b00" titulo="Reportabilidad de GG" onClick={() => onNavigate('reportabilidad-gg')}
-      estado="Combustible, horómetro, niveles y temperatura" ayuda /> : null,
+    gg: <Tarea icono={Fuel} color="#9a5b00" titulo="Reportabilidad de GG" onClick={() => onNavigate('reportabilidad-gg')}
+      estado="Combustible, horómetro, niveles y temperatura" ayuda />,
     impresion: <Tarea icono={Printer} color="#0E4660" titulo="Impresión rápida" onClick={() => onNavigate('impresion')}
       estado={diaDelTurno === 1 ? 'Imprime el kit de formularios de esta semana' : diaDelTurno >= DIAS_POR_TURNO - 1 ? 'Prepara el kit de la próxima semana' : 'Formularios de faena listos para imprimir'}
       tono={diaDelTurno === 1 || diaDelTurno >= DIAS_POR_TURNO - 1 ? 'aviso' : undefined} />,
@@ -354,9 +353,9 @@ export default function Dashboard({
           </div>
         </section>
         </>,
-    generadores: division === 'el_salvador' ? <MonitorGeneradores onAbrir={() => onNavigate('reportabilidad-gg')} detalleInicial={rol === 'electromecanico' ? true : rol === 'contrato' ? false : undefined} /> : null,
+    generadores: <MonitorGeneradores onAbrir={() => onNavigate('reportabilidad-gg')} detalleInicial={rol === 'electromecanico' ? true : rol === 'contrato' ? false : undefined} />,
     turnoMini,
-    generadoresMini: division === 'el_salvador' ? <MonitorGeneradores compacto onAbrir={() => onNavigate('reportabilidad-gg')} /> : null,
+    generadoresMini: <MonitorGeneradores compacto onAbrir={() => onNavigate('reportabilidad-gg')} />,
     mapa: SITIOS_MAPA[division] ? <Suspense fallback={null}><MiniMapaSitios onAbrir={() => onNavigate('mapa')} /></Suspense> : null,
     accesos,
   };
