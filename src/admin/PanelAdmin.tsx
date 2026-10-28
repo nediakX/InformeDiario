@@ -12,6 +12,7 @@ import logoEdificio from '../assets/LogoEdificio.png';
 import { supabase } from '../lib/supabase';
 import { useSesion } from '../auth/sesion';
 import { CONFIG_DIVISION } from '../datos/divisiones';
+import { turnosDeDivision } from '../datos/turnos';
 import SelectorDivision from '../componentes/SelectorDivision';
 import {
   cargarDatosAdmin, calcularEstadisticas, rangoDePeriodo, PERIODOS,
@@ -73,7 +74,7 @@ export default function PanelAdmin({ onBack, pestana, onPestanaChange }: {
     return () => { clearTimeout(timeout); void supabase.removeChannel(channel); };
   }, [cargar]);
 
-  const stats = useMemo(() => (datos ? calcularEstadisticas(datos, rango) : null), [datos, rango]);
+  const stats = useMemo(() => (datos ? calcularEstadisticas(datos, rango, undefined, turnosDeDivision(division)) : null), [datos, rango, division]);
 
   const presencia = usePresenciaAdmin();
   // Solo cuentas con acceso (igual que la tabla de la pestaña "En línea").
