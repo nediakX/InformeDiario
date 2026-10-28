@@ -88,3 +88,21 @@ export const DISENO_INICIO: Record<Rol, DisenoInicio> = {
 
 /** "Ver todo": el inicio completo, igual para todos, en una columna. */
 export const ORDEN_COMPLETO: BloqueInicio[] = ['turno', 'hoy', 'revisar', 'generadores', 'mapa'];
+
+/** Inicio de División Andina: su propia composición. Andina no tiene generadores que reportar (ni Reportabilidad
+ *  de GG) ni mapa, y trabaja solo el Turno Día; por eso esos bloques no aparecen. Solo cambian el orden y los
+ *  accesos: permisos y datos no cambian. */
+export const DISENO_INICIO_ANDINA: Record<Rol, DisenoInicio> = {
+  tecnico: { principal: ['hoy', 'revisar'], lateral: ['turnoMini', 'accesos'], accesos: ['checklist', 'preventiva', 'falla', 'borradores'] },
+  experto_sso: { principal: ['hoy', 'revisar'], lateral: ['turnoMini', 'accesos'], accesos: ['checklist', 'impresion', 'falla', 'borradores'] },
+  electrico: { principal: ['hoy', 'revisar'], lateral: ['turnoMini', 'accesos'], accesos: ['falla', 'mantenimiento', 'checklist', 'borradores'] },
+  electromecanico: { principal: ['hoy', 'revisar'], lateral: ['turnoMini', 'accesos'], accesos: ['mantenimiento', 'preventiva', 'checklist', 'borradores'] },
+  supervisor: { principal: ['revisar', 'hoy'], lateral: ['turnoMini', 'accesos'], accesos: ['cierre', 'impresion', 'preventiva', 'borradores'] },
+  lider_tecnico: { principal: ['revisar', 'hoy'], lateral: ['turnoMini', 'accesos'], accesos: ['cierre', 'impresion', 'preventiva', 'borradores'] },
+  ingeniero_especialista: { principal: ['revisar', 'hoy'], lateral: ['turnoMini', 'accesos'], accesos: ['cierre', 'impresion', 'preventiva', 'borradores'] },
+  jefe: { principal: ['turno', 'revisar', 'hoy'], lateral: ['accesos'], accesos: ['cierre', 'impresion', 'checklist', 'borradores'] },
+  contrato: { principal: ['contrato', 'turno'], lateral: ['accesos'], accesos: ['admin', 'cierre', 'impresion', 'borradores'] },
+};
+
+/** "Ver todo" en Andina: el inicio completo, sin generadores ni mapa. */
+export const ORDEN_COMPLETO_ANDINA: BloqueInicio[] = ['turno', 'hoy', 'revisar'];
