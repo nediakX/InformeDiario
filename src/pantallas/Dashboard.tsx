@@ -171,7 +171,7 @@ export default function Dashboard({
     try { localStorage.setItem('psinet_inicio_completo', v ? '0' : '1'); } catch { /* sin almacenamiento */ }
     return !v;
   });
-  // Andina tiene su propio inicio: sin generadores, sin Reportabilidad de GG y sin mapa.
+  // Andina tiene su propio inicio: sin mapa y solo Turno Día. Su monitor de generadores usa sus propios carros.
   const esAndina = division === 'andina';
   const diseno = esAndina ? DISENO_INICIO_ANDINA[rol] : DISENO_INICIO[rol];
   // Columna lateral del rol. En Andina los accesos no van aquí, sino en una franja de ancho completo debajo.
@@ -182,8 +182,7 @@ export default function Dashboard({
   const tareas: Record<IdTarea, ReactNode> = {
     checklist: <Tarea icono={ClipboardCheck} color="#1E8E3E" titulo="Checklist de camioneta" onClick={() => onNavigate('checklist')}
       estado={checklistHoy.texto} tono={checklistHoy.completo ? 'ok' : 'aviso'} />,
-    // Andina no hace reportabilidad de GG: ese acceso no se ofrece en su inicio.
-    gg: esAndina ? null : <Tarea icono={Fuel} color="#9a5b00" titulo="Reportabilidad de GG" onClick={() => onNavigate('reportabilidad-gg')}
+    gg: <Tarea icono={Fuel} color="#9a5b00" titulo="Reportabilidad de GG" onClick={() => onNavigate('reportabilidad-gg')}
       estado="Combustible, horómetro, niveles y temperatura" ayuda />,
     impresion: <Tarea icono={Printer} color="#0E4660" titulo="Impresión rápida" onClick={() => onNavigate('impresion')}
       estado={diaDelTurno === 1 ? 'Imprime el kit de formularios de esta semana' : diaDelTurno >= DIAS_POR_TURNO - 1 ? 'Prepara el kit de la próxima semana' : 'Formularios de faena listos para imprimir'}
@@ -358,9 +357,9 @@ export default function Dashboard({
           </div>
         </section>
         </>,
-    generadores: esAndina ? null : <MonitorGeneradores onAbrir={() => onNavigate('reportabilidad-gg')} detalleInicial={rol === 'electromecanico' ? true : rol === 'contrato' ? false : undefined} />,
+    generadores: <MonitorGeneradores onAbrir={() => onNavigate('reportabilidad-gg')} detalleInicial={rol === 'electromecanico' ? true : rol === 'contrato' ? false : undefined} />,
     turnoMini,
-    generadoresMini: esAndina ? null : <MonitorGeneradores compacto onAbrir={() => onNavigate('reportabilidad-gg')} />,
+    generadoresMini: <MonitorGeneradores compacto onAbrir={() => onNavigate('reportabilidad-gg')} />,
     mapa: SITIOS_MAPA[division] ? <Suspense fallback={null}><MiniMapaSitios onAbrir={() => onNavigate('mapa')} /></Suspense> : null,
     accesos,
   };

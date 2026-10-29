@@ -146,9 +146,7 @@ export default function MonitorGeneradores({ onAbrir, detalleInicial, compacto }
     return analizarGeneradores(sitios, [...reportes, ...locales], hoy);
   }, [reportes, sitios, division, hoy]);
 
-  // Andina u otra división sin reportes aún: no se muestra un monitoreo vacío lleno de alarmas.
   if (!sitios.length || error) return null;
-  if (reportes && !reportes.length && division !== 'el_salvador') return null;
 
   const desdeGrafico = sumarDias(hoy, -(DIAS_GRAFICO - 1));
   // Las faltas de reporte se juntan en una línea por gravedad; las del equipo van una por una.
