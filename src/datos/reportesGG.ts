@@ -108,7 +108,11 @@ export async function todosLosReportesGG(f: FiltroGG): Promise<ReporteGG[]> {
 }
 
 /** Reporte guardado solo en este equipo (sin señal), esperando subir a la nube. */
-export interface ReporteGGPendiente extends ReporteGG { pendiente: true }
+export interface ReporteGGPendiente extends ReporteGG {
+  pendiente: true;
+  /** Motivo con que la nube NO aceptó el reporte (no es falta de señal). Igual se sigue reintentando. */
+  rechazo?: string;
+}
 
 const CLAVE_PENDIENTES = 'psinet_reportes_gg_pendientes';
 export const EVENTO_GG = 'psinet:reportes-gg';
@@ -147,12 +151,20 @@ export async function actualizarReporteGG(r: ReporteGG): Promise<ReporteGG> {
   // Si todavía no se sube (sin señal), se corrige en el equipo.
   const pendientes = pendientesGG();
   if (pendientes.some(p => p.id === r.id)) {
-    guardarPendientes(pendientes.map(p => (p.id === r.id ? { ...r, pendiente: true } : p)));
+    guardarPendientes(pendientes.map(p => (p.id === r.id ? { ...r, pendiente: true, rechazo: undefined } : p)));
     return { ...r };
   }
   const { data, error } = await supabase.from(TABLA_GG).update(aFila(r)).eq('id', r.id).select('*').single();
   if (error) throw error;
   return aReporte(data as Fila);
+}
+
+/** Anota en el equipo el motivo con que la nube no aceptó un reporte guardado (solo si cambió). */
+function marcarRechazo(id: string, motivo: string | undefined) {
+  const texto = (motivo ?? '').trim() || 'sin detalle';
+  const lista = pendientesGG();
+  if (!lista.some(x => x.id === id && x.rechazo !== texto)) return; // ya anotado: no repintar cada 30 s
+  guardarPendientes(lista.map(x => (x.id === id ? { ...x, rechazo: texto } : x)));
 }
 
 let subiendo = false;
@@ -168,7 +180,12 @@ export async function sincronizarPendientesGG(): Promise<number> {
       const { pendiente: _p, ...reporte } = p;
       void _p;
       const { error } = await supabase.from(TABLA_GG).upsert(filaCompleta(reporte), { ignoreDuplicates: true });
-      if (error) { if (esErrorDeRed(error)) break; console.error('No se pudo subir un reporte de GG:', error); continue; }
+      if (error) {
+        if (esErrorDeRed(error)) break; // sin señal: se intenta más tarde
+        console.error('No se pudo subir un reporte de GG:', error);
+        marcarRechazo(p.id, error.message); // la nube lo rechazó: queda marcado en pantalla
+        continue;
+      }
       guardarPendientes(pendientesGG().filter(x => x.id !== p.id));
       subidos += 1;
     }
