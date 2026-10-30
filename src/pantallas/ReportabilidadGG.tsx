@@ -2,7 +2,7 @@
 // que el formulario de Google "REPORTABILIDAD DE GG") y la tabla con todos los reportes, que se
 // puede filtrar y descargar en Excel con el formato de la planilla.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, Check, CheckCircle2, CircleDashed, CloudOff, Download, Fuel, Loader2, Pencil, Save, Trash2, X } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, Check, CheckCircle2, CircleDashed, CloudOff, Download, Fuel, Loader2, Pencil, Save, Trash2, X } from 'lucide-react';
 import { saveAs } from 'file-saver';
 import logoPsinet from '../assets/logo_psinet.jpg';
 import logoEdificio from '../assets/LogoEdificio.png';
@@ -20,7 +20,7 @@ import { horometroRetrocede } from '../datos/analisisGG';
 import {
   OPCIONES_ACEITE, OPCIONES_COMBUSTIBLE, OPCIONES_REFRIGERANTE, OPCIONES_TURNO, REPORTAN_GG, SITIOS_GG,
   EVENTO_GG, actualizarReporteGG, crearReporteGG, eliminarReporteGG, leerNumero, listarReportesGG, pendientesGG, restaurarReporteGG,
-  sincronizarPendientesGG, suscribirReportesGG, todosLosReportesGG, type FiltroGG, type ReporteGG,
+  sincronizarPendientesGG, suscribirReportesGG, todosLosReportesGG, type FiltroGG, type ReporteGG, type ReporteGGPendiente,
 } from '../datos/reportesGG';
 
 const POR_PAGINA = 100;
@@ -93,6 +93,14 @@ export default function ReportabilidadGG({ onBack }: { onBack: () => void }) {
   const hoy = hoyLocalISO();
   const [deHoy, setDeHoy] = useState<ReporteGG[] | null>(null);
   const [pendientes, setPendientes] = useState(() => pendientesGG().filter(p => p.division === division));
+  // Los que la nube no aceptó (se muestran aparte) y los que solo esperan señal.
+  const rechazados = pendientes.filter(p => p.rechazo);
+  const enCola = pendientes.filter(p => !p.rechazo);
+  const [reintentando, setReintentando] = useState(false);
+  const reintentarSubida = async () => {
+    setReintentando(true);
+    try { await sincronizarPendientesGG(); } finally { setReintentando(false); }
+  };
   const cargarHoy = useCallback(async () => {
     try { setDeHoy(await listarReportesGG({ division, desde: hoy, hasta: hoy }, 0, 300)); } catch { /* sin señal: se muestra lo guardado en el equipo */ setDeHoy(prev => prev ?? []); }
   }, [division, hoy]);
@@ -348,9 +356,22 @@ export default function ReportabilidadGG({ onBack }: { onBack: () => void }) {
           <div className="h-2 rounded-full bg-[#dbe7ee] overflow-hidden" role="meter" aria-valuemin={0} aria-valuemax={sitios.length} aria-valuenow={sitios.length - faltanHoy.length} aria-label="Sitios reportados hoy">
             <span className="block h-full bg-[#0E4660] rounded-full transition-all" style={{ width: `${((sitios.length - faltanHoy.length) / Math.max(1, sitios.length)) * 100}%` }} />
           </div>
-          {pendientes.length > 0 && (
+          {rechazados.length > 0 && (
+            <div className="text-xs text-[#8a1c1c] bg-[#fde8e8] rounded-md px-3 py-2 space-y-2">
+              <p className="font-bold flex items-start gap-2">
+                <AlertTriangle size={14} className="shrink-0 mt-px" /> {rechazados.length} reporte{rechazados.length === 1 ? '' : 's'} {rechazados.length === 1 ? 'no se pudo subir: el servidor no lo aceptó' : 'no se pudieron subir: el servidor no los aceptó'}.
+              </p>
+              <p className="break-words">Motivo: {[...new Set(rechazados.map(p => p.rechazo))].join(' · ')}</p>
+              <p>{rechazados.length === 1 ? 'Corrígelo y reintenta; sigue guardado' : 'Corrígelos y reintenta; siguen guardados'} en este equipo.</p>
+              <button type="button" onClick={() => void reintentarSubida()} disabled={reintentando}
+                className="btn-outline text-[#8a1c1c] px-3 py-1.5 rounded-md text-xs font-bold hover:bg-white disabled:opacity-60">
+                {reintentando ? 'Reintentando…' : 'Reintentar ahora'}
+              </button>
+            </div>
+          )}
+          {enCola.length > 0 && (
             <p className="text-xs font-bold text-[#7a5b00] bg-[#fff3cd] rounded-md px-3 py-2 flex items-center gap-2">
-              <CloudOff size={14} /> {pendientes.length} reporte{pendientes.length === 1 ? '' : 's'} guardado{pendientes.length === 1 ? '' : 's'} en este equipo, esperando señal para subir.
+              <CloudOff size={14} /> {enCola.length} reporte{enCola.length === 1 ? '' : 's'} guardado{enCola.length === 1 ? '' : 's'} en este equipo, esperando señal para subir.
             </p>
           )}
           {deHoy === null ? (
@@ -370,8 +391,9 @@ export default function ReportabilidadGG({ onBack }: { onBack: () => void }) {
                 }
                 const r = hecho.ultimo;
                 const enEquipo = 'pendiente' in r;
+                const motivoRechazo = enEquipo ? (r as ReporteGGPendiente).rechazo : undefined;
                 return (
-                  <div key={sitio} className="rounded-lg border border-[#b9dfb9] bg-[#f3fbf3] px-3 py-2.5">
+                  <div key={sitio} className={`rounded-lg border px-3 py-2.5 ${motivoRechazo ? 'border-[#e3a3a3] bg-[#fdf1f1]' : 'border-[#b9dfb9] bg-[#f3fbf3]'}`}>
                     <div className="flex items-start justify-between gap-1">
                       <span className="font-bold text-sm text-[#0E4660]">{sitio}</span>
                       {puedeEditar(r) && (
@@ -379,9 +401,10 @@ export default function ReportabilidadGG({ onBack }: { onBack: () => void }) {
                           className="text-[#0E4660] hover:bg-white rounded p-1 -m-1"><Pencil size={13} /></button>
                       )}
                     </div>
-                    <span className="text-xs text-[#006300] flex items-center gap-1">
-                      {enEquipo ? <CloudOff size={12} /> : <CheckCircle2 size={12} />} {r.hora ?? '—'} · {r.reporta}{hecho.cantidad > 1 ? ` · ${hecho.cantidad} reportes` : ''}
+                    <span className={`text-xs flex items-center gap-1 ${motivoRechazo ? 'text-[#8a1c1c]' : 'text-[#006300]'}`}>
+                      {motivoRechazo ? <AlertTriangle size={12} /> : enEquipo ? <CloudOff size={12} /> : <CheckCircle2 size={12} />} {r.hora ?? '—'} · {r.reporta}{hecho.cantidad > 1 ? ` · ${hecho.cantidad} reportes` : ''}
                     </span>
+                    {motivoRechazo && <span className="block text-[11px] font-bold text-[#8a1c1c]">Rechazado por el servidor</span>}
                     <span className="block text-[11px] text-gray-600">{r.combustible ?? '—'} · {fmtNum(r.horometro)} h · {fmtNum(r.temperatura)} °C</span>
                   </div>
                 );
