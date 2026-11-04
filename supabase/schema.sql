@@ -640,6 +640,54 @@ revoke all on function public.fotos_huerfanas() from public, anon;
 grant execute on function public.uso_almacenamiento() to authenticated;
 grant execute on function public.fotos_huerfanas() to authenticated;
 
+-- ===========================================================================
+-- Cierre automático de informes diarios al terminar su turno
+-- ===========================================================================
+-- Turno Día: 08:00-20:00. Turno Noche: 20:00 del día del informe hasta 08:00 del día siguiente (hora de Chile).
+-- Un informe sin cambios desde que terminó su turno queda finalizado. Si se edita después, no se toca.
+create or replace function public.cerrar_informes_fin_turno()
+returns integer
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_cerrados integer;
+begin
+  with fin as (
+    select b.id,
+      case when b.turno = 'dia'
+        then (b.fecha + time '20:00') at time zone 'America/Santiago'
+        else (b.fecha + 1 + time '08:00') at time zone 'America/Santiago'
+      end as termina
+    from public.borradores b
+    where b.finalizado_en is null
+  ),
+  cerrar as (
+    update public.borradores b
+    set finalizado_en = now()
+    from fin
+    where fin.id = b.id
+      and now() >= fin.termina
+      and b.saved_at < fin.termina
+    returning 1
+  )
+  select count(*) into v_cerrados from cerrar;
+  return v_cerrados;
+end;
+$$;
+
+revoke all on function public.cerrar_informes_fin_turno() from public, anon, authenticated;
+
+-- Se programa cada 10 minutos solo si la extensión pg_cron está activada en Supabase.
+do $$
+begin
+  if exists (select 1 from pg_extension where extname = 'pg_cron') then
+    perform cron.schedule('cerrar-informes-fin-turno', '*/10 * * * *', 'select public.cerrar_informes_fin_turno()');
+  end if;
+end;
+$$;
+
 -- Realtime de presencia y actividad para el panel de administración (solo la agrega si falta).
 do $$
 begin
