@@ -1764,6 +1764,17 @@ export function useInformeDiario({ view, setBorradores, borradoresRef, division,
   const alternarSinTurno = async (motivo: string | null) => {
     const valor = !sinTurno;
     try {
+      // Un turno no realizado normalmente no tiene fotos: el informe aún no está en la nube y hay que guardarlo antes.
+      if (valor && !borradoresRef.current.some(b => b.id === currentDraftId)) {
+        const entry: BorradorEntry = {
+          id: currentDraftId, turno, fecha, faena, letraTurno, contrato, version, servicio,
+          creadoNombre, creadoCargo, revisadoText, autorizadoNombre, autorizadoCargo,
+          personal, actividades, observaciones, evidenceBlocks, vertivCarroPhotos, vertivItemPhotos,
+          savedAt: new Date().toISOString(), division,
+        };
+        const saved = await upsertBorrador(entry);
+        setBorradores(prev => [...prev.filter(b => b.id !== saved.id), saved]);
+      }
       await marcarSinTurno(currentDraftId, valor, valor ? motivo : null);
       setBorradores(prev => prev.map(b => (b.id === currentDraftId ? { ...b, sinTurno: valor, sinTurnoMotivo: valor ? motivo : null } : b)));
       showToast(valor ? 'Turno no realizado: no cuenta en los KPI.' : 'Turno reactivado.');
