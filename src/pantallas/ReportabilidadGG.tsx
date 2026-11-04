@@ -7,6 +7,7 @@ import { saveAs } from 'file-saver';
 import logoPsinet from '../assets/logo_psinet.jpg';
 import logoEdificio from '../assets/LogoEdificio.png';
 import { nombreVisible, useSesion } from '../auth/sesion';
+import { nombreCorto } from '../lib/nombres';
 import { esSupervisorDelListado } from '../datos/trabajadores';
 import { esSupervisorGG } from '../datos/roles';
 import { hoyLocalISO } from '../datos/fechas';
@@ -51,7 +52,7 @@ export default function ReportabilidadGG({ onBack }: { onBack: () => void }) {
   const { division, perfil, esAdmin } = useSesion();
   const sitios = SITIOS_GG[division];
   // Quién reporta: siempre la persona que ingresó a la cuenta (no se puede cambiar).
-  const reportaPorDefecto = () => nombreVisible(perfil);
+  const reportaPorDefecto = () => nombreCorto(nombreVisible(perfil));
 
   const nuevoFormulario = (anterior?: Formulario): Formulario => {
     const fecha = anterior?.fecha ?? hoyLocalISO();
@@ -196,7 +197,7 @@ export default function ReportabilidadGG({ onBack }: { onBack: () => void }) {
   const valoresFormulario = () => ({
     division, fecha: form.fecha, hora: form.hora || null, sitio: form.sitio, turno: form.turno,
     // Un reporte nuevo siempre queda a nombre de quien ingresó; al corregir uno guardado se conserva el original.
-    reporta: (editando ? form.reporta : nombreVisible(perfil)).trim(),
+    reporta: (editando ? form.reporta : nombreCorto(nombreVisible(perfil))).trim(),
     combustible: form.combustible, horometro: leerNumero(form.horometro), nroPartidas: leerNumero(form.nroPartidas),
     nivelRefrigerante: form.nivelRefrigerante, nivelAceite: form.nivelAceite, temperatura: leerNumero(form.temperatura),
   });
@@ -435,7 +436,7 @@ export default function ReportabilidadGG({ onBack }: { onBack: () => void }) {
             </label>
             <div className="col-span-2">
               <span className={etiqueta}>Quién reporta</span>
-              <p className={`${campo} bg-gray-50`}>{editando ? form.reporta : nombreVisible(perfil)}</p>
+              <p className={`${campo} bg-gray-50`}>{editando ? form.reporta : nombreCorto(nombreVisible(perfil))}</p>
             </div>
           </div>
 
