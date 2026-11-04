@@ -327,24 +327,26 @@ export default function Borradores({
               </div>
               {tabVisible === 'noche' && onSemanaNocheNoRealizada && (
                 <div className="mt-3 p-3 rounded-md border border-[#EEF1F3] bg-[#F6F8FA] space-y-2">
-                  <label className="flex items-center justify-between gap-3 cursor-pointer text-sm">
-                    <span className="font-bold text-[#0E4660]">Turno noche no realizado esta semana</span>
-                    <input
-                      type="checkbox"
+                  <div className="flex items-center justify-between gap-3 text-sm">
+                    <span id="switch-noche-titulo" className="font-bold text-[#0E4660]">Turno noche no realizado esta semana</span>
+                    <button
+                      type="button"
                       role="switch"
                       aria-checked={semanaNocheNoRealizada}
-                      checked={semanaNocheNoRealizada}
+                      aria-labelledby="switch-noche-titulo"
                       disabled={guardandoSemana || lista.length === 0}
-                      onChange={e => {
-                        if (e.target.checked) { setPidiendoMotivo(true); return; }
+                      onClick={() => {
+                        if (!semanaNocheNoRealizada) { setPidiendoMotivo(true); return; }
                         setGuardandoSemana(true);
                         void onSemanaNocheNoRealizada(false, null)
                           .catch(() => window.alert('No se pudo reactivar el turno noche. Revisa la conexión e inténtalo de nuevo.'))
                           .finally(() => setGuardandoSemana(false));
                       }}
-                      className="h-5 w-9 accent-[#a32626]"
-                    />
-                  </label>
+                      className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors disabled:opacity-50 ${semanaNocheNoRealizada ? 'bg-[#a32626]' : 'bg-gray-300'}`}
+                    >
+                      <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${semanaNocheNoRealizada ? 'translate-x-5' : 'translate-x-0.5'}`} />
+                    </button>
+                  </div>
                   {semanaNocheNoRealizada && (
                     <p className="text-xs text-[#a32626]"><strong>Motivo:</strong> {lista.find(b => b.sinTurnoMotivo)?.sinTurnoMotivo || 'sin motivo'}. Los informes de noche de esta semana están bloqueados.</p>
                   )}
