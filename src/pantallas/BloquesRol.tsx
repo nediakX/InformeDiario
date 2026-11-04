@@ -41,6 +41,8 @@ export function PorRevisar({ titulo, dias, hoy, semana, turnos, checklist, onAbr
         if (pasado) filas.push({ clave: `${fecha}${turno}`, texto: nombre, detalle: 'Sin informe', tono: 'critico', Icono, onClick: onVerBorradores });
         continue;
       }
+      // Turno noche no realizado: no está pendiente.
+      if (b.sinTurno) continue;
       const estado = estadoBorrador(b);
       if (estado === 'finalizado') continue;
       const f = contarFotos(b);

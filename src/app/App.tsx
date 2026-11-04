@@ -25,6 +25,7 @@ import { DIAS_CHECKLIST, duenoDelChecklist, fechasChecklist, idChecklistDeCuenta
 import { semanaDeFecha, letraDeFecha, turnosDeDivision } from '../datos/turnos';
 
 import { crearBorradorAutomatico } from '../informes/diario/constantes';
+import { marcarSinTurno } from '../datos/finalizarInforme';
 import { useInformeDiario } from '../informes/diario/useInformeDiario';
 import InformeDiario from '../informes/diario/InformeDiario';
 import BotonSubir from '../componentes/BotonSubir';
@@ -273,9 +274,18 @@ function AppContenido() {
     const semana = semanaDeFecha(hoy);
     return borradoresVisibles.filter(b => {
       const yaLeToca = b.fecha <= hoy;
-      return b.fecha >= semana.inicio && yaLeToca && estadoBorrador(b) !== 'finalizado';
+      // Un turno noche no realizado ya no está pendiente.
+      return b.fecha >= semana.inicio && yaLeToca && !b.sinTurno && estadoBorrador(b) !== 'finalizado';
     }).length;
   }, [borradoresVisibles, hoy]);
+
+  // Turno noche de hoy que no se realizará: queda marcado con su motivo (sin fotos, sin pendiente).
+  const marcarNocheNoRealizada = async (motivo: string) => {
+    const entry = crearBorradorAutomatico(hoy, letraDeFecha(hoy), 'noche', division);
+    const saved = await upsertBorrador({ ...entry, savedAt: new Date().toISOString() });
+    await marcarSinTurno(saved.id, true, motivo);
+    setBorradores(prev => [...prev.filter(b => b.id !== saved.id), { ...saved, sinTurno: true, sinTurnoMotivo: motivo }]);
+  };
 
   // Al salir del Informe Diario (con un botón o con "Atrás" del navegador/teléfono) se guarda al
   // instante lo pendiente, antes de que la pantalla cambie.
@@ -471,6 +481,7 @@ function AppContenido() {
       <Dashboard
         borradorCount={borradores.filter(b => !esSemillaSinEditar(b)).length}
         pendientesCount={informesPorCompletar}
+        onMarcarNocheNoRealizada={marcarNocheNoRealizada}
         informesHoy={informesHoy}
         borradoresSemana={borradoresVisibles}
         onAbrirInforme={openBorradorEntry}

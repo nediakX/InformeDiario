@@ -75,6 +75,8 @@ interface DashboardProps {
   onVerBorradores: (tipo: TipoBorradorTab) => void;
   /** Abre "Importar informe desde Word" (recuperar un informe borrado). */
   onImportar: () => void;
+  /** Marca el turno noche de hoy como no realizado, con su motivo. */
+  onMarcarNocheNoRealizada?: (motivo: string) => Promise<void>;
 }
 
 const ESTADO_OTRO_LABEL: Record<'pendiente' | 'iniciado' | 'finalizado', string> = {
@@ -85,7 +87,10 @@ export default function Dashboard({
   onNavigate, borradorCount, pendientesCount = 0, informesHoy = [], onAbrirInforme, onNuevoInforme,
   borradoresMantenimiento = [], borradoresFalla = [], checklistsCamioneta = [], borradoresSemana = [],
   onNuevoMantenimiento, onAbrirMantenimiento, onNuevaPreventiva, onNuevaFalla, onAbrirFalla, onVerBorradores, onImportar,
+  onMarcarNocheNoRealizada,
 }: DashboardProps) {
+  const [modalNoche, setModalNoche] = useState(false);
+  const [motivoNoche, setMotivoNoche] = useState('');
   const { perfil, esAdmin, pendientesAprobacion, cerrarSesion, division } = useSesion();
   const checklistHoy = estadoChecklistDelDia(checklistsCamioneta, hoyLocalISO(), CONFIG_DIVISION[division].camionetas.length);
   const [modalInformeOpen, setModalInformeOpen] = useState(false);
@@ -332,30 +337,70 @@ export default function Dashboard({
               const fotos = informe ? contarFotos(informe) : { llenas: 0, total: 0 };
               const avance = fotos.total ? Math.round((fotos.llenas / fotos.total) * 100) : 0;
               const Icono = turno === 'dia' ? Sun : Moon;
+              const noRealizado = Boolean(informe?.sinTurno);
               return (
                 <button
                   key={turno}
                   type="button"
                   onClick={() => (informe ? onAbrirInforme(informe) : onNuevoInforme(turno))}
-                  className={`dash-turno-hoy dash-turno-hoy--${estado}`}
+                  className={`dash-turno-hoy dash-turno-hoy--${noRealizado ? 'finalizado' : estado}`}
                 >
                   <span className="dash-turno-hoy__icono"><Icono size={20} aria-hidden="true" /></span>
                   <span className="dash-turno-hoy__texto">
                     <span className="dash-turno-hoy__titulo font-display">Turno {turno === 'dia' ? 'Día' : 'Noche'}</span>
                     <span className="dash-turno-hoy__estado">
-                      {estado === 'finalizado' ? `Finalizado · ${fotos.llenas} fotos` : estado === 'iniciado' ? `${fotos.llenas} de ${fotos.total} fotos` : 'Aún sin fotos'}
+                      {noRealizado
+                        ? `No realizado · ${informe?.sinTurnoMotivo || 'sin motivo'}`
+                        : estado === 'finalizado' ? `Finalizado · ${fotos.llenas} fotos` : estado === 'iniciado' ? `${fotos.llenas} de ${fotos.total} fotos` : 'Aún sin fotos'}
                     </span>
-                    <span className="dash-barra" aria-hidden="true"><span style={{ width: `${avance}%` }} /></span>
+                    <span className="dash-barra" aria-hidden="true"><span style={{ width: `${noRealizado ? 0 : avance}%` }} /></span>
                   </span>
                   <span className="dash-turno-hoy__accion">
-                    {estado === 'pendiente' ? 'Comenzar' : estado === 'finalizado' ? 'Revisar' : 'Continuar'}
+                    {noRealizado ? 'Ver' : estado === 'pendiente' ? 'Comenzar' : estado === 'finalizado' ? 'Revisar' : 'Continuar'}
                     <ChevronRight size={16} aria-hidden="true" />
                   </span>
                 </button>
               );
             })}
           </div>
+          {turnos.includes('noche') && !informesHoy.some(b => b.turno === 'noche') && onMarcarNocheNoRealizada && (
+            <p className="text-sm text-gray-600 mt-3">
+              ¿Se hará turno noche hoy?{' '}
+              <button type="button" onClick={() => setModalNoche(true)} className="dash-enlace">No, no se hará</button>
+            </p>
+          )}
         </section>
+        {modalNoche && (
+          <div className="fixed inset-0 z-50 bg-black/50 p-4 flex items-center justify-center">
+            <div className="w-full max-w-md bg-white rounded-xl p-6 shadow-xl space-y-4">
+              <h2 className="text-lg font-bold text-[#0E4660]">¿Por qué no se hará turno noche?</h2>
+              <textarea
+                value={motivoNoche}
+                onChange={e => setMotivoNoche(e.target.value)}
+                rows={3}
+                placeholder="Ej.: sin personal, faena detenida, feriado…"
+                className="w-full p-2 border border-[#DCE1E6] rounded-md text-sm"
+                autoFocus
+              />
+              <div className="flex justify-end gap-2">
+                <button type="button" onClick={() => { setModalNoche(false); setMotivoNoche(''); }} className="btn-outline text-[#0E4660] px-3 py-1.5 rounded-md text-xs font-bold">Cancelar</button>
+                <button
+                  type="button"
+                  disabled={!motivoNoche.trim()}
+                  onClick={() => {
+                    const m = motivoNoche.trim();
+                    setModalNoche(false);
+                    setMotivoNoche('');
+                    void onMarcarNocheNoRealizada?.(m).catch(() => window.alert('No se pudo marcar el turno. Revisa la conexión e inténtalo de nuevo.'));
+                  }}
+                  className="bg-[#a32626] text-white px-3 py-1.5 rounded-md text-xs font-bold disabled:opacity-50"
+                >
+                  Marcar turno no realizado
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
         </>,
     generadores: <MonitorGeneradores onAbrir={() => onNavigate('reportabilidad-gg')} detalleInicial={rol === 'electromecanico' ? true : rol === 'contrato' ? false : undefined} />,
     turnoMini,
