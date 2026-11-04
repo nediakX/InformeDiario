@@ -205,6 +205,9 @@ alter table public.borradores add column if not exists division text not null de
 create index if not exists borradores_division_fecha_idx on public.borradores (division, fecha);
 -- Marca de "finalizado a mano": un informe finalizado deja de aparecer en la lista para continuar.
 alter table public.borradores add column if not exists finalizado_en timestamptz;
+-- Turno noche que no se realizó: el informe no muestra campos vacíos y no cuenta en los KPI.
+alter table public.borradores add column if not exists sin_turno boolean not null default false;
+alter table public.borradores add column if not exists sin_turno_motivo text;
 
 alter table public.borradores enable row level security;
 

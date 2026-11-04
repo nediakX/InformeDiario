@@ -21,6 +21,17 @@ export async function marcarFinalizado(
   return finalizadoEn;
 }
 
+/**
+ * Marca un turno noche como «no realizado» (o lo reactiva). Solo cambia esa columna, así un guardado
+ * con el formulario abierto no la pisa. Necesita conexión (no se encola).
+ */
+export async function marcarSinTurno(id: string, sinTurno: boolean, motivo: string | null): Promise<void> {
+  const cambios = sinTurno ? { sin_turno: true, sin_turno_motivo: motivo } : { sin_turno: false, sin_turno_motivo: null };
+  const { data, error } = await supabase.from(BORRADORES_TABLE).update(cambios).eq('id', id).select('id');
+  if (error) throw error;
+  if (!data?.length) throw new Error('El informe todavía no está en la nube.');
+}
+
 /** Texto para avisar cuando no se pudo finalizar o reabrir el informe. */
 export function mensajeErrorFinalizar(error: unknown, finalizar: boolean): string {
   const accion = finalizar ? 'finalizar' : 'reabrir';
