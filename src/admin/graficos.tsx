@@ -140,6 +140,7 @@ const ESTADOS_CELDA: Record<EstadoCelda, { etiqueta: string; Icono: typeof Check
   sin_fotos: { etiqueta: 'Creado sin fotos', Icono: MinusCircle },
   faltante: { etiqueta: 'Faltante', Icono: XCircle },
   en_curso: { etiqueta: 'En curso / por venir', Icono: Clock3 },
+  no_realizado: { etiqueta: 'Turno no realizado (no cuenta en KPI)', Icono: MinusCircle },
 };
 
 export function GrillaTurnos({ celdas }: { celdas: CeldaTurno[] }) {

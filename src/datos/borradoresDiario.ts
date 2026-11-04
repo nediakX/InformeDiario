@@ -49,6 +49,10 @@ export interface BorradorEntry {
   division: Division;
   /** Hora en que se marcó como finalizado a mano (sin valor = no). La cambia solo marcarFinalizado. */
   finalizadoEn?: string | null;
+  /** Turno noche que no se realizó: el informe no muestra campos vacíos y no cuenta en los KPI. La cambia solo marcarSinTurno. */
+  sinTurno?: boolean;
+  /** Por qué no se realizó el turno noche (texto que escribe la persona). */
+  sinTurnoMotivo?: string | null;
 }
 
 export const LS_KEY_BORRADORES = "psinet_borradores_v1";
@@ -78,6 +82,8 @@ export type BorradorRow = {
   saved_at: string;
   division?: Division | null;
   finalizado_en?: string | null;
+  sin_turno?: boolean | null;
+  sin_turno_motivo?: string | null;
 };
 
 export const rowToEntry = (row: BorradorRow): BorradorEntry => ({
@@ -103,9 +109,11 @@ export const rowToEntry = (row: BorradorRow): BorradorEntry => ({
   savedAt: row.saved_at,
   division: row.division ?? 'el_salvador',
   finalizadoEn: row.finalizado_en ?? null,
+  sinTurno: row.sin_turno ?? false,
+  sinTurnoMotivo: row.sin_turno_motivo ?? null,
 });
 
-// finalizado_en no va aquí: solo lo cambia marcarFinalizado, así un guardado viejo no lo pisa.
+// finalizado_en y sin_turno no van aquí: solo los cambian marcarFinalizado y marcarSinTurno, así un guardado viejo no los pisa.
 const entryToRow = (entry: BorradorEntry) => ({
   id: entry.id,
   turno: entry.turno,

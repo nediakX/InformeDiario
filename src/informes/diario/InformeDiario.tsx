@@ -1,5 +1,5 @@
 
-
+import { useState } from 'react';
 import { ChevronDown, Trash2, ClipboardList, Users, ListChecks, BatteryCharging, MessageSquare, Camera, Loader2, ArrowLeft, Plus, GripVertical, Copy, LayoutGrid, X as Cerrar, CheckCircle2, RotateCcw } from 'lucide-react';
 import logoPsinet from "../../assets/logo_psinet.jpg";
 import logoEdificio from "../../assets/LogoEdificio.png";
@@ -99,6 +99,11 @@ export default function InformeDiario({ d, volverABorradores, goToNewInforme }: 
     vertivItemPhotos,
   } = d;
 
+  // Turno noche que no se realizó: pide el motivo antes de marcarlo.
+  const { sinTurno, sinTurnoMotivo, alternarSinTurno } = d;
+  const [modalSinTurno, setModalSinTurno] = useState(false);
+  const [motivoSinTurno, setMotivoSinTurno] = useState('');
+
   return (
     <div className="min-h-screen text-[#222] font-sans pb-20">
       {/* Header */}
@@ -130,7 +135,17 @@ export default function InformeDiario({ d, volverABorradores, goToNewInforme }: 
         </div>
       )}
 
-      {/* Main Container */}
+      {/* Turno noche no realizado: solo el motivo, sin campos vacíos. */}
+      {sinTurno ? (
+        <main className="max-w-[900px] mx-auto p-5 space-y-4">
+          <section className="panel p-5 space-y-3 border-l-4 border-[#a32626]">
+            <h2 className="font-display font-bold text-lg text-[#a32626]">Turno noche no realizado</h2>
+            <p className="text-sm"><strong>Motivo:</strong> {sinTurnoMotivo || 'Sin motivo registrado.'}</p>
+            <p className="text-xs text-gray-500">Este turno no aparece como faltante y no cuenta en los KPI. Si se realizó, reactívalo con el botón de arriba.</p>
+          </section>
+        </main>
+      ) : (
+      /* Main Container */
       <main className="max-w-[900px] mx-auto p-5 space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <button type="button" onClick={volverABorradores} className="btn-outline text-[#0E4660] px-3 py-1.5 rounded-md text-xs font-bold hover:bg-[#d5e7f8] flex items-center gap-1.5">
@@ -139,6 +154,17 @@ export default function InformeDiario({ d, volverABorradores, goToNewInforme }: 
           <div className="flex flex-wrap items-center gap-2">
             {d.estadoEnLista === 'finalizado' && (
               <span className="inline-flex items-center gap-1 text-xs font-bold px-2.5 py-1.5 rounded-md bg-green-100 text-green-700"><CheckCircle2 size={14} /> Finalizado</span>
+            )}
+            {turno === 'noche' && (
+              sinTurno ? (
+                <button type="button" onClick={() => void alternarSinTurno(null)} className="btn-outline text-[#0E4660] px-3 py-1.5 rounded-md text-xs font-bold hover:bg-[#d5e7f8]">
+                  Reactivar turno
+                </button>
+              ) : (
+                <button type="button" onClick={() => setModalSinTurno(true)} className="btn-outline text-[#a32626] px-3 py-1.5 rounded-md text-xs font-bold hover:bg-[#fbe9e9]">
+                  Turno no realizado
+                </button>
+              )
             )}
             {d.finalizadoEn ? (
               <button type="button" onClick={() => void d.alternarFinalizado()} className="btn-outline text-[#0E4660] px-3 py-1.5 rounded-md text-xs font-bold hover:bg-[#d5e7f8] flex items-center gap-1.5">
@@ -667,9 +693,37 @@ export default function InformeDiario({ d, volverABorradores, goToNewInforme }: 
         </p>
         <div className="h-24" aria-hidden="true" />
       </main>
+      )}
 
       <div className="fixed bottom-1 left-1/2 -translate-x-1/2 text-[#F4F6F8] text-[10px] italic cursor-text whitespace-nowrap z-10 select-text">
       </div>
+
+      {modalSinTurno && (
+        <div className="fixed inset-0 z-50 bg-black/50 p-4 flex items-center justify-center">
+          <div className="w-full max-w-md bg-white rounded-xl p-6 shadow-xl space-y-4">
+            <h2 className="text-lg font-bold text-[#0E4660]">¿Por qué no se realizó el turno noche?</h2>
+            <textarea
+              value={motivoSinTurno}
+              onChange={e => setMotivoSinTurno(e.target.value)}
+              rows={3}
+              placeholder="Ej.: sin personal, faena detenida, feriado…"
+              className="w-full p-2 border border-[#DCE1E6] rounded-md text-sm"
+              autoFocus
+            />
+            <div className="flex justify-end gap-2">
+              <button type="button" onClick={() => { setModalSinTurno(false); setMotivoSinTurno(''); }} className="btn-outline text-[#0E4660] px-3 py-1.5 rounded-md text-xs font-bold">Cancelar</button>
+              <button
+                type="button"
+                disabled={!motivoSinTurno.trim()}
+                onClick={() => { const m = motivoSinTurno.trim(); setModalSinTurno(false); setMotivoSinTurno(''); void alternarSinTurno(m); }}
+                className="bg-[#a32626] text-white px-3 py-1.5 rounded-md text-xs font-bold disabled:opacity-50"
+              >
+                Marcar turno no realizado
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {draftPromptOpen && (
         <div className="fixed inset-0 z-50 bg-black/50 p-4 flex items-center justify-center">

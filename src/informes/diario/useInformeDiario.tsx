@@ -15,7 +15,8 @@ import { leerLocal, guardarLocal, borrarLocal } from '../../lib/almacenLocal';
 import { type Vista } from '../../app/rutas';
 
 import { type BorradorEntry, upsertBorrador, contarFotos, obtenerBorradorNube, estadoBorrador } from '../../datos/borradoresDiario';
-import { marcarFinalizado, mensajeErrorFinalizar } from '../../datos/finalizarInforme';
+import { marcarFinalizado, marcarSinTurno, mensajeErrorFinalizar } from '../../datos/finalizarInforme';
+import { esErrorDeRed } from '../../lib/conexion';
 import { mezclarBloques, mezclarFotos, mismasFotos, soloUnRegistroChecklist } from './mezclaFotos';
 
 import { hoyLocalISO } from '../../datos/fechas';
@@ -1757,10 +1758,27 @@ export function useInformeDiario({ view, setBorradores, borradoresRef, division,
     }
   };
 
+  // Turno noche que no se realizó (solo para turno noche). No cuenta en los KPI y oculta los campos vacíos.
+  const sinTurno = entryEnLista?.sinTurno ?? false;
+  const sinTurnoMotivo = entryEnLista?.sinTurnoMotivo ?? null;
+  const alternarSinTurno = async (motivo: string | null) => {
+    const valor = !sinTurno;
+    try {
+      await marcarSinTurno(currentDraftId, valor, valor ? motivo : null);
+      setBorradores(prev => prev.map(b => (b.id === currentDraftId ? { ...b, sinTurno: valor, sinTurnoMotivo: valor ? motivo : null } : b)));
+      showToast(valor ? 'Turno no realizado: no cuenta en los KPI.' : 'Turno reactivado.');
+    } catch (error) {
+      showToast(esErrorDeRed(error) ? 'Sin conexión: el turno se puede marcar cuando vuelva la señal.' : 'No se pudo marcar el turno.', true);
+    }
+  };
+
   const mesDeFecha = fecha ? Number(fecha.split("-")[1]) : 0;
   const decoracionMensual = DECORACIONES_MENSUALES[mesDeFecha];
 
   return {
+    alternarSinTurno,
+    sinTurno,
+    sinTurnoMotivo,
     alternarFinalizado,
     estadoEnLista,
     finalizadoEn,

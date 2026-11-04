@@ -61,7 +61,7 @@ export async function cargarDatosAdmin(rango: Rango, division: Division): Promis
 // ---------------------------------------------------------------------------------------
 
 /** Estado de cada turno del calendario: finalizado / iniciado / sin fotos / faltante (no existe y ya pasó) / en curso (hoy). */
-export type EstadoCelda = 'finalizado' | 'iniciado' | 'sin_fotos' | 'faltante' | 'en_curso';
+export type EstadoCelda = 'finalizado' | 'iniciado' | 'sin_fotos' | 'faltante' | 'en_curso' | 'no_realizado';
 
 export interface CeldaTurno {
   fecha: string;
@@ -128,7 +128,8 @@ export function calcularEstadisticas(datos: DatosAdmin, rango: Rango, ahora = ne
       const b = porTurno.get(`${fecha}|${turno}`);
       const est = b ? estadoBorrador(b) : null;
       let estado: EstadoCelda;
-      if (est === 'finalizado') estado = 'finalizado';
+      if (b?.sinTurno) estado = 'no_realizado';
+      else if (est === 'finalizado') estado = 'finalizado';
       else if (est === 'iniciado') estado = 'iniciado';
       else if (!terminado(fecha, turno)) estado = 'en_curso';
       else estado = b ? 'sin_fotos' : 'faltante';
@@ -136,13 +137,14 @@ export function calcularEstadisticas(datos: DatosAdmin, rango: Rango, ahora = ne
     }
   }
 
-  const esperados = celdas.filter(c => c.estado !== 'en_curso').length;
+  // Un turno no realizado no es esperado: no cuenta ni como faltante ni como atrasado.
+  const esperados = celdas.filter(c => c.estado !== 'en_curso' && c.estado !== 'no_realizado').length;
   const finalizados = celdas.filter(c => c.estado === 'finalizado').length;
-  const atrasados = celdas.filter(c => c.estado !== 'en_curso' && c.estado !== 'finalizado').length;
+  const atrasados = celdas.filter(c => c.estado !== 'en_curso' && c.estado !== 'no_realizado' && c.estado !== 'finalizado').length;
 
   const porLetra = new Map<string, { esp: number; fin: number }>();
   for (const c of celdas) {
-    if (c.estado === 'en_curso') continue;
+    if (c.estado === 'en_curso' || c.estado === 'no_realizado') continue;
     const v = porLetra.get(c.letra) ?? { esp: 0, fin: 0 };
     v.esp += 1;
     if (c.estado === 'finalizado') v.fin += 1;

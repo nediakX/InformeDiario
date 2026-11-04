@@ -15,7 +15,7 @@ import logoEdificio from '../../assets/LogoEdificio.png';
 import { useSesion, nombreVisible } from '../../auth/sesion';
 import { configDivision } from '../../datos/divisiones';
 import { hoyLocalISO, sumarDias, formatDiaMes } from '../../datos/fechas';
-import { semanaDeFecha } from '../../datos/turnos';
+import { letraDeFecha, semanaDeFecha } from '../../datos/turnos';
 import { type BorradorOtroEntry, fetchBorradoresOtros, fetchVehiculosChecklist, subscribeBorradoresOtros, upsertBorradorOtro } from '../../datos/borradoresOtros';
 import { registrarDeshacer } from '../../lib/deshacer';
 import { firmasDivision } from '../../datos/perfil';
@@ -429,8 +429,10 @@ function FormularioChecklist({ id, cuentaId, division, entrada, base, hoy, onGua
   // --- Hojas del checklist → Informe Diario (Turno Día de la misma fecha) -----------------------
   const [envio, setEnvio] = useState<{ dia: number; estado: 'enviando' | 'ok' | 'error' | 'conflicto' | 'conservado'; texto?: string } | null>(null);
   const enviandoRef = useRef(false);
+  // Solo se envían los días del turno del checklist (datos.letra): un día de otro turno nunca va al Informe Diario.
+  const esDelTurno = (d: number, datosEnvio: DatosChecklist) => letraDeFecha(fechas[d]) === datosEnvio.letra;
   const enviarAlDiario = async (d: number, datosEnvio: DatosChecklist, reemplazar = false) => {
-    if (enviandoRef.current) return;
+    if (enviandoRef.current || !esDelTurno(d, datosEnvio)) return;
     enviandoRef.current = true;
     setEnvio({ dia: d, estado: 'enviando' });
     try {
@@ -442,7 +444,9 @@ function FormularioChecklist({ id, cuentaId, division, entrada, base, hoy, onGua
       console.error('No se pudo guardar el checklist en el Informe Diario:', error);
       if (error instanceof RegistroYaEnDiario) {
         // No es una falla: la persona decide si reemplaza el registro que ya está en el Informe Diario.
-        setEnvio({ dia: d, estado: 'conflicto', texto: `Ya hay un checklist de la camioneta ${etiquetaPatente(error.claveActual)} en el Informe Diario del ${ddmm(fechas[d])}. ¿Desea reemplazarlo por el de esta camioneta?` });
+        setEnvio({ dia: d, estado: 'conflicto', texto: error.mismaCamioneta
+          ? `Ya hay hojas de esta camioneta en el Informe Diario del ${ddmm(fechas[d])}. ¿Desea reemplazarlas por las actuales?`
+          : `Ya hay un checklist de la camioneta ${etiquetaPatente(error.claveActual)} en el Informe Diario del ${ddmm(fechas[d])}. ¿Desea reemplazarlo por el de esta camioneta?` });
       } else {
         const detalle = error instanceof Error && error.message ? ` (${error.message.slice(0, 140)})` : '';
         setEnvio({
@@ -455,14 +459,17 @@ function FormularioChecklist({ id, cuentaId, division, entrada, base, hoy, onGua
     }
   };
 
-  // Al completar (o corregir) un día ya guardado, sus 2 hojas se mandan solas al Informe Diario.
+  // Al completar (o corregir) un día, se pregunta si se envía al Informe Diario (nunca se envía solo).
+  // «No, por ahora» deja de preguntar hasta que cambie algo del checklist.
+  const [modalDia, setModalDia] = useState<number | null>(null);
+  const [omitidaHuella, setOmitidaHuella] = useState<string | null>(null);
   useEffect(() => {
-    if (sucio || diaEditado === null) return;
+    if (sucio || diaEditado === null || !esDelTurno(diaEditado, datos)) return;
     const a = avanceDia(datos, diaEditado);
-    if (a.hechos !== a.total || leerLocal(claveEnviado(id, diaEditado)) === huella(datos)) return;
-    const d = diaEditado;
-    const t = setTimeout(() => { setDiaEditado(null); void enviarAlDiario(d, datos); }, 1200);
-    return () => clearTimeout(t);
+    const h = huella(datos);
+    if (a.hechos !== a.total || leerLocal(claveEnviado(id, diaEditado)) === h || omitidaHuella === h) return;
+    setDiaEditado(null);
+    setModalDia(diaEditado);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sucio, diaEditado, datos, id]);
 
@@ -488,6 +495,22 @@ function FormularioChecklist({ id, cuentaId, division, entrada, base, hoy, onGua
 
   return (
     <>
+      {modalDia !== null && (
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="modal-enviar-diario">
+          <div className="bg-white rounded-lg shadow-xl max-w-sm w-full p-5 space-y-4">
+            <h2 id="modal-enviar-diario" className="font-display font-bold text-lg text-[#0E4660]">¿Enviar al Informe Diario?</h2>
+            <p className="text-sm text-gray-700">
+              El día {ETIQUETAS_DIA[modalDia]} {ddmm(fechas[modalDia])} está completo. ¿Desea enviar sus 2 hojas como imagen al Informe Diario (Turno Día) de esa fecha?
+            </p>
+            <div className="flex flex-wrap justify-end gap-2">
+              <button type="button" onClick={() => { setOmitidaHuella(huella(datos)); setModalDia(null); }} className="checklist-accion">No, por ahora</button>
+              <button type="button" onClick={() => { const d = modalDia; setModalDia(null); void enviarAlDiario(d, datos); }} className="checklist-accion checklist-accion--ok">
+                <Send size={14} /> Sí, enviar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       <p className="text-[11px] text-gray-500 text-right -mt-2">{estadoGuardado}</p>
 
       <details open className="panel p-5">
@@ -549,7 +572,10 @@ function FormularioChecklist({ id, cuentaId, division, entrada, base, hoy, onGua
             <button type="button" onClick={limpiarDia} className="checklist-accion"><Eraser size={14} /> Limpiar</button>
           </div>
         </div>
-        {completo && (
+        {completo && !esDelTurno(dia, datos) && (
+          <p className="text-xs text-gray-500 mb-3">Este día es del turno {letraDeFecha(fechas[dia])}: no se envía al Informe Diario desde este checklist (solo los días del turno {datos.letra}).</p>
+        )}
+        {completo && esDelTurno(dia, datos) && (
           <div className={`checklist-diario ${envio?.dia === dia && envio.estado === 'error' ? 'checklist-diario--error' : envio?.dia === dia && (envio.estado === 'conflicto' || envio.estado === 'conservado') ? 'checklist-diario--aviso' : ''}`} role="status">
             {envio?.dia === dia && envio.estado === 'enviando' ? (
               <span className="flex items-center gap-1.5"><Loader2 size={14} className="animate-spin" /> Guardando las 2 hojas en el Informe Diario del {ddmm(fechas[dia])}…</span>
