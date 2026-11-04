@@ -36,11 +36,14 @@ const EL_SALVADOR: Trabajador[] = [
 ];
 
 /**
- * Supervisores que también toman conocimiento en Impresión Rápida, además de los del Informe Diario.
- * Se agregan solo aquí, para no cambiar las demás listas de la app.
+ * Personas que también toman conocimiento en Impresión Rápida, además de los supervisores del Informe Diario
+ * (por ejemplo, expertos SSO). Se agregan solo aquí, para no cambiar las demás listas de la app.
  */
 export const SUPERVISORES_IMPRESION_EXTRA: Record<Division, { nombre: string; cargo: string }[]> = {
-  el_salvador: [],
+  el_salvador: [
+    { nombre: 'Omar Jesús Gutiérrez Tapia', cargo: 'Expert@ SSO' },
+    { nombre: 'Claudia Andrea Droguett Pasten', cargo: 'Expert@ SSO' },
+  ],
   andina: [],
 };
 
