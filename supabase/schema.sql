@@ -605,7 +605,10 @@ end;
 $$;
 
 -- Fotos del bucket que ningún informe usa (copias duplicadas antiguas, borradores eliminados…).
--- Se excluyen las subidas en las últimas 24 h, por si pertenecen a un informe que aún se está guardando.
+-- Protecciones (por la pérdida de fotos de un turno pasado):
+--  * Se buscan referencias en TODA la fila de cada borrador y de cada borrador de otros informes.
+--  * Nunca se listan fotos de una carpeta de un borrador que todavía existe (borradores/<id>/...).
+--  * Se excluyen las subidas de los últimos 30 días.
 -- Las fotos se borran desde la app (API de Storage), nunca con SQL, para que se eliminen de verdad.
 create or replace function public.fotos_huerfanas()
 returns table (nombre text, bytes bigint, creado_at timestamptz)
@@ -621,15 +624,19 @@ begin
     raise exception 'Solo administradores';
   end if;
   select coalesce(string_agg(t, ' '), '') into v_texto from (
-    select evidence_blocks::text || ' ' || vertiv_carro_photos::text || ' ' || vertiv_item_photos::text as t from public.borradores
+    select to_jsonb(b)::text as t from public.borradores b
     union all
-    select datos::text from public.borradores_otros
+    select to_jsonb(r)::text from public.borradores_otros r
   ) refs;
   return query
     select o.name, coalesce((o.metadata ->> 'size')::bigint, 0), o.created_at
     from storage.objects o
     where o.bucket_id = 'evidencias'
-      and o.created_at < now() - interval '24 hours'
+      and o.created_at < now() - interval '30 days'
+      and not exists (
+        select 1 from public.borradores b
+        where o.name like 'borradores/' || b.id::text || '/%'
+      )
       and position(o.name in v_texto) = 0
     order by o.created_at;
 end;
