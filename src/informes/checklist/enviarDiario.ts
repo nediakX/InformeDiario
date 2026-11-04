@@ -19,10 +19,15 @@ export const ACTIVIDAD_CHECKLIST = 'Registro de Check List de Vehículo Liviano.
 export class RegistroYaEnDiario extends Error {
   /** Clave (patente normalizada) de la camioneta cuyo checklist ya está en el Informe Diario de ese día. */
   readonly claveActual: string;
-  constructor(claveActual: string) {
-    super('Ya hay un checklist de otra camioneta en el Informe Diario de esta fecha: solo se guarda el primero que se envió.');
+  /** true = las hojas guardadas son de la misma camioneta: se pide confirmar antes de reemplazarlas. */
+  readonly mismaCamioneta: boolean;
+  constructor(claveActual: string, mismaCamioneta = false) {
+    super(mismaCamioneta
+      ? 'Ya hay hojas de esta camioneta en el Informe Diario de esta fecha.'
+      : 'Ya hay un checklist de otra camioneta en el Informe Diario de esta fecha: solo se guarda el primero que se envió.');
     this.name = 'RegistroYaEnDiario';
     this.claveActual = claveActual;
+    this.mismaCamioneta = mismaCamioneta;
     Object.setPrototypeOf(this, RegistroYaEnDiario.prototype);
   }
 }
@@ -78,10 +83,10 @@ export async function enviarChecklistAlDiario({ blob, patente, fecha, division, 
     bloques = [...bloques.slice(0, i), nuevo, ...bloques.slice(i)];
   }
 
-  // Un solo registro por día: si ya quedó el de otra camioneta, este no se guarda (y no se suben sus hojas),
-  // salvo que la persona elija reemplazarlo: entonces ponerHojasEnBloque quita las hojas anteriores.
+  // Un solo registro por día: si ya hay hojas (de otra camioneta o de esta misma), no se reemplazan en silencio:
+  // la persona debe confirmar. Así un envío de otro turno o una repetición no pisa lo guardado sin aviso.
   const queda = claveDelRegistro(bloques[i]);
-  if (!reemplazar && queda && queda !== clave) throw new RegistroYaEnDiario(queda);
+  if (!reemplazar && queda) throw new RegistroYaEnDiario(queda, queda === clave);
 
   // Se suben primero para que las fotos del bloque sean las direcciones definitivas (así se reconocen al reemplazarlas).
   const hojas = (await Promise.all(imagenes.map(img => uploadPhotoIfNeeded(img, carpetaHojas(base.id, clave))))).filter((u): u is string => !!u);

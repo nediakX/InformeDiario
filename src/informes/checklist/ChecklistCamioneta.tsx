@@ -444,7 +444,9 @@ function FormularioChecklist({ id, cuentaId, division, entrada, base, hoy, onGua
       console.error('No se pudo guardar el checklist en el Informe Diario:', error);
       if (error instanceof RegistroYaEnDiario) {
         // No es una falla: la persona decide si reemplaza el registro que ya está en el Informe Diario.
-        setEnvio({ dia: d, estado: 'conflicto', texto: `Ya hay un checklist de la camioneta ${etiquetaPatente(error.claveActual)} en el Informe Diario del ${ddmm(fechas[d])}. ¿Desea reemplazarlo por el de esta camioneta?` });
+        setEnvio({ dia: d, estado: 'conflicto', texto: error.mismaCamioneta
+          ? `Ya hay hojas de esta camioneta en el Informe Diario del ${ddmm(fechas[d])}. ¿Desea reemplazarlas por las actuales?`
+          : `Ya hay un checklist de la camioneta ${etiquetaPatente(error.claveActual)} en el Informe Diario del ${ddmm(fechas[d])}. ¿Desea reemplazarlo por el de esta camioneta?` });
       } else {
         const detalle = error instanceof Error && error.message ? ` (${error.message.slice(0, 140)})` : '';
         setEnvio({
