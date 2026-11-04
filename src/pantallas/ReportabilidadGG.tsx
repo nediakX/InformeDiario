@@ -11,14 +11,12 @@ import { esSupervisorDelListado } from '../datos/trabajadores';
 import { esSupervisorGG } from '../datos/roles';
 import { hoyLocalISO } from '../datos/fechas';
 import { letraDeFecha } from '../datos/turnos';
-import { mismaPersona } from '../lib/firma';
-import { getDefaultPersonal } from '../informes/diario/constantes';
 import { esErrorDeRed } from '../lib/conexion';
 import { registrarDeshacer } from '../lib/deshacer';
 import { crearExcel } from '../lib/excel';
 import { horometroRetrocede } from '../datos/analisisGG';
 import {
-  OPCIONES_ACEITE, OPCIONES_COMBUSTIBLE, OPCIONES_REFRIGERANTE, OPCIONES_TURNO, REPORTAN_GG, SITIOS_GG,
+  OPCIONES_ACEITE, OPCIONES_COMBUSTIBLE, OPCIONES_REFRIGERANTE, OPCIONES_TURNO, SITIOS_GG,
   EVENTO_GG, actualizarReporteGG, crearReporteGG, eliminarReporteGG, leerNumero, listarReportesGG, pendientesGG, restaurarReporteGG,
   sincronizarPendientesGG, suscribirReportesGG, todosLosReportesGG, type FiltroGG, type ReporteGG, type ReporteGGPendiente,
 } from '../datos/reportesGG';
@@ -52,26 +50,14 @@ interface Formulario {
 export default function ReportabilidadGG({ onBack }: { onBack: () => void }) {
   const { division, perfil, esAdmin } = useSesion();
   const sitios = SITIOS_GG[division];
-  // Quién reporta: lista desplegable por turno (como en el Informe Diario) + otros + escribir otro nombre.
-  const gruposPersonas = useMemo(() => {
-    const limpio = (n: string) => n.trim().replace(/\.+$/, '');
-    const vistos = new Set<string>();
-    const unico = (lista: string[]) => lista.map(limpio).filter(n => n && !vistos.has(n.toLowerCase()) && vistos.add(n.toLowerCase()));
-    const grupos = [
-      { titulo: 'Turno A', nombres: unico(getDefaultPersonal('A', division).map(p => p.nombre)) },
-      { titulo: 'Turno B', nombres: unico(getDefaultPersonal('B', division).map(p => p.nombre)) },
-      { titulo: 'Otros', nombres: unico([...REPORTAN_GG[division], nombreVisible(perfil)]) },
-    ];
-    return grupos.filter(g => g.nombres.length);
-  }, [division, perfil]);
-  const personas = useMemo(() => gruposPersonas.flatMap(g => g.nombres), [gruposPersonas]);
-  const reportaPorDefecto = () => { const propio = nombreVisible(perfil); return personas.find(n => mismaPersona(n, propio)) ?? propio; };
+  // Quién reporta: siempre la persona que ingresó a la cuenta (no se puede cambiar).
+  const reportaPorDefecto = () => nombreVisible(perfil);
 
   const nuevoFormulario = (anterior?: Formulario): Formulario => {
     const fecha = anterior?.fecha ?? hoyLocalISO();
     return {
       fecha, hora: horaActual(), sitio: anterior?.sitio ?? '', turno: anterior?.turno ?? `TURNO ${letraDeFecha(fecha)}`,
-      reporta: anterior?.reporta ?? reportaPorDefecto(), combustible: '', horometro: '', nroPartidas: '',
+      reporta: reportaPorDefecto(), combustible: '', horometro: '', nroPartidas: '',
       nivelRefrigerante: '', nivelAceite: '', temperatura: '',
     };
   };
@@ -85,7 +71,6 @@ export default function ReportabilidadGG({ onBack }: { onBack: () => void }) {
   const [aviso, setAviso] = useState<{ texto: string; error?: boolean } | null>(null);
   // Reporte que se está corrigiendo (null = reporte nuevo).
   const [editando, setEditando] = useState<ReporteGG | null>(null);
-  const [otroNombre, setOtroNombre] = useState(false);
   const formRef = useRef<HTMLElement>(null);
   const irAlFormulario = () => setTimeout(() => formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
 
@@ -209,7 +194,9 @@ export default function ReportabilidadGG({ onBack }: { onBack: () => void }) {
   };
 
   const valoresFormulario = () => ({
-    division, fecha: form.fecha, hora: form.hora || null, sitio: form.sitio, turno: form.turno, reporta: form.reporta.trim(),
+    division, fecha: form.fecha, hora: form.hora || null, sitio: form.sitio, turno: form.turno,
+    // Un reporte nuevo siempre queda a nombre de quien ingresó; al corregir uno guardado se conserva el original.
+    reporta: (editando ? form.reporta : nombreVisible(perfil)).trim(),
     combustible: form.combustible, horometro: leerNumero(form.horometro), nroPartidas: leerNumero(form.nroPartidas),
     nivelRefrigerante: form.nivelRefrigerante, nivelAceite: form.nivelAceite, temperatura: leerNumero(form.temperatura),
   });
@@ -253,7 +240,6 @@ export default function ReportabilidadGG({ onBack }: { onBack: () => void }) {
   const editar = (r: ReporteGG) => {
     setEditando(r);
     setErrores({});
-    setOtroNombre(!personas.includes(r.reporta));
     setForm({
       fecha: r.fecha, hora: r.hora ?? '', sitio: r.sitio, turno: r.turno, reporta: r.reporta, combustible: r.combustible ?? '',
       horometro: r.horometro?.toString().replace('.', ',') ?? '', nroPartidas: r.nroPartidas?.toString() ?? '',
@@ -447,21 +433,10 @@ export default function ReportabilidadGG({ onBack }: { onBack: () => void }) {
                 {OPCIONES_TURNO.map(t => <option key={t} value={t}>{t}</option>)}
               </select>
             </label>
-            <label className="col-span-2">
-              <span className={etiqueta}>Quién reporta *</span>
-              <select className={campo} value={otroNombre ? '__otro__' : form.reporta}
-                onChange={e => { if (e.target.value === '__otro__') { setOtroNombre(true); poner('reporta', ''); } else { setOtroNombre(false); poner('reporta', e.target.value); } }}>
-                <option value="">Elegir persona</option>
-                {gruposPersonas.map(g => (
-                  <optgroup key={g.titulo} label={g.titulo}>
-                    {g.nombres.map(n => <option key={n} value={n}>{n}</option>)}
-                  </optgroup>
-                ))}
-                <option value="__otro__">Otra persona (escribir nombre)…</option>
-              </select>
-              {otroNombre && <input className={`${campo} mt-1.5`} value={form.reporta} onChange={e => poner('reporta', e.target.value)} placeholder="Nombre y apellido" autoFocus />}
-              {error('reporta')}
-            </label>
+            <div className="col-span-2">
+              <span className={etiqueta}>Quién reporta</span>
+              <p className={`${campo} bg-gray-50`}>{editando ? form.reporta : nombreVisible(perfil)}</p>
+            </div>
           </div>
 
           {ultimo && (
