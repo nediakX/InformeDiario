@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ArrowLeft, Trash2, FolderOpen, CalendarDays, Users, Camera, Plus, Cloud, Sun, Moon, History, Download, Loader2, Wrench, AlertTriangle, FileText, FileUp } from 'lucide-react';
+import { ArrowLeft, Trash2, FolderOpen, CalendarDays, Users, Camera, Plus, Cloud, Sun, Moon, History, Download, Loader2, Wrench, AlertTriangle, FileText, FileUp, Lock } from 'lucide-react';
 import SelectorDivision from '../componentes/SelectorDivision';
 import logoPsinet from "../assets/logo_psinet.jpg";
 import logoEdificio from "../assets/LogoEdificio.png";
@@ -21,6 +21,8 @@ interface BorradoresProps {
   tab: 'dia' | 'noche';
   onTabChange: (tab: 'dia' | 'noche') => void;
   onOpen: (entry: BorradorEntry) => void;
+  /** Marca (o desmarca) como no realizados TODOS los turnos noche de la semana de turno actual. */
+  onSemanaNocheNoRealizada?: (valor: boolean, motivo: string | null) => Promise<void>;
   onDelete: (id: string) => void;
   onBack: () => void;
   /** Crea un informe nuevo con el turno (Día o Noche) que elija la persona. */
@@ -51,7 +53,7 @@ const ESTADOS = {
 } as const;
 
 export default function Borradores({
-  borradores, tab, onTabChange, onOpen, onDelete, onBack, onNew, onDownload, descargandoId,
+  borradores, tab, onTabChange, onOpen, onSemanaNocheNoRealizada, onDelete, onBack, onNew, onDownload, descargandoId,
   tipoTab, onTipoTabChange,
   borradoresMantenimiento = [], borradoresFalla = [],
   onNuevoMantenimiento, onAbrirMantenimiento, onNuevaFalla, onAbrirFalla, onDeleteOtro, onImportar,
@@ -59,6 +61,9 @@ export default function Borradores({
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [confirmDeleteOtro, setConfirmDeleteOtro] = useState<{ id: string; onConfirm: () => void } | null>(null);
   const [nuevoOpen, setNuevoOpen] = useState(false);
+  const [pidiendoMotivo, setPidiendoMotivo] = useState(false);
+  const [motivoSemana, setMotivoSemana] = useState('');
+  const [guardandoSemana, setGuardandoSemana] = useState(false);
   const { division } = useSesion();
   // Andina trabaja solo el Turno Día: la pestaña Noche y la opción de crear uno de noche aparecen
   // únicamente si quedó algún informe de noche guardado.
@@ -77,6 +82,7 @@ export default function Borradores({
   const finalizados = lista.filter(b => estadoBorrador(b) === 'finalizado').length;
   const enCurso = lista.filter(b => estadoBorrador(b) === 'iniciado').length;
   const noRealizados = lista.filter(b => b.sinTurno).length;
+  const semanaNocheNoRealizada = lista.length > 0 && lista.every(b => b.sinTurno);
 
   // Semanas ya terminadas: siguen guardadas en la base de datos y se muestran agrupadas, de la más reciente a la más antigua.
   const mapaAnteriores = new Map<string, { semana: SemanaTurno; entries: BorradorEntry[] }>();
@@ -148,9 +154,15 @@ export default function Borradores({
               {descargando ? 'Generando…' : 'Descargar'}
             </button>
           )}
-          <button type="button" onClick={() => onOpen(entry)} className="bg-[#0E4660] text-white px-3 py-1.5 rounded-md text-xs font-bold hover:bg-[#0a3549]">
-            {estado.boton}
-          </button>
+          {entry.sinTurno ? (
+            <button type="button" disabled className="bg-gray-200 text-gray-500 px-3 py-1.5 rounded-md text-xs font-bold cursor-not-allowed flex items-center gap-1.5" title="Turno noche no realizado: se bloquea con el switch de Turno Noche">
+              <Lock size={13} aria-hidden="true" /> Bloqueado
+            </button>
+          ) : (
+            <button type="button" onClick={() => onOpen(entry)} className="bg-[#0E4660] text-white px-3 py-1.5 rounded-md text-xs font-bold hover:bg-[#0a3549]">
+              {estado.boton}
+            </button>
+          )}
           {!soloEnPantalla && (
             <button type="button" onClick={() => setConfirmDeleteId(entry.id)} className="bg-red-50 text-red-700 p-2 rounded-md hover:bg-red-100" aria-label="Eliminar borrador" title="Eliminar borrador">
               <Trash2 size={15} />
@@ -313,6 +325,61 @@ export default function Borradores({
                 <span className="font-bold text-[#0E4660]">{tituloTab}</span>
                 <span>{finalizados} finalizado{finalizados === 1 ? '' : 's'} · {enCurso} en curso{noRealizados ? ` · ${noRealizados} no realizado${noRealizados === 1 ? '' : 's'}` : ''} · de {DIAS_POR_TURNO} días</span>
               </div>
+              {tabVisible === 'noche' && onSemanaNocheNoRealizada && (
+                <div className="mt-3 p-3 rounded-md border border-[#EEF1F3] bg-[#F6F8FA] space-y-2">
+                  <label className="flex items-center justify-between gap-3 cursor-pointer text-sm">
+                    <span className="font-bold text-[#0E4660]">Turno noche no realizado esta semana</span>
+                    <input
+                      type="checkbox"
+                      role="switch"
+                      aria-checked={semanaNocheNoRealizada}
+                      checked={semanaNocheNoRealizada}
+                      disabled={guardandoSemana || lista.length === 0}
+                      onChange={e => {
+                        if (e.target.checked) { setPidiendoMotivo(true); return; }
+                        setGuardandoSemana(true);
+                        void onSemanaNocheNoRealizada(false, null)
+                          .catch(() => window.alert('No se pudo reactivar el turno noche. Revisa la conexión e inténtalo de nuevo.'))
+                          .finally(() => setGuardandoSemana(false));
+                      }}
+                      className="h-5 w-9 accent-[#a32626]"
+                    />
+                  </label>
+                  {semanaNocheNoRealizada && (
+                    <p className="text-xs text-[#a32626]"><strong>Motivo:</strong> {lista.find(b => b.sinTurnoMotivo)?.sinTurnoMotivo || 'sin motivo'}. Los informes de noche de esta semana están bloqueados.</p>
+                  )}
+                  {pidiendoMotivo && (
+                    <div className="space-y-2">
+                      <textarea
+                        value={motivoSemana}
+                        onChange={e => setMotivoSemana(e.target.value)}
+                        rows={2}
+                        autoFocus
+                        placeholder="¿Por qué no se hará turno noche esta semana? Ej.: sin personal, feriado…"
+                        className="w-full p-2 border border-[#DCE1E6] rounded-md text-sm bg-white"
+                      />
+                      <div className="flex justify-end gap-2">
+                        <button type="button" onClick={() => { setPidiendoMotivo(false); setMotivoSemana(''); }} className="btn-outline text-[#0E4660] px-3 py-1.5 rounded-md text-xs font-bold">Cancelar</button>
+                        <button
+                          type="button"
+                          disabled={!motivoSemana.trim() || guardandoSemana}
+                          onClick={() => {
+                            const m = motivoSemana.trim();
+                            setGuardandoSemana(true);
+                            void onSemanaNocheNoRealizada(true, m)
+                              .then(() => { setPidiendoMotivo(false); setMotivoSemana(''); })
+                              .catch(error => window.alert(error instanceof Error ? error.message : 'No se pudo marcar el turno noche.'))
+                              .finally(() => setGuardandoSemana(false));
+                          }}
+                          className="bg-[#a32626] text-white px-3 py-1.5 rounded-md text-xs font-bold disabled:opacity-50"
+                        >
+                          Marcar semana no realizada
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
               <div className="w-full h-2 bg-gray-100 rounded-full mt-1.5 overflow-hidden flex">
                 <div className="h-full bg-green-500 transition-all" style={{ width: `${Math.min(100, (finalizados / DIAS_POR_TURNO) * 100)}%` }} />
                 <div className="h-full bg-[#F5B300] transition-all" style={{ width: `${Math.min(100 - (finalizados / DIAS_POR_TURNO) * 100, (enCurso / DIAS_POR_TURNO) * 100)}%` }} />

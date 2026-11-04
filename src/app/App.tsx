@@ -13,7 +13,7 @@ import { borrandose, cerrarDeshacer, registrarDeshacer, sinBorrandose } from '..
 import { leerRuta, rutaDe, esTipoBorradores, esPestanaAdmin, NOMBRE_PANTALLA, type Vista, type TipoBorradores } from './rutas';
 import { usePresencia } from '../lib/presencia';
 
-import { type BorradorEntry, fetchBorradores, subscribeBorradores, deleteBorrador, deleteBorradores, esSemillaSinEditar, estadoBorrador, upsertBorrador } from '../datos/borradoresDiario';
+import { type BorradorEntry, contarFotos, fetchBorradores, subscribeBorradores, deleteBorrador, deleteBorradores, esSemillaSinEditar, estadoBorrador, upsertBorrador } from '../datos/borradoresDiario';
 import { esPreventiva } from '../informes/preventiva/modelo';
 import { type BorradorOtroEntry, fetchBorradoresOtros, subscribeBorradoresOtros, deleteBorradorOtro, upsertBorradorOtro } from '../datos/borradoresOtros';
 import { formatFechaLarga, hoyLocalISO } from '../datos/fechas';
@@ -287,6 +287,30 @@ function AppContenido() {
     setBorradores(prev => [...prev.filter(b => b.id !== saved.id), { ...saved, sinTurno: true, sinTurnoMotivo: motivo }]);
   };
 
+  // Switch de Borradores: marca o desmarca TODOS los turnos noche de la semana de turno actual.
+  // No se puede marcar si algún turno noche de esa semana ya tiene fotos (un informe con trabajo hecho no se bloquea).
+  const marcarSemanaNoche = async (valor: boolean, motivo: string | null) => {
+    const semanaActual = semanaDeFecha(hoy);
+    const existentes = borradores.filter(b => b.turno === 'noche' && b.fecha >= semanaActual.inicio && b.fecha <= semanaActual.fin);
+    if (valor && existentes.some(b => !esSemillaSinEditar(b) && contarFotos(b).llenas > 0)) {
+      throw new Error('Hay informes de noche de esta semana con fotos: no se pueden bloquear.');
+    }
+    const cambios: BorradorEntry[] = [];
+    for (const fecha of semanaActual.dias) {
+      const actual = existentes.find(b => b.fecha === fecha);
+      if (valor) {
+        const base = actual ?? crearBorradorAutomatico(fecha, letraDeFecha(fecha), 'noche', division);
+        const saved = await upsertBorrador({ ...base, savedAt: new Date().toISOString() });
+        await marcarSinTurno(saved.id, true, motivo);
+        cambios.push({ ...saved, sinTurno: true, sinTurnoMotivo: motivo });
+      } else if (actual) {
+        await marcarSinTurno(actual.id, false, null);
+        cambios.push({ ...actual, sinTurno: false, sinTurnoMotivo: null });
+      }
+    }
+    setBorradores(prev => [...prev.filter(b => !cambios.some(c => c.id === b.id)), ...cambios]);
+  };
+
   // Al salir del Informe Diario (con un botón o con "Atrás" del navegador/teléfono) se guarda al
   // instante lo pendiente, antes de que la pantalla cambie.
   useEffect(() => {
@@ -513,6 +537,7 @@ function AppContenido() {
         onTabChange={setBorradoresTab}
         borradores={borradoresVisibles}
         onOpen={openBorradorEntry}
+        onSemanaNocheNoRealizada={marcarSemanaNoche}
         onDelete={handleDeleteBorrador}
         onBack={() => setView('dashboard')}
         onNew={goToNewInforme}
