@@ -76,6 +76,7 @@ export default function Borradores({
   const lista = delTurnoActual(tabVisible).sort(porFechaAsc);
   const finalizados = lista.filter(b => estadoBorrador(b) === 'finalizado').length;
   const enCurso = lista.filter(b => estadoBorrador(b) === 'iniciado').length;
+  const noRealizados = lista.filter(b => b.sinTurno).length;
 
   // Semanas ya terminadas: siguen guardadas en la base de datos y se muestran agrupadas, de la más reciente a la más antigua.
   const mapaAnteriores = new Map<string, { semana: SemanaTurno; entries: BorradorEntry[] }>();
@@ -117,14 +118,22 @@ export default function Borradores({
               Turno {entry.letraTurno} · {entry.turno === 'noche' ? 'Noche' : 'Día'}
             </span>
             {esHoy && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#F5B300] text-white">Hoy</span>}
-            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${estado.clase}`}>{estado.etiqueta}</span>
+            {entry.sinTurno ? (
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#fbe9e9] text-[#a32626]">Turno no realizado</span>
+            ) : (
+              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${estado.clase}`}>{estado.etiqueta}</span>
+            )}
           </div>
-          <div className="flex items-center gap-4 mt-1.5 text-xs text-gray-500">
-            <span className="flex items-center gap-1"><Users size={12} /> {entry.personal.filter(p => p.nombre.trim()).length} personas</span>
-            <span className="flex items-center gap-1">
-              <Camera size={12} /> {fotos.total > 0 ? `${fotos.llenas} de ${fotos.total} fotos` : `${fotos.llenas} fotos`}
-            </span>
-          </div>
+          {entry.sinTurno ? (
+            <p className="text-xs text-[#a32626] mt-1.5"><strong>Motivo:</strong> {entry.sinTurnoMotivo || 'Sin motivo registrado.'}</p>
+          ) : (
+            <div className="flex items-center gap-4 mt-1.5 text-xs text-gray-500">
+              <span className="flex items-center gap-1"><Users size={12} /> {entry.personal.filter(p => p.nombre.trim()).length} personas</span>
+              <span className="flex items-center gap-1">
+                <Camera size={12} /> {fotos.total > 0 ? `${fotos.llenas} de ${fotos.total} fotos` : `${fotos.llenas} fotos`}
+              </span>
+            </div>
+          )}
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
           {finalizado && (
@@ -302,7 +311,7 @@ export default function Borradores({
               </p>
               <div className="flex items-center justify-between gap-2 text-sm text-gray-500 mt-3">
                 <span className="font-bold text-[#0E4660]">{tituloTab}</span>
-                <span>{finalizados} finalizado{finalizados === 1 ? '' : 's'} · {enCurso} en curso · de {DIAS_POR_TURNO} días</span>
+                <span>{finalizados} finalizado{finalizados === 1 ? '' : 's'} · {enCurso} en curso{noRealizados ? ` · ${noRealizados} no realizado${noRealizados === 1 ? '' : 's'}` : ''} · de {DIAS_POR_TURNO} días</span>
               </div>
               <div className="w-full h-2 bg-gray-100 rounded-full mt-1.5 overflow-hidden flex">
                 <div className="h-full bg-green-500 transition-all" style={{ width: `${Math.min(100, (finalizados / DIAS_POR_TURNO) * 100)}%` }} />
