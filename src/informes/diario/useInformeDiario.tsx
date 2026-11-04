@@ -1768,7 +1768,11 @@ export function useInformeDiario({ view, setBorradores, borradoresRef, division,
       setBorradores(prev => prev.map(b => (b.id === currentDraftId ? { ...b, sinTurno: valor, sinTurnoMotivo: valor ? motivo : null } : b)));
       showToast(valor ? 'Turno no realizado: no cuenta en los KPI.' : 'Turno reactivado.');
     } catch (error) {
-      showToast(esErrorDeRed(error) ? 'Sin conexión: el turno se puede marcar cuando vuelva la señal.' : 'No se pudo marcar el turno.', true);
+      console.error('No se pudo marcar el turno no realizado:', error);
+      const detalle = (error as { message?: unknown } | null)?.message;
+      showToast(esErrorDeRed(error)
+        ? 'Sin conexión: el turno se puede marcar cuando vuelva la señal.'
+        : `No se pudo marcar el turno.${typeof detalle === 'string' && detalle ? ` ${detalle}` : ''}`, true);
     }
   };
 
