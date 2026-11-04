@@ -15,7 +15,7 @@ import logoEdificio from '../../assets/LogoEdificio.png';
 import { useSesion, nombreVisible } from '../../auth/sesion';
 import { configDivision } from '../../datos/divisiones';
 import { hoyLocalISO, sumarDias, formatDiaMes } from '../../datos/fechas';
-import { semanaDeFecha } from '../../datos/turnos';
+import { letraDeFecha, semanaDeFecha } from '../../datos/turnos';
 import { type BorradorOtroEntry, fetchBorradoresOtros, fetchVehiculosChecklist, subscribeBorradoresOtros, upsertBorradorOtro } from '../../datos/borradoresOtros';
 import { registrarDeshacer } from '../../lib/deshacer';
 import { firmasDivision } from '../../datos/perfil';
@@ -429,8 +429,10 @@ function FormularioChecklist({ id, cuentaId, division, entrada, base, hoy, onGua
   // --- Hojas del checklist → Informe Diario (Turno Día de la misma fecha) -----------------------
   const [envio, setEnvio] = useState<{ dia: number; estado: 'enviando' | 'ok' | 'error' | 'conflicto' | 'conservado'; texto?: string } | null>(null);
   const enviandoRef = useRef(false);
+  // Solo se envían los días del turno del checklist (datos.letra): un día de otro turno nunca va al Informe Diario.
+  const esDelTurno = (d: number, datosEnvio: DatosChecklist) => letraDeFecha(fechas[d]) === datosEnvio.letra;
   const enviarAlDiario = async (d: number, datosEnvio: DatosChecklist, reemplazar = false) => {
-    if (enviandoRef.current) return;
+    if (enviandoRef.current || !esDelTurno(d, datosEnvio)) return;
     enviandoRef.current = true;
     setEnvio({ dia: d, estado: 'enviando' });
     try {
@@ -460,7 +462,7 @@ function FormularioChecklist({ id, cuentaId, division, entrada, base, hoy, onGua
   const [modalDia, setModalDia] = useState<number | null>(null);
   const [omitidaHuella, setOmitidaHuella] = useState<string | null>(null);
   useEffect(() => {
-    if (sucio || diaEditado === null) return;
+    if (sucio || diaEditado === null || !esDelTurno(diaEditado, datos)) return;
     const a = avanceDia(datos, diaEditado);
     const h = huella(datos);
     if (a.hechos !== a.total || leerLocal(claveEnviado(id, diaEditado)) === h || omitidaHuella === h) return;
@@ -568,7 +570,10 @@ function FormularioChecklist({ id, cuentaId, division, entrada, base, hoy, onGua
             <button type="button" onClick={limpiarDia} className="checklist-accion"><Eraser size={14} /> Limpiar</button>
           </div>
         </div>
-        {completo && (
+        {completo && !esDelTurno(dia, datos) && (
+          <p className="text-xs text-gray-500 mb-3">Este día es del turno {letraDeFecha(fechas[dia])}: no se envía al Informe Diario desde este checklist (solo los días del turno {datos.letra}).</p>
+        )}
+        {completo && esDelTurno(dia, datos) && (
           <div className={`checklist-diario ${envio?.dia === dia && envio.estado === 'error' ? 'checklist-diario--error' : envio?.dia === dia && (envio.estado === 'conflicto' || envio.estado === 'conservado') ? 'checklist-diario--aviso' : ''}`} role="status">
             {envio?.dia === dia && envio.estado === 'enviando' ? (
               <span className="flex items-center gap-1.5"><Loader2 size={14} className="animate-spin" /> Guardando las 2 hojas en el Informe Diario del {ddmm(fechas[dia])}…</span>
