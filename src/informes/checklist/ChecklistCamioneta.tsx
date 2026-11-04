@@ -455,14 +455,17 @@ function FormularioChecklist({ id, cuentaId, division, entrada, base, hoy, onGua
     }
   };
 
-  // Al completar (o corregir) un día ya guardado, sus 2 hojas se mandan solas al Informe Diario.
+  // Al completar (o corregir) un día, se pregunta si se envía al Informe Diario (nunca se envía solo).
+  // «No, por ahora» deja de preguntar hasta que cambie algo del checklist.
+  const [modalDia, setModalDia] = useState<number | null>(null);
+  const [omitidaHuella, setOmitidaHuella] = useState<string | null>(null);
   useEffect(() => {
     if (sucio || diaEditado === null) return;
     const a = avanceDia(datos, diaEditado);
-    if (a.hechos !== a.total || leerLocal(claveEnviado(id, diaEditado)) === huella(datos)) return;
-    const d = diaEditado;
-    const t = setTimeout(() => { setDiaEditado(null); void enviarAlDiario(d, datos); }, 1200);
-    return () => clearTimeout(t);
+    const h = huella(datos);
+    if (a.hechos !== a.total || leerLocal(claveEnviado(id, diaEditado)) === h || omitidaHuella === h) return;
+    setDiaEditado(null);
+    setModalDia(diaEditado);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sucio, diaEditado, datos, id]);
 
@@ -488,6 +491,22 @@ function FormularioChecklist({ id, cuentaId, division, entrada, base, hoy, onGua
 
   return (
     <>
+      {modalDia !== null && (
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="modal-enviar-diario">
+          <div className="bg-white rounded-lg shadow-xl max-w-sm w-full p-5 space-y-4">
+            <h2 id="modal-enviar-diario" className="font-display font-bold text-lg text-[#0E4660]">¿Enviar al Informe Diario?</h2>
+            <p className="text-sm text-gray-700">
+              El día {ETIQUETAS_DIA[modalDia]} {ddmm(fechas[modalDia])} está completo. ¿Desea enviar sus 2 hojas como imagen al Informe Diario (Turno Día) de esa fecha?
+            </p>
+            <div className="flex flex-wrap justify-end gap-2">
+              <button type="button" onClick={() => { setOmitidaHuella(huella(datos)); setModalDia(null); }} className="checklist-accion">No, por ahora</button>
+              <button type="button" onClick={() => { const d = modalDia; setModalDia(null); void enviarAlDiario(d, datos); }} className="checklist-accion checklist-accion--ok">
+                <Send size={14} /> Sí, enviar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       <p className="text-[11px] text-gray-500 text-right -mt-2">{estadoGuardado}</p>
 
       <details open className="panel p-5">
