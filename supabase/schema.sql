@@ -698,6 +698,40 @@ begin
 end;
 $$;
 
+-- Mantenimiento de generador y Falla de carro que quedaron sin cambios hace más de 7 días: se finalizan solos
+-- (así no quedan pendientes para siempre). Cada hora. Las checklists no entran aquí.
+create or replace function public.cerrar_otros_inactivos()
+returns integer
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_cerrados integer;
+begin
+  with cerrar as (
+    update public.borradores_otros
+    set finalizado_en = now()
+    where finalizado_en is null
+      and tipo in ('mantenimiento', 'falla')
+      and saved_at < now() - interval '7 days'
+    returning 1
+  )
+  select count(*) into v_cerrados from cerrar;
+  return v_cerrados;
+end;
+$$;
+
+revoke all on function public.cerrar_otros_inactivos() from public, anon, authenticated;
+
+do $$
+begin
+  if exists (select 1 from pg_extension where extname = 'pg_cron') then
+    perform cron.schedule('cerrar-otros-inactivos', '0 * * * *', 'select public.cerrar_otros_inactivos()');
+  end if;
+end;
+$$;
+
 -- Realtime de presencia y actividad para el panel de administración (solo la agrega si falta).
 do $$
 begin
