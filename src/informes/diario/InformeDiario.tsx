@@ -138,6 +138,14 @@ export default function InformeDiario({ d, volverABorradores, goToNewInforme }: 
       {/* Turno noche no realizado: solo el motivo, sin campos vacíos. */}
       {sinTurno ? (
         <main className="max-w-[900px] mx-auto p-5 space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <button type="button" onClick={volverABorradores} className="btn-outline text-[#0E4660] px-3 py-1.5 rounded-md text-xs font-bold hover:bg-[#d5e7f8] flex items-center gap-1.5">
+              <ArrowLeft size={14} /> Volver a borradores
+            </button>
+            <button type="button" onClick={() => void alternarSinTurno(null)} className="btn-outline text-[#0E4660] px-3 py-1.5 rounded-md text-xs font-bold hover:bg-[#d5e7f8]">
+              Reactivar turno
+            </button>
+          </div>
           <section className="panel p-5 space-y-3 border-l-4 border-[#a32626]">
             <h2 className="font-display font-bold text-lg text-[#a32626]">Turno noche no realizado</h2>
             <p className="text-sm"><strong>Motivo:</strong> {sinTurnoMotivo || 'Sin motivo registrado.'}</p>
