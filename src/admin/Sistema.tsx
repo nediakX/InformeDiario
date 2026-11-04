@@ -143,7 +143,7 @@ export default function Sistema() {
 
       <TarjetaGrafico
         titulo="Fotos huérfanas"
-        subtitulo="Fotos guardadas en la nube que ningún informe usa. No se consideran las subidas en las últimas 24 horas."
+        subtitulo="Fotos de borradores eliminados que ningún informe usa. Nunca se listan fotos de informes existentes ni de los últimos 30 días."
         acciones={
           <button type="button" className="btn-mini" onClick={() => void buscarHuerfanas()} disabled={buscando || Boolean(borrando)}>
             {buscando ? <Loader2 size={13} className="animate-spin" /> : <Search size={13} />} Buscar
