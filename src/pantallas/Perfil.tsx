@@ -1,6 +1,5 @@
 // Mi perfil: cada usuario corrige sus datos (nombre, RUT), cambia su contraseña y sube su firma.
-// La firma se pone sola en el Checklist de Camioneta, en el cuadro "Firma y Nombre Conductor" de
-// los días en que figura como conductor.
+// La firma se pone sola en el Checklist de Camioneta, en el cuadro "Firma y Nombre Conductor" de cada día completo.
 import { useState } from 'react';
 import { ArrowLeft, Check, KeyRound, Loader2, PenLine, Trash2, Upload, UserRound } from 'lucide-react';
 import logoPsinet from '../assets/logo_psinet.jpg';
@@ -153,7 +152,7 @@ export default function Perfil({ onBack }: { onBack: () => void }) {
             <h3 className="font-display font-bold text-base text-[#0E4660] flex items-center gap-2"><PenLine size={17} /> Firma</h3>
             <p className="text-xs text-gray-500">
               Sube una foto o escaneo de tu firma sobre papel blanco. Se limpia sola (fondo transparente) y se pone en el
-              <strong> Checklist de Camioneta</strong>, en el cuadro «Firma y Nombre Conductor» de cada día en que figuras como conductor.
+              <strong> Checklist de Camioneta</strong>, en el cuadro «Firma y Nombre Conductor» de cada día que completes.
             </p>
             <div className="rounded-lg border border-dashed border-[#C9D3DA] bg-[repeating-linear-gradient(0deg,#fff,#fff_23px,#f1f4f6_24px)] h-36 flex items-center justify-center p-3">
               {procesandoFirma ? (

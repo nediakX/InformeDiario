@@ -7,7 +7,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowLeft, ChevronLeft, ChevronRight, CarFront, ClipboardCheck, UserRound, ShieldAlert,
-  Check, X, Copy, Eraser, Loader2, FileDown, Plus, NotebookPen, Eye, Send,
+  Check, X, Copy, Eraser, Loader2, FileDown, Plus, NotebookPen, Eye, Send, PenLine,
 } from 'lucide-react';
 import { saveAs } from 'file-saver';
 import logoPsinet from '../../assets/logo_psinet.jpg';
@@ -68,6 +68,21 @@ const hastaElDia = (datos: DatosChecklist, dia: number): DatosChecklist => {
     },
     firmas: cortar(datos.firmas, ''),
   };
+};
+/**
+ * El conductor es quien ingresó a la cuenta y su firma va en cada día completo: se pone sola al completar
+ * el día y se quita si el día deja de estar completo.
+ */
+const firmarDia = (datos: DatosChecklist, dia: number): DatosChecklist => {
+  const a = avanceDia(datos, dia);
+  const firmas = [...datos.firmas];
+  firmas[dia] = a.hechos === a.total && datos.conductor ? datos.conductor : '';
+  return { ...datos, firmas };
+};
+const firmarTodos = (datos: DatosChecklist): DatosChecklist => {
+  let d = datos;
+  for (let i = 0; i < DIAS_CHECKLIST; i++) d = firmarDia(d, i);
+  return d;
 };
 const claveEnviado = (id: string, dia: number) => `psinet_checklist_diario_${id}_${dia}`;
 const leerLocal = (k: string) => { try { return localStorage.getItem(k); } catch { return null; } };
@@ -139,10 +154,8 @@ export default function ChecklistCamioneta({ onBack, fechaInicial = null }: { on
     const d = checklistVacio(semana.inicio, semana.letra);
     const anterior = camionetas.get(clavePatente(patenteActiva));
     d.patente = patenteActiva;
-    // Conductor por defecto: la persona que abre el checklist, si está en la lista de conductores.
-    const propio = nombreVisible(perfil);
-    const lista = [...config.conductores.A, ...config.conductores.B];
-    d.conductor = lista.length ? (lista.find(n => mismaPersona(n, propio)) ?? '') : propio;
+    // Conductor: la persona que ingresó a la cuenta (nombre y apellido, como en el registro).
+    d.conductor = nombreVisible(perfil);
     if (anterior) {
       d.patente = anterior.patente || patenteActiva;
       d.marca = anterior.marca; d.modelo = anterior.modelo; d.anio = anterior.anio;
@@ -150,7 +163,7 @@ export default function ChecklistCamioneta({ onBack, fechaInicial = null }: { on
       d.fechaControlLicencia = anterior.fechaControlLicencia; d.fechaExtintor = anterior.fechaExtintor;
     }
     return d;
-  }, [semana.inicio, semana.letra, camionetas, patenteActiva, perfil, config.conductores]);
+  }, [semana.inicio, semana.letra, camionetas, patenteActiva, perfil]);
 
   const rango = `${formatDiaMes(sumarDias(semana.inicio, -1))} – ${formatDiaMes(semana.fin)}`;
 
@@ -223,7 +236,6 @@ export default function ChecklistCamioneta({ onBack, fechaInicial = null }: { on
             id={id}
             cuentaId={perfil.id}
             division={division}
-            conductores={config.conductores}
             entrada={entrada}
             base={base}
             hoy={hoy}
@@ -235,11 +247,10 @@ export default function ChecklistCamioneta({ onBack, fechaInicial = null }: { on
   );
 }
 
-function FormularioChecklist({ id, cuentaId, division, conductores, entrada, base, hoy, onGuardado }: {
+function FormularioChecklist({ id, cuentaId, division, entrada, base, hoy, onGuardado }: {
   id: string;
   /** Cuenta que llena el checklist (dueña del registro). */
   cuentaId: string;
-  conductores: { A: string[]; B: string[] };
   /** Avisa el checklist recién guardado (la lista de camionetas se actualiza al tiro, aun sin señal). */
   onGuardado: (entry: BorradorOtroEntry) => void;
   division: ReturnType<typeof useSesion>['division'];
@@ -247,10 +258,11 @@ function FormularioChecklist({ id, cuentaId, division, conductores, entrada, bas
   base: DatosChecklist;
   hoy: string;
 }) {
-  // Lo guardado, completando con los datos fijos de la camioneta lo que haya quedado vacío.
+  const { perfil } = useSesion();
+  // Lo guardado, completando con los datos fijos de la camioneta lo que haya quedado vacío. El conductor es siempre quien ingresó.
   const normalizar = (e: BorradorOtroEntry): DatosChecklist => {
     const d = normalizarChecklist(e.datos, base.semanaInicio, base.letra);
-    return { ...d, patente: base.patente, marca: d.marca || base.marca, modelo: d.modelo || base.modelo, anio: d.anio || base.anio };
+    return firmarTodos({ ...d, patente: base.patente, marca: d.marca || base.marca, modelo: d.modelo || base.modelo, anio: d.anio || base.anio, conductor: base.conductor });
   };
   const [datos, setDatos] = useState<DatosChecklist>(() => (entrada ? normalizar(entrada) : base));
   // Cada cambio suma una edición; hay cambios sin guardar mientras la última guardada sea anterior.
@@ -281,7 +293,7 @@ function FormularioChecklist({ id, cuentaId, division, conductores, entrada, bas
   // Último día modificado: al quedar completo, sus hojas se guardan en el Informe Diario de esa fecha.
   const [diaEditado, setDiaEditado] = useState<number | null>(null);
   const cambiar = (fn: (d: DatosChecklist) => DatosChecklist) => {
-    setDatos(fn);
+    setDatos(d => firmarDia(fn(d), dia));
     setEdicion(n => n + 1);
     setDiaEditado(dia);
   };
@@ -391,8 +403,6 @@ function FormularioChecklist({ id, cuentaId, division, conductores, entrada, bas
     return { ...d, aptitudes: { ...d.aptitudes, [clave]: arr } };
   });
 
-  const firmar = (valor: string) => cambiar(d => { const f = [...d.firmas]; f[dia] = valor; return { ...d, firmas: f }; });
-
   const descargar = (blob: Blob, nombre: string) => {
     saveAs(blob, nombre);
     void registrarActividad('word_generado', nombre, id);
@@ -485,10 +495,10 @@ function FormularioChecklist({ id, cuentaId, division, conductores, entrada, bas
           <UserRound size={18} className="panel__summary-icon" strokeWidth={2.2} /> Datos de la semana
         </summary>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <div className="sm:col-span-2">
+          <label className="block sm:col-span-2">
             <span className="block text-xs text-[#6B6B6B] font-bold mb-1">Nombre del conductor</span>
-            <SelectorConductor valor={datos.conductor} onChange={v => campo('conductor', v)} conductores={conductores} letra={datos.letra} />
-          </div>
+            <input value={datos.conductor} readOnly className="w-full p-2 border border-[#DCE1E6] rounded-md text-sm bg-gray-50" />
+          </label>
           {input('marca', 'Marca', 'text', { placeholder: 'Ej. Toyota' })}
           {input('modelo', 'Modelo', 'text', { placeholder: 'Ej. Hilux' })}
           {input('anio', 'Año', 'text', { inputMode: 'numeric' })}
@@ -618,17 +628,6 @@ function FormularioChecklist({ id, cuentaId, division, conductores, entrada, bas
             <ShieldAlert size={16} /> Debe informar inmediatamente a la Jefatura directa antes de conducir.
           </p>
         )}
-        <div className="mt-4">
-          <span className="block text-xs text-[#6B6B6B] font-bold mb-1">Firma y nombre del conductor ({ETIQUETAS_DIA[dia].toLowerCase()})</span>
-          <div className="flex gap-2">
-            <div className="flex-1">
-              <SelectorConductor key={dia} valor={datos.firmas[dia]} onChange={firmar} conductores={conductores} letra={datos.letra} vacio="Seleccionar quién conduce este día" />
-            </div>
-            {datos.conductor && datos.firmas[dia] !== datos.conductor && (
-              <button type="button" onClick={() => firmar(datos.conductor)} className="checklist-accion">Usar conductor</button>
-            )}
-          </div>
-        </div>
       </section>
 
       <details open className="panel p-5">
@@ -645,6 +644,22 @@ function FormularioChecklist({ id, cuentaId, division, conductores, entrada, bas
           <p className="text-xs text-gray-500">La hoja de revisión exterior (abolladuras, rayas y picaduras sobre el dibujo de la camioneta) se mantiene igual en el Word para marcarla a mano si corresponde.</p>
         </div>
       </details>
+
+      <section className="panel p-5">
+        <h2 className="font-display font-bold text-lg text-[#0E4660] flex items-center gap-2 mb-3">
+          <PenLine size={18} /> Nombre y firma del conductor · {ETIQUETAS_DIA[dia]} {ddmm(fechas[dia])}
+        </h2>
+        <p className="font-bold text-[#222]">{datos.conductor || '—'}</p>
+        {datos.firmas[dia] ? (
+          perfil.firma ? (
+            <img src={perfil.firma} alt="Firma del conductor" className="mt-2 h-20 w-auto max-w-full object-contain" />
+          ) : (
+            <p className="text-xs text-amber-800 mt-2">Aún no tienes firma: súbela en «Mi perfil» para que salga en el checklist.</p>
+          )
+        ) : (
+          <p className="text-xs text-gray-500 mt-2">Se firma sola cuando el día esté completo.</p>
+        )}
+      </section>
 
       <div className="action-zone flex flex-col sm:flex-row gap-2">
         <button
@@ -680,57 +695,5 @@ function FormularioChecklist({ id, cuentaId, division, conductores, entrada, bas
         </div>
       )}
     </>
-  );
-}
-
-/** Compara nombres sin importar mayúsculas, tildes ni el segundo apellido ("Juan Morata" = "Juan Morata López"). */
-function mismaPersona(a: string, b: string) {
-  const palabras = (t: string) => t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-zñ ]/g, ' ').split(/\s+/).filter(Boolean);
-  const pa = palabras(a); const pb = new Set(palabras(b));
-  return pa.length > 0 && pa.every(p => pb.has(p));
-}
-
-/** Lista desplegable de conductores (primero los del turno de la semana) con opción de escribir otro nombre. */
-function SelectorConductor({ valor, onChange, conductores, letra, vacio = 'Seleccionar conductor' }: {
-  valor: string;
-  onChange: (v: string) => void;
-  conductores: { A: string[]; B: string[] };
-  letra: 'A' | 'B';
-  vacio?: string;
-}) {
-  const OTRO = '__otro__';
-  const grupos: ['A' | 'B', string[]][] = letra === 'B' ? [['B', conductores.B], ['A', conductores.A]] : [['A', conductores.A], ['B', conductores.B]];
-  const todos = [...conductores.A, ...conductores.B];
-  const enLista = todos.includes(valor);
-  const [escribiendo, setEscribiendo] = useState(Boolean(valor) && !enLista);
-  const clase = 'w-full p-2 border border-[#DCE1E6] rounded-md text-sm';
-
-  if (!todos.length) {
-    return <input value={valor} onChange={e => onChange(e.target.value)} placeholder={vacio} className={clase} />;
-  }
-
-  return (
-    <div className="space-y-2">
-      <select
-        value={escribiendo || (valor && !enLista) ? OTRO : valor}
-        onChange={e => {
-          if (e.target.value === OTRO) { setEscribiendo(true); return; }
-          setEscribiendo(false);
-          onChange(e.target.value);
-        }}
-        className={`${clase} bg-white`}
-      >
-        <option value="">{vacio}</option>
-        {grupos.map(([l, nombres]) => nombres.length > 0 && (
-          <optgroup key={l} label={`Turno ${l}`}>
-            {nombres.map(n => <option key={n} value={n}>{n}</option>)}
-          </optgroup>
-        ))}
-        <option value={OTRO}>Otro (escribir nombre)…</option>
-      </select>
-      {(escribiendo || (valor && !enLista)) && (
-        <input autoFocus value={valor} onChange={e => onChange(e.target.value)} placeholder="Nombre del conductor" className={clase} />
-      )}
-    </div>
   );
 }
