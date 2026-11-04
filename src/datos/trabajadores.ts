@@ -41,8 +41,8 @@ const EL_SALVADOR: Trabajador[] = [
  */
 export const SUPERVISORES_IMPRESION_EXTRA: Record<Division, { nombre: string; cargo: string }[]> = {
   el_salvador: [
-    { nombre: 'Omar Jesús Gutiérrez Tapia', cargo: 'Expert@ SSO' },
-    { nombre: 'Claudia Andrea Droguett Pasten', cargo: 'Expert@ SSO' },
+    { nombre: 'Omar Jesús Gutiérrez Tapia', cargo: 'Experto SSO' },
+    { nombre: 'Claudia Andrea Droguett Pasten', cargo: 'Experta SSO' },
   ],
   andina: [],
 };
