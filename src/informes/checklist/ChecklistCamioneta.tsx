@@ -13,7 +13,6 @@ import { saveAs } from 'file-saver';
 import logoPsinet from '../../assets/logo_psinet.jpg';
 import logoEdificio from '../../assets/LogoEdificio.png';
 import { useSesion, nombreVisible } from '../../auth/sesion';
-import { nombreCorto } from '../../lib/nombres';
 import { configDivision } from '../../datos/divisiones';
 import { hoyLocalISO, sumarDias, formatDiaMes } from '../../datos/fechas';
 import { letraDeFecha, semanaDeFecha } from '../../datos/turnos';
@@ -156,7 +155,7 @@ export default function ChecklistCamioneta({ onBack, fechaInicial = null }: { on
     const anterior = camionetas.get(clavePatente(patenteActiva));
     d.patente = patenteActiva;
     // Conductor: la persona que ingresó a la cuenta (nombre y apellido, como en el registro).
-    d.conductor = nombreCorto(nombreVisible(perfil));
+    d.conductor = nombreVisible(perfil);
     if (anterior) {
       d.patente = anterior.patente || patenteActiva;
       d.marca = anterior.marca; d.modelo = anterior.modelo; d.anio = anterior.anio;
