@@ -358,7 +358,7 @@ export const vertivVacio = (division: Division) => ({
 
 // Borrador "virtual" de un día del turno: existe solo en pantalla (no en Supabase) hasta que el informe
 // tenga al menos una foto. Al abrirlo, el Informe Diario arma las evidencias a partir de las actividades.
-export const crearBorradorAutomatico = (fecha: string, letra: 'A' | 'B', turno: 'dia' | 'noche', division: Division = 'el_salvador'): BorradorEntry => {
+export const crearBorradorAutomatico = (fecha: string, letra: 'A' | 'B', turno: 'dia' | 'noche', division: Division = 'el_salvador', personalInicial?: PersonalItem[]): BorradorEntry => {
   const creador = getCreadorPorDefecto(letra, division);
   const config = CONFIG_DIVISION[division];
   const vertiv = vertivVacio(division);
@@ -376,7 +376,8 @@ export const crearBorradorAutomatico = (fecha: string, letra: 'A' | 'B', turno: 
     revisadoText: config.diario.revisadoText,
     autorizadoNombre: config.diario.autorizado.nombre,
     autorizadoCargo: config.diario.autorizado.cargo,
-    personal: getPersonalGuardado(letra, division),
+    // Por defecto, el personal del último informe realizado del mismo turno (así el turno sigue correlativo).
+    personal: personalInicial ?? getPersonalGuardado(letra, division),
     actividades: getActividadesGuardadas(turno, division),
     observaciones: [],
     evidenceBlocks: [],

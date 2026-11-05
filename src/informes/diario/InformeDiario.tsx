@@ -1,6 +1,10 @@
 
 import { useState } from 'react';
-import { ChevronDown, Trash2, ClipboardList, Users, ListChecks, BatteryCharging, MessageSquare, Camera, Loader2, ArrowLeft, Plus, GripVertical, Copy, LayoutGrid, X as Cerrar, CheckCircle2, RotateCcw } from 'lucide-react';
+import { ACTIVIDAD_CHECKLIST } from '../checklist/enviarDiario';
+import { checklistHojasComoPdf } from '../checklist/checklistPdf';
+import { hojasDelChecklist } from './mezclaFotos';
+import { descargarPdf, urlDePdf } from '../../lib/imprimir';
+import { FileDown, ChevronDown, Trash2, ClipboardList, Users, ListChecks, BatteryCharging, MessageSquare, Camera, Loader2, ArrowLeft, Plus, GripVertical, Copy, LayoutGrid, X as Cerrar, CheckCircle2, RotateCcw } from 'lucide-react';
 import logoPsinet from "../../assets/logo_psinet.jpg";
 import logoEdificio from "../../assets/LogoEdificio.png";
 import BotonAccionesInforme from '../../componentes/BotonAccionesInforme';
@@ -103,6 +107,18 @@ export default function InformeDiario({ d, volverABorradores, goToNewInforme }: 
   const { sinTurno, sinTurnoMotivo, alternarSinTurno } = d;
   const [modalSinTurno, setModalSinTurno] = useState(false);
   const [motivoSinTurno, setMotivoSinTurno] = useState('');
+
+  // Exporta a PDF las hojas del checklist de camioneta que hay en el bloque.
+  const exportarChecklistPdf = async (block: (typeof evidenceBlocks)[number]) => {
+    try {
+      const urls = hojasDelChecklist(block).map(h => block.photos[h.indice]).filter((u): u is string => !!u);
+      const bytes = await checklistHojasComoPdf(urls);
+      descargarPdf(urlDePdf(bytes), `Checklist_camioneta_${fecha}.pdf`);
+    } catch (error) {
+      console.error('No se pudo exportar el checklist a PDF:', error);
+      window.alert('No se pudo exportar el checklist a PDF. Revisa la conexión e inténtalo de nuevo.');
+    }
+  };
 
   return (
     <div className="min-h-screen text-[#222] font-sans pb-20">
@@ -569,6 +585,15 @@ export default function InformeDiario({ d, volverABorradores, goToNewInforme }: 
                     </span>
                   ) : (
                     <span className="text-[11px] text-gray-400 shrink-0">(fijo turno {turno === 'noche' ? 'noche' : 'día'})</span>
+                  )}
+                  {block.title === ACTIVIDAD_CHECKLIST && hojasDelChecklist(block).length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => void exportarChecklistPdf(block)}
+                      className="btn-outline text-[#0E4660] px-2.5 py-1 rounded-md text-xs font-bold hover:bg-[#d5e7f8] flex items-center gap-1.5 shrink-0"
+                    >
+                      <FileDown size={13} /> Exportar PDF
+                    </button>
                   )}
                 </div>
 

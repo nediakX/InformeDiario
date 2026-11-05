@@ -248,9 +248,15 @@ function AppContenido() {
     const guardados = borradores.filter(b => !esSemillaSinEditar(b));
     const existentes = new Set(guardados.map(b => `${b.fecha}|${b.letraTurno}|${b.turno}`));
     const virtuales: BorradorEntry[] = [];
+    // Personal del último informe realizado de ese turno (antes de la fecha): el día siguiente sale con el mismo personal.
+    const personalAnterior = (fecha: string, turno: 'dia' | 'noche') => guardados
+      .filter(b => b.turno === turno && b.letraTurno === semana.letra && b.fecha < fecha && !b.sinTurno && b.personal.some(p => p.nombre.trim()))
+      .sort((a, b) => b.fecha.localeCompare(a.fecha))[0]?.personal;
     semana.dias.forEach(fecha => {
       turnosDeDivision(division).forEach(turno => {
-        if (!existentes.has(`${fecha}|${semana.letra}|${turno}`)) virtuales.push(crearBorradorAutomatico(fecha, semana.letra, turno, division));
+        if (!existentes.has(`${fecha}|${semana.letra}|${turno}`)) {
+          virtuales.push(crearBorradorAutomatico(fecha, semana.letra, turno, division, personalAnterior(fecha, turno)));
+        }
       });
     });
     return [...guardados, ...virtuales];
