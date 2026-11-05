@@ -85,7 +85,6 @@ const firmarTodos = (datos: DatosChecklist): DatosChecklist => {
   return d;
 };
 const claveEnviado = (id: string, dia: number) => `psinet_checklist_diario_${id}_${dia}`;
-const leerLocal = (k: string) => { try { return localStorage.getItem(k); } catch { return null; } };
 const guardarLocal = (k: string, v: string) => { try { localStorage.setItem(k, v); } catch { /* sin almacenamiento */ } };
 
 /** fechaInicial: semana a mostrar al abrir (ej: un checklist recién importado de otra semana). */
@@ -290,12 +289,9 @@ function FormularioChecklist({ id, cuentaId, division, entrada, base, hoy, onGua
     }
   }
 
-  // Último día modificado: al quedar completo, sus hojas se guardan en el Informe Diario de esa fecha.
-  const [diaEditado, setDiaEditado] = useState<number | null>(null);
   const cambiar = (fn: (d: DatosChecklist) => DatosChecklist) => {
     setDatos(d => firmarDia(fn(d), dia));
     setEdicion(n => n + 1);
-    setDiaEditado(dia);
   };
   const campo = <K extends keyof DatosChecklist>(clave: K, valor: DatosChecklist[K]) => cambiar(d => ({ ...d, [clave]: valor }));
 
@@ -459,19 +455,8 @@ function FormularioChecklist({ id, cuentaId, division, entrada, base, hoy, onGua
     }
   };
 
-  // Al completar (o corregir) un día, se pregunta si se envía al Informe Diario (nunca se envía solo).
-  // «No, por ahora» deja de preguntar hasta que cambie algo del checklist.
+  // Enviar al Informe Diario: al apretar el botón se pregunta antes de enviar (nunca se envía solo).
   const [modalDia, setModalDia] = useState<number | null>(null);
-  const [omitidaHuella, setOmitidaHuella] = useState<string | null>(null);
-  useEffect(() => {
-    if (sucio || diaEditado === null || !esDelTurno(diaEditado, datos)) return;
-    const a = avanceDia(datos, diaEditado);
-    const h = huella(datos);
-    if (a.hechos !== a.total || leerLocal(claveEnviado(id, diaEditado)) === h || omitidaHuella === h) return;
-    setDiaEditado(null);
-    setModalDia(diaEditado);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sucio, diaEditado, datos, id]);
 
   const avance = avanceDia(datos, dia);
   const completo = avance.hechos === avance.total;
@@ -503,7 +488,7 @@ function FormularioChecklist({ id, cuentaId, division, entrada, base, hoy, onGua
               El día {ETIQUETAS_DIA[modalDia]} {ddmm(fechas[modalDia])} está completo. ¿Desea enviar sus 2 hojas como imagen al Informe Diario (Turno Día) de esa fecha?
             </p>
             <div className="flex flex-wrap justify-end gap-2">
-              <button type="button" onClick={() => { setOmitidaHuella(huella(datos)); setModalDia(null); }} className="checklist-accion">No, por ahora</button>
+              <button type="button" onClick={() => setModalDia(null)} className="checklist-accion">No, por ahora</button>
               <button type="button" onClick={() => { const d = modalDia; setModalDia(null); void enviarAlDiario(d, datos); }} className="checklist-accion checklist-accion--ok">
                 <Send size={14} /> Sí, enviar
               </button>
@@ -592,7 +577,7 @@ function FormularioChecklist({ id, cuentaId, division, entrada, base, hoy, onGua
                 <button type="button" onClick={() => setEnvio({ dia, estado: 'conservado', texto: `Se dejó el checklist que ya estaba en el Informe Diario del ${ddmm(fechas[dia])}.` })} className="checklist-accion">No, dejar el actual</button>
               </div>
             ) : (
-              <button type="button" disabled={envio?.estado === 'enviando'} onClick={() => void enviarAlDiario(dia, datos)} className="checklist-accion">
+              <button type="button" disabled={envio?.estado === 'enviando'} onClick={() => setModalDia(dia)} className="checklist-accion">
                 <Send size={14} /> {envio?.dia === dia && envio.estado === 'error' ? 'Reintentar' : envio?.dia === dia && envio.estado === 'ok' ? 'Volver a enviar' : 'Enviar al Informe Diario'}
               </button>
             )}
