@@ -23,8 +23,8 @@ import {
 } from '../datos/reportesGG';
 
 const POR_PAGINA = 100;
-const campo = 'w-full min-h-[44px] p-2.5 border border-[#DCE1E6] rounded-md text-base sm:text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#0E4660]/25';
-const etiqueta = 'block text-sm font-bold text-[#2d3a42] mb-1';
+const campo = 'w-full p-2.5 border border-[#DCE1E6] rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#0E4660]/25';
+const etiqueta = 'block text-xs font-bold text-[#55636B] mb-1';
 const horaActual = () => { const d = new Date(); return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; };
 const ddmmaaaa = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}`;
 const fmtNum = (n: number | null) => (n === null ? '—' : n.toLocaleString('es-CL', { maximumFractionDigits: 1 }));
@@ -35,7 +35,7 @@ function Opciones({ valor, opciones, onChange, nombre }: { valor: string; opcion
     <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label={nombre}>
       {opciones.map(o => (
         <button key={o} type="button" role="radio" aria-checked={valor === o} onClick={() => onChange(o)}
-          className={`min-h-[44px] px-4 py-2 rounded-md text-base font-bold border transition-colors ${valor === o ? 'bg-[#0E4660] text-white border-[#0E4660]' : 'bg-white text-[#0E4660] border-[#C9D3DA] hover:bg-[#eef5fb]'}`}>
+          className={`px-3 py-2 rounded-md text-sm font-bold border transition-colors ${valor === o ? 'bg-[#0E4660] text-white border-[#0E4660]' : 'bg-white text-[#0E4660] border-[#C9D3DA] hover:bg-[#eef5fb]'}`}>
           {o}
         </button>
       ))}
@@ -410,7 +410,7 @@ export default function ReportabilidadGG({ onBack }: { onBack: () => void }) {
               </button>
             )}
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 gap-3">
             <label>
               <span className={etiqueta}>Fecha *</span>
               <input type="date" className={campo} value={form.fecha} onChange={e => { const fecha = e.target.value; setForm(f => ({ ...f, fecha, turno: fecha ? `TURNO ${letraDeFecha(fecha)}` : f.turno })); }} />
@@ -451,7 +451,7 @@ export default function ReportabilidadGG({ onBack }: { onBack: () => void }) {
             <Opciones nombre="Combustible" valor={form.combustible} opciones={OPCIONES_COMBUSTIBLE} onChange={v => poner('combustible', v)} />
             {error('combustible')}
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 gap-3">
             <label>
               <span className={etiqueta}>Horómetro *</span>
               <input className={campo} inputMode="decimal" value={form.horometro} onChange={e => poner('horometro', e.target.value)} placeholder="Ej: 5139,8" />
@@ -474,14 +474,14 @@ export default function ReportabilidadGG({ onBack }: { onBack: () => void }) {
             <Opciones nombre="Nivel de Aceite" valor={form.nivelAceite} opciones={OPCIONES_ACEITE} onChange={v => poner('nivelAceite', v)} />
             {error('nivelAceite')}
           </div>
-          <label className="block sm:max-w-[calc(50%-6px)]">
+          <label className="block max-w-[calc(50%-6px)]">
             <span className={etiqueta}>Temperatura del Generador * (°C)</span>
             <input className={campo} inputMode="decimal" value={form.temperatura} onChange={e => poner('temperatura', e.target.value)} placeholder="Ej: 72" />
             {error('temperatura')}
           </label>
           <div className="flex justify-end">
             <button type="button" onClick={() => void guardar()} disabled={guardando}
-              className="w-full sm:w-auto min-h-[44px] justify-center bg-[#0E4660] text-white px-5 py-2.5 rounded-md text-base font-bold hover:bg-[#0a3549] disabled:opacity-50 flex items-center gap-2">
+              className="bg-[#0E4660] text-white px-5 py-2.5 rounded-md text-sm font-bold hover:bg-[#0a3549] disabled:opacity-50 flex items-center gap-2">
               {guardando ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />} {editando ? 'Guardar corrección' : 'Guardar reporte'}
             </button>
           </div>
