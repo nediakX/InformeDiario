@@ -327,11 +327,14 @@ export default function ReportabilidadGG({ onBack }: { onBack: () => void }) {
         <div className="site-header__rule" />
       </header>
 
-      <main className="max-w-[1100px] mx-auto p-4 sm:p-5 space-y-5">
+      <main className="max-w-[1280px] mx-auto p-4 sm:p-5 space-y-5">
         <button type="button" onClick={onBack} className="btn-outline text-[#0E4660] px-3 py-1.5 rounded-md text-xs font-bold hover:bg-[#d5e7f8] flex items-center gap-1.5">
           <ArrowLeft size={14} /> Volver al menú
         </button>
 
+        {/* Dos columnas en pantallas grandes: a la izquierda hoy y el formulario; a la derecha los reportes. En celular todo va apilado. */}
+        <div className="flex flex-col gap-5 lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1.25fr)] lg:items-start">
+        <div className="space-y-5 min-w-0">
         {/* Hoy: avance de la reportabilidad del día */}
         <section className="panel p-5 space-y-3" aria-labelledby="gg-hoy">
           <div className="flex flex-wrap items-center justify-between gap-2">
@@ -487,6 +490,8 @@ export default function ReportabilidadGG({ onBack }: { onBack: () => void }) {
           </div>
         </section>
 
+        </div>
+        <div className="min-w-0">
         {/* Tabla */}
         <section className="panel p-5 space-y-3">
           <div className="flex flex-wrap items-end justify-between gap-3">
@@ -582,6 +587,8 @@ export default function ReportabilidadGG({ onBack }: { onBack: () => void }) {
             </div>
           )}
         </section>
+        </div>
+        </div>
       </main>
 
       {aviso && (
