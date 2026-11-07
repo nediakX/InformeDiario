@@ -4,7 +4,7 @@ import { Search, X } from 'lucide-react';
 import { useSesion } from '../auth/sesion';
 import { fetchBorradores, type BorradorEntry } from '../datos/borradoresDiario';
 import { formatDiaMes, hoyLocalISO } from '../datos/fechas';
-import { letraDeFecha } from '../datos/turnos';
+import { semanaDeFecha } from '../datos/turnos';
 
 const normalizar = (t: string) => t.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 
@@ -73,11 +73,13 @@ export default function BuscadorInformes() {
   const resultados = useMemo(() => {
     if (!informes) return [];
     const palabras = normalizar(consulta).split(/\s+/).filter(Boolean);
-    // Solo informes del turno que está trabajando (A o B).
-    const letra = letraDeFecha(hoyLocalISO());
-    const lista = informes.filter(b => b.letraTurno === letra).sort((a, b) => b.fecha.localeCompare(a.fecha));
-    const coinciden = palabras.length === 0 ? lista : lista.filter(b => { const t = textoDeBusqueda(b); return palabras.every(p => t.includes(p)); });
-    return coinciden.slice(0, 60);
+    const lista = [...informes].sort((a, b) => b.fecha.localeCompare(a.fecha));
+    // Sin búsqueda: los días del turno que está trabajando hoy. Al buscar: todos los informes guardados.
+    if (palabras.length === 0) {
+      const semana = semanaDeFecha(hoyLocalISO());
+      return lista.filter(b => b.letraTurno === semana.letra && b.fecha >= semana.inicio && b.fecha <= semana.fin);
+    }
+    return lista.filter(b => { const t = textoDeBusqueda(b); return palabras.every(p => t.includes(p)); }).slice(0, 60);
   }, [informes, consulta]);
 
   // Mantiene visible con el scroll el resultado resaltado al usar las flechas.
@@ -130,7 +132,7 @@ export default function BuscadorInformes() {
           {!error && informes === null && <p className="px-3 py-2 text-xs text-gray-500">Cargando informes…</p>}
           {informes !== null && resultados.length === 0 && <p className="px-3 py-2 text-xs text-gray-500">Ningún informe coincide.</p>}
           {informes !== null && resultados.length > 0 && (
-            <p className="buscador-panel__cabecera">{resultados.length === 60 ? 'Primeros 60 informes' : `${resultados.length} ${resultados.length === 1 ? 'informe' : 'informes'}`} · usa ↑ ↓ y Enter</p>
+            <p className="buscador-panel__cabecera">{consulta.trim() ? (resultados.length === 60 ? 'Primeros 60 informes' : `${resultados.length} ${resultados.length === 1 ? 'informe' : 'informes'}`) : `Turno ${semanaDeFecha(hoyLocalISO()).letra} · días de esta semana`} · ↑ ↓ y Enter</p>
           )}
           {resultados.map((b, i) => (
             <button
