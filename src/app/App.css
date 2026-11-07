@@ -18,6 +18,8 @@
   --line: #cbd3d7;
   --line-soft: #e2e7ea;
   --text-soft: #55636b;
+  --header-ink: #14181c;
+  --header-ink-2: #1f262c;
 }
 
 @layer base {
@@ -122,7 +124,7 @@
 /* ---------------------------------------------------------------------- */
 .site-header {
   position: relative;
-  background: linear-gradient(100deg, var(--ink) 0%, var(--ink-2) 100%);
+  background: linear-gradient(100deg, var(--header-ink) 0%, var(--header-ink-2) 100%);
   overflow: hidden;
 }
 
@@ -196,7 +198,7 @@
   content: "";
   position: absolute;
   inset: 0;
-  background: linear-gradient(90deg, var(--ink) 0%, transparent 55%);
+  background: linear-gradient(90deg, var(--header-ink) 0%, transparent 55%);
   z-index: 1;
 }
 
@@ -530,3 +532,31 @@ html[data-reducir-movimiento] *::after {
   transition-duration: 0.01ms !important;
   scroll-behavior: auto !important;
 }
+
+/* Modo oscuro (automático de noche o elegido en Mi perfil) */
+html[data-tema-oscuro] {
+  color-scheme: dark;
+  --ink: #e6ebee;
+  --ink-2: #c9d2d7;
+  --paper: #111719;
+  --panel: #1b2327;
+  --line: #3b474e;
+  --line-soft: #2a3438;
+  --text-soft: #aab6bc;
+  --brand-blue: #8cc4de;
+  --brand-blue-deep: #5fa6c4;
+}
+html[data-tema-oscuro] body { color: #e6ebee; background-image: none; }
+html[data-tema-oscuro] [class*="text-[#0E4660]"] { color: #8cc4de !important; }
+html[data-tema-oscuro] [class*="text-gray-"] { color: #aab6bc !important; }
+html[data-tema-oscuro] [class*="text-[#222]"], html[data-tema-oscuro] [class*="text-[#333]"] { color: #e6ebee !important; }
+html[data-tema-oscuro] .bg-white, html[data-tema-oscuro] [class*="bg-white/"] { background-color: #1b2327 !important; }
+html[data-tema-oscuro] [class*="bg-[#eef5fb]"], html[data-tema-oscuro] [class*="bg-[#f0f6fb]"], html[data-tema-oscuro] [class*="bg-[#e3eff9]"] { background-color: #1f2d36 !important; }
+html[data-tema-oscuro] [class*="bg-[#f6f7f8]"] { background-color: #1f282c !important; }
+html[data-tema-oscuro] [class*="bg-[#fde8e8]"], html[data-tema-oscuro] [class*="bg-[#fbe9e9]"], html[data-tema-oscuro] [class*="bg-[#fdf1f1]"] { background-color: #3a1f1f !important; }
+html[data-tema-oscuro] [class*="bg-[#f3fbf3]"] { background-color: #1c2e22 !important; }
+html[data-tema-oscuro] [class*="bg-[#FFF3CD]"], html[data-tema-oscuro] [class*="bg-[#fff3cd]"] { background-color: #3a3218 !important; }
+html[data-tema-oscuro] input, html[data-tema-oscuro] select, html[data-tema-oscuro] textarea {
+  background-color: #141b1f; color: #e6ebee; border-color: #3b474e;
+}
+html[data-tema-oscuro] .btn-outline { color: #8cc4de; border-color: #3b474e; }

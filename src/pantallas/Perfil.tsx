@@ -1,7 +1,7 @@
 // Mi perfil: cada usuario corrige sus datos (nombre, RUT), cambia su contraseña y sube su firma.
 // La firma se pone sola en el Checklist de Camioneta, en el cuadro "Firma y Nombre Conductor" de cada día completo.
 import { useState } from 'react';
-import { Accessibility, ArrowLeft, Check, KeyRound, Loader2, PenLine, Trash2, Upload, UserRound } from 'lucide-react';
+import { Accessibility, ArrowLeft, Moon, Check, KeyRound, Loader2, PenLine, Trash2, Upload, UserRound } from 'lucide-react';
 import logoPsinet from '../assets/logo_psinet.jpg';
 import logoEdificio from '../assets/LogoEdificio.png';
 import { etiquetaFaena, formatearRut, rutValido, useSesion } from '../auth/sesion';
@@ -10,6 +10,7 @@ import { ETIQUETA_ROL, rolDelListado, rolDePersona } from '../datos/roles';
 import { procesarFirma } from '../lib/firma';
 import { esErrorDeRed } from '../lib/conexion';
 import { guardarAccesibilidad, leerAccesibilidad, type Accesibilidad } from '../lib/accesibilidad';
+import { guardarTema, leerTema, type Tema } from '../lib/tema';
 
 type Aviso = { texto: string; error?: boolean } | null;
 
@@ -32,6 +33,13 @@ export default function Perfil({ onBack }: { onBack: () => void }) {
     setAccesibilidad(siguiente);
     guardarAccesibilidad(siguiente);
   };
+  const [tema, setTema] = useState<Tema>(() => leerTema());
+  const opcionesTema: { valor: Tema; etiqueta: string }[] = [
+    { valor: 'automatico', etiqueta: 'Automático (oscuro de noche)' },
+    { valor: 'claro', etiqueta: 'Claro' },
+    { valor: 'oscuro', etiqueta: 'Oscuro' },
+  ];
+  const elegirTema = (t: Tema) => { setTema(t); guardarTema(t); };
   const opcionesAccesibilidad: { clave: keyof Accesibilidad; titulo: string; detalle: string }[] = [
     { clave: 'textoGrande', titulo: 'Texto grande', detalle: 'Aumenta el tamaño de letra en toda la app.' },
     { clave: 'altoContraste', titulo: 'Alto contraste', detalle: 'Bordes y textos más oscuros para leer mejor.' },
@@ -218,6 +226,19 @@ export default function Perfil({ onBack }: { onBack: () => void }) {
             </button>
           </div>
         </section>
+        {/* Apariencia */}
+        <section className="panel p-5 space-y-4" aria-labelledby="perfil-apariencia">
+          <h2 id="perfil-apariencia" className="font-display font-bold text-lg text-[#0E4660] flex items-center gap-2"><Moon size={18} /> Apariencia</h2>
+          <div role="radiogroup" aria-label="Tema" className="inline-flex flex-wrap rounded-md border border-[#C9D3DA] overflow-hidden text-xs font-bold">
+            {opcionesTema.map(o => (
+              <button key={o.valor} type="button" role="radio" aria-checked={tema === o.valor} onClick={() => elegirTema(o.valor)}
+                className={`px-3 py-2 ${tema === o.valor ? 'bg-[#0E4660] text-white' : 'bg-white text-[#0E4660] hover:bg-[#eef5fb]'}`}>
+                {o.etiqueta}
+              </button>
+            ))}
+          </div>
+        </section>
+
         {/* Accesibilidad */}
         <section className="panel p-5 space-y-4" aria-labelledby="perfil-accesibilidad">
           <h2 id="perfil-accesibilidad" className="font-display font-bold text-lg text-[#0E4660] flex items-center gap-2"><Accessibility size={18} /> Accesibilidad</h2>
