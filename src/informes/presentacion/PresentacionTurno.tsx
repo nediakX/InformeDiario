@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { saveAs } from 'file-saver';
 import { ArrowLeft, ChevronLeft, ChevronRight, CircleCheckBig, Circle, Loader2, Presentation } from 'lucide-react';
-import logoPsinet from '../../assets/logo_psinet.jpg';
+import logoPsinet from '../../assets/logo_psinet.png';
 import logoEdificio from '../../assets/LogoEdificio.png';
 import { fetchBorradores, subscribeBorradores, type BorradorEntry } from '../../datos/borradoresDiario';
 import type { BorradorOtroEntry } from '../../datos/borradoresOtros';

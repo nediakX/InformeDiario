@@ -7,7 +7,7 @@ import {
   ArrowLeft, Printer, Loader2, FileText, Minus, Plus, Copy, RotateCw, Users, CalendarDays,
   Download, UserPlus, Trash2, CheckCircle2, Settings2,
 } from 'lucide-react';
-import logoPsinet from '../assets/logo_psinet.jpg';
+import logoPsinet from '../assets/logo_psinet.png';
 import logoEdificio from '../assets/LogoEdificio.png';
 import { supabase } from '../lib/supabase';
 import { useSesion, formatearRut, rutValido } from '../auth/sesion';

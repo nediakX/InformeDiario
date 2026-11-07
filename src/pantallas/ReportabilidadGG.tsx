@@ -4,7 +4,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AlertTriangle, ArrowLeft, Check, CheckCircle2, CircleDashed, CloudOff, Download, Fuel, Loader2, Pencil, Save, Trash2, X } from 'lucide-react';
 import { saveAs } from 'file-saver';
-import logoPsinet from '../assets/logo_psinet.jpg';
+import logoPsinet from '../assets/logo_psinet.png';
 import logoEdificio from '../assets/LogoEdificio.png';
 import { nombreVisible, useSesion } from '../auth/sesion';
 import { nombreCorto } from '../lib/nombres';

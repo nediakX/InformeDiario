@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import EscanerDocumento from '../componentes/EscanerDocumento';
 import { pareceDocumento } from '../lib/documentosEscaneables';
-import logoPsinet from "../assets/logo_psinet.jpg";
+import logoPsinet from "../assets/logo_psinet.png";
 import logoEdificio from "../assets/LogoEdificio.png";
 import VisorFoto from '../componentes/VisorFoto';
 import { copiarImagenAlPortapapel } from '../lib/copiarImagen';

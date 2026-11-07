@@ -7,7 +7,7 @@
 //  - Sistema: uso de almacenamiento frente al plan de Supabase y limpieza de fotos huérfanas.
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, BarChart3, Fuel, HardDrive, History, ListChecks, Loader2, RefreshCw, Users, Wifi, type LucideIcon } from 'lucide-react';
-import logoPsinet from '../assets/logo_psinet.jpg';
+import logoPsinet from '../assets/logo_psinet.png';
 import logoEdificio from '../assets/LogoEdificio.png';
 import { supabase } from '../lib/supabase';
 import { useSesion } from '../auth/sesion';

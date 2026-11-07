@@ -2,7 +2,7 @@
 // La firma se pone sola en el Checklist de Camioneta, en el cuadro "Firma y Nombre Conductor" de cada día completo.
 import { useState } from 'react';
 import { Accessibility, ArrowLeft, Moon, Check, KeyRound, Loader2, PenLine, Trash2, Upload, UserRound } from 'lucide-react';
-import logoPsinet from '../assets/logo_psinet.jpg';
+import logoPsinet from '../assets/logo_psinet.png';
 import logoEdificio from '../assets/LogoEdificio.png';
 import { etiquetaFaena, formatearRut, rutValido, useSesion } from '../auth/sesion';
 import { actualizarMiPerfil, cambiarContrasena } from '../datos/perfil';

@@ -12,7 +12,7 @@ import {
   ArrowLeft, Camera, Check, ChevronDown, Clock, Copy, Image as ImageIcon, Loader2, MapPin, Minus, Pencil,
   Plus, RefreshCw, Save, ScanLine, Trash2, Users, X, CheckCircle2, RotateCcw,
 } from 'lucide-react';
-import logoPsinet from '../../assets/logo_psinet.jpg';
+import logoPsinet from '../../assets/logo_psinet.png';
 import logoEdificio from '../../assets/LogoEdificio.png';
 import EscanerDocumento from '../../componentes/EscanerDocumento';
 import VisorFoto from '../../componentes/VisorFoto';

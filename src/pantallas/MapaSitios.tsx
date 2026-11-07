@@ -7,7 +7,7 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import './mapaSitios.css';
 import { ArrowLeft, Copy, Crosshair, Layers, LocateFixed, Navigation, Radio, Search } from 'lucide-react';
-import logoPsinet from '../assets/logo_psinet.jpg';
+import logoPsinet from '../assets/logo_psinet.png';
 import logoEdificio from '../assets/LogoEdificio.png';
 import { useSesion } from '../auth/sesion';
 import { configDivision } from '../datos/divisiones';

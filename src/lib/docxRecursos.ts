@@ -6,7 +6,7 @@
 //  - Las fotos se descargan todas en paralelo antes de armar el documento (antes se bajaban de a
 //    una o dos, esperando cada descarga) y quedan en caché por si se genera de nuevo.
 
-import logoPsinet from "../assets/logo_psinet.jpg";
+import logoPsinet from "../assets/logo_psinet.png";
 import logoEdificio from "../assets/LogoEdificio.png";
 import { urlToBase64, dataUrlToUint8Array, resolveImageBytes } from './imagenes';
 

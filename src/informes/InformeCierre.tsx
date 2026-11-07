@@ -6,7 +6,7 @@ import {
   ArrowLeft, Loader2, FileStack, CalendarRange, ImagePlus, Trash2, CircleCheckBig, Circle,
   Plus, ListTodo, Car, Wrench, Copy, ChevronLeft, ChevronRight,
 } from 'lucide-react';
-import logoPsinet from "../assets/logo_psinet.jpg";
+import logoPsinet from "../assets/logo_psinet.png";
 import logoEdificio from "../assets/LogoEdificio.png";
 import VisorFoto from '../componentes/VisorFoto';
 import { copiarImagenAlPortapapel } from '../lib/copiarImagen';

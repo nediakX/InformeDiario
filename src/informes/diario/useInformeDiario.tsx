@@ -4,7 +4,7 @@ import type * as docx from 'docx';
 import { saveAs } from 'file-saver';
 import { registrarActividad } from '../../lib/actividad';
 
-import logoPsinet from "../../assets/logo_psinet.jpg";
+import logoPsinet from "../../assets/logo_psinet.png";
 import logoEdificio from "../../assets/LogoEdificio.png";
 
 import { copiarImagenAlPortapapel } from '../../lib/copiarImagen';

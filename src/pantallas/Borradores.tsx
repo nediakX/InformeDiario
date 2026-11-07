@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { ArrowLeft, Trash2, FolderOpen, CalendarDays, Users, Camera, Plus, Cloud, Sun, Moon, History, Download, Loader2, Wrench, AlertTriangle, FileText, FileUp, Lock } from 'lucide-react';
 import SelectorDivision from '../componentes/SelectorDivision';
-import logoPsinet from "../assets/logo_psinet.jpg";
+import logoPsinet from "../assets/logo_psinet.png";
 import logoEdificio from "../assets/LogoEdificio.png";
 import { type BorradorEntry, contarFotos, esSemillaSinEditar, estadoBorrador } from '../datos/borradoresDiario';
 import { type BorradorOtroEntry, contarFotosGenerico, estadoBorradorOtro } from '../datos/borradoresOtros';

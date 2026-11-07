@@ -4,7 +4,7 @@ import { useSesion, nombreVisible } from '../auth/sesion';
 import { CONFIG_DIVISION } from '../datos/divisiones';
 import './dashboard.css';
 import SelectorDivision from '../componentes/SelectorDivision';
-import logoPsinet from "../assets/logo_psinet.jpg";
+import logoPsinet from "../assets/logo_psinet.png";
 import logoEdificio from "../assets/LogoEdificio.png";
 import { type BorradorEntry, estadoBorrador, contarFotos, esSemillaSinEditar } from '../datos/borradoresDiario';
 import { type BorradorOtroEntry, estadoBorradorOtro, contarFotosGenerico } from '../datos/borradoresOtros';

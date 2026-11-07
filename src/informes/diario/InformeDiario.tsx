@@ -5,7 +5,7 @@ import { checklistHojasComoPdf } from '../checklist/checklistPdf';
 import { hojasDelChecklist } from './mezclaFotos';
 import { descargarPdf, urlDePdf } from '../../lib/imprimir';
 import { FileDown, ChevronDown, Trash2, ClipboardList, Users, ListChecks, BatteryCharging, MessageSquare, Camera, Loader2, ArrowLeft, Plus, GripVertical, Copy, LayoutGrid, X as Cerrar, CheckCircle2, RotateCcw } from 'lucide-react';
-import logoPsinet from "../../assets/logo_psinet.jpg";
+import logoPsinet from "../../assets/logo_psinet.png";
 import logoEdificio from "../../assets/LogoEdificio.png";
 import BotonAccionesInforme from '../../componentes/BotonAccionesInforme';
 
