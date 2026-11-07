@@ -100,6 +100,13 @@ function AppContenido() {
     navigate(rutaDe(destino, param));
   }, [navigate, flushSyncRef]);
 
+  // Botones flotantes (Mi perfil) piden ir a una pantalla sin recibir setView por props.
+  useEffect(() => {
+    const irA = (e: Event) => { const destino = (e as CustomEvent<Vista>).detail; if (destino) setView(destino); };
+    window.addEventListener('psinet:ir', irA);
+    return () => window.removeEventListener('psinet:ir', irA);
+  }, [setView]);
+
   const [descargandoId, setDescargandoId] = useState<string | null>(null);
 
   // Borradores de Mantenimiento e Informe de Falla: mismo esquema de sincronización en la nube que Informe Diario.
