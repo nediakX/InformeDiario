@@ -2,7 +2,7 @@
    Un solo elemento protagonista (la franja del turno, del mismo negro que el encabezado);
    el resto queda sobrio: filas blancas con su estado en una línea. */
 
-.dash { max-width: 1040px; margin: 0 auto; padding: 22px 20px 40px; display: grid; gap: 26px; }
+.dash { max-width: 1180px; margin: 0 auto; padding: 22px 20px 40px; display: grid; gap: 26px; }
 
 /* Saludo y cuenta */
 .dash-top { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 14px; }
@@ -249,7 +249,7 @@
 }
 
 /* Vista por rol: columna principal (lo del rol, en grande) + columna lateral (contexto corto y accesos) */
-.dash-rol { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr); gap: 22px; align-items: start; }
+.dash-rol { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); gap: 28px; align-items: start; }
 .dash-rol--solo { grid-template-columns: minmax(0, 1fr); }
 .dash-rol__principal, .dash-rol__lateral { display: grid; gap: 22px; min-width: 0; }
 .dash-rol__principal .dash-hoy__turnos { grid-template-columns: 1fr 1fr; }
