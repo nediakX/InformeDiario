@@ -1,4 +1,4 @@
-import { Fragment, Suspense, lazy, useEffect, useState, type ReactNode } from 'react';
+import { Fragment, Suspense, lazy, useEffect, useState, type CSSProperties, type ReactNode } from 'react';
 import { ChevronDown, ClipboardCheck, FileStack, FolderOpen, ChevronRight, Bell, FilePlus, Sun, Moon, Wrench, AlertTriangle, Printer, LogOut, ShieldCheck, FileUp, Fuel, LayoutGrid, RadioTower, Map as MapIcon, Presentation, CalendarDays, type LucideIcon } from 'lucide-react';
 import { useSesion, nombreVisible } from '../auth/sesion';
 import { CONFIG_DIVISION } from '../datos/divisiones';
@@ -345,7 +345,13 @@ export default function Dashboard({
                   onClick={() => (informe ? onAbrirInforme(informe) : onNuevoInforme(turno))}
                   className={`dash-turno-hoy dash-turno-hoy--${noRealizado ? 'finalizado' : estado}`}
                 >
-                  <span className="dash-turno-hoy__icono"><Icono size={20} aria-hidden="true" /></span>
+                  <span
+                    className="dash-anillo"
+                    aria-hidden="true"
+                    style={{ '--pct': noRealizado ? 0 : estado === 'finalizado' ? 100 : avance, '--ring': estado === 'finalizado' && !noRealizado ? '#1e8e3e' : 'var(--brand-blue)' } as CSSProperties}
+                  >
+                    <span className="dash-anillo__centro"><Icono size={20} aria-hidden="true" /></span>
+                  </span>
                   <span className="dash-turno-hoy__texto">
                     <span className="dash-turno-hoy__titulo font-display">Turno {turno === 'dia' ? 'Día' : 'Noche'}</span>
                     <span className="dash-turno-hoy__estado">

@@ -17,7 +17,7 @@ import { registrarDeshacer } from '../lib/deshacer';
 import { crearExcel } from '../lib/excel';
 import { horometroRetrocede } from '../datos/analisisGG';
 import {
-  OPCIONES_ACEITE, OPCIONES_COMBUSTIBLE, OPCIONES_REFRIGERANTE, OPCIONES_TURNO, SITIOS_GG,
+  COMBUSTIBLE_PCT, OPCIONES_ACEITE, OPCIONES_COMBUSTIBLE, OPCIONES_REFRIGERANTE, OPCIONES_TURNO, SITIOS_GG,
   EVENTO_GG, actualizarReporteGG, crearReporteGG, eliminarReporteGG, leerNumero, listarReportesGG, pendientesGG, restaurarReporteGG,
   sincronizarPendientesGG, suscribirReportesGG, todosLosReportesGG, type FiltroGG, type ReporteGG, type ReporteGGPendiente,
 } from '../datos/reportesGG';
@@ -364,6 +364,17 @@ export default function ReportabilidadGG({ onBack }: { onBack: () => void }) {
           {deHoy === null ? (
             <p className="text-sm text-gray-500 flex items-center gap-2"><Loader2 size={16} className="animate-spin" /> Cargando…</p>
           ) : (
+            <>
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-gray-600" aria-label="Leyenda de sitios">
+              <span className="flex items-center gap-1"><CircleDashed size={11} aria-hidden="true" /> Pendiente</span>
+              <span className="flex items-center gap-1 text-[#006300]"><CheckCircle2 size={11} aria-hidden="true" /> Reportado</span>
+              <span className="flex items-center gap-1 text-[#8a1c1c]"><AlertTriangle size={11} aria-hidden="true" /> Rechazado por el servidor</span>
+              <span className="flex items-center gap-1.5">
+                Combustible
+                <span className="block w-10 h-1.5 rounded-full overflow-hidden bg-[#dbe7ee]" aria-hidden="true"><span className="block h-full w-full bg-gradient-to-r from-[#a32626] via-[#F5B300] to-[#2e7d32]" /></span>
+                1/4 · 1/2 · 3/4 · lleno
+              </span>
+            </div>
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
               {sitios.map(sitio => {
                 const hecho = ultimoHoyPorSitio.get(sitio);
@@ -393,10 +404,16 @@ export default function ReportabilidadGG({ onBack }: { onBack: () => void }) {
                     </span>
                     {motivoRechazo && <span className="block text-[11px] font-bold text-[#8a1c1c]">Rechazado por el servidor</span>}
                     <span className="block text-[11px] text-gray-600">{r.combustible ?? '—'} · {fmtNum(r.horometro)} h · {fmtNum(r.temperatura)} °C</span>
+                    {r.combustible && COMBUSTIBLE_PCT[r.combustible] !== undefined && (
+                      <span className="block h-1.5 mt-1.5 rounded-full bg-[#dbe7ee] overflow-hidden" aria-hidden="true">
+                        <span className={`block h-full rounded-full ${COMBUSTIBLE_PCT[r.combustible] <= 25 ? 'bg-[#a32626]' : COMBUSTIBLE_PCT[r.combustible] <= 50 ? 'bg-[#F5B300]' : 'bg-[#2e7d32]'}`} style={{ width: `${COMBUSTIBLE_PCT[r.combustible]}%` }} />
+                      </span>
+                    )}
                   </div>
                 );
               })}
             </div>
+            </>
           )}
         </section>
 
