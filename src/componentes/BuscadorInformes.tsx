@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { Search, X } from 'lucide-react';
 import { useSesion } from '../auth/sesion';
@@ -25,7 +25,9 @@ export default function BuscadorInformes() {
   const [informes, setInformes] = useState<BorradorEntry[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [posicion, setPosicion] = useState<CSSProperties>({});
+  const [activo, setActivo] = useState(0);
   const campoRef = useRef<HTMLDivElement>(null);
+  const itemsRef = useRef<(HTMLButtonElement | null)[]>([]);
   const abierto = enfocado;
 
   useEffect(() => {
@@ -66,9 +68,21 @@ export default function BuscadorInformes() {
     if (!informes) return [];
     const palabras = normalizar(consulta).split(/\s+/).filter(Boolean);
     const lista = [...informes].sort((a, b) => b.fecha.localeCompare(a.fecha));
-    if (palabras.length === 0) return lista.slice(0, 8);
-    return lista.filter(b => { const t = textoDeBusqueda(b); return palabras.every(p => t.includes(p)); }).slice(0, 12);
+    const coinciden = palabras.length === 0 ? lista : lista.filter(b => { const t = textoDeBusqueda(b); return palabras.every(p => t.includes(p)); });
+    return coinciden.slice(0, 60);
   }, [informes, consulta]);
+
+  // Mantiene visible con el scroll el resultado resaltado al usar las flechas.
+  useEffect(() => {
+    itemsRef.current[activo]?.scrollIntoView({ block: 'nearest' });
+  }, [activo]);
+
+  const alTeclear = (e: ReactKeyboardEvent<HTMLInputElement>) => {
+    if (resultados.length === 0) return;
+    if (e.key === 'ArrowDown') { e.preventDefault(); setActivo(i => Math.min(i + 1, resultados.length - 1)); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); setActivo(i => Math.max(i - 1, 0)); }
+    else if (e.key === 'Enter' && abierto && resultados[activo]) { e.preventDefault(); abrir(resultados[activo]); }
+  };
 
   const abrir = (b: BorradorEntry) => {
     setEnfocado(false);
@@ -84,8 +98,13 @@ export default function BuscadorInformes() {
           <input
             type="search"
             value={consulta}
-            onChange={e => setConsulta(e.target.value)}
+            onChange={e => { setConsulta(e.target.value); setActivo(0); }}
             onFocus={() => setEnfocado(true)}
+            onKeyDown={alTeclear}
+            role="combobox"
+            aria-expanded={abierto}
+            aria-controls="buscador-resultados"
+            aria-activedescendant={abierto && resultados[activo] ? `buscador-item-${activo}` : undefined}
             placeholder="Buscar informe por fecha, persona o turno"
             aria-label="Buscar informe"
             autoComplete="off"
@@ -98,12 +117,25 @@ export default function BuscadorInformes() {
         </label>
       </div>
       {abierto && createPortal(
-        <div data-buscador-panel role="listbox" aria-label="Resultados" className="buscador-panel" style={posicion}>
+        <div data-buscador-panel id="buscador-resultados" role="listbox" aria-label="Resultados" className="buscador-panel" style={posicion}>
           {error && <p className="px-3 py-2 text-xs text-[#a32626]">{error}</p>}
           {!error && informes === null && <p className="px-3 py-2 text-xs text-gray-500">Cargando informes…</p>}
           {informes !== null && resultados.length === 0 && <p className="px-3 py-2 text-xs text-gray-500">Ningún informe coincide.</p>}
-          {resultados.map(b => (
-            <button key={b.id} type="button" role="option" aria-selected={false} onClick={() => abrir(b)} className="buscador-panel__item">
+          {informes !== null && resultados.length > 0 && (
+            <p className="buscador-panel__cabecera">{resultados.length === 60 ? 'Primeros 60 informes' : `${resultados.length} ${resultados.length === 1 ? 'informe' : 'informes'}`} · usa ↑ ↓ y Enter</p>
+          )}
+          {resultados.map((b, i) => (
+            <button
+              key={b.id}
+              id={`buscador-item-${i}`}
+              ref={el => { itemsRef.current[i] = el; }}
+              type="button"
+              role="option"
+              aria-selected={i === activo}
+              onMouseEnter={() => setActivo(i)}
+              onClick={() => abrir(b)}
+              className={`buscador-panel__item${i === activo ? ' buscador-panel__item--activo' : ''}`}
+            >
               <span className="block text-sm font-bold text-[#0E4660]">{formatDiaMes(b.fecha)} · Turno {b.turno === 'dia' ? 'Día' : 'Noche'}{b.letraTurno ? ` ${b.letraTurno}` : ''}</span>
               <span className="block text-xs text-gray-500 truncate">{b.creadoNombre || 'Sin creador'}{b.sinTurno ? ' · no realizado' : ''}</span>
             </button>
