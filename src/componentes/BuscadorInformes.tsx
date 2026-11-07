@@ -3,7 +3,8 @@ import { createPortal } from 'react-dom';
 import { Search, X } from 'lucide-react';
 import { useSesion } from '../auth/sesion';
 import { fetchBorradores, type BorradorEntry } from '../datos/borradoresDiario';
-import { formatDiaMes } from '../datos/fechas';
+import { formatDiaMes, hoyLocalISO } from '../datos/fechas';
+import { letraDeFecha } from '../datos/turnos';
 
 const normalizar = (t: string) => t.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 
@@ -72,7 +73,9 @@ export default function BuscadorInformes() {
   const resultados = useMemo(() => {
     if (!informes) return [];
     const palabras = normalizar(consulta).split(/\s+/).filter(Boolean);
-    const lista = [...informes].sort((a, b) => b.fecha.localeCompare(a.fecha));
+    // Solo informes del turno que está trabajando (A o B).
+    const letra = letraDeFecha(hoyLocalISO());
+    const lista = informes.filter(b => b.letraTurno === letra).sort((a, b) => b.fecha.localeCompare(a.fecha));
     const coinciden = palabras.length === 0 ? lista : lista.filter(b => { const t = textoDeBusqueda(b); return palabras.every(p => t.includes(p)); });
     return coinciden.slice(0, 60);
   }, [informes, consulta]);
