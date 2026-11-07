@@ -7,8 +7,9 @@ export default function CuentaCabecera() {
   const { perfil, esAdmin, cerrarSesion } = useSesion();
   const primerNombre = nombreVisible(perfil);
   return (
-    <div className="site-header__cuenta">
+    <>
       <BuscadorInformes />
+    <div className="site-header__cuenta">
       <button
         type="button"
         className="cuenta-boton"
@@ -27,5 +28,6 @@ export default function CuentaCabecera() {
         <LogOut size={16} aria-hidden="true" /><span className="cuenta-salir__txt">Salir</span>
       </button>
     </div>
+    </>
   );
 }

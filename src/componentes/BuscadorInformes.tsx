@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { createPortal } from 'react-dom';
 import { Search, X } from 'lucide-react';
 import { useSesion } from '../auth/sesion';
 import { fetchBorradores, type BorradorEntry } from '../datos/borradoresDiario';
 import { formatDiaMes } from '../datos/fechas';
 
-const normalizar = (t: string) => t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+const normalizar = (t: string) => t.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 
 /** Texto donde buscar: fecha, turno, quién lo creó y el personal del informe. */
 function textoDeBusqueda(b: BorradorEntry): string {
@@ -16,14 +17,16 @@ function textoDeBusqueda(b: BorradorEntry): string {
   return normalizar(partes.join(' '));
 }
 
-/** Busca informes diarios guardados (sin entrar a Borradores). Carga la lista la primera vez que se abre. */
+/** Buscador centrado en la barra superior. Los resultados se dibujan fuera de la barra para no quedar recortados. */
 export default function BuscadorInformes() {
   const { division } = useSesion();
-  const [abierto, setAbierto] = useState(false);
   const [consulta, setConsulta] = useState('');
+  const [enfocado, setEnfocado] = useState(false);
   const [informes, setInformes] = useState<BorradorEntry[] | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const contenedorRef = useRef<HTMLDivElement>(null);
+  const [posicion, setPosicion] = useState<CSSProperties>({});
+  const campoRef = useRef<HTMLDivElement>(null);
+  const abierto = enfocado;
 
   useEffect(() => {
     if (!abierto || informes !== null) return;
@@ -34,13 +37,29 @@ export default function BuscadorInformes() {
     return () => { vivo = false; };
   }, [abierto, informes, division]);
 
+  // Posiciona el panel justo bajo el campo; se cierra si la página se desplaza.
+  useLayoutEffect(() => {
+    if (!abierto || !campoRef.current) return;
+    const r = campoRef.current.getBoundingClientRect();
+    setPosicion({ top: r.bottom + 6, left: r.left, width: Math.max(r.width, 340) });
+  }, [abierto]);
+
   useEffect(() => {
     if (!abierto) return;
-    const alClic = (e: MouseEvent) => { if (!contenedorRef.current?.contains(e.target as Node)) setAbierto(false); };
-    const alEsc = (e: KeyboardEvent) => { if (e.key === 'Escape') setAbierto(false); };
+    const alClic = (e: MouseEvent) => {
+      const dentro = campoRef.current?.contains(e.target as Node) || (e.target as HTMLElement).closest?.('[data-buscador-panel]');
+      if (!dentro) setEnfocado(false);
+    };
+    const alEsc = (e: KeyboardEvent) => { if (e.key === 'Escape') setEnfocado(false); };
+    const alDesplazar = () => setEnfocado(false);
     document.addEventListener('mousedown', alClic);
     window.addEventListener('keydown', alEsc);
-    return () => { document.removeEventListener('mousedown', alClic); window.removeEventListener('keydown', alEsc); };
+    window.addEventListener('scroll', alDesplazar, true);
+    return () => {
+      document.removeEventListener('mousedown', alClic);
+      window.removeEventListener('keydown', alEsc);
+      window.removeEventListener('scroll', alDesplazar, true);
+    };
   }, [abierto]);
 
   const resultados = useMemo(() => {
@@ -52,53 +71,46 @@ export default function BuscadorInformes() {
   }, [informes, consulta]);
 
   const abrir = (b: BorradorEntry) => {
-    setAbierto(false);
+    setEnfocado(false);
     setConsulta('');
     window.dispatchEvent(new CustomEvent('psinet:abrir-diario', { detail: b }));
   };
 
   return (
-    <div ref={contenedorRef} className="relative hidden sm:block">
-      <button
-        type="button"
-        onClick={() => setAbierto(a => !a)}
-        aria-expanded={abierto}
-        aria-label="Buscar informes"
-        title="Buscar informes"
-        className="flex h-9 w-9 items-center justify-center rounded-full text-white hover:bg-white/15"
-      >
-        <Search size={17} aria-hidden="true" />
-      </button>
-      {abierto && (
-        <div role="dialog" aria-label="Buscar informes" className="absolute right-0 top-11 z-50 w-[340px] rounded-xl border border-[#C9D3DA] bg-white p-3 shadow-xl space-y-2">
-          <div className="flex items-center gap-2 rounded-md border border-[#C9D3DA] px-2">
-            <Search size={14} className="text-[#0E4660]" aria-hidden="true" />
-            <input
-              autoFocus
-              type="search"
-              value={consulta}
-              onChange={e => setConsulta(e.target.value)}
-              placeholder="Fecha, persona o turno (ej: 07/11 Patricio)"
-              aria-label="Buscar informe"
-              className="w-full py-2 text-sm text-[#0E4660] outline-none bg-transparent"
-            />
-            <button type="button" onClick={() => setAbierto(false)} aria-label="Cerrar" className="text-[#0E4660] p-1"><X size={14} /></button>
-          </div>
-          {error && <p className="text-xs text-[#a32626]">{error}</p>}
-          {!error && informes === null && <p className="text-xs text-gray-500">Cargando informes…</p>}
-          {informes !== null && resultados.length === 0 && <p className="text-xs text-gray-500">Ningún informe coincide.</p>}
-          <ul className="max-h-[320px] overflow-y-auto space-y-1">
-            {resultados.map(b => (
-              <li key={b.id}>
-                <button type="button" onClick={() => abrir(b)} className="w-full text-left rounded-md px-2 py-2 hover:bg-[#eef5fb]">
-                  <span className="block text-sm font-bold text-[#0E4660]">{formatDiaMes(b.fecha)} · Turno {b.turno === 'dia' ? 'Día' : 'Noche'}{b.letraTurno ? ` ${b.letraTurno}` : ''}</span>
-                  <span className="block text-xs text-gray-500 truncate">{b.creadoNombre || 'Sin creador'}{b.sinTurno ? ' · no realizado' : ''}</span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        </div>
+    <>
+      <div ref={campoRef} className="buscador-cabecera">
+        <label className="buscador-cabecera__campo">
+          <Search size={16} aria-hidden="true" />
+          <input
+            type="search"
+            value={consulta}
+            onChange={e => setConsulta(e.target.value)}
+            onFocus={() => setEnfocado(true)}
+            placeholder="Buscar informe por fecha, persona o turno"
+            aria-label="Buscar informe"
+            autoComplete="off"
+          />
+          {consulta && (
+            <button type="button" onClick={() => setConsulta('')} aria-label="Limpiar búsqueda" className="buscador-cabecera__limpiar">
+              <X size={14} aria-hidden="true" />
+            </button>
+          )}
+        </label>
+      </div>
+      {abierto && createPortal(
+        <div data-buscador-panel role="listbox" aria-label="Resultados" className="buscador-panel" style={posicion}>
+          {error && <p className="px-3 py-2 text-xs text-[#a32626]">{error}</p>}
+          {!error && informes === null && <p className="px-3 py-2 text-xs text-gray-500">Cargando informes…</p>}
+          {informes !== null && resultados.length === 0 && <p className="px-3 py-2 text-xs text-gray-500">Ningún informe coincide.</p>}
+          {resultados.map(b => (
+            <button key={b.id} type="button" role="option" aria-selected={false} onClick={() => abrir(b)} className="buscador-panel__item">
+              <span className="block text-sm font-bold text-[#0E4660]">{formatDiaMes(b.fecha)} · Turno {b.turno === 'dia' ? 'Día' : 'Noche'}{b.letraTurno ? ` ${b.letraTurno}` : ''}</span>
+              <span className="block text-xs text-gray-500 truncate">{b.creadoNombre || 'Sin creador'}{b.sinTurno ? ' · no realizado' : ''}</span>
+            </button>
+          ))}
+        </div>,
+        document.body,
       )}
-    </div>
+    </>
   );
 }
