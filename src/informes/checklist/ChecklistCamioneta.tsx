@@ -4,6 +4,7 @@
 // miércoles a martes). Cada día se marca ✓ / X en cada ítem, las aptitudes del conductor y su
 // nombre; se guarda solo en la nube (y en el dispositivo si no hay señal) y se descarga en Word
 // con el mismo formato del registro oficial.
+import CuentaCabecera from '../../componentes/CuentaCabecera';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowLeft, ChevronLeft, ChevronRight, CarFront, ClipboardCheck, UserRound, ShieldAlert,
@@ -177,6 +178,7 @@ export default function ChecklistCamioneta({ onBack, fechaInicial = null }: { on
               <div className="site-header__meta text-xs truncate">{config.sigla} / GSSO-LTE-R-LV-DSAL-29 · Lista de verificación diaria</div>
             </div>
           </div>
+          <CuentaCabecera />
           <div className="site-header__photo"><img src={logoEdificio} alt="" aria-hidden="true" /></div>
         </div>
         <div className="site-header__rule" />

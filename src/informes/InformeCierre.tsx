@@ -1,3 +1,4 @@
+import CuentaCabecera from '../componentes/CuentaCabecera';
 import { useEffect, useMemo, useRef, useState, type ClipboardEvent } from 'react';
 import type * as docx from 'docx';
 import { saveAs } from 'file-saver';
@@ -893,6 +894,7 @@ export default function InformeCierre({ onBack }: InformeCierreProps) {
               </div>
             </div>
           </div>
+          <CuentaCabecera />
           <div className="site-header__photo">
             <img src={logoEdificio} alt="" aria-hidden="true" />
           </div>

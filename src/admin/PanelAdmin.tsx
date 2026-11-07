@@ -5,6 +5,7 @@
 //  - Usuarios: aprobar / rechazar cuentas y asignar el rol de administrador.
 //  - Actividad: bitácora de sesiones, informes, Word generados y cambios de cuentas.
 //  - Sistema: uso de almacenamiento frente al plan de Supabase y limpieza de fotos huérfanas.
+import CuentaCabecera from '../componentes/CuentaCabecera';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, BarChart3, Fuel, HardDrive, History, ListChecks, Loader2, RefreshCw, Users, Wifi, type LucideIcon } from 'lucide-react';
 import logoPsinet from '../assets/logo_psinet.png';
@@ -104,6 +105,7 @@ export default function PanelAdmin({ onBack, pestana, onPestanaChange }: {
               <div className="site-header__meta text-xs truncate">{CONFIG_DIVISION[division].sigla} / Indicadores de informes y gestión de usuarios</div>
             </div>
           </div>
+          <CuentaCabecera />
           <div className="site-header__photo">
             <img src={logoEdificio} alt="" aria-hidden="true" />
           </div>

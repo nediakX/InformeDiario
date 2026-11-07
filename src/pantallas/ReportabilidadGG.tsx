@@ -1,6 +1,7 @@
 // Reportabilidad de GG: formulario para registrar el estado de un grupo generador (mismos datos
 // que el formulario de Google "REPORTABILIDAD DE GG") y la tabla con todos los reportes, que se
 // puede filtrar y descargar en Excel con el formato de la planilla.
+import CuentaCabecera from '../componentes/CuentaCabecera';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AlertTriangle, ArrowLeft, Check, CheckCircle2, CircleDashed, CloudOff, Download, Fuel, Loader2, Pencil, Save, Trash2, X } from 'lucide-react';
 import { saveAs } from 'file-saver';
@@ -322,6 +323,7 @@ export default function ReportabilidadGG({ onBack }: { onBack: () => void }) {
               <div className="site-header__meta text-xs truncate">Estado de los grupos generadores · combustible, horómetro, niveles y temperatura</div>
             </div>
           </div>
+          <CuentaCabecera />
           <div className="site-header__photo"><img src={logoEdificio} alt="" aria-hidden="true" /></div>
         </div>
         <div className="site-header__rule" />

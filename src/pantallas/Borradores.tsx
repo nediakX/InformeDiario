@@ -1,3 +1,4 @@
+import CuentaCabecera from '../componentes/CuentaCabecera';
 import { useState } from 'react';
 import { ArrowLeft, Trash2, FolderOpen, CalendarDays, Users, Camera, Plus, Cloud, Sun, Moon, History, Download, Loader2, Wrench, AlertTriangle, FileText, FileUp, Lock } from 'lucide-react';
 import SelectorDivision from '../componentes/SelectorDivision';
@@ -260,6 +261,7 @@ export default function Borradores({
               </div>
             </div>
           </div>
+          <CuentaCabecera />
           <div className="site-header__photo">
             <img src={logoEdificio} alt="" aria-hidden="true" />
           </div>

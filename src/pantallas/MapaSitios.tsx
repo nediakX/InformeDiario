@@ -2,6 +2,7 @@
 // de sus sectores, la distancia desde donde está uno, un enlace para llegar con Google Maps y la
 // reportabilidad de GG actual de cada carro (último reporte, estado y alertas, igual que el monitoreo).
 // Leaflet se carga solo al abrir esta pantalla.
+import CuentaCabecera from '../componentes/CuentaCabecera';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -225,6 +226,7 @@ export default function MapaSitios({ onBack }: { onBack: () => void }) {
               <div className="site-header__meta text-xs truncate">{datos ? `${datos.nombre} · ${sitios.length} carros` : 'Sin datos para esta división'}</div>
             </div>
           </div>
+          <CuentaCabecera />
           <div className="site-header__photo"><img src={logoEdificio} alt="" aria-hidden="true" /></div>
         </div>
         <div className="site-header__rule" />

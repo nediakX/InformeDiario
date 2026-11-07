@@ -1,3 +1,4 @@
+import CuentaCabecera from '../componentes/CuentaCabecera';
 import { useState, useEffect, useRef, type Dispatch, type SetStateAction, type ClipboardEvent } from 'react';
 import type * as docx from 'docx';
 import { saveAs } from 'file-saver';
@@ -884,6 +885,7 @@ export default function InformeMantenimiento({ onBack, borradorInicial = null }:
               </div>
             </div>
           </div>
+          <CuentaCabecera />
           <div className="site-header__photo">
             <img src={logoEdificio} alt="" aria-hidden="true" />
           </div>

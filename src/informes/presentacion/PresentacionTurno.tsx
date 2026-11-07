@@ -1,3 +1,4 @@
+import CuentaCabecera from '../../componentes/CuentaCabecera';
 import { useEffect, useMemo, useState } from 'react';
 import { saveAs } from 'file-saver';
 import { ArrowLeft, ChevronLeft, ChevronRight, CircleCheckBig, Circle, Loader2, Presentation } from 'lucide-react';
@@ -141,6 +142,7 @@ export default function PresentacionTurno({ onBack, modoInicial = 'completo', bo
               </div>
             </div>
           </div>
+          <CuentaCabecera />
           <div className="site-header__photo">
             <img src={logoEdificio} alt="" aria-hidden="true" />
           </div>

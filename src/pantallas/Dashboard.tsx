@@ -1,5 +1,6 @@
+import CuentaCabecera from '../componentes/CuentaCabecera';
 import { Fragment, Suspense, lazy, useEffect, useState, type CSSProperties, type ReactNode } from 'react';
-import { ChevronDown, ClipboardCheck, FileStack, FolderOpen, ChevronRight, Bell, FilePlus, Sun, Moon, Wrench, AlertTriangle, Printer, LogOut, ShieldCheck, FileUp, Fuel, LayoutGrid, RadioTower, Map as MapIcon, Presentation, CalendarDays, type LucideIcon } from 'lucide-react';
+import { ChevronDown, ClipboardCheck, FileStack, FolderOpen, ChevronRight, Bell, FilePlus, Sun, Moon, Wrench, AlertTriangle, Printer, ShieldCheck, FileUp, Fuel, LayoutGrid, RadioTower, Map as MapIcon, Presentation, CalendarDays, type LucideIcon } from 'lucide-react';
 import { useSesion, nombreVisible } from '../auth/sesion';
 import { CONFIG_DIVISION } from '../datos/divisiones';
 import './dashboard.css';
@@ -91,7 +92,7 @@ export default function Dashboard({
 }: DashboardProps) {
   const [modalNoche, setModalNoche] = useState(false);
   const [motivoNoche, setMotivoNoche] = useState('');
-  const { perfil, esAdmin, pendientesAprobacion, cerrarSesion, division } = useSesion();
+  const { perfil, esAdmin, pendientesAprobacion, division } = useSesion();
   const checklistHoy = estadoChecklistDelDia(checklistsCamioneta, hoyLocalISO(), CONFIG_DIVISION[division].camionetas.length);
   const [modalInformeOpen, setModalInformeOpen] = useState(false);
   // Modal de Mantenimiento: de generador o preventiva de sitio (cada uno con sus borradores).
@@ -432,21 +433,7 @@ export default function Dashboard({
               </div>
             </div>
           </div>
-          {/* Cuenta en la barra superior: perfil y salir, compactos */}
-          <div className="site-header__cuenta">
-            <button type="button" className="cuenta-boton" title={`Mi perfil · ${perfil.email}`} onClick={() => onNavigate('perfil')}>
-              <span className="cuenta-boton__avatar" aria-hidden="true">{(primerNombre[0] || '?').toUpperCase()}</span>
-              <span className="cuenta-boton__nombre">{nombreVisible(perfil)}</span>
-              {esAdmin && <span className="cuenta-boton__rol">Admin</span>}
-            </button>
-            <button
-              type="button"
-              onClick={() => { if (window.confirm('¿Cerrar sesión en este dispositivo?')) void cerrarSesion(); }}
-              className="cuenta-salir" aria-label="Cerrar sesión" title="Cerrar sesión"
-            >
-              <LogOut size={16} aria-hidden="true" /><span className="cuenta-salir__txt">Salir</span>
-            </button>
-          </div>
+          <CuentaCabecera />
           <div className="site-header__photo">
             <img src={logoEdificio} alt="" aria-hidden="true" />
           </div>

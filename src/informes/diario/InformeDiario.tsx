@@ -1,4 +1,5 @@
 
+import CuentaCabecera from '../../componentes/CuentaCabecera';
 import { useState } from 'react';
 import { ACTIVIDAD_CHECKLIST } from '../checklist/enviarDiario';
 import { checklistHojasComoPdf } from '../checklist/checklistPdf';
@@ -138,6 +139,7 @@ export default function InformeDiario({ d, volverABorradores, goToNewInforme }: 
               </div>
             </div>
           </div>
+          <CuentaCabecera />
           <div className="site-header__photo">
             <img src={logoEdificio} alt="" aria-hidden="true" />
           </div>

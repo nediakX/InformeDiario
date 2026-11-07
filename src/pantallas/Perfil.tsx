@@ -1,5 +1,6 @@
 // Mi perfil: cada usuario corrige sus datos (nombre, RUT), cambia su contraseña y sube su firma.
 // La firma se pone sola en el Checklist de Camioneta, en el cuadro "Firma y Nombre Conductor" de cada día completo.
+import CuentaCabecera from '../componentes/CuentaCabecera';
 import { useState } from 'react';
 import { Accessibility, ArrowLeft, Moon, Check, KeyRound, Loader2, PenLine, Trash2, Upload, UserRound } from 'lucide-react';
 import logoPsinet from '../assets/logo_psinet.png';
@@ -129,6 +130,7 @@ export default function Perfil({ onBack }: { onBack: () => void }) {
               <div className="site-header__meta text-xs truncate">Tus datos, contraseña y firma</div>
             </div>
           </div>
+          <CuentaCabecera />
           <div className="site-header__photo"><img src={logoEdificio} alt="" aria-hidden="true" /></div>
         </div>
         <div className="site-header__rule" />

@@ -2,6 +2,7 @@
 // Cada trabajador recibe sus formularios con nombre, RUT, cargo y fechas ya escritos; lo que va
 // a doble cara (Inspección de Radios) sale en un PDF aparte. El botón "Imprimir" abre
 // directamente el diálogo de impresión.
+import CuentaCabecera from '../componentes/CuentaCabecera';
 import { useEffect, useMemo, useState } from 'react';
 import {
   ArrowLeft, Printer, Loader2, FileText, Minus, Plus, Copy, RotateCw, Users, CalendarDays,
@@ -266,6 +267,7 @@ export default function ImpresionRapida({ onBack }: ImpresionRapidaProps) {
               <div className="site-header__meta text-xs truncate">Kit de documentos de la semana, prellenado para cada trabajador</div>
             </div>
           </div>
+          <CuentaCabecera />
           <div className="site-header__photo">
             <img src={logoEdificio} alt="" aria-hidden="true" />
           </div>

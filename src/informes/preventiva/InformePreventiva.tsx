@@ -6,6 +6,7 @@
 //  - Las horas de la bitácora.
 // Todo lo demás (portada, revisores, autorización, textos de descripción, actividades
 // administrativas y planificadas, contenido de la bitácora) se arma solo igual que en los originales.
+import CuentaCabecera from '../../componentes/CuentaCabecera';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { saveAs } from 'file-saver';
 import {
@@ -348,6 +349,7 @@ export default function InformePreventiva({ onBack, borradorInicial = null }: Pr
               <div className="site-header__meta text-xs truncate">Mismo formato que los reportes de mantención preventiva</div>
             </div>
           </div>
+          <CuentaCabecera />
           <div className="site-header__photo"><img src={logoEdificio} alt="" aria-hidden="true" /></div>
         </div>
         <div className="site-header__rule" />
