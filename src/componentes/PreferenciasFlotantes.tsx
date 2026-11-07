@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Accessibility, LogOut, UserRound, X } from 'lucide-react';
-import { useSesion } from '../auth/sesion';
+import { Accessibility, X } from 'lucide-react';
 import { guardarAccesibilidad, leerAccesibilidad, type Accesibilidad } from '../lib/accesibilidad';
 import { guardarTema, leerTema, type Tema } from '../lib/tema';
 
@@ -22,7 +21,6 @@ export default function PreferenciasFlotantes() {
   const [tema, setTema] = useState<Tema>(() => leerTema());
   const [acc, setAcc] = useState<Accesibilidad>(() => leerAccesibilidad());
   const panelRef = useRef<HTMLDivElement>(null);
-  const { cerrarSesion } = useSesion();
 
   useEffect(() => {
     if (!abierto) return;
@@ -78,7 +76,6 @@ export default function PreferenciasFlotantes() {
           </ul>
         </div>
       )}
-      <div className="flex items-center gap-2">
       <button
         type="button"
         onClick={() => setAbierto(a => !a)}
@@ -89,21 +86,6 @@ export default function PreferenciasFlotantes() {
       >
         <Accessibility size={20} aria-hidden="true" />
       </button>
-      <button
-        type="button"
-        onClick={() => window.dispatchEvent(new CustomEvent('psinet:ir', { detail: 'perfil' }))}
-        className="flex h-11 items-center gap-1.5 rounded-full bg-white px-3 text-xs font-bold text-[#0E4660] shadow-lg border border-[#C9D3DA] hover:bg-[#eef5fb]"
-      >
-        <UserRound size={16} aria-hidden="true" /> <span>Mi perfil</span>
-      </button>
-      <button
-        type="button"
-        onClick={() => { if (window.confirm('¿Cerrar sesión en este dispositivo?')) void cerrarSesion(); }}
-        className="flex h-11 items-center gap-1.5 rounded-full bg-white px-3 text-xs font-bold text-[#a32626] shadow-lg border border-[#C9D3DA] hover:bg-[#fbe9e9]"
-      >
-        <LogOut size={16} aria-hidden="true" /> <span>Salir</span>
-      </button>
-      </div>
     </div>
   );
 }
