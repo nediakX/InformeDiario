@@ -1,5 +1,6 @@
 import { LogOut } from 'lucide-react';
 import { nombreVisible, useSesion } from '../auth/sesion';
+import BuscadorInformes from './BuscadorInformes';
 
 /** Cuenta en la barra superior (perfil y salir). Es la misma en todas las vistas. */
 export default function CuentaCabecera() {
@@ -7,6 +8,7 @@ export default function CuentaCabecera() {
   const primerNombre = nombreVisible(perfil);
   return (
     <div className="site-header__cuenta">
+      <BuscadorInformes />
       <button
         type="button"
         className="cuenta-boton"

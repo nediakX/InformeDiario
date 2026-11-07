@@ -358,6 +358,13 @@ function AppContenido() {
     if (navegar) setView('diario', entrySeleccionada.id);
   };
 
+  // El buscador de la barra superior abre un informe diario guardado.
+  useEffect(() => {
+    const abrir = (e: Event) => { const entry = (e as CustomEvent<BorradorEntry>).detail; if (entry) openBorradorEntry(entry); };
+    window.addEventListener('psinet:abrir-diario', abrir);
+    return () => window.removeEventListener('psinet:abrir-diario', abrir);
+  });
+
   useEffect(() => {
     if (view !== 'diario' || !ruta.param || ruta.param === currentDraftId || !listaCargada) return;
     if (rutaDiarioAplicadaRef.current === ruta.param) return;

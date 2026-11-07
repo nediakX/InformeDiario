@@ -44,6 +44,24 @@ interface BorradoresProps {
 }
 
 const porFechaAsc = (a: BorradorEntry, b: BorradorEntry) => a.fecha.localeCompare(b.fecha);
+
+/** Filtro de la lista de Informe Diario. Se recuerda en este dispositivo. */
+type FiltroBorrador = 'todos' | 'pendientes' | 'finalizados' | 'no_realizados';
+const FILTROS_BORRADOR: { valor: FiltroBorrador; etiqueta: string }[] = [
+  { valor: 'todos', etiqueta: 'Todos' },
+  { valor: 'pendientes', etiqueta: 'Pendientes' },
+  { valor: 'finalizados', etiqueta: 'Finalizados' },
+  { valor: 'no_realizados', etiqueta: 'No realizados' },
+];
+const CLAVE_FILTRO = 'psinet-filtro-borradores';
+const leerFiltro = (): FiltroBorrador => {
+  try {
+    const v = localStorage.getItem(CLAVE_FILTRO);
+    return FILTROS_BORRADOR.some(f => f.valor === v) ? (v as FiltroBorrador) : 'todos';
+  } catch {
+    return 'todos';
+  }
+};
 const porGuardadoDesc = (a: BorradorOtroEntry, b: BorradorOtroEntry) => b.savedAt.localeCompare(a.savedAt);
 const rangoSemana = (s: SemanaTurno) => `${formatDiaMes(s.inicio)} – ${formatDiaMes(s.fin)}`;
 
@@ -60,6 +78,11 @@ export default function Borradores({
   onNuevoMantenimiento, onAbrirMantenimiento, onNuevaFalla, onAbrirFalla, onDeleteOtro, onImportar,
 }: BorradoresProps) {
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [filtro, setFiltro] = useState<FiltroBorrador>(() => leerFiltro());
+  const elegirFiltro = (f: FiltroBorrador) => {
+    setFiltro(f);
+    try { localStorage.setItem(CLAVE_FILTRO, f); } catch { /* sin almacenamiento: vale solo esta sesión */ }
+  };
   const [confirmDeleteOtro, setConfirmDeleteOtro] = useState<{ id: string; onConfirm: () => void } | null>(null);
   const [nuevoOpen, setNuevoOpen] = useState(false);
   const [pidiendoMotivo, setPidiendoMotivo] = useState(false);
@@ -80,6 +103,12 @@ export default function Borradores({
   const delTurnoActual = (turno: 'dia' | 'noche') =>
     borradores.filter(b => b.turno === turno && b.fecha >= semana.inicio && b.fecha <= semana.fin);
   const lista = delTurnoActual(tabVisible).sort(porFechaAsc);
+  const listaFiltrada = lista.filter(b => {
+    if (filtro === 'pendientes') return !b.sinTurno && estadoBorrador(b) !== 'finalizado';
+    if (filtro === 'finalizados') return estadoBorrador(b) === 'finalizado';
+    if (filtro === 'no_realizados') return Boolean(b.sinTurno);
+    return true;
+  });
   const finalizados = lista.filter(b => estadoBorrador(b) === 'finalizado').length;
   const enCurso = lista.filter(b => estadoBorrador(b) === 'iniciado').length;
   const noRealizados = lista.filter(b => b.sinTurno).length;
@@ -415,6 +444,15 @@ export default function Borradores({
               })}
             </div>
 
+            <div role="radiogroup" aria-label="Filtrar informes" className="flex flex-wrap gap-1.5">
+              {FILTROS_BORRADOR.map(f => (
+                <button key={f.valor} type="button" role="radio" aria-checked={filtro === f.valor} onClick={() => elegirFiltro(f.valor)}
+                  className={`rounded-full border px-3 py-1 text-xs font-bold ${filtro === f.valor ? 'bg-[#0E4660] text-white border-[#0E4660]' : 'bg-white text-[#0E4660] border-[#DCE1E6] hover:bg-[#f0f6fb]'}`}>
+                  {f.etiqueta}
+                </button>
+              ))}
+            </div>
+
             {lista.length === 0 ? (
               <div className="panel p-8 text-center text-gray-500">
                 <FolderOpen size={32} className="mx-auto mb-2 text-gray-300" />
@@ -425,7 +463,11 @@ export default function Borradores({
                 </p>
               </div>
             ) : (
-              <div className="space-y-3">{lista.map(renderEntry)}</div>
+              listaFiltrada.length === 0 ? (
+                <div className="panel p-6 text-center text-sm text-gray-500">No hay informes con este filtro en esta semana.</div>
+              ) : (
+                <div className="space-y-3">{listaFiltrada.map(renderEntry)}</div>
+              )
             )}
 
             {totalAnteriores > 0 && (
