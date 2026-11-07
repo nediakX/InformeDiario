@@ -651,10 +651,11 @@ grant execute on function public.uso_almacenamiento() to authenticated;
 grant execute on function public.fotos_huerfanas() to authenticated;
 
 -- ===========================================================================
--- Cierre automático de informes diarios al terminar su turno
+-- Cierre automático semanal de informes diarios
 -- ===========================================================================
 -- Turno Día: 08:00-20:00. Turno Noche: 20:00 del día del informe hasta 08:00 del día siguiente (hora de Chile).
--- Un informe sin cambios desde que terminó su turno queda finalizado. Si se edita después, no se toca.
+-- Cada martes a las 08:00 (hora de Chile) se finalizan los informes cuyo turno ya terminó antes de ese corte
+-- y que no cambiaron desde que terminó, tengan fotos o no. Si se edita después, no se toca.
 create or replace function public.cerrar_informes_fin_turno()
 returns integer
 language plpgsql
@@ -662,8 +663,19 @@ security definer
 set search_path = ''
 as $$
 declare
+  v_ahora_cl timestamp := now() at time zone 'America/Santiago';
+  v_dias_desde_martes integer := (extract(dow from v_ahora_cl)::integer - 2 + 7) % 7;
+  v_corte_fecha date;
+  v_corte timestamptz;
   v_cerrados integer;
 begin
+  -- Último martes 08:00 (hora de Chile) ya ocurrido.
+  v_corte_fecha := v_ahora_cl::date - v_dias_desde_martes;
+  if v_dias_desde_martes = 0 and v_ahora_cl::time < time '08:00' then
+    v_corte_fecha := v_corte_fecha - 7;
+  end if;
+  v_corte := (v_corte_fecha + time '08:00') at time zone 'America/Santiago';
+
   with fin as (
     select b.id,
       case when b.turno = 'dia'
@@ -678,7 +690,7 @@ begin
     set finalizado_en = now()
     from fin
     where fin.id = b.id
-      and now() >= fin.termina
+      and fin.termina < v_corte
       and b.saved_at < fin.termina
     returning 1
   )
@@ -689,11 +701,13 @@ $$;
 
 revoke all on function public.cerrar_informes_fin_turno() from public, anon, authenticated;
 
--- Se programa cada 10 minutos solo si la extensión pg_cron está activada en Supabase.
+-- Se reemplaza el cierre al terminar cada turno: se quita ese job y se programa cada hora de los martes
+-- (la función solo cierra lo que corresponde, así que correr varias veces es seguro).
 do $$
 begin
   if exists (select 1 from pg_extension where extname = 'pg_cron') then
-    perform cron.schedule('cerrar-informes-fin-turno', '*/10 * * * *', 'select public.cerrar_informes_fin_turno()');
+    delete from cron.job where jobname = 'cerrar-informes-fin-turno';
+    perform cron.schedule('cerrar-informes-fin-turno', '0 * * * 2', 'select public.cerrar_informes_fin_turno()');
   end if;
 end;
 $$;
