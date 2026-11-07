@@ -332,10 +332,7 @@ export default function ReportabilidadGG({ onBack }: { onBack: () => void }) {
           <ArrowLeft size={14} /> Volver al menú
         </button>
 
-        {/* Dos columnas en pantallas grandes: a la izquierda hoy y el formulario; a la derecha los reportes. En celular todo va apilado. */}
-        <div className="flex flex-col gap-5 lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1.25fr)] lg:items-start">
-        <div className="space-y-5 min-w-0">
-        {/* Hoy: avance de la reportabilidad del día */}
+        {/* Hoy: avance de la reportabilidad del día, a todo el ancho */}
         <section className="panel p-5 space-y-3" aria-labelledby="gg-hoy">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h2 id="gg-hoy" className="font-display font-bold text-lg text-[#0E4660]">Hoy · {ddmmaaaa(hoy)}</h2>
@@ -403,8 +400,11 @@ export default function ReportabilidadGG({ onBack }: { onBack: () => void }) {
           )}
         </section>
 
+        {/* Debajo: formulario a la izquierda y tabla de reportes a la derecha en pantallas grandes; en celular van apilados. */}
+        <div className="flex flex-col gap-5 lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1.6fr)] lg:items-start">
+        <div className="min-w-0">
         {/* Formulario */}
-        <section ref={formRef} className={`panel p-5 space-y-4 max-w-[760px] scroll-mt-4 ${editando ? 'ring-2 ring-[#ED7D31]' : ''}`}>
+        <section ref={formRef} className={`panel p-5 space-y-4 scroll-mt-4 ${editando ? 'ring-2 ring-[#ED7D31]' : ''}`}>
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h2 className="font-display font-bold text-lg text-[#0E4660] flex items-center gap-2"><Fuel size={18} /> {editando ? `Corregir reporte · ${editando.sitio}` : 'Nuevo reporte'}</h2>
             {editando && (
@@ -489,7 +489,6 @@ export default function ReportabilidadGG({ onBack }: { onBack: () => void }) {
             </button>
           </div>
         </section>
-
         </div>
         <div className="min-w-0">
         {/* Tabla */}
