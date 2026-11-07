@@ -7,6 +7,7 @@ import './index.css'
 import { iniciarModoSinConexion } from './lib/pwa'
 import { aplicarAccesibilidad, leerAccesibilidad } from './lib/accesibilidad'
 import { iniciarTema } from './lib/tema'
+import PreferenciasFlotantes from './componentes/PreferenciasFlotantes'
 
 iniciarModoSinConexion()
 aplicarAccesibilidad(leerAccesibilidad())
@@ -17,6 +18,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
     <BrowserRouter>
       <AuthGate>
         <App />
+        <PreferenciasFlotantes />
       </AuthGate>
     </BrowserRouter>
   </React.StrictMode>,
