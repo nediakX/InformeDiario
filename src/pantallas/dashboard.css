@@ -23,7 +23,7 @@
 
 /* Tablero del turno */
 .dash-turno {
-  background: var(--ink); color: #e8edf0; border-radius: 14px; padding: 20px 22px 16px;
+  background: var(--header-ink); color: #e8edf0; border-radius: 14px; padding: 20px 22px 16px;
   border-top: 4px solid var(--amber);
 }
 .dash-turno__cabecera { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: 12px; margin-bottom: 16px; }
@@ -261,7 +261,7 @@
 .dash-rol .dash-gg-sitios { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
 
 /* Turno, versión corta */
-.dash-turno-mini { background: var(--ink); color: #c9d3d8; border-radius: 12px; padding: 14px 14px 12px; border-top: 3px solid var(--amber); display: grid; gap: 10px; }
+.dash-turno-mini { background: var(--header-ink); color: #c9d3d8; border-radius: 12px; padding: 14px 14px 12px; border-top: 3px solid var(--amber); display: grid; gap: 10px; }
 .dash-turno-mini__cabecera { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 10px; }
 .dash-turno-mini__cabecera h2 { margin: 0; font-size: 1.4rem; font-weight: 800; color: #fff; line-height: 1; }
 .dash-turno-mini__cabecera span { font-size: 0.75rem; color: #a9b6bd; }
