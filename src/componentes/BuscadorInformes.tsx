@@ -53,7 +53,12 @@ export default function BuscadorInformes() {
       if (!dentro) setEnfocado(false);
     };
     const alEsc = (e: KeyboardEvent) => { if (e.key === 'Escape') setEnfocado(false); };
-    const alDesplazar = () => setEnfocado(false);
+    // Cierra solo si se desplaza la página; el scroll dentro del propio panel no cuenta.
+    const alDesplazar = (e: Event) => {
+      const panel = document.querySelector('[data-buscador-panel]');
+      if (panel && e.target instanceof Node && panel.contains(e.target)) return;
+      setEnfocado(false);
+    };
     document.addEventListener('mousedown', alClic);
     window.addEventListener('keydown', alEsc);
     window.addEventListener('scroll', alDesplazar, true);
