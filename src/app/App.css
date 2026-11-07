@@ -509,3 +509,24 @@ textarea:focus {
 @media (max-width: 767px) {
   .seasonal-decoration { height: clamp(80px, 24vw, 110px); margin-top: -22px; margin-bottom: calc(74px - clamp(80px, 24vw, 110px)); top: -30px; }
 }
+
+/* ==========================================================================
+   Accesibilidad (preferencias de Mi perfil)
+   ========================================================================== */
+html[data-texto-grande] { font-size: 118%; }
+html[data-alto-contraste] {
+  --line: #3f4a50;
+  --line-soft: #6b777d;
+  --text-soft: #26313a;
+  --paper: #ffffff;
+  --brand-blue: #06324a;
+}
+html[data-alto-contraste] body { background-image: none; }
+html[data-reducir-movimiento] *,
+html[data-reducir-movimiento] *::before,
+html[data-reducir-movimiento] *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  scroll-behavior: auto !important;
+}

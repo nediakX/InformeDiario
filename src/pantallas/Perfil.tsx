@@ -1,7 +1,7 @@
 // Mi perfil: cada usuario corrige sus datos (nombre, RUT), cambia su contraseña y sube su firma.
 // La firma se pone sola en el Checklist de Camioneta, en el cuadro "Firma y Nombre Conductor" de cada día completo.
 import { useState } from 'react';
-import { ArrowLeft, Check, KeyRound, Loader2, PenLine, Trash2, Upload, UserRound } from 'lucide-react';
+import { Accessibility, ArrowLeft, Check, KeyRound, Loader2, PenLine, Trash2, Upload, UserRound } from 'lucide-react';
 import logoPsinet from '../assets/logo_psinet.jpg';
 import logoEdificio from '../assets/LogoEdificio.png';
 import { etiquetaFaena, formatearRut, rutValido, useSesion } from '../auth/sesion';
@@ -9,6 +9,7 @@ import { actualizarMiPerfil, cambiarContrasena } from '../datos/perfil';
 import { ETIQUETA_ROL, rolDelListado, rolDePersona } from '../datos/roles';
 import { procesarFirma } from '../lib/firma';
 import { esErrorDeRed } from '../lib/conexion';
+import { guardarAccesibilidad, leerAccesibilidad, type Accesibilidad } from '../lib/accesibilidad';
 
 type Aviso = { texto: string; error?: boolean } | null;
 
@@ -25,6 +26,17 @@ function AvisoTexto({ aviso }: { aviso: Aviso }) {
 }
 
 export default function Perfil({ onBack }: { onBack: () => void }) {
+  const [accesibilidad, setAccesibilidad] = useState<Accesibilidad>(() => leerAccesibilidad());
+  const cambiarAccesibilidad = (clave: keyof Accesibilidad) => {
+    const siguiente = { ...accesibilidad, [clave]: !accesibilidad[clave] };
+    setAccesibilidad(siguiente);
+    guardarAccesibilidad(siguiente);
+  };
+  const opcionesAccesibilidad: { clave: keyof Accesibilidad; titulo: string; detalle: string }[] = [
+    { clave: 'textoGrande', titulo: 'Texto grande', detalle: 'Aumenta el tamaño de letra en toda la app.' },
+    { clave: 'altoContraste', titulo: 'Alto contraste', detalle: 'Bordes y textos más oscuros para leer mejor.' },
+    { clave: 'reducirMovimiento', titulo: 'Reducir animaciones', detalle: 'Quita las transiciones y animaciones de la pantalla.' },
+  ];
   const { perfil, recargarPerfil, esAdmin, divisionPropia } = useSesion();
 
   const [nombre, setNombre] = useState(perfil.nombre);
@@ -205,6 +217,31 @@ export default function Perfil({ onBack }: { onBack: () => void }) {
               {guardandoClave ? <Loader2 size={16} className="animate-spin" /> : <KeyRound size={16} />} Cambiar contraseña
             </button>
           </div>
+        </section>
+        {/* Accesibilidad */}
+        <section className="panel p-5 space-y-4" aria-labelledby="perfil-accesibilidad">
+          <h2 id="perfil-accesibilidad" className="font-display font-bold text-lg text-[#0E4660] flex items-center gap-2"><Accessibility size={18} /> Accesibilidad</h2>
+          <p className="text-xs text-gray-500">Se guarda en este dispositivo.</p>
+          <ul className="space-y-3">
+            {opcionesAccesibilidad.map(o => (
+              <li key={o.clave} className="flex items-center justify-between gap-4">
+                <span className="min-w-0">
+                  <span id={`acc-${o.clave}`} className="block font-bold text-sm text-[#0E4660]">{o.titulo}</span>
+                  <span className="block text-xs text-gray-500">{o.detalle}</span>
+                </span>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={accesibilidad[o.clave]}
+                  aria-labelledby={`acc-${o.clave}`}
+                  onClick={() => cambiarAccesibilidad(o.clave)}
+                  className={`relative flex-none w-11 h-6 rounded-full transition-colors ${accesibilidad[o.clave] ? 'bg-[#0E4660]' : 'bg-[#C9D3DA]'}`}
+                >
+                  <span className={`absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${accesibilidad[o.clave] ? 'translate-x-5' : ''}`} />
+                </button>
+              </li>
+            ))}
+          </ul>
         </section>
       </main>
     </div>
