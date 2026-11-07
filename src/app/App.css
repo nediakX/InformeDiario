@@ -561,6 +561,8 @@ html[data-tema-oscuro] input, html[data-tema-oscuro] select, html[data-tema-oscu
   background-color: #141b1f; color: #e6ebee; border-color: #3b474e;
 }
 html[data-tema-oscuro] .btn-outline { color: #8cc4de; border-color: #3b474e; }
+/* Logo en blanco de noche: el PNG negro se vuelve blanco (la franja amarilla también queda blanca). */
+html[data-tema-oscuro] .site-header__plate img { filter: brightness(0) invert(1); }
 
 /* Colores de estado en modo oscuro (fondos pastel y textos oscuros, generados) */
 html[data-tema-oscuro] {
