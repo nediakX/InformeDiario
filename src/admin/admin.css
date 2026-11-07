@@ -37,7 +37,7 @@
   padding: 10px 14px;
   border: 0;
   background: transparent;
-  color: #6b7a81;
+  color: var(--tx-6b7a81, #6b7a81);
   font-family: "Big Shoulders Display", sans-serif;
   font-size: 16px;
   font-weight: 700;
@@ -47,7 +47,7 @@
 
 .admin-tab[aria-selected="true"],
 .admin-tab:hover {
-  color: #0e4660;
+  color: var(--brand-text);
 }
 
 .admin-tab[aria-selected="true"]::after {
@@ -64,8 +64,8 @@
   min-width: 18px;
   padding: 1px 6px;
   border-radius: 999px;
-  background: #fff3cd;
-  color: #7a5b00;
+  background: var(--bg-fff3cd, #fff3cd);
+  color: var(--tx-7a5b00, #7a5b00);
   font-family: system-ui, sans-serif;
   font-size: 11px;
   font-weight: 700;
@@ -85,7 +85,7 @@
   padding: 3px;
   border: 1px solid #dce1e6;
   border-radius: 8px;
-  background: #fff;
+  background: var(--panel);
 }
 
 .segmented button {
@@ -150,7 +150,7 @@
   align-items: center;
   gap: 4px;
   margin-top: 6px;
-  color: #8a5300;
+  color: var(--tx-8a5300, #8a5300);
   font-size: 12px;
   font-weight: 600;
 }
@@ -205,10 +205,10 @@
   font-weight: 600;
 }
 
-.estado-chip--bueno { background: #e6f6e6; color: #006300; }
-.estado-chip--atencion { background: #fff3cd; color: #7a5b00; }
-.estado-chip--critico { background: #fbe9e9; color: #a32626; }
-.estado-chip--neutro { background: #eef1f2; color: var(--text-secondary); }
+.estado-chip--bueno { background: var(--bg-e6f6e6, #e6f6e6); color: var(--tx-006300, #006300); }
+.estado-chip--atencion { background: var(--bg-fff3cd, #fff3cd); color: var(--tx-7a5b00, #7a5b00); }
+.estado-chip--critico { background: var(--bg-fbe9e9, #fbe9e9); color: var(--tx-a32626, #a32626); }
+.estado-chip--neutro { background: var(--bg-eef1f2, #eef1f2); color: var(--text-secondary); }
 
 /* --- Tarjetas de gráfico --- */
 .viz-card {
@@ -225,7 +225,7 @@
 
 .viz-card__title {
   margin: 0;
-  color: #0e4660;
+  color: var(--brand-text);
   font-family: "Big Shoulders Display", sans-serif;
   font-size: 19px;
   font-weight: 700;
@@ -249,7 +249,7 @@
   padding: 0;
   border: 0;
   background: transparent;
-  color: #0e4660;
+  color: var(--brand-text);
   font-size: 12px;
   font-weight: 600;
   text-decoration: underline;
@@ -390,10 +390,10 @@
 }
 
 .celda--finalizado { background: var(--status-good); color: #fff; }
-.celda--iniciado { background: var(--status-warning); color: #3d2c00; }
-.celda--sin_fotos { background: var(--status-serious); color: #3d1b0c; }
+.celda--iniciado { background: var(--status-warning); color: var(--tx-3d2c00, #3d2c00); }
+.celda--sin_fotos { background: var(--status-serious); color: var(--tx-3d1b0c, #3d1b0c); }
 .celda--faltante { background: var(--status-critical); color: #fff; }
-.celda--en_curso { background: var(--status-neutral); color: #6f6d68; }
+.celda--en_curso { background: var(--status-neutral); color: var(--tx-6f6d68, #6f6d68); }
 
 /* --- Tablas --- */
 .viz-table-wrap {
@@ -443,11 +443,11 @@
 }
 
 .pill--finalizado,
-.pill--aprobado { background: #e6f6e6; color: #006300; }
+.pill--aprobado { background: var(--bg-e6f6e6, #e6f6e6); color: var(--tx-006300, #006300); }
 .pill--iniciado,
-.pill--pendiente { background: #fff3cd; color: #7a5b00; }
-.pill--rechazado { background: #fbe9e9; color: #a32626; }
-.pill--admin { background: #e3edf3; color: #0e4660; }
+.pill--pendiente { background: var(--bg-fff3cd, #fff3cd); color: var(--tx-7a5b00, #7a5b00); }
+.pill--rechazado { background: var(--bg-fbe9e9, #fbe9e9); color: var(--tx-a32626, #a32626); }
+.pill--admin { background: var(--bg-e3edf3, #e3edf3); color: var(--brand-text); }
 
 .btn-mini {
   display: inline-flex;
@@ -456,8 +456,8 @@
   padding: 5px 10px;
   border: 1px solid #dce1e6;
   border-radius: 6px;
-  background: #fff;
-  color: #0e4660;
+  background: var(--panel);
+  color: var(--brand-text);
   font-size: 12px;
   font-weight: 600;
   white-space: nowrap;
@@ -468,7 +468,7 @@
 .btn-mini:disabled { cursor: wait; opacity: 0.6; }
 .btn-mini--ok { border-color: #0ca30c; background: #0ca30c; color: #fff; }
 .btn-mini--ok:hover { background: #0a8a0a; }
-.btn-mini--danger { color: #a32626; }
+.btn-mini--danger { color: var(--tx-a32626, #a32626); }
 .btn-mini--danger:hover { border-color: #a32626; }
 
 .admin-grid-2 {
@@ -484,8 +484,8 @@
 
 /* --- Presencia, actividad y sistema --- */
 .admin-badge--ok {
-  background: #e6f6e6;
-  color: #006300;
+  background: var(--bg-e6f6e6, #e6f6e6);
+  color: var(--tx-006300, #006300);
 }
 
 .conexion {
@@ -503,9 +503,9 @@
   border-radius: 50%;
 }
 
-.conexion--en-linea { color: #006300; }
+.conexion--en-linea { color: var(--tx-006300, #006300); }
 .conexion--en-linea .conexion__punto { background: var(--status-good); box-shadow: 0 0 0 3px rgba(12, 163, 12, 0.15); }
-.conexion--ausente { color: #7a5b00; }
+.conexion--ausente { color: var(--tx-7a5b00, #7a5b00); }
 .conexion--ausente .conexion__punto { background: var(--status-warning); }
 .conexion--desconectado { color: var(--text-muted); }
 .conexion--desconectado .conexion__punto { background: #c3c2b7; }
@@ -519,7 +519,7 @@
   height: 34px;
   border: 1px solid #dce1e6;
   border-radius: 8px;
-  background: #fff;
+  background: var(--panel);
   font-size: 13px;
 }
 
@@ -545,10 +545,10 @@
   color: var(--text-primary);
 }
 
-.pill--evento-sesion { background: #e3edf3; color: #0e4660; }
-.pill--evento-informes { background: #e6f6e6; color: #006300; }
-.pill--evento-cuentas { background: #fff3cd; color: #7a5b00; }
-.pill--evento-sistema { background: #eef1f2; color: var(--text-secondary); }
+.pill--evento-sesion { background: var(--bg-e3edf3, #e3edf3); color: var(--brand-text); }
+.pill--evento-informes { background: var(--bg-e6f6e6, #e6f6e6); color: var(--tx-006300, #006300); }
+.pill--evento-cuentas { background: var(--bg-fff3cd, #fff3cd); color: var(--tx-7a5b00, #7a5b00); }
+.pill--evento-sistema { background: var(--bg-eef1f2, #eef1f2); color: var(--text-secondary); }
 
 .hero__value--md {
   font-size: 34px;
@@ -559,8 +559,8 @@
   padding: 4px 8px;
   border: 1px solid #dce1e6;
   border-radius: 6px;
-  background: #fff;
-  color: #0e4660;
+  background: var(--panel);
+  color: var(--brand-text);
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
@@ -636,7 +636,7 @@
     padding: 10px 12px;
     border: 1px solid var(--gridline);
     border-radius: 10px;
-    background: #fff;
+    background: var(--panel);
   }
   .viz-table--tarjetas tr:last-child { margin-bottom: 0; }
   .viz-table--tarjetas td,

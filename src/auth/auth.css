@@ -219,7 +219,7 @@
   padding: 12px 8px 11px;
   border: 0;
   background: transparent;
-  color: #718087;
+  color: var(--tx-718087, #718087);
   font-family: var(--heading-font);
   font-size: 14px;
   font-weight: 700;
@@ -376,7 +376,7 @@
   border: 0;
   border-radius: 4px;
   background: transparent;
-  color: #6e7c83;
+  color: var(--tx-6e7c83, #6e7c83);
 }
 
 .visibility-button:hover {
@@ -477,7 +477,7 @@
   padding: 9px 11px;
   border-left: 3px solid var(--success);
   background: rgba(38, 129, 85, 0.08);
-  color: #236846;
+  color: var(--tx-236846, #236846);
   font-size: 11px;
   line-height: 1.45;
 }
@@ -497,7 +497,7 @@
   bottom: 22px;
   left: 20px;
   right: 20px;
-  color: #66747a;
+  color: var(--tx-66747a, #66747a);
   text-align: center;
 }
 
@@ -563,7 +563,7 @@
   padding: 9px 11px;
   border-left: 3px solid var(--danger);
   background: rgba(199, 74, 60, 0.08);
-  color: #9b3327;
+  color: var(--tx-9b3327, #9b3327);
   font-size: 11px;
   line-height: 1.45;
 }
@@ -662,13 +662,13 @@
 }
 
 .status-badge.pendiente {
-  background: #fff3cd;
-  color: #7a5b00;
+  background: var(--bg-fff3cd, #fff3cd);
+  color: var(--tx-7a5b00, #7a5b00);
 }
 
 .status-badge.rechazado {
   background: rgba(199, 74, 60, 0.1);
-  color: #9b3327;
+  color: var(--tx-9b3327, #9b3327);
 }
 
 .auth-loading {
@@ -677,8 +677,8 @@
   align-items: center;
   justify-content: center;
   gap: 10px;
-  background: #eef1f2;
-  color: #0e4660;
+  background: var(--bg-eef1f2, #eef1f2);
+  color: var(--brand-text);
   font-family: "Big Shoulders Display", sans-serif;
   font-size: 15px;
   font-weight: 700;
