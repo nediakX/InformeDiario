@@ -8,6 +8,8 @@ import { fetchBorradores, subscribeBorradores, type BorradorEntry } from '../../
 import type { BorradorOtroEntry } from '../../datos/borradoresOtros';
 import { formatDiaMes, formatFechaLarga, hoyLocalISO, sumarDias } from '../../datos/fechas';
 import { semanaDeFecha } from '../../datos/turnos';
+import { listarReportesGG, type ReporteGG } from '../../datos/reportesGG';
+import { capturasGG } from './capturaGG';
 import { useSesion } from '../../auth/sesion';
 import { construirPresentacion, nombreArchivoPresentacion } from './modelo';
 import { generarPresentacionTurno } from './pptx';
@@ -48,9 +50,12 @@ export default function PresentacionTurno({ onBack, modoInicial = 'completo', bo
   // Avisos de la última presentación generada (fotos que no caben, fotos que no se pudieron preparar...).
   const [avisos, setAvisos] = useState<string[]>([]);
   const [toast, setToast] = useState<{ text: string; isError?: boolean } | null>(null);
+  // Reportes de GG de la semana (guardados en la app): cada día se incrusta como captura en la lámina de reportabilidad.
+  const [reportesGG, setReportesGG] = useState<ReporteGG[]>([]);
 
   const semana = useMemo(() => semanaDeFecha(fechaSemana), [fechaSemana]);
   const datos = useMemo(() => construirPresentacion(borradores, semana), [borradores, semana]);
+  const fechasConGG = useMemo(() => new Set(reportesGG.map(r => r.fecha)), [reportesGG]);
   const textoObservaciones = observacionesEditadas[semana.inicio] ?? datos.observacionesNoche.join('\n');
   // La clave identifica la división, la semana y la última recarga: si la lectura guardada no es de esa clave, todavía no llegó.
   const claveFds = `${division}|${semana.inicio}|${recargaFds}`;
@@ -69,6 +74,14 @@ export default function PresentacionTurno({ onBack, modoInicial = 'completo', bo
     void fetchBorradores(division).then(setBorradores);
     return subscribeBorradores(division, setBorradores);
   }, [division]);
+
+  useEffect(() => {
+    let vigente = true;
+    listarReportesGG({ division, desde: semana.inicio, hasta: semana.fin }, 0, 1000)
+      .then(lista => { if (vigente) setReportesGG(lista); })
+      .catch(error => console.error('No se pudieron leer los reportes de GG de la semana:', error));
+    return () => { vigente = false; };
+  }, [division, semana.inicio, semana.fin]);
 
   useEffect(() => {
     if (!toast) return;
@@ -93,13 +106,17 @@ export default function PresentacionTurno({ onBack, modoInicial = 'completo', bo
 
   const hayInformes = datos.dias.some(d => d.tieneInforme);
   // Días con informe (o con Turno Noche) cuyo recuadro de reportabilidad GG queda sin foto.
-  const sinFotoGG = datos.dias.filter(d => (d.tieneInforme || d.tieneNoche) && !d.fotoGG).length;
+  const sinFotoGG = datos.dias.filter(d => (d.tieneInforme || d.tieneNoche) && !d.fotoGG && !fechasConGG.has(d.fecha)).length;
 
   const generar = async () => {
     setGenerando(true);
     try {
       const observaciones = textoObservaciones.split('\n').map(s => s.trim()).filter(Boolean);
-      const { blob, avisos: nuevosAvisos } = await generarPresentacionTurno({ ...datos, observacionesNoche: observaciones });
+      // Reportabilidad de GG de cada día desde la app (lectura fresca al generar). Si un día no tiene reportes, queda la foto antigua del Turno Noche, si la hay.
+      const reportes = await listarReportesGG({ division, desde: semana.inicio, hasta: semana.fin }, 0, 1000);
+      const capturas = await capturasGG(reportes, division, semana.dias);
+      const dias = datos.dias.map(d => ({ ...d, fotoGG: capturas[d.fecha] ?? d.fotoGG }));
+      const { blob, avisos: nuevosAvisos } = await generarPresentacionTurno({ ...datos, dias, observacionesNoche: observaciones });
       saveAs(blob, nombreArchivoPresentacion(datos));
       setAvisos(nuevosAvisos);
       setToast({ text: nuevosAvisos.length ? 'Presentación generada, revisa los avisos.' : 'Presentación generada.' });
@@ -190,14 +207,14 @@ export default function PresentacionTurno({ onBack, modoInicial = 'completo', bo
                   )}
                   {(dia.tieneInforme || dia.tieneNoche) && (
                     <span className="text-xs text-gray-600">
-                      {dia.fotoGG ? '· reportabilidad GG con foto (Turno Noche)' : '· sin foto de reportabilidad GG (Turno Noche)'}
+                      {fechasConGG.has(dia.fecha) ? '· reportabilidad GG desde la app' : dia.fotoGG ? '· reportabilidad GG con foto (Turno Noche)' : '· sin reportabilidad GG'}
                     </span>
                   )}
                 </div>
               ))}
             </div>
             <p className="text-xs text-gray-500 mt-3">
-              Se generan: portada, resumen de Turno Día y Turno Noche, reportabilidad GG (foto del registro del Informe de Turno Noche de cada día) y una lámina de difusiones por día.
+              Se generan: portada, resumen de Turno Día y Turno Noche, reportabilidad GG (captura de los reportes de cada día guardados en la app) y una lámina de difusiones por día.
               Las actividades de rutina individual (checklist, fatiga, hidratación, protector solar, etc.) no aparecen en el resumen.
             </p>
           </section>
@@ -220,7 +237,7 @@ export default function PresentacionTurno({ onBack, modoInicial = 'completo', bo
             )}
             {hayInformes && sinFotoGG > 0 && (
               <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-md p-2 mb-3">
-                {sinFotoGG === 1 ? 'Un día no tiene' : `${sinFotoGG} días no tienen`} foto de reportabilidad GG en su Informe de Turno Noche; su recuadro quedará marcado como “sin foto” para completarlo a mano.
+                {sinFotoGG === 1 ? 'Un día no tiene' : `${sinFotoGG} días no tienen`} reportabilidad GG registrada en la app; su recuadro quedará marcado como “sin foto” para completarlo a mano.
               </p>
             )}
             <button
