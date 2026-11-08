@@ -169,7 +169,7 @@ const ES_BATERIA = /bateria/;
 const ES_MANTENCION = /mantenimiento|mantencion/;
 const ES_FALLA = /falla|atencion|fallas/;
 /** Difusiones (lámina 13; no son actividades de trabajo): flash, charlas, reuniones y capacitaciones. */
-const ES_DIFUSION = /flash|difusion|charla|reunion|capacitacion|induccion|sensibilizacion|entrenamiento/;
+const ES_DIFUSION = /flash|difusion|charla|reunion|capacitacion|induccion|sensibilizacion|entrenamiento|experto/;
 /**
  * Rutina y controles SSO: no van en las actividades de trabajo (lámina 5) ni en las difusiones. Son los registros
  * diarios (inicio de turno, checklist, fatiga, alcohol y drogas...) y lo que ya sale en el resumen o en los controles.
