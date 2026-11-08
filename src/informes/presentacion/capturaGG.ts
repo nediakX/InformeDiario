@@ -6,7 +6,7 @@ import type { Division } from '../../datos/divisiones';
 
 // Proporción del recuadro de la plantilla (ancho / alto). La imagen se genera con esta misma proporción
 // para que la lámina no la recorte.
-const PROPORCION = 3.3;
+const PROPORCION = 3.25;
 const ANCHO_MIN = 1900;
 const ALTO_TITULO = 74;
 const ALTO_ENCABEZADO = 44;
@@ -45,7 +45,7 @@ function tablaDelDia(reportes: ReporteGG[], division: Division, fecha: string) {
   const sitiosTotal = SITIOS_GG[division].length;
   const sitiosReportados = new Set(filas.map(r => r.sitio)).size;
   const alturas = filas.map(altoDeFila);
-  const altoContenido = ALTO_TITULO + ALTO_ENCABEZADO + alturas.reduce((s, h) => s + h, 0) + 24;
+  const altoContenido = ALTO_TITULO + ALTO_ENCABEZADO + alturas.reduce((s, h) => s + h, 0) + 52;
   const alto = Math.max(altoContenido, ANCHO_MIN / PROPORCION);
   const ancho = Math.round(alto * PROPORCION);
 
@@ -73,7 +73,7 @@ function tablaDelDia(reportes: ReporteGG[], division: Division, fecha: string) {
     .map(t => `<th style="text-align:left;padding:8px;background:#0E4660;color:#fff;font-size:16px">${t}</th>`).join('');
 
   const html = `
-    <div style="width:${ancho}px;height:${alto}px;box-sizing:border-box;background:#fff;padding:16px 22px;font-family:Arial,Helvetica,sans-serif;color:#222;display:flex;flex-direction:column">
+    <div style="width:${ancho}px;height:${alto}px;box-sizing:border-box;background:#fff;padding:26px 56px;font-family:Arial,Helvetica,sans-serif;color:#222;display:flex;flex-direction:column">
       <div style="display:flex;justify-content:space-between;align-items:baseline;border-bottom:3px solid #0E4660;padding-bottom:8px;margin-bottom:10px">
         <span style="font-size:30px;font-weight:700;color:#0E4660">REPORTABILIDAD GG · ${fechaCorta(fecha)}</span>
         <span style="font-size:18px;color:#555">${sitiosReportados} de ${sitiosTotal} sitios reportados</span>
