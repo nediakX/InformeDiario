@@ -198,12 +198,15 @@ const responsableDe = (actividad: string) =>
 /** Título de una actividad para las láminas: sin el "Registro de" inicial (ej: "Reunión inicio de turno."). */
 const sinRegistroDe = (texto: string) => texto.trim().replace(/^registro de\s+/i, '');
 
-/** Actividades de trabajo de un día (lámina 5): sin la rutina ni las difusiones, que van en la lámina 13. */
+/**
+ * Actividades de un día (lámina 5): sin la rutina ni las difusiones, salvo las principales (capacitaciones,
+ * entrenamientos, inducciones y tronadura), que sí se muestran como actividad del día.
+ */
 const actividadesDeTrabajoDe = (entrada: BorradorEntry): string[] =>
   sinRepetidos(
     entrada.actividades.filter(a => {
       const clave = sinAcentos(a);
-      return clave !== '' && !ES_RUTINA.test(clave) && !ES_DIFUSION.test(clave);
+      return clave !== '' && !ES_RUTINA.test(clave) && (!ES_DIFUSION.test(clave) || ES_PRINCIPAL_DIFUSION.test(clave));
     }),
   ).map(sinRegistroDe);
 
