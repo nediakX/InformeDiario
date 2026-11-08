@@ -8,7 +8,7 @@ import { fetchBorradores, subscribeBorradores, type BorradorEntry } from '../../
 import type { BorradorOtroEntry } from '../../datos/borradoresOtros';
 import { formatDiaMes, formatFechaLarga, hoyLocalISO, sumarDias } from '../../datos/fechas';
 import { semanaDeFecha } from '../../datos/turnos';
-import { listarReportesGG, type ReporteGG } from '../../datos/reportesGG';
+import { listarReportesGG, suscribirReportesGG, type ReporteGG } from '../../datos/reportesGG';
 import { capturasGG } from './capturaGG';
 import { useSesion } from '../../auth/sesion';
 import { construirPresentacion, nombreArchivoPresentacion } from './modelo';
@@ -75,12 +75,15 @@ export default function PresentacionTurno({ onBack, modoInicial = 'completo', bo
     return subscribeBorradores(division, setBorradores);
   }, [division]);
 
+  // Se vuelven a leer al cambiar la semana y cuando alguien guarda o corrige un reporte de GG.
   useEffect(() => {
     let vigente = true;
-    listarReportesGG({ division, desde: semana.inicio, hasta: semana.fin }, 0, 1000)
+    const cargar = () => listarReportesGG({ division, desde: semana.inicio, hasta: semana.fin }, 0, 1000)
       .then(lista => { if (vigente) setReportesGG(lista); })
       .catch(error => console.error('No se pudieron leer los reportes de GG de la semana:', error));
-    return () => { vigente = false; };
+    void cargar();
+    const dejarDeEscuchar = suscribirReportesGG(division, () => { void cargar(); });
+    return () => { vigente = false; dejarDeEscuchar(); };
   }, [division, semana.inicio, semana.fin]);
 
   useEffect(() => {

@@ -107,7 +107,8 @@ export default function PresentacionFds({ semana, borradores, auto, cargando, er
   const letraElegida = edicion?.personalLetra;
   const letraPersonal: 'A' | 'B' = letraElegida === 'A' || letraElegida === 'B' ? letraElegida : semana.letra;
   // Por defecto: las personas del informe del domingo (turno día, o noche si no hay día). Si no hay informe, la lista guardada del turno.
-  const domingo = fdsDeSemana(semana).fechas[fdsDeSemana(semana).fechas.length - 1];
+  const diasDelFds = fdsDeSemana(semana).fechas;
+  const domingo = diasDelFds[diasDelFds.length - 1];
   const personalDelDomingo: PersonalItem[] = (() => {
     const informes = borradores.filter(e => e.fecha === domingo && !esSemillaSinEditar(e));
     const informe = informes.find(e => e.turno === 'dia' && e.personal.length) ?? informes.find(e => e.personal.length);
