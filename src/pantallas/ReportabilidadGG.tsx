@@ -244,7 +244,9 @@ export default function ReportabilidadGG({ onBack }: { onBack: () => void }) {
       irAlFormulario();
     } catch (error) {
       console.error('No se pudo guardar el reporte de GG:', error);
-      setAviso({ texto: 'No se pudo guardar el reporte. Los datos siguen en el formulario.', error: true });
+      // Se muestra el mensaje de la base para saber la causa exacta (los datos siguen en el formulario).
+      const detalle = (error as { message?: string } | null)?.message ?? String(error);
+      setAviso({ texto: `No se pudo guardar el reporte: ${detalle}`, error: true });
     } finally {
       setGuardando(false);
     }
