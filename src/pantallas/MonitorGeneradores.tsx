@@ -76,8 +76,10 @@ function Tarjeta({ s, dato, desde, onAbrir, ubicacion }: { s: SitioGG; dato: Dat
   const valor = u ? valorGG(u, dato) : null;
   const unidad = DATOS.find(d => d.valor === dato)!.unidad;
   // Reportabilidad "no realizada": ninguna medición y el motivo queda en observaciones.
-  const noRealizada = !!u && esNoRealizada(u);
-  const observacion = u?.observaciones?.trim() || '';
+  // Solo el reporte de hoy explica el estado: de otros días el sitio queda pendiente.
+  const esDeHoy = !!u && u.fecha === hoyLocalISO();
+  const noRealizada = esDeHoy && esNoRealizada(u!);
+  const observacion = esDeHoy ? (u!.observaciones?.trim() || '') : '';
   return (
     <button type="button" className={`dash-gg-sitio dash-gg-sitio--${s.estado}`} onClick={onAbrir}
       title={s.alertas.map(a => `${a.titulo}: ${a.detalle}`).join('\n') || 'Sin alertas'}>

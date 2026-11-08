@@ -80,8 +80,10 @@ export function analizarSitio(sitio: string, reportes: ReporteGG[], hoy: string)
   const serie = reportes.filter(r => r.sitio === sitio).sort((a, b) => instante(a) - instante(b));
   const ultimo = serie[serie.length - 1] ?? null;
   const alertas: AlertaGG[] = [];
+  // La observación solo cuenta si es del reporte de hoy: el de otros días ya no explica el estado actual.
+  const observacionDeHoy = ultimo && ultimo.fecha === hoy ? (ultimo.observaciones?.trim() || null) : null;
   const alerta = (severidad: Severidad, corto: string, titulo: string, detalle: string, fecha: string | null = ultimo?.fecha ?? null, tipo: AlertaGG['tipo'] = 'equipo') =>
-    alertas.push({ sitio, severidad, tipo, corto, titulo, detalle, fecha, observacion: ultimo?.observaciones?.trim() || null });
+    alertas.push({ sitio, severidad, tipo, corto, titulo, detalle, fecha, observacion: observacionDeHoy });
 
   const diasSinReporte = ultimo ? diasEntre(ultimo.fecha, hoy) : Infinity;
   const cuando = ultimo ? `Último reporte: ${ddmm(ultimo.fecha)}${ultimo.hora ? ` ${ultimo.hora}` : ''}.` : '';
@@ -89,7 +91,7 @@ export function analizarSitio(sitio: string, reportes: ReporteGG[], hoy: string)
   else if (diasSinReporte >= 3) alerta('critico', `${diasSinReporte} días sin rep.`, `${diasSinReporte} días sin reporte`, cuando, ultimo.fecha, 'reporte');
   else if (diasSinReporte === 2) alerta('atencion', '2 días sin rep.', '2 días sin reporte', cuando, ultimo.fecha, 'reporte');
 
-  if (ultimo && esNoRealizada(ultimo)) {
+  if (ultimo && ultimo.fecha === hoy && esNoRealizada(ultimo)) {
     const motivo = ultimo.observaciones?.trim();
     alerta('atencion', 'No realizada', 'Reportabilidad no realizada', motivo ? `Sin mediciones. Motivo: ${motivo}` : 'Sin mediciones y sin motivo registrado.');
   }
