@@ -496,7 +496,7 @@ export default function ReportabilidadGG({ onBack }: { onBack: () => void }) {
               {error('nroPartidas')}
             </label>
           </div>
-          <label className="block max-w-[calc(50%-6px)]">
+          <label className="block">
             <span className={etiqueta}>Temperatura del Generador * (°C)</span>
             <input className={campo} inputMode="decimal" value={form.temperatura} onChange={e => poner('temperatura', e.target.value)} placeholder="Ej: 72" />
             {error('temperatura')}
