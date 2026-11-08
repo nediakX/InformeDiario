@@ -178,7 +178,10 @@ export default function MonitorGeneradores({ onAbrir, detalleInicial, compacto }
   filas.sort((x, y) => (x.severidad === y.severidad ? 0 : x.severidad === 'critico' ? -1 : 1));
   const visibles = verTodas ? filas : filas.slice(0, MAX_ALERTAS);
   // Primero los que tienen problemas: en el celular son los que se ven sin deslizar.
-  const tarjetas = [...(analisis?.porSitio ?? [])].sort((a, b) => ORDEN_ESTADO[a.estado] - ORDEN_ESTADO[b.estado]);
+  // Primero por estado (críticos, sin datos, atención, normales); dentro de cada estado, en orden numérico de sitio.
+  const posicionSitio = (sitio: string) => { const i = sitios.indexOf(sitio); return i === -1 ? sitios.length : i; };
+  const tarjetas = [...(analisis?.porSitio ?? [])].sort((a, b) =>
+    (ORDEN_ESTADO[a.estado] - ORDEN_ESTADO[b.estado]) || (posicionSitio(a.sitio) - posicionSitio(b.sitio)));
 
   if (compacto) {
     const peor = filas[0];
