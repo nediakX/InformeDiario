@@ -47,6 +47,7 @@ function Opciones({ valor, opciones, onChange, nombre }: { valor: string; opcion
 interface Formulario {
   fecha: string; hora: string; sitio: string; turno: string; reporta: string; combustible: string;
   horometro: string; nroPartidas: string; nivelRefrigerante: string; nivelAceite: string; temperatura: string; observaciones: string;
+  noRealizada: boolean;
 }
 
 export default function ReportabilidadGG({ onBack }: { onBack: () => void }) {
@@ -60,7 +61,7 @@ export default function ReportabilidadGG({ onBack }: { onBack: () => void }) {
     return {
       fecha, hora: horaActual(), sitio: anterior?.sitio ?? '', turno: anterior?.turno ?? `TURNO ${letraDeFecha(fecha)}`,
       reporta: reportaPorDefecto(), combustible: '', horometro: '', nroPartidas: '',
-      nivelRefrigerante: '', nivelAceite: '', temperatura: '', observaciones: '',
+      nivelRefrigerante: '', nivelAceite: '', temperatura: '', observaciones: '', noRealizada: false,
     };
   };
   const [form, setForm] = useState<Formulario>(() => nuevoFormulario());
@@ -181,15 +182,20 @@ export default function ReportabilidadGG({ onBack }: { onBack: () => void }) {
     if (!form.sitio) e.sitio = requerido;
     if (!form.turno) e.turno = requerido;
     if (!form.reporta.trim()) e.reporta = requerido;
-    if (!form.combustible) e.combustible = requerido;
-    if (!form.nivelRefrigerante) e.nivelRefrigerante = requerido;
-    if (!form.nivelAceite) e.nivelAceite = requerido;
-    const numeros: [keyof Formulario, boolean][] = [['horometro', false], ['nroPartidas', true], ['temperatura', false]];
-    for (const [k, entero] of numeros) {
-      const n = leerNumero(form[k]);
-      if (n === null) e[k] = requerido;
-      else if (Number.isNaN(n) || n < 0) e[k] = 'Escribe solo el número';
-      else if (entero && !Number.isInteger(n)) e[k] = 'Número entero';
+    if (form.noRealizada) {
+      // Sin mediciones: el motivo es obligatorio para que quede explicado en el dashboard.
+      if (!form.observaciones.trim()) e.observaciones = 'Escribe el motivo';
+    } else {
+      if (!form.combustible) e.combustible = requerido;
+      if (!form.nivelRefrigerante) e.nivelRefrigerante = requerido;
+      if (!form.nivelAceite) e.nivelAceite = requerido;
+      const numeros: ['horometro' | 'nroPartidas' | 'temperatura', boolean][] = [['horometro', false], ['nroPartidas', true], ['temperatura', false]];
+      for (const [k, entero] of numeros) {
+        const n = leerNumero(form[k]);
+        if (n === null) e[k] = requerido;
+        else if (Number.isNaN(n) || n < 0) e[k] = 'Escribe solo el número';
+        else if (entero && !Number.isInteger(n)) e[k] = 'Número entero';
+      }
     }
     setErrores(e);
     return Object.keys(e).length === 0;
@@ -199,8 +205,12 @@ export default function ReportabilidadGG({ onBack }: { onBack: () => void }) {
     division, fecha: form.fecha, hora: form.hora || null, sitio: form.sitio, turno: form.turno,
     // Un reporte nuevo siempre queda a nombre de quien ingresó; al corregir uno guardado se conserva el original.
     reporta: (editando ? form.reporta : nombreCorto(nombreVisible(perfil))).trim(),
-    combustible: form.combustible, horometro: leerNumero(form.horometro), nroPartidas: leerNumero(form.nroPartidas),
-    nivelRefrigerante: form.nivelRefrigerante, nivelAceite: form.nivelAceite, temperatura: leerNumero(form.temperatura),
+    combustible: form.noRealizada ? null : form.combustible,
+    horometro: form.noRealizada ? null : leerNumero(form.horometro),
+    nroPartidas: form.noRealizada ? null : leerNumero(form.nroPartidas),
+    nivelRefrigerante: form.noRealizada ? null : form.nivelRefrigerante,
+    nivelAceite: form.noRealizada ? null : form.nivelAceite,
+    temperatura: form.noRealizada ? null : leerNumero(form.temperatura),
     observaciones: form.observaciones.trim() || null,
   });
 
@@ -247,6 +257,7 @@ export default function ReportabilidadGG({ onBack }: { onBack: () => void }) {
       fecha: r.fecha, hora: r.hora ?? '', sitio: r.sitio, turno: r.turno, reporta: r.reporta, combustible: r.combustible ?? '',
       horometro: r.horometro?.toString().replace('.', ',') ?? '', nroPartidas: r.nroPartidas?.toString() ?? '',
       nivelRefrigerante: r.nivelRefrigerante ?? '', nivelAceite: r.nivelAceite ?? '', temperatura: r.temperatura?.toString().replace('.', ',') ?? '', observaciones: r.observaciones ?? '',
+      noRealizada: r.combustible == null && r.horometro == null && r.nroPartidas == null && r.nivelRefrigerante == null && r.nivelAceite == null && r.temperatura == null && !!r.observaciones,
     });
     irAlFormulario();
   };
@@ -461,6 +472,16 @@ export default function ReportabilidadGG({ onBack }: { onBack: () => void }) {
               <span className={etiqueta}>Quién reporta</span>
               <p className={`${campo} bg-gray-50`}>{editando ? form.reporta : nombreCorto(nombreVisible(perfil))}</p>
             </div>
+            <div className="col-span-2 flex items-center justify-between gap-3 rounded-md border border-[#DCE1E6] p-3">
+              <div>
+                <p className="text-sm font-bold text-[#0E4660]">Reportabilidad no realizada</p>
+                <p className="text-[11px] text-gray-500">Oculta las mediciones. Escribe el motivo en Observaciones.</p>
+              </div>
+              <button type="button" role="switch" aria-checked={form.noRealizada} onClick={() => poner('noRealizada', !form.noRealizada)}
+                className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${form.noRealizada ? 'bg-[#a32626]' : 'bg-gray-300'}`}>
+                <span className={`absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${form.noRealizada ? 'translate-x-5' : ''}`} />
+              </button>
+            </div>
           </div>
 
           {ultimo && (
@@ -469,6 +490,7 @@ export default function ReportabilidadGG({ onBack }: { onBack: () => void }) {
             </p>
           )}
 
+          {!form.noRealizada && (<>
           <div>
             <span className={etiqueta}>Combustible *</span>
             <Opciones nombre="Combustible" valor={form.combustible} opciones={OPCIONES_COMBUSTIBLE} onChange={v => poner('combustible', v)} />
@@ -502,11 +524,13 @@ export default function ReportabilidadGG({ onBack }: { onBack: () => void }) {
             <input className={campo} inputMode="decimal" value={form.temperatura} onChange={e => poner('temperatura', e.target.value)} placeholder="Ej: 72" />
             {error('temperatura')}
           </label>
+          </>)}
           <label className="block">
-            <span className={etiqueta}>Observaciones</span>
+            <span className={etiqueta}>{form.noRealizada ? 'Motivo *' : 'Observaciones'}</span>
             <textarea className={`${campo} min-h-[84px] resize-y`} value={form.observaciones} onChange={e => poner('observaciones', e.target.value)}
               placeholder="Si el carro no se pudo revisar, explique el motivo. También sirve como nota de bitácora." maxLength={500} />
             <span className="text-[11px] text-gray-500">{form.observaciones.length}/500</span>
+            {error('observaciones')}
           </label>
           <div className="flex justify-end">
             <button type="button" onClick={() => void guardar()} disabled={guardando}
