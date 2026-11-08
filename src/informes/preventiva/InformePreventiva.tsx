@@ -35,7 +35,7 @@ import { useSesion } from '../../auth/sesion';
 import {
   type DatosPreventiva, type FotoPrev, type HorasBitacora, type PersonaPrev, type SeccionPrev,
   ADMINISTRATIVAS_DEFECTO, CANTIDAD_DE, CIERRE_DESCRIPCION, COORDENADAS_CONOCIDAS, HORAS_DEFECTO, actividadesDeSecciones, bitacoraDefecto,
-  casillaNueva, nombreEnlace, planificadasDefecto, rehacerCasillas, seccionExtra, seccionesPorDefecto, sinPunto,
+  casillaNueva, ENLACES_EXTRA, nombreEnlace, planificadasDefecto, rehacerCasillas, seccionExtra, seccionesPorDefecto, sinPunto,
 } from './modelo';
 import { generarPreventivaWord, nombreArchivoPreventiva } from './word';
 
@@ -508,6 +508,7 @@ export default function InformePreventiva({ onBack, borradorInicial = null }: Pr
                           }} className="border border-[#DCE1E6] rounded-md text-xs p-1 bg-white">
                             <option value="">+ Agregar enlace…</option>
                             {carros.filter(c => c !== sitio).map(c => <option key={c} value={nombreEnlace(c)}>{nombreEnlace(c)}</option>)}
+                            {ENLACES_EXTRA.filter(x => x !== sitio).map(x => <option key={x} value={x}>{x}</option>)}
                           </select>
                         </div>
                       )}

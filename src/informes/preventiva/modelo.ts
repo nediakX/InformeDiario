@@ -104,6 +104,9 @@ export const nombreEnlace = (codigo: string) => {
   return /^MMOO/i.test(limpio) ? limpio.toUpperCase() : `carro ${limpio.toUpperCase()}`;
 };
 
+/** Otros puntos que se pueden enlazar además de los carros (se escriben tal cual). */
+export const ENLACES_EXTRA = ['Caseta TruckShop'];
+
 /** Casillas de cada sección (las que se repiten según la cantidad o los enlaces). */
 export function casillasDe(clave: ClaveSeccion, cantidad = 0, enlaces: string[] = []): Casilla[] {
   const n = Array.from({ length: Math.max(0, cantidad) }, (_, i) => i + 1);
