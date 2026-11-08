@@ -106,7 +106,16 @@ export default function PresentacionFds({ semana, borradores, auto, cargando, er
   const [seleccionPersonal, setSeleccionPersonal] = useState('');
   const letraElegida = edicion?.personalLetra;
   const letraPersonal: 'A' | 'B' = letraElegida === 'A' || letraElegida === 'B' ? letraElegida : semana.letra;
-  const personal: PersonalItem[] = edicion?.personal !== undefined ? leerPersonal(edicion.personal) : getPersonalGuardado(letraPersonal, division);
+  // Por defecto: las personas del informe del domingo (turno día, o noche si no hay día). Si no hay informe, la lista guardada del turno.
+  const domingo = fdsDeSemana(semana).fechas[fdsDeSemana(semana).fechas.length - 1];
+  const personalDelDomingo: PersonalItem[] = (() => {
+    const informes = borradores.filter(e => e.fecha === domingo && !esSemillaSinEditar(e));
+    const informe = informes.find(e => e.turno === 'dia' && e.personal.length) ?? informes.find(e => e.personal.length);
+    return (informe?.personal ?? []).map(p => ({ nombre: String(p.nombre ?? '').trim(), cargo: String(p.cargo ?? '').trim() })).filter(p => p.nombre);
+  })();
+  const personal: PersonalItem[] = edicion?.personal !== undefined
+    ? leerPersonal(edicion.personal)
+    : (personalDelDomingo.length ? personalDelDomingo : getPersonalGuardado(letraPersonal, division));
   const guardarPersonal = (lista: PersonalItem[], letra: 'A' | 'B' = letraPersonal) =>
     setEdiciones(previas => ({ ...previas, [semana.inicio]: { ...previas[semana.inicio], personal: JSON.stringify(lista), personalLetra: letra } }));
   const cambiarTurnoPersonal = (letra: 'A' | 'B') => guardarPersonal(getPersonalGuardado(letra, division), letra);
