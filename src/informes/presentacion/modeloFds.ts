@@ -332,13 +332,15 @@ export function parseOmFds(texto: string): FilaOmFds[] {
     const celdas = (linea.includes('\t') ? linea.split('\t') : linea.split(';')).map(c => c.trim());
     const [sitio = '', nombre = '', horasUltimo = '', fechaUltimo = '', dias = '', horasRegistradas = ''] = celdas;
     if (!sitio || sitio.toLowerCase() === 'sitio') continue;
+    // Copiado de la planilla completa (8 o más columnas): la última es "Horas Registradas al …", no la 6.ª.
+    const horasDeLaPlanilla = celdas.length >= 8 ? celdas[celdas.length - 1] : horasRegistradas;
     filas.push({
       sitio,
       nombre,
       horasUltimo: numeroFds(horasUltimo),
       fechaUltimo: parseFechaFds(fechaUltimo),
       dias: numeroFds(dias) ?? 180,
-      horasRegistradas: numeroFds(horasRegistradas),
+      horasRegistradas: numeroFds(horasDeLaPlanilla),
     });
   }
   return filas;
