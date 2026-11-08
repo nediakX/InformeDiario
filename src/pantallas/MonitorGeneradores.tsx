@@ -5,7 +5,7 @@ import { AlertOctagon, AlertTriangle, CheckCircle2, ChevronDown, ChevronRight, C
 import { useSesion } from '../auth/sesion';
 import { hoyLocalISO, sumarDias } from '../datos/fechas';
 import { EVENTO_GG, SITIOS_GG, pendientesGG, suscribirReportesGG, todosLosReportesGG, type ReporteGG } from '../datos/reportesGG';
-import { analizarGeneradores, valorGG, type EstadoGG, type SitioGG } from '../datos/analisisGG';
+import { analizarGeneradores, esNoRealizada, valorGG, type EstadoGG, type SitioGG } from '../datos/analisisGG';
 import { configDivision, type Division } from '../datos/divisiones';
 
 /** Ubicación del carro de un sitio ("LTE_CMF_01" → "Bloquera"; "LTE_CM_MMOO_01" usa la del carro MMOO_01). */
@@ -76,8 +76,7 @@ function Tarjeta({ s, dato, desde, onAbrir, ubicacion }: { s: SitioGG; dato: Dat
   const valor = u ? valorGG(u, dato) : null;
   const unidad = DATOS.find(d => d.valor === dato)!.unidad;
   // Reportabilidad "no realizada": ninguna medición y el motivo queda en observaciones.
-  const noRealizada = !!u && u.combustible == null && u.horometro == null && u.nroPartidas == null
-    && u.nivelRefrigerante == null && u.nivelAceite == null && u.temperatura == null;
+  const noRealizada = !!u && esNoRealizada(u);
   const observacion = u?.observaciones?.trim() || '';
   return (
     <button type="button" className={`dash-gg-sitio dash-gg-sitio--${s.estado}`} onClick={onAbrir}

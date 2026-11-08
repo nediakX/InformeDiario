@@ -71,6 +71,11 @@ export const TEMP_CRITICA = 95;
 export const valorGG = (r: ReporteGG, dato: 'horometro' | 'temperatura' | 'combustible' | 'nroPartidas'): number | null =>
   dato === 'combustible' ? (r.combustible ? COMBUSTIBLE_PCT[r.combustible] ?? null : null) : r[dato];
 
+/** Reportabilidad "no realizada": el reporte no tiene ninguna medición (solo el motivo en observaciones). */
+export const esNoRealizada = (r: ReporteGG): boolean =>
+  r.combustible == null && r.horometro == null && r.nroPartidas == null
+  && r.nivelRefrigerante == null && r.nivelAceite == null && r.temperatura == null;
+
 export function analizarSitio(sitio: string, reportes: ReporteGG[], hoy: string): SitioGG {
   const serie = reportes.filter(r => r.sitio === sitio).sort((a, b) => instante(a) - instante(b));
   const ultimo = serie[serie.length - 1] ?? null;
@@ -84,6 +89,10 @@ export function analizarSitio(sitio: string, reportes: ReporteGG[], hoy: string)
   else if (diasSinReporte >= 3) alerta('critico', `${diasSinReporte} días sin rep.`, `${diasSinReporte} días sin reporte`, cuando, ultimo.fecha, 'reporte');
   else if (diasSinReporte === 2) alerta('atencion', '2 días sin rep.', '2 días sin reporte', cuando, ultimo.fecha, 'reporte');
 
+  if (ultimo && esNoRealizada(ultimo)) {
+    const motivo = ultimo.observaciones?.trim();
+    alerta('atencion', 'No realizada', 'Reportabilidad no realizada', motivo ? `Sin mediciones. Motivo: ${motivo}` : 'Sin mediciones y sin motivo registrado.');
+  }
   if (ultimo) {
     if (ultimo.combustible === '1/4') alerta('critico', 'Comb. 1/4', 'Combustible bajo (1/4)', 'Programar relleno de combustible.');
     if (ultimo.nivelAceite === 'Bajo') alerta('critico', 'Aceite bajo', 'Aceite bajo', 'Revisar nivel de aceite.');
