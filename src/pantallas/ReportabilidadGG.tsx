@@ -22,6 +22,7 @@ import {
   EVENTO_GG, actualizarReporteGG, crearReporteGG, eliminarReporteGG, leerNumero, listarReportesGG, pendientesGG, restaurarReporteGG,
   sincronizarPendientesGG, suscribirReportesGG, todosLosReportesGG, type FiltroGG, type ReporteGG, type ReporteGGPendiente,
 } from '../datos/reportesGG';
+import { esNoRealizada } from '../datos/analisisGG';
 
 const POR_PAGINA = 100;
 const campo = 'w-full p-2.5 border border-[#DCE1E6] rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#0E4660]/25';
@@ -406,8 +407,11 @@ export default function ReportabilidadGG({ onBack }: { onBack: () => void }) {
                 const r = hecho.ultimo;
                 const enEquipo = 'pendiente' in r;
                 const motivoRechazo = enEquipo ? (r as ReporteGGPendiente).rechazo : undefined;
+                // No realizada: sin mediciones; se marca en ámbar (no como reportado normal) y se muestra el motivo.
+                const noRealizada = esNoRealizada(r);
+                const estilo = motivoRechazo ? 'border-[#e3a3a3] bg-[#fdf1f1]' : noRealizada ? 'border-[#e8c36a] bg-[#fff8e6]' : 'border-[#b9dfb9] bg-[#f3fbf3]';
                 return (
-                  <div key={sitio} className={`rounded-lg border px-3 py-2.5 ${motivoRechazo ? 'border-[#e3a3a3] bg-[#fdf1f1]' : 'border-[#b9dfb9] bg-[#f3fbf3]'}`}>
+                  <div key={sitio} className={`rounded-lg border px-3 py-2.5 ${estilo}`}>
                     <div className="flex items-start justify-between gap-1">
                       <span className="font-bold text-sm text-[#0E4660]">{sitio}</span>
                       {puedeEditar(r) && (
@@ -415,11 +419,18 @@ export default function ReportabilidadGG({ onBack }: { onBack: () => void }) {
                           className="text-[#0E4660] hover:bg-white rounded p-1 -m-1"><Pencil size={13} /></button>
                       )}
                     </div>
-                    <span className={`text-xs flex items-center gap-1 ${motivoRechazo ? 'text-[#8a1c1c]' : 'text-[#006300]'}`}>
-                      {motivoRechazo ? <AlertTriangle size={12} /> : enEquipo ? <CloudOff size={12} /> : <CheckCircle2 size={12} />} {r.hora ?? '—'} · {r.reporta}{hecho.cantidad > 1 ? ` · ${hecho.cantidad} reportes` : ''}
+                    <span className={`text-xs flex items-center gap-1 ${motivoRechazo ? 'text-[#8a1c1c]' : noRealizada ? 'text-[#9a5b00]' : 'text-[#006300]'}`}>
+                      {motivoRechazo || noRealizada ? <AlertTriangle size={12} /> : enEquipo ? <CloudOff size={12} /> : <CheckCircle2 size={12} />} {r.hora ?? '—'} · {r.reporta}{hecho.cantidad > 1 ? ` · ${hecho.cantidad} reportes` : ''}
                     </span>
                     {motivoRechazo && <span className="block text-[11px] font-bold text-[#8a1c1c]">Rechazado por el servidor</span>}
-                    <span className="block text-[11px] text-gray-600">{r.combustible ?? '—'} · {fmtNum(r.horometro)} h · {fmtNum(r.temperatura)} °C</span>
+                    {noRealizada ? (
+                      <>
+                        <span className="block text-[11px] font-bold text-[#9a5b00]">No realizada</span>
+                        {r.observaciones && <span className="block text-[11px] text-gray-700 italic">{r.observaciones}</span>}
+                      </>
+                    ) : (
+                      <span className="block text-[11px] text-gray-600">{r.combustible ?? '—'} · {fmtNum(r.horometro)} h · {fmtNum(r.temperatura)} °C</span>
+                    )}
                     {r.combustible && COMBUSTIBLE_PCT[r.combustible] !== undefined && (
                       <span className="block h-1.5 mt-1.5 rounded-full bg-[#dbe7ee] overflow-hidden" aria-hidden="true">
                         <span className={`block h-full rounded-full ${COMBUSTIBLE_PCT[r.combustible] <= 25 ? 'bg-[#a32626]' : COMBUSTIBLE_PCT[r.combustible] <= 50 ? 'bg-[#F5B300]' : 'bg-[#2e7d32]'}`} style={{ width: `${COMBUSTIBLE_PCT[r.combustible]}%` }} />
