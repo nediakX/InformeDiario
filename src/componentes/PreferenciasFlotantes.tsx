@@ -20,13 +20,21 @@ export default function PreferenciasFlotantes() {
   const [abierto, setAbierto] = useState(false);
   const [tema, setTema] = useState<Tema>(() => leerTema());
   const [acc, setAcc] = useState<Accesibilidad>(() => leerAccesibilidad());
-  const panelRef = useRef<HTMLDivElement>(null);
+  const contenedorRef = useRef<HTMLDivElement>(null);
 
+  // Con el panel abierto: Escape o un toque/clic fuera de él lo cierran.
   useEffect(() => {
     if (!abierto) return;
     const alPulsarEsc = (e: KeyboardEvent) => { if (e.key === 'Escape') setAbierto(false); };
+    const alPulsarFuera = (e: PointerEvent) => {
+      if (!contenedorRef.current?.contains(e.target as Node)) setAbierto(false);
+    };
     window.addEventListener('keydown', alPulsarEsc);
-    return () => window.removeEventListener('keydown', alPulsarEsc);
+    document.addEventListener('pointerdown', alPulsarFuera);
+    return () => {
+      window.removeEventListener('keydown', alPulsarEsc);
+      document.removeEventListener('pointerdown', alPulsarFuera);
+    };
   }, [abierto]);
 
   const elegirTema = (t: Tema) => { setTema(t); guardarTema(t); };
@@ -37,10 +45,9 @@ export default function PreferenciasFlotantes() {
   };
 
   return (
-    <div className="fixed bottom-4 left-4 z-40 flex items-end gap-2 print:hidden">
+    <div ref={contenedorRef} className="fixed bottom-4 left-4 z-40 flex items-end gap-2 print:hidden">
       {abierto && (
         <div
-          ref={panelRef}
           role="dialog"
           aria-label="Apariencia y accesibilidad"
           className="mb-2 w-[260px] rounded-xl border border-[#C9D3DA] bg-white p-4 shadow-xl space-y-4"
@@ -76,16 +83,19 @@ export default function PreferenciasFlotantes() {
           </ul>
         </div>
       )}
-      <button
-        type="button"
-        onClick={() => setAbierto(a => !a)}
-        aria-expanded={abierto}
-        aria-label="Apariencia y accesibilidad"
-        title="Apariencia y accesibilidad"
-        className="flex h-11 w-11 items-center justify-center rounded-full bg-[#0E4660] text-white shadow-lg hover:bg-[#0a3549] focus-visible:outline focus-visible:outline-3 focus-visible:outline-[#F5B300]"
-      >
-        <Accessibility size={20} aria-hidden="true" />
-      </button>
+      {/* Con el panel abierto el botón se oculta: el panel tiene su propio botón de cerrar. */}
+      {!abierto && (
+        <button
+          type="button"
+          onClick={() => setAbierto(true)}
+          aria-expanded={false}
+          aria-label="Apariencia y accesibilidad"
+          title="Apariencia y accesibilidad"
+          className="flex h-11 w-11 items-center justify-center rounded-full bg-[#0E4660] text-white shadow-lg hover:bg-[#0a3549] focus-visible:outline focus-visible:outline-3 focus-visible:outline-[#F5B300]"
+        >
+          <Accessibility size={20} aria-hidden="true" />
+        </button>
+      )}
     </div>
   );
 }
