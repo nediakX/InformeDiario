@@ -163,6 +163,7 @@
 .dash-gg-alerta--atencion svg { color: var(--tx-9a6c00, #9a6c00); }
 .dash-gg-alerta__texto { display: grid; gap: 1px; min-width: 0; }
 .dash-gg-alerta__detalle { font-size: 0.76rem; color: var(--text-soft); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dash-gg-alerta__obs { font-size: 0.74rem; font-style: italic; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dash-gg-sin-alertas { display: flex; align-items: center; gap: 6px; margin: 0; font-size: 0.84rem; color: var(--tx-1e6b34, #1e6b34); }
 .dash-gg__acciones { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; }
 .dash-gg__toggle { margin-left: auto; }

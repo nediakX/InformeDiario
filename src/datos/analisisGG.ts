@@ -38,6 +38,8 @@ export interface AlertaGG {
   /** Detalle con los valores que la provocaron. */
   detalle: string;
   fecha: string | null;
+  /** Observación del último reporte: explica el porqué del estado. */
+  observacion: string | null;
 }
 
 export interface SitioGG {
@@ -74,7 +76,7 @@ export function analizarSitio(sitio: string, reportes: ReporteGG[], hoy: string)
   const ultimo = serie[serie.length - 1] ?? null;
   const alertas: AlertaGG[] = [];
   const alerta = (severidad: Severidad, corto: string, titulo: string, detalle: string, fecha: string | null = ultimo?.fecha ?? null, tipo: AlertaGG['tipo'] = 'equipo') =>
-    alertas.push({ sitio, severidad, tipo, corto, titulo, detalle, fecha });
+    alertas.push({ sitio, severidad, tipo, corto, titulo, detalle, fecha, observacion: ultimo?.observaciones?.trim() || null });
 
   const diasSinReporte = ultimo ? diasEntre(ultimo.fecha, hoy) : Infinity;
   const cuando = ultimo ? `Último reporte: ${ddmm(ultimo.fecha)}${ultimo.hora ? ` ${ultimo.hora}` : ''}.` : '';

@@ -152,7 +152,7 @@ export default function MonitorGeneradores({ onAbrir, detalleInicial, compacto }
   // Las faltas de reporte se juntan en una línea por gravedad; las del equipo van una por una.
   const todas = analisis?.alertas ?? [];
   const deReporte = (sev: 'critico' | 'atencion') => todas.filter(a => a.tipo === 'reporte' && a.severidad === sev);
-  const filas: { clave: string; severidad: 'critico' | 'atencion'; titulo: ReactNode; detalle: string }[] = [];
+  const filas: { clave: string; severidad: 'critico' | 'atencion'; titulo: ReactNode; detalle: string; observacion?: string | null }[] = [];
   for (const sev of ['critico', 'atencion'] as const) {
     const lista = deReporte(sev);
     if (!lista.length) continue;
@@ -160,10 +160,11 @@ export default function MonitorGeneradores({ onAbrir, detalleInicial, compacto }
       clave: `reporte-${sev}`, severidad: sev,
       titulo: <>{sev === 'critico' ? 'Sin reporte hace 3 días o más' : 'Sin reporte hace 2 días'} · <strong>{lista.length}</strong> generador{lista.length === 1 ? '' : 'es'}</>,
       detalle: lista.map(a => `${a.sitio}${a.fecha ? ` (${a.fecha.slice(8, 10)}/${a.fecha.slice(5, 7)})` : ''}`).join(' · '),
+      observacion: lista.filter(a => a.observacion).map(a => `${a.sitio}: ${a.observacion}`).join(' · ') || null,
     });
   }
   for (const a of todas.filter(x => x.tipo === 'equipo')) {
-    filas.push({ clave: `${a.sitio}-${a.titulo}`, severidad: a.severidad, titulo: <><strong>{a.sitio}</strong> · {a.titulo}</>, detalle: a.detalle });
+    filas.push({ clave: `${a.sitio}-${a.titulo}`, severidad: a.severidad, titulo: <><strong>{a.sitio}</strong> · {a.titulo}</>, detalle: a.detalle, observacion: a.observacion });
   }
   filas.sort((x, y) => (x.severidad === y.severidad ? 0 : x.severidad === 'critico' ? -1 : 1));
   const visibles = verTodas ? filas : filas.slice(0, MAX_ALERTAS);
@@ -221,6 +222,7 @@ export default function MonitorGeneradores({ onAbrir, detalleInicial, compacto }
                   <span className="dash-gg-alerta__texto">
                     <span><span className="sr-only">{f.severidad === 'critico' ? 'Crítico: ' : 'Atención: '}</span>{f.titulo}</span>
                     <span className="dash-gg-alerta__detalle" title={f.detalle}>{f.detalle}</span>
+                    {f.observacion && <span className="dash-gg-alerta__obs" title={f.observacion}>Motivo: {f.observacion}</span>}
                   </span>
                 </li>
               ))}

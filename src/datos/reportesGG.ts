@@ -46,6 +46,8 @@ export interface ReporteGG {
   nivelRefrigerante: string | null;
   nivelAceite: string | null;
   temperatura: number | null;
+  /** Motivo o comentario de bitácora (ej: por qué no se pudo revisar el carro). */
+  observaciones: string | null;
   creadoPor: string | null;
 }
 
@@ -53,7 +55,7 @@ type Fila = {
   id: string; division: Division; marca_temporal: string; fecha: string; hora: string | null; sitio: string;
   turno: string; reporta: string; combustible: string | null; horometro: number | string | null;
   nro_partidas: number | null; nivel_refrigerante: string | null; nivel_aceite: string | null;
-  temperatura?: number | string | null; creado_por: string | null;
+  temperatura?: number | string | null; observaciones?: string | null; creado_por: string | null;
   /** Columnas de una versión anterior de la tabla (dos temperaturas). */
   temperatura_1?: number | string | null; temperatura_2?: number | string | null;
 };
@@ -64,7 +66,7 @@ const aReporte = (f: Fila): ReporteGG => ({
   id: f.id, division: f.division, marcaTemporal: f.marca_temporal, fecha: f.fecha, hora: f.hora ? f.hora.slice(0, 5) : null,
   sitio: f.sitio, turno: f.turno, reporta: f.reporta, combustible: f.combustible, horometro: numero(f.horometro),
   nroPartidas: f.nro_partidas, nivelRefrigerante: f.nivel_refrigerante, nivelAceite: f.nivel_aceite,
-  temperatura: numero(f.temperatura ?? f.temperatura_1 ?? f.temperatura_2 ?? null), creadoPor: f.creado_por,
+  temperatura: numero(f.temperatura ?? f.temperatura_1 ?? f.temperatura_2 ?? null), observaciones: f.observaciones ?? null, creadoPor: f.creado_por,
 });
 
 export type NuevoReporteGG = Omit<ReporteGG, 'id' | 'marcaTemporal' | 'creadoPor'>;
@@ -72,7 +74,7 @@ export type NuevoReporteGG = Omit<ReporteGG, 'id' | 'marcaTemporal' | 'creadoPor
 const aFila = (r: NuevoReporteGG) => ({
   division: r.division, fecha: r.fecha, hora: r.hora || null, sitio: r.sitio, turno: r.turno, reporta: r.reporta,
   combustible: r.combustible, horometro: r.horometro, nro_partidas: r.nroPartidas, nivel_refrigerante: r.nivelRefrigerante,
-  nivel_aceite: r.nivelAceite, temperatura: r.temperatura,
+  nivel_aceite: r.nivelAceite, temperatura: r.temperatura, observaciones: r.observaciones || null,
 });
 
 export interface FiltroGG {

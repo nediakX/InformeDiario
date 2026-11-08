@@ -46,7 +46,7 @@ function Opciones({ valor, opciones, onChange, nombre }: { valor: string; opcion
 
 interface Formulario {
   fecha: string; hora: string; sitio: string; turno: string; reporta: string; combustible: string;
-  horometro: string; nroPartidas: string; nivelRefrigerante: string; nivelAceite: string; temperatura: string;
+  horometro: string; nroPartidas: string; nivelRefrigerante: string; nivelAceite: string; temperatura: string; observaciones: string;
 }
 
 export default function ReportabilidadGG({ onBack }: { onBack: () => void }) {
@@ -60,7 +60,7 @@ export default function ReportabilidadGG({ onBack }: { onBack: () => void }) {
     return {
       fecha, hora: horaActual(), sitio: anterior?.sitio ?? '', turno: anterior?.turno ?? `TURNO ${letraDeFecha(fecha)}`,
       reporta: reportaPorDefecto(), combustible: '', horometro: '', nroPartidas: '',
-      nivelRefrigerante: '', nivelAceite: '', temperatura: '',
+      nivelRefrigerante: '', nivelAceite: '', temperatura: '', observaciones: '',
     };
   };
   const [form, setForm] = useState<Formulario>(() => nuevoFormulario());
@@ -201,6 +201,7 @@ export default function ReportabilidadGG({ onBack }: { onBack: () => void }) {
     reporta: (editando ? form.reporta : nombreCorto(nombreVisible(perfil))).trim(),
     combustible: form.combustible, horometro: leerNumero(form.horometro), nroPartidas: leerNumero(form.nroPartidas),
     nivelRefrigerante: form.nivelRefrigerante, nivelAceite: form.nivelAceite, temperatura: leerNumero(form.temperatura),
+    observaciones: form.observaciones.trim() || null,
   });
 
   const guardar = async () => {
@@ -245,7 +246,7 @@ export default function ReportabilidadGG({ onBack }: { onBack: () => void }) {
     setForm({
       fecha: r.fecha, hora: r.hora ?? '', sitio: r.sitio, turno: r.turno, reporta: r.reporta, combustible: r.combustible ?? '',
       horometro: r.horometro?.toString().replace('.', ',') ?? '', nroPartidas: r.nroPartidas?.toString() ?? '',
-      nivelRefrigerante: r.nivelRefrigerante ?? '', nivelAceite: r.nivelAceite ?? '', temperatura: r.temperatura?.toString().replace('.', ',') ?? '',
+      nivelRefrigerante: r.nivelRefrigerante ?? '', nivelAceite: r.nivelAceite ?? '', temperatura: r.temperatura?.toString().replace('.', ',') ?? '', observaciones: r.observaciones ?? '',
     });
     irAlFormulario();
   };
@@ -289,7 +290,7 @@ export default function ReportabilidadGG({ onBack }: { onBack: () => void }) {
       // Mismas columnas (y orden) que la planilla del formulario de Google, del más antiguo al más nuevo.
       const filas = [...todos].reverse().map(r => [
         new Date(r.marcaTemporal), r.fecha, r.hora, r.sitio, r.turno, r.reporta, r.combustible, r.horometro, r.nroPartidas,
-        r.nivelRefrigerante, r.nivelAceite, r.temperatura,
+        r.nivelRefrigerante, r.nivelAceite, r.temperatura, r.observaciones,
       ]);
       const blob = await crearExcel('Respuestas de formulario 1', [
         { titulo: 'Marca temporal', tipo: 'fechaHora', ancho: 20 }, { titulo: 'Fecha', tipo: 'fecha', ancho: 12 },
@@ -297,7 +298,7 @@ export default function ReportabilidadGG({ onBack }: { onBack: () => void }) {
         { titulo: 'P Q REPORTA', tipo: 'texto', ancho: 20 }, { titulo: 'Combustible', tipo: 'texto', ancho: 12 },
         { titulo: 'Horómetro', tipo: 'numero', ancho: 11 }, { titulo: 'Nro Partidas', tipo: 'numero', ancho: 12 },
         { titulo: 'Nivel de Refrigerante', tipo: 'texto', ancho: 19 }, { titulo: 'Nivel de Aceite', tipo: 'texto', ancho: 15 },
-        { titulo: 'Temperatura del Generador', tipo: 'numero', ancho: 23 },
+        { titulo: 'Temperatura del Generador', tipo: 'numero', ancho: 23 }, { titulo: 'Observaciones', tipo: 'texto', ancho: 40 },
       ], filas);
       const sufijo = filtro.sitio ? `_${filtro.sitio}` : '';
       saveAs(blob, `Reportabilidad_GG${sufijo}_${hoyLocalISO()}.xlsx`);
@@ -500,6 +501,12 @@ export default function ReportabilidadGG({ onBack }: { onBack: () => void }) {
             <span className={etiqueta}>Temperatura del Generador * (°C)</span>
             <input className={campo} inputMode="decimal" value={form.temperatura} onChange={e => poner('temperatura', e.target.value)} placeholder="Ej: 72" />
             {error('temperatura')}
+          </label>
+          <label className="block">
+            <span className={etiqueta}>Observaciones</span>
+            <textarea className={`${campo} min-h-[84px] resize-y`} value={form.observaciones} onChange={e => poner('observaciones', e.target.value)}
+              placeholder="Si el carro no se pudo revisar, explique el motivo. También sirve como nota de bitácora." maxLength={500} />
+            <span className="text-[11px] text-gray-500">{form.observaciones.length}/500</span>
           </label>
           <div className="flex justify-end">
             <button type="button" onClick={() => void guardar()} disabled={guardando}

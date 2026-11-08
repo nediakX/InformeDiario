@@ -838,6 +838,8 @@ create table if not exists public.reportes_gg (
 
 -- Una sola temperatura: si la tabla se creó antes con dos columnas, se juntan en "temperatura".
 alter table public.reportes_gg add column if not exists temperatura numeric;
+-- Observaciones del reporte (motivo cuando no se pudo revisar el carro, o nota de bitácora).
+alter table public.reportes_gg add column if not exists observaciones text;
 do $$
 begin
   if exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'reportes_gg' and column_name = 'temperatura_1') then
