@@ -75,6 +75,10 @@ function Tarjeta({ s, dato, desde, onAbrir, ubicacion }: { s: SitioGG; dato: Dat
   const u = s.ultimo;
   const valor = u ? valorGG(u, dato) : null;
   const unidad = DATOS.find(d => d.valor === dato)!.unidad;
+  // Reportabilidad "no realizada": ninguna medición y el motivo queda en observaciones.
+  const noRealizada = !!u && u.combustible == null && u.horometro == null && u.nroPartidas == null
+    && u.nivelRefrigerante == null && u.nivelAceite == null && u.temperatura == null;
+  const observacion = u?.observaciones?.trim() || '';
   return (
     <button type="button" className={`dash-gg-sitio dash-gg-sitio--${s.estado}`} onClick={onAbrir}
       title={s.alertas.map(a => `${a.titulo}: ${a.detalle}`).join('\n') || 'Sin alertas'}>
@@ -84,6 +88,12 @@ function Tarjeta({ s, dato, desde, onAbrir, ubicacion }: { s: SitioGG; dato: Dat
         {pendienteHoy ? <Clock3 size={12} aria-hidden="true" /> : <Icono size={12} aria-hidden="true" />}
         <span>{s.alertas[0]?.corto ?? (pendienteHoy ? 'Pendiente hoy' : texto)}</span>
       </span>
+      {(noRealizada || observacion) && (
+        <span className="dash-gg-sitio__obs" title={observacion}>
+          {noRealizada && <b className="dash-gg-sitio__norealizada">No realizada</b>}
+          {noRealizada && observacion ? ' · ' : ''}{observacion}
+        </span>
+      )}
       <span className="dash-gg-sitio__fila">
         <span className="dash-gg-sitio__valor">{valor != null ? `${dato === 'combustible' && u?.combustible ? u.combustible : fmt(valor)}${dato === 'combustible' ? '' : ` ${unidad}`}` : '—'}</span>
         <Estanque nivel={u?.combustible ?? null} />
