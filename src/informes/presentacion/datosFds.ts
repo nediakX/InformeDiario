@@ -3,6 +3,7 @@
 // lista de Mantenimiento de la app.)
 import type { Division } from '../../datos/divisiones';
 import { listarReportesGG, todosLosReportesGG } from '../../datos/reportesGG';
+import { esNoRealizada } from '../../datos/analisisGG';
 import type { SemanaTurno } from '../../datos/turnos';
 import { SITIOS_FDS, claveSitio, fdsDeSemana, type DatosAutoFds } from './modeloFds';
 
@@ -22,5 +23,7 @@ export async function leerReportesFds(division: Division, semana: SemanaTurno): 
       horometros[claveSitio(sitio)] = { horas: Math.round(ultimo.horometro), fecha: ultimo.fecha };
     }
   });
-  return { reportesFds: reportes.map(r => ({ sitio: r.sitio, fecha: r.fecha })), horometros };
+  // Una reportabilidad "no realizada" no cuenta como carro reportado (si no, la lámina marcaría 100 %).
+  const realizados = reportes.filter(r => !esNoRealizada(r));
+  return { reportesFds: realizados.map(r => ({ sitio: r.sitio, fecha: r.fecha })), horometros };
 }
