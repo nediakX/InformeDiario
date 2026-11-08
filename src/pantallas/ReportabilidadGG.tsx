@@ -473,7 +473,7 @@ export default function ReportabilidadGG({ onBack }: { onBack: () => void }) {
             <Opciones nombre="Combustible" valor={form.combustible} opciones={OPCIONES_COMBUSTIBLE} onChange={v => poner('combustible', v)} />
             {error('combustible')}
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <label>
               <span className={etiqueta}>Horómetro *</span>
               <input className={campo} inputMode="decimal" value={form.horometro} onChange={e => poner('horometro', e.target.value)} placeholder="Ej: 5139,8" />
@@ -484,6 +484,11 @@ export default function ReportabilidadGG({ onBack }: { onBack: () => void }) {
               <span className={etiqueta}>Nro Partidas *</span>
               <input className={campo} inputMode="numeric" value={form.nroPartidas} onChange={e => poner('nroPartidas', e.target.value)} placeholder="Ej: 2472" />
               {error('nroPartidas')}
+            </label>
+            <label>
+              <span className={etiqueta}>Temperatura del Generador * (°C)</span>
+              <input className={campo} inputMode="decimal" value={form.temperatura} onChange={e => poner('temperatura', e.target.value)} placeholder="Ej: 72" />
+              {error('temperatura')}
             </label>
           </div>
           <div>
@@ -496,11 +501,6 @@ export default function ReportabilidadGG({ onBack }: { onBack: () => void }) {
             <Opciones nombre="Nivel de Aceite" valor={form.nivelAceite} opciones={OPCIONES_ACEITE} onChange={v => poner('nivelAceite', v)} />
             {error('nivelAceite')}
           </div>
-          <label className="block max-w-[calc(50%-6px)]">
-            <span className={etiqueta}>Temperatura del Generador * (°C)</span>
-            <input className={campo} inputMode="decimal" value={form.temperatura} onChange={e => poner('temperatura', e.target.value)} placeholder="Ej: 72" />
-            {error('temperatura')}
-          </label>
           <div className="flex justify-end">
             <button type="button" onClick={() => void guardar()} disabled={guardando}
               className="bg-[#0E4660] text-white px-5 py-2.5 rounded-md text-sm font-bold hover:bg-[#0a3549] disabled:opacity-50 flex items-center gap-2">
