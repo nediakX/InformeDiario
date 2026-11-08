@@ -840,6 +840,15 @@ create table if not exists public.reportes_gg (
 alter table public.reportes_gg add column if not exists temperatura numeric;
 -- Observaciones del reporte (motivo cuando no se pudo revisar el carro, o nota de bitácora).
 alter table public.reportes_gg add column if not exists observaciones text;
+-- Reportabilidad "no realizada": las mediciones pueden quedar vacías. Si la tabla se creó con NOT NULL
+-- en una versión anterior, "create table if not exists" no lo cambia, así que se quita aquí (no hace nada si ya es nullable).
+alter table public.reportes_gg
+  alter column combustible drop not null,
+  alter column horometro drop not null,
+  alter column nro_partidas drop not null,
+  alter column nivel_refrigerante drop not null,
+  alter column nivel_aceite drop not null,
+  alter column temperatura drop not null;
 do $$
 begin
   if exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'reportes_gg' and column_name = 'temperatura_1') then
