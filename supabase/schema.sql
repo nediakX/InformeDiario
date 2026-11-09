@@ -808,6 +808,8 @@ $$;
 
 revoke all on function public.actualizar_mi_perfil(text, text, text, boolean, date) from public, anon;
 grant execute on function public.actualizar_mi_perfil(text, text, text, boolean, date) to authenticated;
+-- Pide a la API de Supabase que relea las funciones y columnas (si no, sigue usando la versión anterior).
+notify pgrst, 'reload schema';
 
 -- Firmas de las personas de una división (nombre + firma), para el checklist de camioneta.
 -- Solo para usuarios aprobados que pueden ver esa división; no expone ningún otro dato.
