@@ -1,9 +1,10 @@
 // Aviso de cumpleaños en el panel del turno que corresponde, con serpentinas y confeti al entrar.
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Cake } from 'lucide-react';
 import { cumpleanerosDelTurnoHoy, type Cumpleanero } from '../datos/cumpleanos';
 import type { Division } from '../datos/divisiones';
 import { leerAccesibilidad } from '../lib/accesibilidad';
+import { hoyLocalISO } from '../datos/fechas';
 import './BannerCumpleanos.css';
 
 const COLORES = ['#0E4660', '#F2A900', '#E0457B', '#2BB673', '#7B5CD6', '#FF7A45', '#2D9CDB', '#FFD400'];
@@ -26,14 +27,10 @@ interface Confeti {
 /** Serpentinas (cintas largas que se mecen al caer) y confeti, dibujados en un canvas que se borra solo. */
 function Serpentinas({ onFin }: { onFin: () => void }) {
   const ref = useRef<HTMLCanvasElement>(null);
-  // Guardado en una referencia: que el padre se vuelva a dibujar no reinicia la animación.
-  const finRef = useRef(onFin);
-  finRef.current = onFin;
-
   useEffect(() => {
     const canvas = ref.current;
     const ctx = canvas?.getContext('2d');
-    if (!canvas || !ctx) { finRef.current(); return; }
+    if (!canvas || !ctx) { onFin(); return; }
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
     let ancho = 0, alto = 0;
     const ajustar = () => {
@@ -134,20 +131,26 @@ function Serpentinas({ onFin }: { onFin: () => void }) {
         id = requestAnimationFrame(frame);
       } else {
         ctx.clearRect(0, 0, ancho, alto);
-        finRef.current();
+        onFin();
       }
     };
     id = requestAnimationFrame(frame);
     window.addEventListener('resize', ajustar);
     return () => { terminado = true; cancelAnimationFrame(id); window.removeEventListener('resize', ajustar); };
-  }, []);
+  }, [onFin]);
 
   return <canvas ref={ref} className="serpentinas" aria-hidden="true" />;
 }
 
+// Las serpentinas salen solo la primera vez del día en este equipo; después aparece solo el aviso.
+const claveSerpentinas = () => `psinet-serpentinas-${hoyLocalISO()}`;
+const yaSalieronHoy = () => { try { return localStorage.getItem(claveSerpentinas()) === '1'; } catch { return false; } };
+const marcarSalieron = () => { try { localStorage.setItem(claveSerpentinas(), '1'); } catch { /* sin almacenamiento: no pasa nada */ } };
+
 export default function BannerCumpleanos({ division }: { division: Division }) {
   const [cumple, setCumple] = useState<Cumpleanero[]>([]);
   const [serpentinas, setSerpentinas] = useState(false);
+  const terminarSerpentinas = useCallback(() => setSerpentinas(false), []);
 
   useEffect(() => {
     let vigente = true;
@@ -155,8 +158,11 @@ export default function BannerCumpleanos({ division }: { division: Division }) {
       .then(lista => {
         if (!vigente || lista.length === 0) return;
         setCumple(lista);
-        // Serpentinas solo si el dispositivo no pidió menos animaciones.
-        if (!leerAccesibilidad().reducirMovimiento) setSerpentinas(true);
+        // Serpentinas: solo la primera vez del día y si el dispositivo no pidió menos animaciones.
+        if (!leerAccesibilidad().reducirMovimiento && !yaSalieronHoy()) {
+          marcarSalieron();
+          setSerpentinas(true);
+        }
       })
       .catch(error => console.warn('No se pudieron leer los cumpleaños de hoy:', error));
     return () => { vigente = false; };
@@ -167,7 +173,7 @@ export default function BannerCumpleanos({ division }: { division: Division }) {
   const turnos = [...new Set(cumple.map(p => p.turno).filter(Boolean))];
   return (
     <>
-      {serpentinas && <Serpentinas onFin={() => setSerpentinas(false)} />}
+      {serpentinas && <Serpentinas onFin={terminarSerpentinas} />}
       <div className="banner-cumple" role="status">
         <Cake size={22} aria-hidden="true" />
         <span>
