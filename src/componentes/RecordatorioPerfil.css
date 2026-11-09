@@ -1,0 +1,29 @@
+.recordatorio-perfil {
+  display: flex;
+  align-items: center;
+  gap: .6rem;
+  padding: .65rem .9rem;
+  border-radius: .75rem;
+  background: #e8f2fa;
+  border: 1px solid #c4dcef;
+  color: #0E4660;
+  font-size: .9rem;
+}
+.recordatorio-perfil__texto { flex: 1; min-width: 0; }
+.recordatorio-perfil__boton {
+  background: #0E4660;
+  color: #fff;
+  font-weight: 700;
+  font-size: .8rem;
+  padding: .4rem .75rem;
+  border-radius: .5rem;
+  white-space: nowrap;
+}
+.recordatorio-perfil__boton:hover { background: #0a3549; }
+.recordatorio-perfil__cerrar {
+  padding: .3rem;
+  border-radius: .4rem;
+  color: #0E4660;
+  flex: none;
+}
+.recordatorio-perfil__cerrar:hover { background: #d5e7f8; }
