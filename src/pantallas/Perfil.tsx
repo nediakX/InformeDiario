@@ -50,6 +50,7 @@ export default function Perfil({ onBack }: { onBack: () => void }) {
 
   const [nombre, setNombre] = useState(perfil.nombre);
   const [rut, setRut] = useState(perfil.rut ?? '');
+  const [fechaNacimiento, setFechaNacimiento] = useState(perfil.fecha_nacimiento ?? '');
   // undefined = sin cambios; null = quitar; texto = firma nueva.
   const [firmaNueva, setFirmaNueva] = useState<string | null | undefined>(undefined);
   const [procesandoFirma, setProcesandoFirma] = useState(false);
@@ -62,7 +63,8 @@ export default function Perfil({ onBack }: { onBack: () => void }) {
   const [avisoClave, setAvisoClave] = useState<Aviso>(null);
 
   const firmaVista = firmaNueva === undefined ? perfil.firma ?? null : firmaNueva;
-  const hayCambios = nombre.trim() !== perfil.nombre || (rut.trim() || null) !== (perfil.rut ?? null) || firmaNueva !== undefined;
+  const hayCambios = nombre.trim() !== perfil.nombre || (rut.trim() || null) !== (perfil.rut ?? null)
+    || (fechaNacimiento || null) !== (perfil.fecha_nacimiento ?? null) || firmaNueva !== undefined;
   // Rol: el cargo del listado (según el RUT guardado) o el que asignó un administrador.
   const { rol, asignado } = rolDePersona(perfil, perfil.nombre, divisionPropia);
   const conCargo = asignado || rolDelListado(perfil.rut, perfil.nombre, divisionPropia).cargo !== null;
@@ -85,10 +87,18 @@ export default function Perfil({ onBack }: { onBack: () => void }) {
   const guardar = async () => {
     if (!nombre.trim()) { setAvisoDatos({ texto: 'Escribe tu nombre completo.', error: true }); return; }
     if (rut.trim() && !rutValido(rut)) { setAvisoDatos({ texto: 'El RUT no es válido. Revisa el dígito verificador.', error: true }); return; }
+    if (fechaNacimiento && (fechaNacimiento > new Date().toISOString().slice(0, 10) || fechaNacimiento < '1900-01-01')) {
+      setAvisoDatos({ texto: 'La fecha de nacimiento no es válida.', error: true }); return;
+    }
     setGuardando(true);
     setAvisoDatos(null);
     try {
-      await actualizarMiPerfil({ nombre: nombre.trim(), rut: rut.trim() ? formatearRut(rut) : null, firma: firmaNueva });
+      await actualizarMiPerfil({
+        nombre: nombre.trim(),
+        rut: rut.trim() ? formatearRut(rut) : null,
+        firma: firmaNueva,
+        fechaNacimiento: fechaNacimiento || null,
+      });
       await recargarPerfil();
       setFirmaNueva(undefined);
       setAvisoDatos({ texto: 'Datos guardados.' });
@@ -153,6 +163,11 @@ export default function Perfil({ onBack }: { onBack: () => void }) {
             <label>
               <span className={etiqueta}>RUT</span>
               <input className={campo} value={rut} onChange={e => setRut(formatearRut(e.target.value))} inputMode="text" placeholder="12.345.678-9" />
+            </label>
+            <label>
+              <span className={etiqueta}>Fecha de nacimiento</span>
+              <input type="date" className={campo} value={fechaNacimiento} max={new Date().toISOString().slice(0, 10)} min="1900-01-01"
+                onChange={e => setFechaNacimiento(e.target.value)} autoComplete="bday" />
             </label>
             <div>
               <span className={etiqueta}>Correo</span>

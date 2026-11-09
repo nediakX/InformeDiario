@@ -10,6 +10,8 @@ export interface CambiosPerfil {
   rut: string | null;
   /** undefined = no tocar la firma; null = quitarla; texto = nueva firma (PNG en dataURL). */
   firma?: string | null;
+  /** Fecha de nacimiento (AAAA-MM-DD) o null para dejarla vacía. */
+  fechaNacimiento: string | null;
 }
 
 export async function actualizarMiPerfil(c: CambiosPerfil): Promise<void> {
@@ -18,6 +20,7 @@ export async function actualizarMiPerfil(c: CambiosPerfil): Promise<void> {
     p_rut: c.rut,
     p_firma: c.firma ?? null,
     p_borrar_firma: c.firma === null,
+    p_fecha_nacimiento: c.fechaNacimiento,
   });
   if (error) throw new Error(mensajeErrorPerfil(error));
 }
@@ -28,8 +31,9 @@ function mensajeErrorPerfil(error: { message: string; code?: string }): string {
   if (/perfiles_rut_unico|duplicate key/i.test(m)) return 'Ese RUT ya está registrado en otra cuenta.';
   if (/firma demasiado grande/i.test(m)) return 'La imagen de la firma es demasiado grande. Prueba con una foto más pequeña.';
   if (/firma inv[aá]lida/i.test(m)) return 'La firma no se pudo procesar. Vuelve a subir la imagen.';
+  if (/fecha de nacimiento inv[aá]lida/i.test(m)) return 'La fecha de nacimiento no es válida.';
   // Supabase todavía no tiene la función / columna nueva: falta correr supabase/schema.sql.
-  if (error.code === 'PGRST202' || /could not find the function|actualizar_mi_perfil|column .*firma.* does not exist|schema cache/i.test(m)) {
+  if (error.code === 'PGRST202' || /could not find the function|actualizar_mi_perfil|column .*(firma|fecha_nacimiento).* does not exist|schema cache|fecha_nacimiento/i.test(m)) {
     return 'La base de datos aún no está actualizada para guardar el perfil y la firma. Un administrador debe correr '
       + 'el archivo supabase/schema.sql en Supabase (SQL Editor → pegar → Run) y luego volver a intentar.';
   }

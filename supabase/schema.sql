@@ -765,7 +765,20 @@ alter table public.perfiles add column if not exists firma text;
 
 -- El usuario no puede actualizar su fila directamente (solo un administrador): esta función
 -- cambia únicamente sus propios datos personales, nunca el estado, el rol ni la división.
-create or replace function public.actualizar_mi_perfil(p_nombre text, p_rut text, p_firma text default null, p_borrar_firma boolean default false)
+-- Fecha de nacimiento del usuario (la edita él mismo desde "Mi perfil").
+alter table public.perfiles add column if not exists fecha_nacimiento date;
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'perfiles_fecha_nacimiento_valida') then
+    alter table public.perfiles add constraint perfiles_fecha_nacimiento_valida
+      check (fecha_nacimiento is null or fecha_nacimiento >= date '1900-01-01');
+  end if;
+end $$;
+
+-- La firma de la función cambió (nuevo parámetro de fecha): se quita la versión anterior.
+drop function if exists public.actualizar_mi_perfil(text, text, text, boolean);
+
+create or replace function public.actualizar_mi_perfil(p_nombre text, p_rut text, p_firma text default null, p_borrar_firma boolean default false, p_fecha_nacimiento date default null)
 returns void
 language plpgsql
 security definer
@@ -774,6 +787,9 @@ as $$
 begin
   if auth.uid() is null then
     raise exception 'Sin sesión';
+  end if;
+  if p_fecha_nacimiento is not null and (p_fecha_nacimiento > current_date or p_fecha_nacimiento < date '1900-01-01') then
+    raise exception 'fecha de nacimiento inválida';
   end if;
   if p_firma is not null and length(p_firma) > 600000 then
     raise exception 'firma demasiado grande';
@@ -784,13 +800,14 @@ begin
   update public.perfiles
      set nombre = coalesce(nullif(trim(p_nombre), ''), nombre),
          rut = nullif(trim(coalesce(p_rut, '')), ''),
-         firma = case when p_borrar_firma then null when p_firma is not null then p_firma else firma end
+         firma = case when p_borrar_firma then null when p_firma is not null then p_firma else firma end,
+         fecha_nacimiento = p_fecha_nacimiento
    where id = auth.uid();
 end;
 $$;
 
-revoke all on function public.actualizar_mi_perfil(text, text, text, boolean) from public, anon;
-grant execute on function public.actualizar_mi_perfil(text, text, text, boolean) to authenticated;
+revoke all on function public.actualizar_mi_perfil(text, text, text, boolean, date) from public, anon;
+grant execute on function public.actualizar_mi_perfil(text, text, text, boolean, date) to authenticated;
 
 -- Firmas de las personas de una división (nombre + firma), para el checklist de camioneta.
 -- Solo para usuarios aprobados que pueden ver esa división; no expone ningún otro dato.
