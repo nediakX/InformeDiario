@@ -21,7 +21,7 @@ import { creadoPorDiario, CONFIG_DIVISION } from '../datos/divisiones';
 import { DOCUMENTOS } from '../impresion/plantillas';
 import { generarKit, type SeleccionDocumento } from '../impresion/generarKit';
 import { personalDelTurno, personaSugerida, guardarRut, normalizarNombre, type PersonaImpresion } from '../impresion/personal';
-import { TRABAJADORES, SUPERVISORES_IMPRESION_EXTRA, buscarTrabajador } from '../datos/trabajadores';
+import { TRABAJADORES, SUPERVISORES_IMPRESION_EXTRA, SSO_FATIGA_POR_TURNO, buscarTrabajador } from '../datos/trabajadores';
 
 interface ImpresionRapidaProps {
   onBack: () => void;
@@ -109,6 +109,7 @@ export default function ImpresionRapida({ onBack }: ImpresionRapidaProps) {
   const [cuentas, setCuentas] = useState<{ nombre: string; rut: string | null }[]>([]);
   const [personas, setPersonas] = useState<PersonaImpresion[]>(() => personalDelTurno(semana.letra, [], division));
   const [supervisor, setSupervisor] = useState(() => getCreadorPorDefecto(semana.letra, division));
+  const [sso, setSso] = useState(() => SSO_FATIGA_POR_TURNO[semana.letra]);
   // Fecha del Test de Alcohol y de la Encuesta de Fatiga: una sola para todo el turno (todas las copias). Por defecto, el primer día del turno;
   // la que se elige queda guardada para ese turno en este equipo.
   const [fechasTest, setFechasTest] = useState<Record<string, string>>(leerFechasTest);
@@ -134,6 +135,7 @@ export default function ImpresionRapida({ onBack }: ImpresionRapidaProps) {
     setLetraCargada(semana.letra);
     setPersonas(personalDelTurno(semana.letra, cuentas, division));
     setSupervisor(getCreadorPorDefecto(semana.letra, division));
+    setSso(SSO_FATIGA_POR_TURNO[semana.letra]);
     setResultado(null);
   }
   const [cuentasAplicadas, setCuentasAplicadas] = useState(0);
@@ -208,7 +210,7 @@ export default function ImpresionRapida({ onBack }: ImpresionRapidaProps) {
     setGenerando(true);
     try {
       const r = await generarKit({
-        semana: { letra: semana.letra, dias: semana.dias, supervisor, fechaUnica: fechaTestValida },
+        semana: { letra: semana.letra, dias: semana.dias, supervisor, sso, fechaUnica: fechaTestValida },
         personas: incluidas.map(p => ({ nombre: p.nombre.trim(), rut: p.rut.trim(), cargo: p.cargo.trim() })),
         seleccion: pref.seleccion,
         prellenar: pref.prellenar,
@@ -417,6 +419,24 @@ export default function ImpresionRapida({ onBack }: ImpresionRapidaProps) {
             <datalist id="trabajadores-impresion">
               {TRABAJADORES[division].map(t => <option key={t.rut} value={t.nombre}>{t.rut} · {t.cargo}</option>)}
             </datalist>
+          </label>
+
+          <label className="block mt-4 text-sm text-gray-600">
+            SSO que firma la Encuesta de Fatiga y Somnolencia:
+            <select
+              value={sso.nombre}
+              onChange={e => {
+                const elegido = SUPERVISORES_IMPRESION_EXTRA[division].find(s => s.nombre === e.target.value);
+                if (elegido) setSso(elegido);
+                setResultado(null);
+              }}
+              className="block w-full sm:w-80 mt-1 border border-[#DCE1E6] rounded-md p-1.5 text-sm"
+            >
+              {SUPERVISORES_IMPRESION_EXTRA[division].filter(s => /sso/i.test(s.cargo)).map(s => (
+                <option key={s.nombre} value={s.nombre}>{s.nombre}</option>
+              ))}
+            </select>
+            <span className="block text-xs text-gray-500 mt-1">Por defecto: turno A Claudia Droguett, turno B Omar Gutiérrez. Se firma en la fatiga de cada trabajador.</span>
           </label>
         </section>
 

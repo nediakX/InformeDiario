@@ -47,6 +47,12 @@ export const SUPERVISORES_IMPRESION_EXTRA: Record<Division, { nombre: string; ca
   andina: [],
 };
 
+/** SSO que firma las Encuestas de Fatiga y Somnolencia de cada turno (A: Claudia Droguett, B: Omar Gutiérrez). */
+export const SSO_FATIGA_POR_TURNO: Record<'A' | 'B', { nombre: string; cargo: string }> = {
+  A: { nombre: 'Claudia Andrea Droguett Pasten', cargo: 'Experta SSO' },
+  B: { nombre: 'Omar Jesús Gutiérrez Tapia', cargo: 'Experto SSO' },
+};
+
 export const TRABAJADORES: Record<Division, Trabajador[]> = {
   el_salvador: EL_SALVADOR,
   andina: [],
