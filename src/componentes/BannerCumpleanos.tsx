@@ -143,9 +143,10 @@ function Serpentinas({ onFin }: { onFin: () => void }) {
 }
 
 // Las serpentinas salen solo la primera vez del día en este equipo; después aparece solo el aviso.
-const claveSerpentinas = () => `psinet-serpentinas-${hoyLocalISO()}`;
-const yaSalieronHoy = () => { try { return localStorage.getItem(claveSerpentinas()) === '1'; } catch { return false; } };
-const marcarSalieron = () => { try { localStorage.setItem(claveSerpentinas(), '1'); } catch { /* sin almacenamiento: no pasa nada */ } };
+// Una marca por día y por división: al cambiar de división, las serpentinas de esa división también salen.
+const claveSerpentinas = (division: Division) => `psinet-serpentinas-${division}-${hoyLocalISO()}`;
+const yaSalieronHoy = (division: Division) => { try { return localStorage.getItem(claveSerpentinas(division)) === '1'; } catch { return false; } };
+const marcarSalieron = (division: Division) => { try { localStorage.setItem(claveSerpentinas(division), '1'); } catch { /* sin almacenamiento: no pasa nada */ } };
 
 export default function BannerCumpleanos({ division }: { division: Division }) {
   const [cumple, setCumple] = useState<Cumpleanero[]>([]);
@@ -156,15 +157,16 @@ export default function BannerCumpleanos({ division }: { division: Division }) {
     let vigente = true;
     cumpleanerosDelTurnoHoy(division)
       .then(lista => {
-        if (!vigente || lista.length === 0) return;
+        if (!vigente) return;
         setCumple(lista);
+        if (lista.length === 0) return;
         // Serpentinas: solo la primera vez del día y si el dispositivo no pidió menos animaciones.
-        if (!leerAccesibilidad().reducirMovimiento && !yaSalieronHoy()) {
-          marcarSalieron();
+        if (!leerAccesibilidad().reducirMovimiento && !yaSalieronHoy(division)) {
+          marcarSalieron(division);
           setSerpentinas(true);
         }
       })
-      .catch(error => console.warn('No se pudieron leer los cumpleaños de hoy:', error));
+      .catch(error => { console.warn('No se pudieron leer los cumpleaños de hoy:', error); if (vigente) setCumple([]); });
     return () => { vigente = false; };
   }, [division]);
 
