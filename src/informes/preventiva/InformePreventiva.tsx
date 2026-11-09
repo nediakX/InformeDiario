@@ -87,10 +87,17 @@ export default function InformePreventiva({ onBack, borradorInicial = null }: Pr
   const [editarUbicacion, setEditarUbicacion] = useState(false);
 
   const creadoresLista = useMemo(() => {
+    // Una persona aparece una sola vez: se compara el nombre sin puntos, tildes ni mayúsculas.
+    const clave = (n: string) => sinPunto(n).normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, ' ').toLowerCase();
     const vistos = new Set<string>();
     return [...cfg.diario.creadoPor.A, ...cfg.diario.creadoPor.B]
       .map(p => ({ nombre: sinPunto(p.nombre), cargo: sinPunto(p.cargo) }))
-      .filter(p => !vistos.has(p.nombre) && vistos.add(p.nombre));
+      .filter(p => {
+        const k = clave(p.nombre);
+        if (vistos.has(k)) return false;
+        vistos.add(k);
+        return true;
+      });
   }, [cfg]);
   const creadorDefecto = cfg.diario.creadorPorDefecto[letraDeFecha(hoyLocalISO()) === 'B' ? 'B' : 'A'];
   const [creadoNombre, setCreadoNombre] = useState(() => d0?.creadoNombre ?? sinPunto(creadorDefecto.nombre));
