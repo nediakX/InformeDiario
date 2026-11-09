@@ -170,7 +170,7 @@ export const CONFIG_DIVISION: Record<Division, ConfigDivision> = {
       revisadoText: 'Juan Morata\nJuan Saavedra',
       autorizado: { nombre: 'Cesar Orellana', cargo: 'ADC' },
       creadoPor: { A: ES_SUPERVISORES_A, B: ES_SUPERVISORES_B },
-      creadorPorDefecto: { A: { nombre: 'Max Diaz Cornejo', cargo: 'Supervisor' }, B: ES_SUPERVISORES_B[0] },
+      creadorPorDefecto: { A: ES_SUPERVISORES_A[0], B: ES_SUPERVISORES_B[0] },
     },
     cierre: {
       revisadoText: 'Juan Saavedra\nJuan Morata',
