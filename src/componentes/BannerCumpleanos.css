@@ -1,0 +1,39 @@
+/* Serpentinas de cumpleaños: caen una vez sobre la pantalla y desaparecen solas. */
+.serpentinas {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 60;
+}
+.serpentina {
+  position: absolute;
+  top: -12vh;
+  left: var(--x);
+  width: 9px;
+  height: 26px;
+  border-radius: 3px;
+  background: var(--color);
+  opacity: 0;
+  animation: caer-serpentina var(--dur) cubic-bezier(.3, .6, .4, 1) var(--retardo) forwards;
+}
+.serpentina:nth-child(3n) { width: 6px; height: 18px; border-radius: 50%; }
+@keyframes caer-serpentina {
+  0%   { opacity: 1; transform: translate3d(0, 0, 0) rotate(0deg); }
+  50%  { transform: translate3d(var(--deriva), 55vh, 0) rotate(260deg); }
+  100% { opacity: 0; transform: translate3d(calc(var(--deriva) * -0.6), 115vh, 0) rotate(640deg); }
+}
+.banner-cumple {
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+  padding: .75rem 1rem;
+  border-radius: .75rem;
+  background: linear-gradient(90deg, #fff4d6, #ffe0ef 50%, #dff3ff);
+  color: #3a2a00;
+  font-weight: 700;
+  box-shadow: 0 1px 4px rgb(0 0 0 / .08);
+}
+@media (prefers-reduced-motion: reduce) {
+  .serpentinas { display: none; }
+}

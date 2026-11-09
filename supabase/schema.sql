@@ -831,6 +831,27 @@ $$;
 revoke all on function public.firmas_division(text) from public, anon;
 grant execute on function public.firmas_division(text) to authenticated;
 
+-- Cumpleaños de hoy (hora de Chile) de las personas aprobadas de una división: solo el nombre.
+create or replace function public.cumpleaneros_hoy(p_division text)
+returns table (nombre text)
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select p.nombre
+    from public.perfiles p
+   where public.es_usuario_aprobado()
+     and public.puede_ver_division(p_division)
+     and p.estado = 'aprobado'
+     and p.fecha_nacimiento is not null
+     and to_char(p.fecha_nacimiento, 'MM-DD') = to_char((now() at time zone 'America/Santiago')::date, 'MM-DD')
+     and (case p.faena when 'andina' then 'andina' else 'el_salvador' end) = p_division;
+$$;
+
+revoke all on function public.cumpleaneros_hoy(text) from public, anon;
+grant execute on function public.cumpleaneros_hoy(text) to authenticated;
+
 -- ===========================================================================
 -- Reportabilidad de GG (grupos generadores): una fila por reporte, con las
 -- mismas columnas del formulario "REPORTABILIDAD DE GG" de Google Forms.

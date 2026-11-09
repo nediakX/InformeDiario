@@ -5,6 +5,7 @@ import { useSesion, nombreVisible } from '../auth/sesion';
 import { CONFIG_DIVISION } from '../datos/divisiones';
 import './dashboard.css';
 import SelectorDivision from '../componentes/SelectorDivision';
+import BannerCumpleanos from '../componentes/BannerCumpleanos';
 import logoPsinet from "../assets/logo_psinet.png";
 import logoEdificio from "../assets/LogoEdificio.png";
 import { type BorradorEntry, estadoBorrador, contarFotos, esSemillaSinEditar } from '../datos/borradoresDiario';
@@ -442,6 +443,7 @@ export default function Dashboard({
       </header>
 
       <main className="dash">
+        <BannerCumpleanos division={division} />
         {/* Saludo, división y vista (por rol o completa) en una sola franja */}
         <div className="dash-top">
           <div className="min-w-0">
