@@ -1,5 +1,6 @@
 // Informe Diario: tipos, plantillas por defecto (personal, actividades, evidencias) y utilidades.
 
+import { esPersonaRetirada } from '../../datos/trabajadores';
 import decoracionSeptiembre from "../../assets/18sep.png";
 import decoracionOctubre from "../../assets/31oct.png";
 import decoracionDiciembre from "../../assets/25dec.png";
@@ -270,7 +271,8 @@ export const getPersonalGuardado = (letra: string, division: Division = 'el_salv
     const raw = localStorage.getItem(lsKeyPersonal(letra, division));
     if (!raw) return getDefaultPersonal(letra, division);
     const guardado = JSON.parse(raw) as PersonalItem[];
-    return division === 'andina' && esListaAntiguaAndina(guardado) ? getDefaultPersonal(letra, division) : guardado;
+    const lista = division === 'andina' && esListaAntiguaAndina(guardado) ? getDefaultPersonal(letra, division) : guardado;
+    return lista.filter(p => !esPersonaRetirada(p.nombre));
   } catch {
     return getDefaultPersonal(letra, division);
   }

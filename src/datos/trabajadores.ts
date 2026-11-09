@@ -47,6 +47,14 @@ export const SUPERVISORES_IMPRESION_EXTRA: Record<Division, { nombre: string; ca
   andina: [],
 };
 
+/**
+ * Personas que ya no trabajan en PSINet: se quitan de las listas de personal aunque hayan quedado
+ * guardadas en un equipo (listas por turno guardadas en el navegador).
+ */
+const PERSONAS_RETIRADAS = ['ricardo morales'];
+const sinTildes = (t: string) => t.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+export const esPersonaRetirada = (nombre: string) => PERSONAS_RETIRADAS.some(r => sinTildes(nombre).includes(r));
+
 /** SSO que firma las Encuestas de Fatiga y Somnolencia de cada turno (A: Claudia Droguett, B: Omar Gutiérrez). */
 export const SSO_FATIGA_POR_TURNO: Record<'A' | 'B', { nombre: string; cargo: string }> = {
   A: { nombre: 'Claudia Andrea Droguett Pasten', cargo: 'Experta SSO' },
