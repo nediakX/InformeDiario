@@ -26,7 +26,7 @@ export const REPORTAN_GG: Record<Division, string[]> = {
   el_salvador: [
     'Max Diaz', 'Oscar Muñoz', 'Patricio Santana', 'Carlos Moll', 'Camilo Pailapan', 'Luis Fernandez',
     'Alberto Arancibia', 'Juan Saavedra', 'Rodny Zambrano', 'Claudio Orrego', 'Juan Morata', 'Vanesa Aguilar',
-    'Ricardo Morales', 'Mirko Roja', 'Marcelo Artal', 'Fernando Contreras', 'Ronald Castillo', 'Ricardo Riquelme',
+    'Mirko Roja', 'Marcelo Artal', 'Fernando Contreras', 'Ronald Castillo', 'Ricardo Riquelme',
   ],
   andina: [],
 };

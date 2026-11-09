@@ -91,7 +91,6 @@ export const DEFAULT_PERSONAL_B: PersonalItem[] = [
   { nombre: "Luis Humberto Fernández Ortega", cargo: "Supervisor de Operaciones" },
   { nombre: "Omar Jesús Gutiérrez Tapia", cargo: "Experto SSO" },
   { nombre: "Francisco Jara Carvajal", cargo: "Técnico Telecomunicaciones" },
-  { nombre: "Ricardo Morales Hurtado", cargo: "Técnico Telecomunicaciones" },
   { nombre: "Claudio Abdón Orrego Rojas", cargo: "Técnico Telecomunicaciones" },
   { nombre: "Camilo Andrés Pailapan Hormazabal", cargo: "Supervisor de Operaciones" }
 ];
