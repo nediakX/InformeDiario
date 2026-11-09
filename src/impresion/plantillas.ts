@@ -158,17 +158,21 @@ export const DOCUMENTOS: DocumentoImprimible[] = [
     opcional: true,
     modo: 'persona',
     cantidadSugerida: 0,
-    // Datos del supervisor, del trabajador y la fecha ya escritos: en terreno solo se marcan SI/NO y las firmas.
+    // Datos del firmante, del trabajador y la fecha ya escritos: en terreno solo se marcan SI/NO y las firmas.
+    // Si el trabajador es supervisor, quien firma es la SSO del turno; si es técnico, su supervisor que toma conocimiento.
     camposSemana: s => [
-      { x: 232, base: 665.4, tamano: 9, ancho: 212, texto: (s.sso ?? s.supervisor).nombre },
-      { x: 232, base: 684.1, tamano: 9, ancho: 212, texto: (s.sso ?? s.supervisor).cargo },
       // Fila "Fecha" del pie: la misma fecha que el Test de Alcohol del turno.
       { x: 232, base: 733.9, tamano: 9, ancho: 212, texto: ddmmaaaa(s.fechaUnica ?? s.dias[0]) },
     ],
-    camposPersona: p => [
-      { x: 232, base: 700.9, tamano: 9, ancho: 212, texto: p.nombre },
-      { x: 232, base: 718.9, tamano: 9, ancho: 212, texto: p.cargo },
-    ],
+    camposPersona: (p, s) => {
+      const firmante = /supervisor/i.test(p.cargo) && s.sso ? s.sso : s.supervisor;
+      return [
+        { x: 232, base: 665.4, tamano: 9, ancho: 212, texto: firmante.nombre },
+        { x: 232, base: 684.1, tamano: 9, ancho: 212, texto: firmante.cargo },
+        { x: 232, base: 700.9, tamano: 9, ancho: 212, texto: p.nombre },
+        { x: 232, base: 718.9, tamano: 9, ancho: 212, texto: p.cargo },
+      ];
+    },
   },
   {
     id: 'alcohol',
