@@ -7,26 +7,33 @@ import { leerAccesibilidad } from '../lib/accesibilidad';
 import { hoyLocalISO } from '../datos/fechas';
 import './BannerCumpleanos.css';
 
-const COLORES = ['#0E4660', '#F2A900', '#E0457B', '#2BB673', '#7B5CD6', '#FF7A45', '#2D9CDB', '#FFD400'];
-const DURACION_MS = 7000;
+// Paleta de PSINet: sin blanco, que se pierde sobre el fondo claro.
+const COLORES = ['#0E4660', '#2D9CDB', '#F2A900', '#E0457B', '#2BB673', '#7B5CD6', '#FF7A45'];
+const DURACION_MS = 6200;
+const DESVANECER_MS = 1400;
+const SEGMENTOS = 22;
 const aleatorio = (min: number, max: number) => min + Math.random() * (max - min);
 const elegir = <T,>(lista: T[]) => lista[Math.floor(Math.random() * lista.length)];
 
 interface Serpentina {
-  x: number; y: number; vy: number; vx: number;
-  largo: number; ancho: number; color: string;
-  fase: number; velFase: number; oscilacion: number;
-  ondas: number;
+  x: number; y: number; vx: number; vy: number;
+  rastro: { x: number; y: number }[];
+  ancho: number; color: string;
+  fase: number; velFase: number;
 }
 interface Confeti {
-  x: number; y: number; vy: number; vx: number;
-  ancho: number; alto: number; color: string;
+  x: number; y: number; vx: number; vy: number;
+  tam: number; color: string; circulo: boolean;
   rot: number; velRot: number; volteo: number; velVolteo: number;
 }
 
-/** Serpentinas (cintas largas que se mecen al caer) y confeti, dibujados en un canvas que se borra solo. */
+/**
+ * Dos cañones de fiesta en las esquinas inferiores: lanzan cintas finas que se desvanecen a lo largo
+ * y confeti suave. Todo va en un canvas que no recibe clics y se borra solo al terminar.
+ */
 function Serpentinas({ onFin }: { onFin: () => void }) {
   const ref = useRef<HTMLCanvasElement>(null);
+
   useEffect(() => {
     const canvas = ref.current;
     const ctx = canvas?.getContext('2d');
@@ -41,93 +48,99 @@ function Serpentinas({ onFin }: { onFin: () => void }) {
     };
     ajustar();
 
-    // Dos lanzamientos desde las esquinas superiores, más una lluvia de confeti desde arriba.
+    const cañones = [
+      { x: 0, y: alto, angulo: -Math.PI / 2 + 0.5 },
+      { x: ancho, y: alto, angulo: -Math.PI / 2 - 0.5 },
+    ];
     const cintas: Serpentina[] = [];
-    for (let i = 0; i < 46; i++) {
-      const desdeIzquierda = i % 2 === 0;
-      cintas.push({
-        x: desdeIzquierda ? aleatorio(0, ancho * 0.25) : aleatorio(ancho * 0.75, ancho),
-        y: aleatorio(-alto * 0.1, 0),
-        vx: (desdeIzquierda ? 1 : -1) * aleatorio(1.5, 5),
-        vy: aleatorio(2, 5),
-        largo: aleatorio(90, 170),
-        ancho: aleatorio(6, 10),
-        color: elegir(COLORES),
-        fase: aleatorio(0, Math.PI * 2),
-        velFase: aleatorio(0.004, 0.009),
-        oscilacion: aleatorio(14, 30),
-        ondas: aleatorio(1.2, 2.2),
-      });
-    }
-    const confeti: Confeti[] = Array.from({ length: 120 }, () => ({
-      x: aleatorio(0, ancho), y: aleatorio(-alto * 0.2, 0),
-      vx: aleatorio(-1.2, 1.2), vy: aleatorio(1.5, 4),
-      ancho: aleatorio(6, 11), alto: aleatorio(4, 7),
-      color: elegir(COLORES), rot: aleatorio(0, Math.PI * 2), velRot: aleatorio(-0.12, 0.12),
-      volteo: aleatorio(0, Math.PI * 2), velVolteo: aleatorio(0.05, 0.16),
-    }));
-
-    let inicio = 0, ultimo = 0, id = 0, terminado = false;
-    const dibujarCinta = (c: Serpentina, t: number, alfa: number) => {
-      // La cinta es una curva que ondula: cada punto se desplaza según la fase y su distancia a la cabeza.
-      const pasos = 22;
-      ctx.beginPath();
-      for (let k = 0; k <= pasos; k++) {
-        const f = k / pasos;
-        const px = c.x + Math.sin(c.fase + t * c.velFase * 1000 + f * c.ondas * Math.PI * 2) * c.oscilacion * f;
-        const py = c.y - f * c.largo;
-        if (k === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+    const confeti: Confeti[] = [];
+    for (const c of cañones) {
+      for (let i = 0; i < 22; i++) {
+        const dir = c.angulo + aleatorio(-0.38, 0.38);
+        const rapidez = aleatorio(11, 19);
+        cintas.push({
+          x: c.x, y: c.y,
+          vx: Math.cos(dir) * rapidez, vy: Math.sin(dir) * rapidez,
+          rastro: [],
+          ancho: aleatorio(2.5, 4), color: elegir(COLORES),
+          fase: aleatorio(0, Math.PI * 2), velFase: aleatorio(0.05, 0.1),
+        });
       }
-      ctx.globalAlpha = alfa;
-      ctx.strokeStyle = c.color;
-      ctx.lineWidth = c.ancho;
+      for (let i = 0; i < 34; i++) {
+        const dir = c.angulo + aleatorio(-0.45, 0.45);
+        const rapidez = aleatorio(7, 14);
+        confeti.push({
+          x: c.x, y: c.y,
+          vx: Math.cos(dir) * rapidez, vy: Math.sin(dir) * rapidez,
+          tam: aleatorio(4, 7), color: elegir(COLORES), circulo: Math.random() < 0.25,
+          rot: aleatorio(0, Math.PI * 2), velRot: aleatorio(-0.15, 0.15),
+          volteo: aleatorio(0, Math.PI * 2), velVolteo: aleatorio(0.04, 0.12),
+        });
+      }
+    }
+
+    let inicio = 0, id = 0, terminado = false;
+    const frame = (now: number) => {
+      if (!inicio) inicio = now;
+      const t = now - inicio;
+      const alfaGeneral = t > DURACION_MS - DESVANECER_MS ? Math.max(0, (DURACION_MS - t) / DESVANECER_MS) : 1;
+      ctx.clearRect(0, 0, ancho, alto);
       ctx.lineCap = 'round';
       ctx.lineJoin = 'round';
-      ctx.stroke();
-      // Brillo fino encima de la cinta.
-      ctx.globalAlpha = alfa * 0.35;
-      ctx.strokeStyle = '#ffffff';
-      ctx.lineWidth = Math.max(1, c.ancho * 0.22);
-      ctx.stroke();
-    };
 
-    const frame = (now: number) => {
-      if (!inicio) { inicio = now; ultimo = now; }
-      const transcurrido = now - inicio;
-      const paso = Math.min(3, (now - ultimo) / 16.67); // normaliza a ~60 fps
-      ultimo = now;
-      const alfa = transcurrido > DURACION_MS - 1200 ? Math.max(0, (DURACION_MS - transcurrido) / 1200) : 1;
-      ctx.clearRect(0, 0, ancho, alto);
-
+      // Cintas: la cabeza avanza con gravedad suave; el cuerpo la sigue ondeando y se va afinando y desvaneciendo.
       for (const c of cintas) {
-        c.vy += 0.035 * paso;
-        c.vy *= Math.pow(0.99, paso);
-        c.vx *= Math.pow(0.97, paso);
-        c.x += c.vx * paso;
-        c.y += c.vy * paso;
-        c.fase += c.velFase * paso * 16;
-        dibujarCinta(c, transcurrido, alfa);
+        c.vy += 0.2;
+        c.vx *= 0.982;
+        c.vy *= 0.982;
+        c.x += c.vx;
+        c.y += c.vy;
+        c.fase += c.velFase;
+        c.rastro.unshift({ x: c.x, y: c.y });
+        if (c.rastro.length > SEGMENTOS) c.rastro.length = SEGMENTOS;
+        if (c.rastro.length < 2) continue;
+
+        ctx.strokeStyle = c.color;
+        for (let k = 1; k < c.rastro.length; k++) {
+          const a = c.rastro[k - 1], b = c.rastro[k];
+          const f = k / c.rastro.length;
+          ctx.globalAlpha = alfaGeneral * (1 - f) * 0.85;
+          ctx.lineWidth = Math.max(0.8, c.ancho * (1 - f * 0.6));
+          const onda = Math.sin(c.fase + k * 0.45) * 4 * f;
+          ctx.beginPath();
+          ctx.moveTo(a.x + onda, a.y);
+          ctx.lineTo(b.x + onda, b.y);
+          ctx.stroke();
+        }
       }
 
-      ctx.globalAlpha = alfa;
+      // Confeti: cae frenado por el aire, girando y volteándose como papel.
       for (const p of confeti) {
-        p.vy += 0.06 * paso;
-        p.vy *= Math.pow(0.985, paso);
-        p.x += (p.vx + Math.sin(p.volteo) * 0.6) * paso;
-        p.y += p.vy * paso;
-        p.rot += p.velRot * paso;
-        p.volteo += p.velVolteo * paso;
+        p.vy += 0.12;
+        p.vx *= 0.965;
+        p.vy *= 0.965;
+        p.x += p.vx + Math.sin(p.volteo) * 0.5;
+        p.y += p.vy;
+        p.rot += p.velRot;
+        p.volteo += p.velVolteo;
+        ctx.globalAlpha = alfaGeneral * 0.9;
         ctx.save();
         ctx.translate(p.x, p.y);
         ctx.rotate(p.rot);
-        ctx.scale(1, Math.cos(p.volteo)); // simula el giro del papel
+        ctx.scale(1, Math.cos(p.volteo));
         ctx.fillStyle = p.color;
-        ctx.fillRect(-p.ancho / 2, -p.alto / 2, p.ancho, p.alto);
+        if (p.circulo) {
+          ctx.beginPath();
+          ctx.arc(0, 0, p.tam / 2.2, 0, Math.PI * 2);
+          ctx.fill();
+        } else {
+          ctx.fillRect(-p.tam / 2, -p.tam / 3, p.tam, p.tam / 1.5);
+        }
         ctx.restore();
       }
       ctx.globalAlpha = 1;
 
-      if (transcurrido < DURACION_MS && !terminado) {
+      if (t < DURACION_MS && !terminado) {
         id = requestAnimationFrame(frame);
       } else {
         ctx.clearRect(0, 0, ancho, alto);
