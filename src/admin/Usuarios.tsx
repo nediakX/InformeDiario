@@ -114,7 +114,7 @@ export default function Usuarios({ perfiles, onCambio, presencia, ahora }: {
         <div className="viz-table-wrap">
           <table className="viz-table viz-table--tarjetas">
             <thead>
-              <tr><th>Nombre</th><th>RUT</th><th>División</th><th>Rol</th><th>Estado</th><th>Conexión</th><th>Último acceso</th><th>Registro</th><th aria-label="Acciones" /></tr>
+              <tr><th>Nombre</th><th>División</th><th>Rol</th><th>Estado</th><th>Conexión</th><th>Último acceso</th><th aria-label="Acciones" /></tr>
             </thead>
             <tbody>
               {lista.map(p => {
@@ -128,10 +128,10 @@ export default function Usuarios({ perfiles, onCambio, presencia, ahora }: {
                         <div>
                           <div className="font-semibold">{p.nombre || '—'} {soyYo && <span className="text-xs text-gray-500">(tú)</span>}</div>
                           <div className="text-xs text-gray-500 break-all">{p.email}</div>
+                          <div className="text-xs text-gray-500">RUT {p.rut || '—'}</div>
                         </div>
                       </div>
                     </td>
-                    <td className="whitespace-nowrap" data-label="RUT">{p.rut || '—'}</td>
                     <td data-label="División">
                       <select
                         aria-label={`División de ${p.nombre || p.email}`}
@@ -180,8 +180,7 @@ export default function Usuarios({ perfiles, onCambio, presencia, ahora }: {
                     </td>
                     <td data-label="Conexión">{p.estado === 'aprobado' ? <PuntoConexion estado={estadoConexion(presenciaPorUsuario.get(p.id), ahora)} /> : '—'}</td>
                     <td className="whitespace-nowrap" data-label="Último acceso" title={fecha(p.ultimo_acceso)}>{p.ultimo_acceso ? haceCuanto(p.ultimo_acceso, ahora) : 'Nunca'}</td>
-                    <td className="whitespace-nowrap" data-label="Registro">{fecha(p.created_at)}</td>
-                    <td className="celda-acciones">
+                                        <td className="celda-acciones">
                       <div className="usuarios-acciones flex justify-end gap-1.5">
                         {p.estado !== 'aprobado' && (
                           <button type="button" className="btn-mini btn-mini--ok" disabled={deshabilitado}

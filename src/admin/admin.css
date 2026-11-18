@@ -705,3 +705,9 @@
 .usuarios-acciones { flex-wrap: nowrap !important; justify-content: flex-end; }
 .usuarios-acciones .btn-mini { white-space: nowrap; padding: .3rem .5rem; font-size: .75rem; }
 .viz-table--tarjetas td { padding-top: .5rem; padding-bottom: .5rem; }
+
+/* Sin desplazamiento horizontal: la tabla se ajusta al ancho de la tarjeta */
+.viz-table--tarjetas { table-layout: auto; width: 100%; }
+.viz-table--tarjetas select.select-division { max-width: 9.5rem; }
+.viz-table--tarjetas td { white-space: normal; }
+.viz-table--tarjetas .usuarios-acciones { flex-wrap: wrap !important; }
