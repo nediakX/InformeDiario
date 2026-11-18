@@ -683,3 +683,25 @@
   .ocultar-movil { display: none; }
   .solo-movil { display: block; }
 }
+
+/* Vista de usuarios: resumen, avatar y solicitudes pendientes destacadas */
+.usuarios-resumen { display: flex; flex-wrap: wrap; gap: .5rem; margin-bottom: .75rem; }
+.usuarios-resumen span {
+  padding: .3rem .65rem; border-radius: 999px; background: var(--bg-e3edf3, #e3edf3);
+  color: var(--brand-text); font-size: .8rem;
+}
+.usuarios-resumen b { font-weight: 800; margin-right: .2rem; }
+.usuarios-resumen__alerta { background: #fff3cd !important; color: #7a5b00 !important; }
+.usuarios-conteo { font-size: .75rem; color: #6b7280; margin-bottom: .4rem; }
+.usuario-nombre { display: flex; align-items: center; gap: .6rem; }
+.usuario-avatar {
+  flex: none; width: 2rem; height: 2rem; border-radius: 999px;
+  display: grid; place-items: center; font-size: .75rem; font-weight: 800;
+  background: var(--brand-text, #0E4660); color: #fff;
+}
+.usuario-fila--pendiente td:first-child { box-shadow: inset 4px 0 0 #F2A900; }
+
+/* Lista de usuarios más compacta: acciones en una sola línea y filas más bajas */
+.usuarios-acciones { flex-wrap: nowrap !important; justify-content: flex-end; }
+.usuarios-acciones .btn-mini { white-space: nowrap; padding: .3rem .5rem; font-size: .75rem; }
+.viz-table--tarjetas td { padding-top: .5rem; padding-bottom: .5rem; }

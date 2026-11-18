@@ -7,7 +7,7 @@ import { cambiarEstadoUsuario, cambiarFaenaUsuario, cambiarRolAdmin, cambiarRolU
 import { ETIQUETA_ROL, ROLES, esRol, rolDelListado } from '../datos/roles';
 import { divisionDeFaena } from '../datos/divisiones';
 import { TarjetaGrafico } from './graficos';
-import { estadoConexion, type FilaPresencia } from './presencia';
+import { estadoConexion, haceCuanto, type FilaPresencia } from './presencia';
 import PuntoConexion from './PuntoConexion';
 
 type Filtro = EstadoCuenta | 'todos';
@@ -20,6 +20,11 @@ const FILTROS: { valor: Filtro; etiqueta: string }[] = [
 ];
 
 const ETIQUETA_ESTADO: Record<EstadoCuenta, string> = { pendiente: 'Pendiente', aprobado: 'Aprobado', rechazado: 'Rechazado' };
+
+const iniciales = (nombre: string, email: string) => {
+  const base = (nombre || email).replace(/\./g, '').trim().split(/\s+/).filter(Boolean);
+  return ((base[0]?.[0] ?? '') + (base.length > 1 ? base[base.length - 1][0] : '')).toUpperCase() || '?';
+};
 
 const fecha = (iso: string | null) => {
   if (!iso) return 'Nunca';
@@ -43,10 +48,25 @@ export default function Usuarios({ perfiles, onCambio, presencia, ahora }: {
   const presenciaPorUsuario = useMemo(() => new Map(presencia.map(f => [f.usuario_id, f])), [presencia]);
   const lista = useMemo(() => {
     const q = busqueda.trim().toLowerCase();
-    return perfiles.filter(p => (filtro === 'todos' || p.estado === filtro)
-      && (!q || `${p.nombre} ${p.email} ${p.rut ?? ''}`.toLowerCase().includes(q)));
+    const orden = { pendiente: 0, aprobado: 1, rechazado: 2 } as const;
+    return perfiles
+      .filter(p => (filtro === 'todos' || p.estado === filtro)
+        && (!q || `${p.nombre} ${p.email} ${p.rut ?? ''}`.toLowerCase().includes(q)))
+      .sort((a, b) => orden[a.estado] - orden[b.estado] || (a.nombre || a.email).localeCompare(b.nombre || b.email, 'es'));
   }, [perfiles, filtro, busqueda]);
   const conteo = (f: Filtro) => (f === 'todos' ? perfiles.length : perfiles.filter(p => p.estado === f).length);
+  const resumen = useMemo(() => {
+    const aprobados = perfiles.filter(p => p.estado === 'aprobado');
+    return {
+      aprobados: aprobados.length,
+      pendientes: perfiles.filter(p => p.estado === 'pendiente').length,
+      admins: aprobados.filter(p => p.es_admin).length,
+      enLinea: aprobados.filter(p => estadoConexion(presenciaPorUsuario.get(p.id), ahora) === 'en_linea').length,
+    };
+  }, [perfiles, presenciaPorUsuario, ahora]);
+  const vacio = filtro === 'pendiente'
+    ? 'No hay solicitudes pendientes. Cuando alguien se registre, aparecerá aquí.'
+    : filtro === 'rechazado' ? 'No hay cuentas rechazadas.' : 'No hay cuentas en esta categoría.';
 
   const ejecutar = async (id: string, accion: () => Promise<void>) => {
     setOcupado(id);
@@ -80,9 +100,16 @@ export default function Usuarios({ perfiles, onCambio, presencia, ahora }: {
         <Search size={14} aria-hidden="true" />
         <input type="search" placeholder="Buscar por nombre, correo o RUT…" value={busqueda} onChange={e => setBusqueda(e.target.value)} />
       </label>
+      <div className="usuarios-resumen" aria-label="Resumen de cuentas">
+        <span><b>{resumen.aprobados}</b> aprobados</span>
+        <span className={resumen.pendientes ? 'usuarios-resumen__alerta' : ''}><b>{resumen.pendientes}</b> pendientes</span>
+        <span><b>{resumen.admins}</b> administradores</span>
+        <span><b>{resumen.enLinea}</b> en línea ahora</span>
+      </div>
       {error && <p className="text-sm text-[#a32626] mb-2">{error}</p>}
+      <p className="usuarios-conteo">Mostrando {lista.length} de {perfiles.length} cuentas</p>
       {lista.length === 0 ? (
-        <p className="viz-empty">No hay cuentas en esta categoría.</p>
+        <p className="viz-empty">{busqueda ? 'Ninguna cuenta coincide con la búsqueda.' : vacio}</p>
       ) : (
         <div className="viz-table-wrap">
           <table className="viz-table viz-table--tarjetas">
@@ -94,10 +121,15 @@ export default function Usuarios({ perfiles, onCambio, presencia, ahora }: {
                 const soyYo = p.id === yo.id;
                 const deshabilitado = ocupado === p.id;
                 return (
-                  <tr key={p.id}>
+                  <tr key={p.id} className={p.estado === 'pendiente' ? 'usuario-fila--pendiente' : undefined}>
                     <td className="celda-titulo">
-                      <div className="font-semibold">{p.nombre || '—'} {soyYo && <span className="text-xs text-gray-500">(tú)</span>}</div>
-                      <div className="text-xs text-gray-500 break-all">{p.email}</div>
+                      <div className="usuario-nombre">
+                        <span className="usuario-avatar" aria-hidden="true">{iniciales(p.nombre, p.email)}</span>
+                        <div>
+                          <div className="font-semibold">{p.nombre || '—'} {soyYo && <span className="text-xs text-gray-500">(tú)</span>}</div>
+                          <div className="text-xs text-gray-500 break-all">{p.email}</div>
+                        </div>
+                      </div>
                     </td>
                     <td className="whitespace-nowrap" data-label="RUT">{p.rut || '—'}</td>
                     <td data-label="División">
@@ -147,10 +179,10 @@ export default function Usuarios({ perfiles, onCambio, presencia, ahora }: {
                       </div>
                     </td>
                     <td data-label="Conexión">{p.estado === 'aprobado' ? <PuntoConexion estado={estadoConexion(presenciaPorUsuario.get(p.id), ahora)} /> : '—'}</td>
-                    <td className="whitespace-nowrap" data-label="Último acceso">{fecha(p.ultimo_acceso)}</td>
+                    <td className="whitespace-nowrap" data-label="Último acceso" title={fecha(p.ultimo_acceso)}>{p.ultimo_acceso ? haceCuanto(p.ultimo_acceso, ahora) : 'Nunca'}</td>
                     <td className="whitespace-nowrap" data-label="Registro">{fecha(p.created_at)}</td>
                     <td className="celda-acciones">
-                      <div className="flex flex-wrap justify-end gap-1.5">
+                      <div className="usuarios-acciones flex justify-end gap-1.5">
                         {p.estado !== 'aprobado' && (
                           <button type="button" className="btn-mini btn-mini--ok" disabled={deshabilitado}
                             onClick={() => void ejecutar(p.id, () => cambiarEstadoUsuario(p.id, 'aprobado', yo.id))}>
