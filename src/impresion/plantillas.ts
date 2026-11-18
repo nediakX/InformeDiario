@@ -160,12 +160,9 @@ export const DOCUMENTOS: DocumentoImprimible[] = [
     opcional: true,
     modo: 'persona',
     cantidadSugerida: 0,
-    // Datos del firmante, del trabajador y la fecha ya escritos: en terreno solo se marcan SI/NO y las firmas.
+    // Se imprime en blanco: sin fecha ni datos escritos; en terreno se completan a mano.
     // Si el trabajador es supervisor, quien firma es la SSO del turno; si es técnico, su supervisor que toma conocimiento.
-    camposSemana: s => [
-      // Fila "Fecha" del pie: la misma fecha que el Test de Alcohol del turno.
-      { x: 232, base: 733.9, tamano: 9, ancho: 212, texto: ddmmaaaa(s.fechaUnica ?? s.dias[0]) },
-    ],
+    camposSemana: () => [],
     camposPersona: (p, s) => {
       const firmante = /supervisor/i.test(p.cargo) && s.sso ? s.sso : s.supervisor;
       return [
