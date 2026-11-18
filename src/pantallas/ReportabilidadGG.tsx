@@ -607,7 +607,7 @@ export default function ReportabilidadGG({ onBack }: { onBack: () => void }) {
                   <tr>
                     <th>Fecha</th><th>Hora</th><th>Sitio</th><th>Turno</th><th>Reporta</th><th>Comb.</th>
                     <th className="text-right">Horómetro</th><th className="text-right">Partidas</th><th>Refrig.</th><th>Aceite</th>
-                    <th className="text-right">Temp. (°C)</th>{esSupervisor && <th aria-label="Acciones" />}
+                    <th className="text-right">Temp. (°C)</th><th>Observaciones</th>{esSupervisor && <th aria-label="Acciones" />}
                   </tr>
                 </thead>
                 <tbody>
@@ -624,6 +624,7 @@ export default function ReportabilidadGG({ onBack }: { onBack: () => void }) {
                       <td>{r.nivelRefrigerante ?? '—'}</td>
                       <td className="whitespace-nowrap">{r.nivelAceite ?? '—'}</td>
                       <td className="text-right tabular-nums">{fmtNum(r.temperatura)}</td>
+                      <td className="min-w-[14rem] whitespace-normal text-[13px] italic text-gray-700">{r.observaciones ?? '—'}</td>
                       {esSupervisor && <td>
                         {puedeEditar(r) && (
                           <span className="flex gap-0.5">
