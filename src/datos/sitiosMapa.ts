@@ -35,6 +35,8 @@ const RAJO_INCA: SitioMapa[] = [
   { codigo: 'LTE_CMM_06', lat: -26.259114, lon: -69.549489, altitud: 3202, azimuts: [20, 270, 320] },
   { codigo: 'LTE_CMM_07', lat: -26.232131, lon: -69.54165, altitud: 2836, azimuts: [120, 250, 330] },
   { codigo: 'LTE_CMM_10', lat: -26.277317, lon: -69.541322, altitud: 2915, azimuts: [30, 270, 310] },
+  // Carro microondas 01 (MMOO_01): se reporta en GG como LTE_CM_MMOO_01.
+  { codigo: 'MMOO_01', carro: 'MMOO_01', gg: 'LTE_CM_MMOO_01', lat: -26.281941, lon: -69.592235 },
 ];
 
 export const SITIOS_MAPA: Partial<Record<Division, { nombre: string; sitios: SitioMapa[] }>> = {
