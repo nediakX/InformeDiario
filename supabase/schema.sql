@@ -852,6 +852,27 @@ $$;
 revoke all on function public.cumpleaneros_hoy(text) from public, anon;
 grant execute on function public.cumpleaneros_hoy(text) to authenticated;
 
+-- Elimina una cuenta (acceso y perfil). Los informes que escribió se conservan, sin autor.
+create or replace function public.eliminar_usuario(p_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if not public.es_admin() then
+    raise exception 'Solo un administrador puede eliminar usuarios';
+  end if;
+  if p_id = auth.uid() then
+    raise exception 'No puedes eliminar tu propia cuenta';
+  end if;
+  delete from auth.users where id = p_id;
+end;
+$$;
+
+revoke all on function public.eliminar_usuario(uuid) from public, anon;
+grant execute on function public.eliminar_usuario(uuid) to authenticated;
+
 -- ===========================================================================
 -- Reportabilidad de GG (grupos generadores): una fila por reporte, con las
 -- mismas columnas del formulario "REPORTABILIDAD DE GG" de Google Forms.

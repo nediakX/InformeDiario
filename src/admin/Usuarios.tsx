@@ -3,7 +3,7 @@ import { useMemo, useState } from 'react';
 import { Search } from 'lucide-react';
 import { Check, ShieldCheck, ShieldOff, X, RotateCcw } from 'lucide-react';
 import { useSesion, FAENAS, type EstadoCuenta, type Faena, type Perfil } from '../auth/sesion';
-import { cambiarEstadoUsuario, cambiarFaenaUsuario, cambiarRolAdmin, cambiarRolUsuario } from './datos';
+import { cambiarEstadoUsuario, cambiarFaenaUsuario, cambiarRolAdmin, cambiarRolUsuario, eliminarUsuario } from './datos';
 import { ETIQUETA_ROL, ROLES, esRol, rolDelListado } from '../datos/roles';
 import { divisionDeFaena } from '../datos/divisiones';
 import { TarjetaGrafico } from './graficos';
@@ -161,6 +161,17 @@ export default function Usuarios({ perfiles, onCambio, presencia, ahora }: {
                           <button type="button" className="btn-mini btn-mini--danger" disabled={deshabilitado}
                             onClick={() => void ejecutar(p.id, () => cambiarEstadoUsuario(p.id, 'rechazado', yo.id))}>
                             <X size={13} /> Rechazar
+                          </button>
+                        )}
+                        {!soyYo && (
+                          <button type="button" className="btn-mini btn-mini--danger" disabled={deshabilitado}
+                            onClick={() => {
+                              const nombre = p.nombre || p.email;
+                              if (window.confirm(`¿Eliminar la cuenta de ${nombre}? Se borra su acceso y su perfil. Esta acción no se puede deshacer.`)) {
+                                void ejecutar(p.id, () => eliminarUsuario(p.id));
+                              }
+                            }}>
+                            <X size={13} /> Eliminar
                           </button>
                         )}
                         {p.estado === 'aprobado' && !soyYo && (

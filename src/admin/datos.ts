@@ -238,6 +238,12 @@ export async function cambiarRolUsuario(id: string, rol: string | null) {
   if (error) throw error;
 }
 
+/** Elimina la cuenta por completo (acceso y perfil). Es irreversible: la persona tendría que registrarse de nuevo. */
+export async function eliminarUsuario(id: string) {
+  const { error } = await supabase.rpc('eliminar_usuario', { p_id: id });
+  if (error) throw error;
+}
+
 export async function cambiarRolAdmin(id: string, esAdmin: boolean) {
   const { error } = await supabase.from('perfiles').update({ es_admin: esAdmin }).eq('id', id);
   if (error) throw error;
