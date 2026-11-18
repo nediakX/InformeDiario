@@ -93,9 +93,7 @@ const TEC_TELECOM = 'Técnico en telecomunicaciones';
 const ANDINA_OSCAR: Firmante = { nombre: 'Oscar Fabian Acuña Solis', cargo: SUPERVISOR };
 // Organigrama División Andina LTE: columna izquierda = Turno A, columna derecha = Turno B.
 const ANDINA_TURNO_A: Firmante[] = [
-  { nombre: 'Guillermo Arturo Soto Alvarado', cargo: SUPERVISOR },
   { nombre: 'Jose Luis Arévalo Guerra', cargo: SUPERVISOR },
-  { nombre: 'Vicente Vasquez', cargo: 'Líder Técnico' },
   { nombre: 'Cristopher Mercado', cargo: TEC_TELECOM },
   { nombre: 'Diego Salinas', cargo: TEC_TELECOM },
   { nombre: 'Felipe Sandoval', cargo: TEC_TELECOM },

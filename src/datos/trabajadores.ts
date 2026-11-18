@@ -51,7 +51,7 @@ export const SUPERVISORES_IMPRESION_EXTRA: Record<Division, { nombre: string; ca
  * Personas que ya no trabajan en PSINet: se quitan de las listas de personal aunque hayan quedado
  * guardadas en un equipo (listas por turno guardadas en el navegador).
  */
-const PERSONAS_RETIRADAS = ['ricardo morales'];
+const PERSONAS_RETIRADAS = ['ricardo morales', 'guillermo arturo soto', 'vicente vasquez'];
 const sinTildes = (t: string) => t.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 export const esPersonaRetirada = (nombre: string) => PERSONAS_RETIRADAS.some(r => sinTildes(nombre).includes(r));
 
