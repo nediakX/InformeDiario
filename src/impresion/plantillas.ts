@@ -57,6 +57,8 @@ const diaMes = (iso: string) => { const [, m, d] = iso.split('-'); return `${Num
 // Centro de la columna de cada día (miércoles a martes) en la Autoevaluación.
 const CENTROS_AUTOEVALUACION = [319.4, 385.3, 451.3, 517.3, 583.2, 651.0, 722.6];
 const rangoSemana = (s: ContextoSemana) => `${ddmmaaaa(s.dias[0])} al ${ddmmaaaa(s.dias[6])}`;
+// Quien toma conocimiento: si el trabajador es supervisor, la SSO del turno; si es técnico, su supervisor.
+const firmantePersona = (p: Persona, s: ContextoSemana) => (/supervisor/i.test(p.cargo) && s.sso ? s.sso : s.supervisor);
 
 export const DOCUMENTOS: DocumentoImprimible[] = [
   {
@@ -105,13 +107,13 @@ export const DOCUMENTOS: DocumentoImprimible[] = [
     cantidadSugerida: 0,
     camposSemana: s => [
       ...s.dias.map((d, i) => ({ x: 88, base: 276.6 + 19 * i, tamano: 9, texto: ddmmaaaa(d) })),
-      { x: 124, base: 446.4, tamano: 9, ancho: 600, texto: s.supervisor.nombre },
-      { x: 124, base: 460.4, tamano: 9, ancho: 600, texto: s.supervisor.cargo },
     ],
-    camposPersona: p => [
+    camposPersona: (p, s) => [
       { x: 190, base: 147.3, ancho: 520, texto: p.nombre },
       { x: 190, base: 161.3, ancho: 520, texto: p.rut },
       { x: 190, base: 175.2, ancho: 520, texto: p.cargo },
+      { x: 124, base: 446.4, tamano: 9, ancho: 600, texto: firmantePersona(p, s).nombre },
+      { x: 124, base: 460.4, tamano: 9, ancho: 600, texto: firmantePersona(p, s).cargo },
     ],
   },
   {
@@ -124,13 +126,13 @@ export const DOCUMENTOS: DocumentoImprimible[] = [
     camposSemana: s => [
       // Fechas del turno en las filas 1 a 7 (una por día, miércoles a martes).
       ...s.dias.map((d, i) => ({ x: 196.7, base: 223.9 + 13.95 * i, tamano: 8.5, centrado: true, texto: ddmmaaaa(d) })),
-      { x: 140, base: 462.6, ancho: 620, texto: s.supervisor.nombre },
-      { x: 140, base: 476.5, ancho: 620, texto: s.supervisor.cargo },
     ],
-    camposPersona: p => [
+    camposPersona: (p, s) => [
       { x: 140, base: 155.7, ancho: 620, texto: p.nombre },
       { x: 140, base: 169.6, ancho: 620, texto: p.rut },
       { x: 140, base: 183.6, ancho: 620, texto: p.cargo },
+      { x: 140, base: 462.6, ancho: 620, texto: firmantePersona(p, s).nombre },
+      { x: 140, base: 476.5, ancho: 620, texto: firmantePersona(p, s).cargo },
     ],
   },
   {
