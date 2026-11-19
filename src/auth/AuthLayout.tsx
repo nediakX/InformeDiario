@@ -1,5 +1,6 @@
 // Marco visual de las pantallas de acceso (diseño "PSINet · Panel de Terreno").
 import type { ReactNode } from 'react';
+import logoPsinet from '../assets/logo_psinet.png';
 import './auth.css';
 
 export type IconName = 'badge' | 'mail' | 'pin' | 'lock' | 'eye' | 'eyeOff' | 'arrow' | 'user';
@@ -86,15 +87,8 @@ export default function AuthLayout({ ariaLabel, children }: { ariaLabel: string;
         <div className="card-content">
           <header className="brand-header">
             <div className="brand-lockup" aria-label="PSINet Panel de Terreno">
-              <div className="brand-mark">
-                <span />
-                <span />
-                <span />
-              </div>
-              <div>
-                <div className="brand-name">PSI<span>NET</span></div>
-                <div className="brand-subtitle">PANEL DE TERRENO</div>
-              </div>
+              <img className="brand-logo" src={logoPsinet} alt="PSINet" />
+              <div className="brand-subtitle">PANEL DE TERRENO</div>
             </div>
             <div className="security-tag">
               <span className="security-tag-dot" />
