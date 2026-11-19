@@ -80,10 +80,10 @@ export const DISENO_INICIO: Record<Rol, DisenoInicio> = {
   electrico: { principal: ['hoy', 'revisar', 'mapa'], lateral: ['accesos', 'generadoresMini', 'turnoMini'], accesos: ['falla', 'checklist', 'mantenimiento', 'borradores'] },
   electromecanico: { principal: ['generadores', 'hoy', 'mapa'], lateral: ['accesos', 'turnoMini'], accesos: ['gg', 'tablaMantenimiento', 'mantenimiento', 'checklist', 'borradores'] },
   supervisor: { principal: ['revisar', 'generadores', 'hoy', 'mapa'], lateral: ['turnoMini', 'accesos'], accesos: ['gg', 'tablaMantenimiento', 'impresion', 'cierre', 'presentacion', 'presentacionFds', 'preventiva', 'borradores'] },
-  lider_tecnico: { principal: ['revisar', 'generadores', 'hoy', 'mapa'], lateral: ['turnoMini', 'accesos'], accesos: ['gg', 'impresion', 'cierre', 'presentacion', 'presentacionFds', 'preventiva', 'borradores'] },
-  ingeniero_especialista: { principal: ['revisar', 'generadores', 'hoy', 'mapa'], lateral: ['turnoMini', 'accesos'], accesos: ['gg', 'impresion', 'cierre', 'presentacion', 'presentacionFds', 'preventiva', 'borradores'] },
-  jefe: { principal: ['turno', 'revisar', 'hoy', 'mapa'], lateral: ['generadoresMini', 'accesos'], accesos: ['cierre', 'presentacion', 'presentacionFds', 'impresion', 'gg', 'borradores'] },
-  contrato: { principal: ['contrato', 'turno', 'mapa'], lateral: ['generadoresMini', 'accesos'], accesos: ['admin', 'cierre', 'presentacion', 'presentacionFds', 'gg', 'borradores'] },
+  lider_tecnico: { principal: ['revisar', 'generadores', 'hoy', 'mapa'], lateral: ['turnoMini', 'accesos'], accesos: ['gg', 'tablaMantenimiento', 'impresion', 'cierre', 'presentacion', 'presentacionFds', 'preventiva', 'borradores'] },
+  ingeniero_especialista: { principal: ['revisar', 'generadores', 'hoy', 'mapa'], lateral: ['turnoMini', 'accesos'], accesos: ['gg', 'tablaMantenimiento', 'impresion', 'cierre', 'presentacion', 'presentacionFds', 'preventiva', 'borradores'] },
+  jefe: { principal: ['turno', 'revisar', 'hoy', 'mapa'], lateral: ['generadoresMini', 'accesos'], accesos: ['cierre', 'presentacion', 'presentacionFds', 'impresion', 'gg', 'tablaMantenimiento', 'borradores'] },
+  contrato: { principal: ['contrato', 'turno', 'mapa'], lateral: ['generadoresMini', 'accesos'], accesos: ['admin', 'cierre', 'presentacion', 'presentacionFds', 'gg', 'tablaMantenimiento', 'borradores'] },
 };
 
 /** "Ver todo": el inicio completo, igual para todos, en una columna. */

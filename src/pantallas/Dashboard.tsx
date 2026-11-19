@@ -228,7 +228,7 @@ export default function Dashboard({
     <div className="dash-grupos">
       <section className="dash-grupo" aria-labelledby="dash-grupo-terreno">
         <h2 id="dash-grupo-terreno" className="dash-grupo__titulo"><ClipboardCheck size={15} aria-hidden="true" /> Registros en terreno</h2>
-        <div className="dash-grupo__lista">{tareas.checklist}{tareas.gg}{tareas.impresion}{tareas.mapa}</div>
+        <div className="dash-grupo__lista">{tareas.checklist}{tareas.gg}{tareas.tablaMantenimiento}{tareas.impresion}{tareas.mapa}</div>
       </section>
       <section className="dash-grupo" aria-labelledby="dash-grupo-informes">
         <h2 id="dash-grupo-informes" className="dash-grupo__titulo"><FileStack size={15} aria-hidden="true" /> Otros informes</h2>
