@@ -9,7 +9,7 @@ import logoPsinet from '../assets/logo_psinet.png';
 import logoEdificio from '../assets/LogoEdificio.png';
 import { nombreVisible, useSesion } from '../auth/sesion';
 import { nombreCorto } from '../lib/nombres';
-import { esSupervisorDelListado } from '../datos/trabajadores';
+import { TRABAJADORES, esSupervisorDelListado } from '../datos/trabajadores';
 import { esSupervisorGG } from '../datos/roles';
 import { hoyLocalISO } from '../datos/fechas';
 import { letraDeFecha } from '../datos/turnos';
@@ -56,6 +56,8 @@ export default function ReportabilidadGG({ onBack }: { onBack: () => void }) {
   const sitios = SITIOS_GG[division];
   // Quién reporta: siempre la persona que ingresó a la cuenta (no se puede cambiar).
   const reportaPorDefecto = () => nombreCorto(nombreVisible(perfil));
+  // Personas del listado de la división, para que el administrador pueda cambiar quién reporta un reporte corregido.
+  const personasDeLaDivision = useMemo(() => TRABAJADORES[division].map(t => nombreCorto(t.nombre)), [division]);
 
   const nuevoFormulario = (anterior?: Formulario): Formulario => {
     const fecha = anterior?.fecha ?? hoyLocalISO();
@@ -483,7 +485,14 @@ export default function ReportabilidadGG({ onBack }: { onBack: () => void }) {
             </label>
             <div className="col-span-2">
               <span className={etiqueta}>Quién reporta</span>
-              <p className={`${campo} bg-gray-50`}>{editando ? form.reporta : nombreCorto(nombreVisible(perfil))}</p>
+              {editando && esAdmin ? (
+                <select className={campo} value={form.reporta} onChange={e => poner('reporta', e.target.value)} aria-label="Quién reporta">
+                  {/* Se incluye el valor guardado aunque no esté en el listado (p. ej. una cuenta sin trabajador asociado). */}
+                  {[...new Set([form.reporta, ...personasDeLaDivision])].filter(Boolean).map(p => <option key={p} value={p}>{p}</option>)}
+                </select>
+              ) : (
+                <p className={`${campo} bg-gray-50`}>{editando ? form.reporta : nombreCorto(nombreVisible(perfil))}</p>
+              )}
             </div>
             <div className="col-span-2 flex items-center justify-between gap-3 rounded-md border border-[#DCE1E6] p-3">
               <div>
