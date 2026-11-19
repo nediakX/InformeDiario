@@ -706,7 +706,12 @@ revoke all on function public.cerrar_informes_fin_turno() from public, anon, aut
 do $$
 begin
   if exists (select 1 from pg_extension where extname = 'pg_cron') then
-    delete from cron.job where jobname = 'cerrar-informes-fin-turno';
+    -- cron.unschedule en lugar de borrar de cron.job: el rol del SQL Editor no tiene permiso sobre esa tabla.
+    begin
+      perform cron.unschedule('cerrar-informes-fin-turno');
+    exception when others then
+      null; -- si el job no existe, no hay nada que quitar
+    end;
     perform cron.schedule('cerrar-informes-fin-turno', '0 * * * 2', 'select public.cerrar_informes_fin_turno()');
   end if;
 end;
