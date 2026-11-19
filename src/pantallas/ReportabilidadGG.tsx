@@ -9,7 +9,7 @@ import logoPsinet from '../assets/logo_psinet.png';
 import logoEdificio from '../assets/LogoEdificio.png';
 import { nombreVisible, useSesion } from '../auth/sesion';
 import { nombreCorto } from '../lib/nombres';
-import { TRABAJADORES, esSupervisorDelListado } from '../datos/trabajadores';
+import { TRABAJADORES, esSupervisorDelListado, nombreYApellido } from '../datos/trabajadores';
 import { esSupervisorGG } from '../datos/roles';
 import { hoyLocalISO } from '../datos/fechas';
 import { letraDeFecha } from '../datos/turnos';
@@ -57,7 +57,7 @@ export default function ReportabilidadGG({ onBack }: { onBack: () => void }) {
   // Quién reporta: siempre la persona que ingresó a la cuenta (no se puede cambiar).
   const reportaPorDefecto = () => nombreCorto(nombreVisible(perfil));
   // Personas del listado de la división, para que el administrador pueda cambiar quién reporta un reporte corregido.
-  const personasDeLaDivision = useMemo(() => TRABAJADORES[division].map(t => nombreCorto(t.nombre)), [division]);
+  const personasDeLaDivision = useMemo(() => TRABAJADORES[division].map(nombreYApellido), [division]);
 
   const nuevoFormulario = (anterior?: Formulario): Formulario => {
     const fecha = anterior?.fecha ?? hoyLocalISO();

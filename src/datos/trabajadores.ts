@@ -36,6 +36,39 @@ const EL_SALVADOR: Trabajador[] = [
 ];
 
 /**
+ * Nombre y apellido tal como aparecen en los informes (p. ej. «Williams Barraza»). El listado trae los apellidos
+ * primero y no siempre con el mismo orden, así que se escribe cada uno a mano, por RUT.
+ */
+const NOMBRE_Y_APELLIDO_POR_RUT: Record<string, string> = {
+  '16.923.839-1': 'Vanesa Aguilar',
+  '19.303.405-5': 'Marcelo Artal',
+  '7.916.433-K': 'Alberto Arancibia',
+  '17.015.033-3': 'Fernando Contreras',
+  '20.946.216-8': 'Williams Barraza',
+  '19.947.990-3': 'Maximiliano Bahamondez',
+  '19.349.310-6': 'Nicolás Bahamondes',
+  '14.352.176-1': 'Max Díaz',
+  '15.740.863-1': 'Claudia Droguett',
+  '17.472.034-7': 'José Escobar',
+  '17.907.237-8': 'Luis Fernández',
+  '18.969.233-1': 'Kevin Guerrero',
+  '19.144.837-5': 'Omar Gutiérrez',
+  '12.667.507-0': 'Carlos Moll',
+  '14.098.389-6': 'Francisco Jara',
+  '18.924.203-4': 'Juan Morata',
+  '15.051.601-3': 'Claudio Orrego',
+  '17.738.483-6': 'Camilo Pailapan',
+  '10.415.558-8': 'Juan Saavedra',
+  '18.710.681-8': 'Patricio Santana',
+  '14.170.333-1': 'Ricardo Riquelme',
+  '16.518.065-8': 'Cesar Orellana',
+  '21.177.930-6': 'German Votterl',
+};
+
+/** Nombre y apellido de una persona del listado, para los informes. */
+export const nombreYApellido = (t: Trabajador): string => NOMBRE_Y_APELLIDO_POR_RUT[t.rut] ?? t.nombre;
+
+/**
  * Personas que también toman conocimiento en Impresión Rápida, además de los supervisores del Informe Diario
  * (por ejemplo, expertos SSO). Se agregan solo aquí, para no cambiar las demás listas de la app.
  */
