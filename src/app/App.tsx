@@ -40,6 +40,7 @@ const MapaSitios = lazy(() => import('../pantallas/MapaSitios'));
 const InformeFallaCarro = lazy(() => import('../informes/InformeFallaCarro'));
 const ImpresionRapida = lazy(() => import('../pantallas/ImpresionRapida'));
 const ReportabilidadGG = lazy(() => import('../pantallas/ReportabilidadGG'));
+const TablaMantenimientoGG = lazy(() => import('../pantallas/TablaMantenimientoGG'));
 const ChecklistCamioneta = lazy(() => import('../informes/checklist/ChecklistCamioneta'));
 const PanelAdmin = lazy(() => import('../admin/PanelAdmin'));
 const ImportadorWord = lazy(() => import('../componentes/ImportadorWord'));
@@ -629,6 +630,10 @@ function AppContenido() {
 
   if (view === 'reportabilidad-gg') {
     return <CargandoPantalla><ReportabilidadGG onBack={() => setView('dashboard')} /></CargandoPantalla>;
+  }
+
+  if (view === 'tabla-mantenimiento') {
+    return <CargandoPantalla><TablaMantenimientoGG onBack={() => setView('dashboard')} /></CargandoPantalla>;
   }
 
   if (view === 'mapa') {

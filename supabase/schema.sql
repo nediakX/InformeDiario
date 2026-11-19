@@ -1105,3 +1105,52 @@ begin
     alter publication supabase_realtime add table public.sin_evidencia;
   end if;
 end $$;
+
+-- ---------------------------------------------------------------------------------------
+-- Tabla de mantenimiento de generadores (horas del último mantenimiento y horas registradas).
+create table if not exists public.mantenimiento_gg (
+  id uuid primary key default gen_random_uuid(),
+  division text not null default 'el_salvador' check (division in ('el_salvador', 'andina')),
+  sitio text not null,
+  nombre text not null default '',
+  ultimo_horas numeric,
+  ultimo_fecha date,
+  horas_registradas numeric,
+  ciclo_dias integer not null default 180 check (ciclo_dias in (180, 210)),
+  refrigerante text,
+  orden integer not null default 0,
+  actualizado_por uuid default auth.uid(),
+  updated_at timestamptz not null default now(),
+  unique (division, sitio)
+);
+alter table public.mantenimiento_gg enable row level security;
+
+drop policy if exists "mantenimiento_gg_select" on public.mantenimiento_gg;
+create policy "mantenimiento_gg_select" on public.mantenimiento_gg
+for select to authenticated using (public.puede_ver_division(division));
+
+drop policy if exists "mantenimiento_gg_insert" on public.mantenimiento_gg;
+create policy "mantenimiento_gg_insert" on public.mantenimiento_gg
+for insert to authenticated with check (public.puede_ver_division(division));
+
+drop policy if exists "mantenimiento_gg_update" on public.mantenimiento_gg;
+create policy "mantenimiento_gg_update" on public.mantenimiento_gg
+for update to authenticated using (public.puede_ver_division(division)) with check (public.puede_ver_division(division));
+
+-- Datos iniciales (al 18-11-2026). No pisa lo que ya se haya editado.
+insert into public.mantenimiento_gg (division, sitio, nombre, ultimo_horas, ultimo_fecha, horas_registradas, ciclo_dias, refrigerante, orden) values
+  ('el_salvador', 'LTE_CMM_05', 'EX Barrio Cívico', 3151, '2026-09-03', 3211, 180, 'Alta', 1),
+  ('el_salvador', 'LTE_CMM_10', 'Cerro Pisquero', 4683, '2026-10-21', 4851, 180, 'Alta', 2),
+  ('el_salvador', 'LTE_CMM_06', 'Mirador Fase 2', 4682, '2026-10-14', 4860, 180, 'Alta', 3),
+  ('el_salvador', 'LTE_CMF_08', 'Ex Garita Rajo Inca', 3433, '2026-11-14', 3441, 180, 'Alta', 4),
+  ('el_salvador', 'LTE_CMF_02', 'Truck shop', 3333, '2026-11-15', 3343, 180, 'Alta', 5),
+  ('el_salvador', 'LTE_CMM_07', 'Campamento Antiguo', 2525, '2026-08-26', 2588, 180, 'Alta', 6),
+  ('el_salvador', 'LTE_CMF_09', 'Cerro La Ballena', 5483, '2026-11-11', 5529, 210, 'Alta', 7),
+  ('el_salvador', 'LTE_11', 'Ex ventiladores', 1208, '2026-09-02', 1379, 180, 'Alta', 8),
+  ('el_salvador', 'LTE_CMF_01', 'Bloquera', 4114, '2026-11-02', 4180, 180, 'Alta', 9),
+  ('el_salvador', 'LTE_CMM_03', 'Cerro Pepa', 5207, '2026-10-28', 5401, 180, 'Alta', 10),
+  ('el_salvador', 'LTE_CM_MMOO_01', 'Chancado Primario', 228, '2025-08-27', 404, 180, 'Alta', 11),
+  ('el_salvador', 'LTE_CMF_04', 'Cerro Antenas', 5201, '2026-11-14', 5227, 210, 'Alta', 12)
+on conflict (division, sitio) do nothing;
+
+notify pgrst, 'reload schema';

@@ -15,11 +15,12 @@
 //   /impresion                 Impresión Rápida
 //   /mapa-sitios               Mapa con la ubicación de los carros
 //   /reportabilidad-gg         Reportabilidad de GG (formulario + tabla de grupos generadores)
+//   /tabla-mantenimiento       Tabla de mantenimiento de generadores (horas, editable)
 //   /perfil                    Mi perfil (datos, contraseña y firma)
 //   /admin/:pestana?           Panel de administración (resumen | actividades | generadores | en-linea | usuarios | actividad | sistema)
 //   /login, /registro          Acceso (solo sin sesión)
 
-export type Vista = 'dashboard' | 'diario' | 'borradores' | 'cierre' | 'presentacion' | 'presentacion-fds' | 'mantenimiento' | 'preventiva' | 'falla-carro' | 'checklist' | 'impresion' | 'reportabilidad-gg' | 'mapa' | 'admin' | 'perfil';
+export type Vista = 'dashboard' | 'diario' | 'borradores' | 'cierre' | 'presentacion' | 'presentacion-fds' | 'mantenimiento' | 'preventiva' | 'falla-carro' | 'checklist' | 'impresion' | 'reportabilidad-gg' | 'tabla-mantenimiento' | 'mapa' | 'admin' | 'perfil';
 export type TipoBorradores = 'diario' | 'mantenimiento' | 'falla';
 export type PestanaAdmin = 'resumen' | 'actividades' | 'generadores' | 'en-linea' | 'usuarios' | 'actividad' | 'sistema';
 
@@ -37,6 +38,7 @@ export const NOMBRE_PANTALLA: Record<Vista, string> = {
   checklist: 'Checklist de Camioneta',
   impresion: 'Impresión Rápida',
   'reportabilidad-gg': 'Reportabilidad de GG',
+  'tabla-mantenimiento': 'Tabla de mantenimiento de generadores',
   mapa: 'Mapa de sitios',
   admin: 'Panel de administración',
   perfil: 'Mi perfil',
@@ -55,6 +57,7 @@ const BASE: Record<Vista, string> = {
   checklist: '/checklist-camioneta',
   impresion: '/impresion',
   'reportabilidad-gg': '/reportabilidad-gg',
+  'tabla-mantenimiento': '/tabla-mantenimiento',
   mapa: '/mapa-sitios',
   admin: '/admin',
   perfil: '/perfil',

@@ -63,7 +63,7 @@ export function esSupervisorGG(perfil: { rut: string | null; rol?: string | null
 /** Bloques del panel principal ("Mini" = versión de una línea, para la columna lateral). */
 export type BloqueInicio = 'contrato' | 'revisar' | 'turno' | 'turnoMini' | 'hoy' | 'generadores' | 'generadoresMini' | 'mapa' | 'accesos';
 /** Accesos directos a pantallas. */
-export type IdTarea = 'checklist' | 'gg' | 'impresion' | 'cierre' | 'presentacion' | 'presentacionFds' | 'falla' | 'mantenimiento' | 'preventiva' | 'mapa' | 'borradores' | 'recuperar' | 'admin';
+export type IdTarea = 'checklist' | 'gg' | 'tablaMantenimiento' | 'impresion' | 'cierre' | 'presentacion' | 'presentacionFds' | 'falla' | 'mantenimiento' | 'preventiva' | 'mapa' | 'borradores' | 'recuperar' | 'admin';
 
 export interface DisenoInicio {
   /** Columna principal: lo que responde la pregunta del rol, en grande. */
@@ -78,8 +78,8 @@ export const DISENO_INICIO: Record<Rol, DisenoInicio> = {
   tecnico: { principal: ['hoy', 'revisar', 'mapa'], lateral: ['accesos', 'turnoMini', 'generadoresMini'], accesos: ['checklist', 'gg', 'falla', 'borradores'] },
   experto_sso: { principal: ['hoy', 'revisar', 'mapa'], lateral: ['accesos', 'turnoMini', 'generadoresMini'], accesos: ['checklist', 'gg', 'falla', 'borradores'] },
   electrico: { principal: ['hoy', 'revisar', 'mapa'], lateral: ['accesos', 'generadoresMini', 'turnoMini'], accesos: ['falla', 'checklist', 'mantenimiento', 'borradores'] },
-  electromecanico: { principal: ['generadores', 'hoy', 'mapa'], lateral: ['accesos', 'turnoMini'], accesos: ['gg', 'mantenimiento', 'checklist', 'borradores'] },
-  supervisor: { principal: ['revisar', 'generadores', 'hoy', 'mapa'], lateral: ['turnoMini', 'accesos'], accesos: ['gg', 'impresion', 'cierre', 'presentacion', 'presentacionFds', 'preventiva', 'borradores'] },
+  electromecanico: { principal: ['generadores', 'hoy', 'mapa'], lateral: ['accesos', 'turnoMini'], accesos: ['gg', 'tablaMantenimiento', 'mantenimiento', 'checklist', 'borradores'] },
+  supervisor: { principal: ['revisar', 'generadores', 'hoy', 'mapa'], lateral: ['turnoMini', 'accesos'], accesos: ['gg', 'tablaMantenimiento', 'impresion', 'cierre', 'presentacion', 'presentacionFds', 'preventiva', 'borradores'] },
   lider_tecnico: { principal: ['revisar', 'generadores', 'hoy', 'mapa'], lateral: ['turnoMini', 'accesos'], accesos: ['gg', 'impresion', 'cierre', 'presentacion', 'presentacionFds', 'preventiva', 'borradores'] },
   ingeniero_especialista: { principal: ['revisar', 'generadores', 'hoy', 'mapa'], lateral: ['turnoMini', 'accesos'], accesos: ['gg', 'impresion', 'cierre', 'presentacion', 'presentacionFds', 'preventiva', 'borradores'] },
   jefe: { principal: ['turno', 'revisar', 'hoy', 'mapa'], lateral: ['generadoresMini', 'accesos'], accesos: ['cierre', 'presentacion', 'presentacionFds', 'impresion', 'gg', 'borradores'] },
