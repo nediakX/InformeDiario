@@ -346,15 +346,6 @@ export function parseOmFds(texto: string): FilaOmFds[] {
   return filas;
 }
 
-/** Escribe las filas de mantenimiento como texto (tabulación): mismo formato que lee parseOmFds. */
-export function textoOmFds(filas: FilaOmFds[]): string {
-  const dmy = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}`;
-  return [
-    'Sitio\tNombre\tHoras último\tFecha último\tDías\tHoras registradas',
-    ...filas.map(f => [f.sitio, f.nombre, f.horasUltimo ?? '', f.fechaUltimo ? dmy(f.fechaUltimo) : '', f.dias, f.horasRegistradas ?? ''].join('\t')),
-  ].join('\n');
-}
-
 const lineasDe = (texto: string) => texto.split('\n').map(l => l.trim()).filter(Boolean);
 
 // ---------------------------------------------------------------------------------------
@@ -535,10 +526,14 @@ export function datosFdsDesde(valor: (clave: string) => string, semana: SemanaTu
 
 /** Textos iniciales del formulario, a partir de los datos armados con los informes y la base. */
 export function textosFdsDesde(datos: DatosFds): Record<string, string> {
-    const textos: Record<string, string> = {
+  const dmy = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}`;
+  const textos: Record<string, string> = {
     resumen: datos.resumenGeneral.join('\n'),
     fechaCorte: datos.fechaCorteOm,
-    om: textoOmFds(datos.om),
+    om: [
+      'Sitio\tNombre\tHoras último\tFecha último\tDías\tHoras registradas',
+      ...datos.om.map(f => [f.sitio, f.nombre, f.horasUltimo ?? '', f.fechaUltimo ? dmy(f.fechaUltimo) : '', f.dias, f.horasRegistradas ?? ''].join('\t')),
+    ].join('\n'),
     cascada: datos.cascadaActividades.join('\n'),
     controles: datos.controles.join('\n'),
     observaciones: datos.observaciones.join('\n'),
