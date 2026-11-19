@@ -7,8 +7,8 @@ import { useSesion } from '../../auth/sesion';
 import { getDefaultPersonal, getPersonalGuardado, type PersonalItem } from '../diario/constantes';
 import type { SemanaTurno } from '../../datos/turnos';
 import {
-  avisosFds, carrosReportandoDe, construirPresentacionFds, datosFdsDesde, fdsDeSemana, nombreArchivoPresentacionFds, rotuloDiaFds,
-  SITIOS_FDS, textosFdsDesde, type DatosAutoFds,
+  avisosFds, carrosReportandoDe, construirPresentacionFds, datosFdsDesde, fdsDeSemana, nombreArchivoPresentacionFds, parseOmFds, rotuloDiaFds,
+  SITIOS_FDS, textosFdsDesde, textoOmFds, type DatosAutoFds, type FilaOmFds,
 } from './modeloFds';
 import { generarPresentacionFds } from './pptxFds';
 
@@ -31,7 +31,6 @@ const TITULO_CAMPO = 'block text-sm font-bold text-[#0E4660] mb-1';
 const TITULO_BLOQUE = 'font-display font-bold text-[#0E4660] text-base';
 const AREA = 'w-full p-2 border border-[#DCE1E6] rounded-md text-sm';
 const numero = new Intl.NumberFormat('es-CL');
-const dmy = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}`;
 
 /** Lista de personal de la presentación (JSON en el formulario); si no se puede leer, lista vacía. */
 const leerPersonal = (texto: string): PersonalItem[] => {
@@ -82,6 +81,7 @@ export default function PresentacionFds({ semana, borradores, auto, cargando, er
     setEdiciones(previas => ({ ...previas, [semana.inicio]: { ...previas[semana.inicio], [clave]: texto } }));
 
   const datos = datosFdsDesde(valor, semana);
+  const filasOm = parseOmFds(valor('om'));
   const avisosPrevios = avisosFds(datos);
   const diasFds = fdsDeSemana(semana).fechas;
   const tieneInforme = (fecha: string) => borradores.some(e => e.fecha === fecha && e.turno === 'dia' && !esSemillaSinEditar(e));
@@ -360,34 +360,52 @@ export default function PresentacionFds({ semana, borradores, auto, cargando, er
           <h3 className={TITULO_BLOQUE}>Mantenimiento preventivo</h3>
           <span className="text-xs text-gray-600">{sitiosCompletos} de {datos.om.length} sitios completos</span>
         </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm border-collapse">
-            <thead>
-              <tr className="text-left text-xs text-[#0E4660] border-b border-[#DCE1E6]">
-                <th className="py-2 pr-3 font-bold">Sitio</th>
-                <th className="py-2 pr-3 font-bold">Nombre</th>
-                <th className="py-2 pr-3 font-bold text-right">Horas último</th>
-                <th className="py-2 pr-3 font-bold">Fecha último</th>
-                <th className="py-2 pr-3 font-bold text-right">Días</th>
-                <th className="py-2 font-bold text-right">Horas registradas</th>
-              </tr>
-            </thead>
-            <tbody>
-              {datos.om.map((f, i) => {
-                const incompleta = f.horasUltimo === null || f.fechaUltimo === null || f.horasRegistradas === null;
-                return (
-                  <tr key={`${f.sitio}-${i}`} className={`border-b border-[#eef1f4] ${incompleta ? 'bg-amber-50' : ''}`}>
-                    <td className="py-1.5 pr-3 font-mono text-xs">{f.sitio}</td>
-                    <td className="py-1.5 pr-3">{f.nombre}</td>
-                    <td className="py-1.5 pr-3 text-right tabular-nums">{f.horasUltimo === null ? '—' : numero.format(f.horasUltimo)}</td>
-                    <td className="py-1.5 pr-3 tabular-nums">{f.fechaUltimo ? dmy(f.fechaUltimo) : '—'}</td>
-                    <td className="py-1.5 pr-3 text-right">{f.dias}</td>
-                    <td className="py-1.5 text-right tabular-nums">{f.horasRegistradas === null ? '—' : numero.format(f.horasRegistradas)}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+        <p className="text-xs text-gray-600">Escribe en cada equipo las horas de su último mantenimiento, la fecha y las horas registradas hoy. Lo que quede en amarillo aún no tiene datos.</p>
+        <div className="grid gap-3 sm:grid-cols-2">
+          {filasOm.map((f, i) => {
+            const incompleta = f.horasUltimo === null || f.fechaUltimo === null || f.horasRegistradas === null;
+            const proxima = f.horasUltimo !== null ? f.horasUltimo + 250 : null;
+            const faltan = proxima !== null && f.horasRegistradas !== null ? proxima - f.horasRegistradas : null;
+            const cambiarFila = (cambio: Partial<FilaOmFds>) => cambiar('om', textoOmFds(filasOm.map((g, j) => (j === i ? { ...g, ...cambio } : g))));
+            return (
+              <div key={`${f.sitio}-${i}`} className={`rounded-lg border p-3 ${incompleta ? 'border-amber-300 bg-amber-50' : 'border-[#DCE1E6] bg-white'}`}>
+                <p className="font-bold text-[#0E4660]">{f.nombre}</p>
+                <p className="text-xs text-gray-500 font-mono">{f.sitio}</p>
+                <div className="mt-3 grid grid-cols-2 gap-3">
+                  <div>
+                    <label htmlFor={`om-hu-${i}`} className="block text-xs font-bold text-[#0E4660] mb-1">Horas del último mantenimiento</label>
+                    <input id={`om-hu-${i}`} type="number" inputMode="numeric" min={0} value={f.horasUltimo ?? ''}
+                      onChange={e => cambiarFila({ horasUltimo: e.target.value === '' ? null : Math.round(Number(e.target.value)) })}
+                      className="w-full min-h-11 p-2 border border-[#DCE1E6] rounded-md text-base tabular-nums" />
+                  </div>
+                  <div>
+                    <label htmlFor={`om-fu-${i}`} className="block text-xs font-bold text-[#0E4660] mb-1">Fecha del último mantenimiento</label>
+                    <input id={`om-fu-${i}`} type="date" value={f.fechaUltimo ?? ''}
+                      onChange={e => cambiarFila({ fechaUltimo: e.target.value || null })}
+                      className="w-full min-h-11 p-2 border border-[#DCE1E6] rounded-md text-base" />
+                  </div>
+                  <div>
+                    <label htmlFor={`om-hr-${i}`} className="block text-xs font-bold text-[#0E4660] mb-1">Horas registradas hoy</label>
+                    <input id={`om-hr-${i}`} type="number" inputMode="numeric" min={0} value={f.horasRegistradas ?? ''}
+                      onChange={e => cambiarFila({ horasRegistradas: e.target.value === '' ? null : Math.round(Number(e.target.value)) })}
+                      className="w-full min-h-11 p-2 border border-[#DCE1E6] rounded-md text-base tabular-nums" />
+                  </div>
+                  <div>
+                    <label htmlFor={`om-d-${i}`} className="block text-xs font-bold text-[#0E4660] mb-1">Cada</label>
+                    <select id={`om-d-${i}`} value={f.dias} onChange={e => cambiarFila({ dias: Number(e.target.value) })}
+                      className="w-full min-h-11 p-2 border border-[#DCE1E6] rounded-md text-base bg-white">
+                      <option value={180}>180 días</option>
+                      <option value={210}>210 días</option>
+                    </select>
+                  </div>
+                </div>
+                <p className="mt-3 text-xs text-gray-700">
+                  Próximo mantenimiento: <span className="font-bold tabular-nums">{proxima === null ? '—' : `${numero.format(proxima)} h`}</span>
+                  {faltan !== null && <> · faltan <span className="font-bold tabular-nums">{numero.format(faltan)} h</span></>}
+                </p>
+              </div>
+            );
+          })}
         </div>
         <details className="text-sm">
           <summary className="cursor-pointer text-xs font-bold text-[#0E4660]">Corregir o pegar desde Excel</summary>
