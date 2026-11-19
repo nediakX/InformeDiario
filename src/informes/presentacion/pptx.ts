@@ -19,8 +19,8 @@ const LAMINA_RESUMEN_NOCHE = 4;
 const LAMINAS_GG = [10, 11];
 const LAMINAS_DIFUSIONES = [13, 14, 15, 16, 17, 18, 19];
 export const MESES_MAYUSCULA = ['ENERO', 'FEBRERO', 'MARZO', 'ABRIL', 'MAYO', 'JUNIO', 'JULIO', 'AGOSTO', 'SEPTIEMBRE', 'OCTUBRE', 'NOVIEMBRE', 'DICIEMBRE'];
-const FOTO_LADO = 1400;
-const FOTO_CALIDAD = 0.85;
+const FOTO_LADO = 1920;
+const FOTO_CALIDAD = 0.9;
 
 /** Resultado de generar: el archivo y los avisos que conviene revisar antes de presentarlo. */
 export interface ResultadoPresentacion {

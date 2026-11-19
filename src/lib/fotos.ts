@@ -2,10 +2,11 @@
 //
 // Las fotos de un celular pesan 4-8 MB (12+ MP). Guardarlas así hace lentos el Word, la subida a
 // la nube y la carga de borradores, sin ganar nada en el informe impreso. Por eso toda foto se
-// reduce al cargarla: lado mayor de 1600 px y JPEG de calidad 0,8 (≈200-400 KB).
+// reduce al cargarla: lado mayor de 2048 px y JPEG de calidad 0,92 (≈400-700 KB). Antes (1600 px y 0,8)
+// las fotos salían borrosas y con bordes dentados al verse en el Word y en el celular.
 
-export const FOTO_LADO_MAXIMO = 1600;
-export const FOTO_CALIDAD_JPEG = 0.8;
+export const FOTO_LADO_MAXIMO = 2048;
+export const FOTO_CALIDAD_JPEG = 0.92;
 
 /** Id corto y único para listas internas del formulario. */
 export const uid = () => `id-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -41,6 +42,9 @@ export async function comprimirDataUrl(src: string, ladoMaximo = FOTO_LADO_MAXIM
     canvas.height = Math.round(h * escala);
     const ctx = canvas.getContext("2d");
     if (!ctx) return src;
+    // Reducir con suavizado alto: con el modo bajo del navegador la foto queda con bordes dentados.
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
     // Fondo blanco: un PNG con transparencia quedaría negro al pasarlo a JPEG.
     ctx.fillStyle = "#ffffff";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
