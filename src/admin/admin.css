@@ -711,3 +711,39 @@
 .viz-table--tarjetas select.select-division { max-width: 9.5rem; }
 .viz-table--tarjetas td { white-space: normal; }
 .viz-table--tarjetas .usuarios-acciones { flex-wrap: wrap !important; }
+
+/* Modo oscuro: las tarjetas y textos del panel usaban tokens claros fijos (tarjetas blancas con texto
+   gris claro, casi ilegible). Aquí se redefinen para que sigan el tema oscuro de la app. */
+html[data-tema-oscuro] .admin-root {
+  --surface-1: #1b2327;
+  --text-primary: #e6ebee;
+  --text-secondary: #c9d2d7;
+  --text-muted: #aab6bc;
+  --gridline: #2e3a41;
+  --baseline: #4a5862;
+  --series-1: #8cc4de;
+  --series-1-track: #24363f;
+  --status-neutral: #262e31;
+  --border: rgba(255, 255, 255, 0.12);
+  --tx-6f6d68: #aab6bc;
+  --tx-7a5b00: #f5d68a;
+  color: var(--text-primary);
+}
+html[data-tema-oscuro] .admin-tabs { border-bottom-color: #3b474e; }
+html[data-tema-oscuro] .admin-root .btn-mini { background: #1b2327; color: #e6ebee; border-color: #3b474e; }
+html[data-tema-oscuro] .admin-root .btn-mini:hover { border-color: #8cc4de; }
+html[data-tema-oscuro] .admin-root .btn-mini--ok { background: #1f7a1f; border-color: #1f7a1f; color: #fff; }
+html[data-tema-oscuro] .admin-root .btn-mini--danger { color: #e38888; }
+html[data-tema-oscuro] .admin-root .meter { background: #2a3840; }
+html[data-tema-oscuro] .admin-root .kpi__label,
+html[data-tema-oscuro] .admin-root .hero__label { color: #c9d2d7; }
+html[data-tema-oscuro] .admin-root .kpi,
+html[data-tema-oscuro] .admin-root .hero,
+html[data-tema-oscuro] .admin-root .viz-card { box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35); }
+html[data-tema-oscuro] .admin-root .conexion--desconectado { color: #aab6bc; }
+html[data-tema-oscuro] .admin-root .conexion--desconectado .conexion__punto { background: #4a5862; }
+html[data-tema-oscuro] .admin-root .usuarios-conteo { color: #aab6bc; }
+html[data-tema-oscuro] .admin-root .usuarios-resumen__alerta { background: #3d341a !important; color: #f5d68a !important; }
+html[data-tema-oscuro] .admin-root .celda--en_curso { color: #e6ebee; }
+html[data-tema-oscuro] .admin-root .celda--iniciado { color: #1a1a1a; }
+html[data-tema-oscuro] .admin-root .celda--sin_fotos { color: #1a1a1a; }
