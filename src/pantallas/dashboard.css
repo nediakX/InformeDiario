@@ -361,3 +361,16 @@
 
 /* Cuadrícula de íconos de Todas las opciones: títulos alineados arriba en cada fila. */
 .dash-grupos .dash-tarea__texto { align-content: start; }
+
+/* --- Celulares muy angostos (hasta 340 px, por ejemplo un plegable cerrado) ----------------------- */
+@media (max-width: 340px) {
+  /* División y vista: cada selector en su propia fila, a todo el ancho y con botones parejos. */
+  .dash-cuenta { flex-wrap: wrap; }
+  .dash-cuenta > * { flex: 1 1 100%; justify-content: center; }
+  .dash-cuenta > [role='radiogroup'] > button { flex: 1 1 0; text-align: center; }
+  /* "Crear otro informe" baja bajo el título si no cabe al lado. */
+  .dash-hoy__cabecera { flex-wrap: wrap; row-gap: 2px; }
+  /* Tarjetas de hoy: el botón pasa abajo, a todo el ancho. */
+  .dash-rol .dash-turno-hoy, .dash-turno-hoy { flex-wrap: wrap; }
+  .dash-turno-hoy__accion { flex: 1 1 100%; justify-content: center; padding: 9px 12px; }
+}

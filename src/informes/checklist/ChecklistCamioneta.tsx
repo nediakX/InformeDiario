@@ -214,17 +214,17 @@ export default function ChecklistCamioneta({ onBack, fechaInicial = null }: { on
               );
             })}
             <form
-              className="flex items-center gap-1.5"
+              className="flex items-center gap-1.5 w-full min-[400px]:w-auto"
               onSubmit={e => { e.preventDefault(); if (nuevaPatente.trim()) { setPatente(nuevaPatente); setNuevaPatente(''); } }}
             >
               <input
                 value={nuevaPatente}
                 onChange={e => setNuevaPatente(e.target.value.toUpperCase())}
                 placeholder={camionetas.size ? 'Otra patente' : 'Patente'}
-                className="w-36 p-2 border border-[#DCE1E6] rounded-md text-sm uppercase"
+                className="flex-1 min-[400px]:flex-none min-[400px]:w-36 p-2 border border-[#DCE1E6] rounded-md text-sm uppercase"
                 aria-label="Patente de la camioneta"
               />
-              <button type="submit" className="btn-outline text-[#0E4660] px-2.5 py-2 rounded-md text-xs font-bold hover:bg-[#d5e7f8] flex items-center gap-1"><Plus size={14} /> Agregar</button>
+              <button type="submit" className="btn-outline text-[#0E4660] px-2.5 py-2 rounded-md text-xs font-bold hover:bg-[#d5e7f8] flex items-center gap-1 shrink-0"><Plus size={14} /> Agregar</button>
             </form>
           </div>
           {!patenteActiva && <p className="text-sm text-gray-500 mt-3">Ingresa la patente de la camioneta para comenzar el checklist de la semana.</p>}

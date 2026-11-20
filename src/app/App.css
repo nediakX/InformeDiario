@@ -817,3 +817,18 @@ html[data-tema-oscuro] .buscador-cabecera__campo input { background-color: trans
   .buscador-fondo { display: block; position: fixed; inset: 0; z-index: 999; background: rgba(10, 14, 16, 0.5); animation: buscadorFondo 0.15s ease-out both; }
 }
 @keyframes buscadorFondo { from { opacity: 0; } to { opacity: 1; } }
+/* Barra superior en celulares muy angostos (hasta 400 px): logo y botones más compactos para dejarle
+   espacio al título. */
+@media (max-width: 400px) {
+  .site-header__inner > div:first-child { gap: 8px !important; padding-left: 10px !important; padding-right: 6px !important; }
+  .site-header__plate { padding: 4px 7px; }
+  .site-header__plate img { height: 16px; }
+  .site-header__title { font-size: 0.98rem !important; }
+  .site-header__cuenta { gap: 4px; padding: 0 8px 0 2px; }
+  .cuenta-boton { padding: 4px; }
+  .cuenta-boton__avatar { width: 30px; height: 30px; font-size: 0.85rem; }
+  .buscador-lupa { width: 32px; height: 32px; }
+}
+/* Los campos de formulario pueden achicarse dentro de filas flexibles (si no, en pantallas muy angostas
+   empujan el botón de al lado fuera de la pantalla). */
+:where(input, select, textarea) { min-width: 0; }

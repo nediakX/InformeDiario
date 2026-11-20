@@ -463,7 +463,7 @@ export default function ImpresionRapida({ onBack }: ImpresionRapidaProps) {
                     </span>
                   </label>
                   {sel.incluir && (
-                    <div className="flex items-center gap-2 flex-shrink-0 text-xs text-gray-600">
+                    <div className="flex flex-wrap items-center gap-2 text-xs text-gray-600">
                       {doc.modo === 'persona' && <span className="font-bold text-[#0E4660]">{incluidas.length} con nombre +</span>}
                       <button type="button" onClick={() => cambiarSeleccion(doc.id, { extra: Math.max(0, sel.extra - 1) })} disabled={sel.extra <= 0} aria-label={`Restar copia de ${doc.nombre}`} className="w-7 h-7 flex items-center justify-center rounded-md border border-[#DCE1E6] text-[#0E4660] hover:bg-[#d5e7f8] disabled:opacity-40"><Minus size={13} /></button>
                       <span className="w-6 text-center font-bold text-sm">{sel.extra}</span>

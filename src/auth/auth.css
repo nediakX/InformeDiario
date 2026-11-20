@@ -40,7 +40,7 @@
   position: relative;
   display: flex;
   min-height: 100vh;
-  min-width: 320px;
+  min-width: 0;
   color: var(--ink);
   font-family: var(--body-font);
   align-items: center;
@@ -705,4 +705,9 @@
   to {
     transform: rotate(360deg);
   }
+}
+
+/* Celulares muy angostos: pestañas y botón sin cortarse. */
+@media (max-width: 320px) {
+  .tab { font-size: 12px; letter-spacing: 0.04em; padding-left: 4px; padding-right: 4px; }
 }
