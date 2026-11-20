@@ -585,7 +585,7 @@ export default function ReportabilidadGG({ onBack }: { onBack: () => void }) {
           </div>
         </section>
         </div>
-        <div className="min-w-0">
+        <div className="min-w-0 space-y-5">
         {/* Tabla */}
         <section id="seccion-reportes" className="panel p-5 space-y-3 scroll-mt-4">
           <div className="flex flex-wrap items-end justify-between gap-3">
