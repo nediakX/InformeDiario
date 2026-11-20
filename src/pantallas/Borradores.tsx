@@ -88,6 +88,8 @@ export default function Borradores({
   const [pidiendoMotivo, setPidiendoMotivo] = useState(false);
   const [motivoSemana, setMotivoSemana] = useState('');
   const [guardandoSemana, setGuardandoSemana] = useState(false);
+  // Semanas anteriores es una opción de la barra superior, como Informe Diario, Mantenimiento o Falla.
+  const [verAnteriores, setVerAnteriores] = useState(false);
   const { division } = useSesion();
   // Andina trabaja solo el Turno Día: la pestaña Noche y la opción de crear uno de noche aparecen
   // únicamente si quedó algún informe de noche guardado.
@@ -320,14 +322,14 @@ export default function Borradores({
 
         <div role="tablist" aria-label="Tipo de informe" className="flex gap-2 flex-wrap">
           {TIPOS_TAB.map(t => {
-            const activo = tipoTab === t.key;
+            const activo = !verAnteriores && tipoTab === t.key;
             return (
               <button
                 key={t.key}
                 type="button"
                 role="tab"
                 aria-selected={activo}
-                onClick={() => onTipoTabChange(t.key)}
+                onClick={() => { setVerAnteriores(false); onTipoTabChange(t.key); }}
                 className={`flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-bold border transition-colors ${
                   activo ? 'bg-[#0E4660] text-white border-[#0E4660]' : 'bg-white text-[#0E4660] border-[#DCE1E6] hover:bg-[#f0f6fb]'
                 }`}
@@ -337,9 +339,45 @@ export default function Borradores({
               </button>
             );
           })}
+          <button type="button" role="tab" aria-selected={verAnteriores} onClick={() => setVerAnteriores(true)}
+            className={`flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-bold border transition-colors ${
+              verAnteriores ? 'bg-[#0E4660] text-white border-[#0E4660]' : 'bg-white text-[#0E4660] border-[#DCE1E6] hover:bg-[#f0f6fb]'
+            }`}>
+            <History size={15} /> Semanas anteriores
+            <span className={`text-[11px] px-1.5 py-0.5 rounded-full ${verAnteriores ? 'bg-white/20' : 'bg-gray-100 text-gray-500'}`}>{totalAnteriores}</span>
+          </button>
         </div>
 
-        {tipoTab === 'diario' ? (
+        {verAnteriores ? (
+          <div className="space-y-4">
+            <div className="panel p-5">
+              <h2 className="font-display font-bold text-lg text-[#0E4660]">Semanas anteriores · {tituloTab}</h2>
+              <p className="text-xs text-gray-500">Semanas ya terminadas, de la más reciente a la más antigua. Abre una para ver sus informes.</p>
+            </div>
+            {totalAnteriores === 0 ? (
+              <div className="panel p-8 text-center text-sm text-gray-500">No hay semanas anteriores guardadas para {tituloTab}.</div>
+            ) : (
+              <div className="space-y-3">
+                {gruposAnteriores.map(({ semana: sem, entries }, indice) => (
+                    <details key={sem.inicio} open={indice === 0} className="group rounded-lg border border-[#dce1e6] bg-white">
+                      <summary className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 cursor-pointer select-none">
+                        <span className="flex items-center gap-2 text-sm font-bold text-[#0E4660]">
+                          <ChevronDown size={16} className="transition-transform group-open:rotate-180" aria-hidden="true" />
+                          Turno {sem.letra} · {rangoSemana(sem)}
+                        </span>
+                        <span className="rounded-full bg-[#eef5fb] px-3 py-0.5 text-xs font-bold text-[#0E4660]">
+                          {entries.length} informe{entries.length === 1 ? '' : 's'}
+                        </span>
+                      </summary>
+                      <div className="space-y-3 border-t border-[#eef1f2] px-4 pb-4 pt-3">
+                        {entries.map(renderEntry)}
+                      </div>
+                    </details>
+                ))}
+              </div>
+            )}
+          </div>
+        ) : tipoTab === 'diario' ? (
           <>
             <div className="panel p-5">
               <div className="flex items-center gap-2 mb-1 flex-wrap">
@@ -470,32 +508,6 @@ export default function Borradores({
               )
             )}
 
-            {totalAnteriores > 0 && (
-              <details className="panel p-5">
-                <summary className="panel__summary font-display font-bold text-lg">
-                  <History size={18} className="panel__summary-icon" strokeWidth={2.2} />
-                  Semanas anteriores · {tituloTab} ({totalAnteriores})
-                </summary>
-                <div className="space-y-5 mt-4">
-                  {gruposAnteriores.map(({ semana: sem, entries }, indice) => (
-                    <details key={sem.inicio} open={indice === 0} className="group rounded-lg border border-[#dce1e6] bg-white">
-                      <summary className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 cursor-pointer select-none">
-                        <span className="flex items-center gap-2 text-sm font-bold text-[#0E4660]">
-                          <ChevronDown size={16} className="transition-transform group-open:rotate-180" aria-hidden="true" />
-                          Turno {sem.letra} · {rangoSemana(sem)}
-                        </span>
-                        <span className="rounded-full bg-[#eef5fb] px-3 py-0.5 text-xs font-bold text-[#0E4660]">
-                          {entries.length} informe{entries.length === 1 ? '' : 's'}
-                        </span>
-                      </summary>
-                      <div className="space-y-3 border-t border-[#eef1f2] px-4 pb-4 pt-3">
-                        {entries.map(renderEntry)}
-                      </div>
-                    </details>
-                  ))}
-                </div>
-              </details>
-            )}
           </>
         ) : (
           <>
