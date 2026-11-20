@@ -344,27 +344,16 @@
   .dash-accesos--compactos .dash-grupo__lista { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
-/* Opciones y accesos rápidos en estilo de app (cuadrícula de íconos, como Facebook o Instagram) */
-.dash-grupos .dash-grupo__lista,
-.dash-accesos:not(.dash-accesos--compactos) .dash-grupo__lista { grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 6px 4px; }
-.dash-grupos .dash-tarea,
-.dash-accesos:not(.dash-accesos--compactos) .dash-tarea {
+/* Todas las opciones en estilo de app (cuadrícula de íconos, como Facebook o Instagram) */
+.dash-grupos .dash-grupo__lista { grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 6px 4px; }
+.dash-grupos .dash-tarea {
   flex-direction: column; justify-content: flex-start; text-align: center; gap: 8px;
   padding: 12px 6px; background: transparent; border: 1px solid transparent; border-radius: 14px;
 }
-.dash-grupos .dash-tarea:hover,
-.dash-accesos:not(.dash-accesos--compactos) .dash-tarea:hover { background: var(--panel-2, #f0f6fb); border-color: transparent; transform: translateY(-2px); }
-.dash-grupos .dash-tarea:focus-visible,
-.dash-accesos:not(.dash-accesos--compactos) .dash-tarea:focus-visible { outline: 2px solid var(--brand-blue, #0E4660); outline-offset: 2px; }
-.dash-grupos .dash-tarea__icono,
-.dash-accesos:not(.dash-accesos--compactos) .dash-tarea__icono { width: 56px; height: 56px; border-radius: 16px; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.14); }
-.dash-grupos .dash-tarea__icono svg,
-.dash-accesos:not(.dash-accesos--compactos) .dash-tarea__icono svg { width: 26px; height: 26px; }
-.dash-grupos .dash-tarea__texto,
-.dash-accesos:not(.dash-accesos--compactos) .dash-tarea__texto { justify-items: center; gap: 2px; }
-.dash-grupos .dash-tarea__titulo,
-.dash-accesos:not(.dash-accesos--compactos) .dash-tarea__titulo { justify-content: center; font-size: 0.8rem; line-height: 1.2; }
-.dash-grupos .dash-tarea__estado,
-.dash-accesos:not(.dash-accesos--compactos) .dash-tarea__estado { font-size: 0.68rem; line-height: 1.25; }
-.dash-grupos .dash-tarea__flecha,
-.dash-accesos:not(.dash-accesos--compactos) .dash-tarea__flecha { display: none; }
+.dash-grupos .dash-tarea:hover { background: var(--panel-2, #f0f6fb); border-color: transparent; }
+.dash-grupos .dash-tarea__icono { width: 56px; height: 56px; border-radius: 16px; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12); }
+.dash-grupos .dash-tarea__icono svg { width: 26px; height: 26px; }
+.dash-grupos .dash-tarea__texto { justify-items: center; gap: 2px; }
+.dash-grupos .dash-tarea__titulo { justify-content: center; font-size: 0.8rem; line-height: 1.2; }
+.dash-grupos .dash-tarea__estado { font-size: 0.68rem; line-height: 1.25; }
+.dash-grupos .dash-tarea__flecha { display: none; }
