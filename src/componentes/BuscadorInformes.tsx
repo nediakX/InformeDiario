@@ -76,8 +76,12 @@ export default function BuscadorInformes() {
     const lista = [...informes].sort((a, b) => b.fecha.localeCompare(a.fecha));
     // Sin búsqueda: los días del turno que está trabajando hoy. Al buscar: todos los informes guardados.
     if (palabras.length === 0) {
-      const semana = semanaDeFecha(hoyLocalISO());
-      return lista.filter(b => b.letraTurno === semana.letra && b.fecha >= semana.inicio && b.fecha <= semana.fin);
+      const hoy = hoyLocalISO();
+      const semana = semanaDeFecha(hoy);
+      // Primero el día de hoy y luego los días del turno desde el primero hasta el último.
+      return lista
+        .filter(b => b.letraTurno === semana.letra && b.fecha >= semana.inicio && b.fecha <= semana.fin)
+        .sort((a, b) => (a.fecha === hoy ? 0 : 1) - (b.fecha === hoy ? 0 : 1) || a.fecha.localeCompare(b.fecha));
     }
     return lista.filter(b => { const t = textoDeBusqueda(b); return palabras.every(p => t.includes(p)); }).slice(0, 60);
   }, [informes, consulta]);
