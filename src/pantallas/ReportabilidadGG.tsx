@@ -448,7 +448,7 @@ export default function ReportabilidadGG({ onBack }: { onBack: () => void }) {
         </section>
 
         {/* Debajo: formulario a la izquierda y tabla de reportes a la derecha en pantallas grandes; en celular van apilados. */}
-        <div className="flex flex-col gap-5">
+        <div className="grid grid-cols-1 lg:grid-cols-[minmax(340px,5fr)_7fr] gap-5 items-start">
         <div className="min-w-0">
         {/* Formulario */}
         <section ref={formRef} className={`panel p-5 space-y-4 scroll-mt-4 ${editando ? 'ring-2 ring-[#ED7D31]' : ''}`}>
