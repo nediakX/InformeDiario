@@ -1,5 +1,5 @@
 import CuentaCabecera from '../componentes/CuentaCabecera';
-import { Fragment, Suspense, lazy, useEffect, useState, type CSSProperties, type ReactNode } from 'react';
+import { Fragment, Suspense, isValidElement, lazy, useEffect, useState, type CSSProperties, type ReactNode } from 'react';
 import { ChevronDown, ClipboardCheck, FileStack, FolderOpen, ChevronRight, Bell, FilePlus, Sun, Moon, Wrench, AlertTriangle, Printer, ShieldCheck, FileUp, Fuel, LayoutGrid, RadioTower, Map as MapIcon, Presentation, CalendarDays, Table2, type LucideIcon } from 'lucide-react';
 import { useSesion, nombreVisible } from '../auth/sesion';
 import { CONFIG_DIVISION } from '../datos/divisiones';
@@ -223,21 +223,40 @@ export default function Dashboard({
       tono={pendientesAprobacion > 0 ? 'aviso' : undefined} /> : null,
   };
 
-  // Todas las opciones, agrupadas por para qué sirven.
+  // Todas las opciones, agrupadas por para qué sirven, con buscador (sin tildes ni mayúsculas).
+  const [busquedaOpc, setBusquedaOpc] = useState('');
+  const buscando = busquedaOpc.trim() !== '';
+  const normalizarOpc = (t: string) => t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  const tituloDeTarea = (el: ReactNode): string => (isValidElement(el) ? String((el.props as { titulo?: string }).titulo ?? '') : '');
+  const coincide = (id: IdTarea) => {
+    const el = tareas[id];
+    if (!el) return false;
+    return !buscando || normalizarOpc(tituloDeTarea(el)).includes(normalizarOpc(busquedaOpc.trim()));
+  };
+  const GRUPOS_OPCIONES: { clave: string; titulo: string; icono: ReactNode; ids: IdTarea[] }[] = [
+    { clave: 'terreno', titulo: 'Registros en terreno', icono: <ClipboardCheck size={15} aria-hidden="true" />, ids: ['checklist', 'gg', 'tablaMantenimiento', 'impresion', 'mapa'] },
+    { clave: 'informes', titulo: 'Otros informes', icono: <FileStack size={15} aria-hidden="true" />, ids: ['cierre', 'presentacion', 'presentacionFds', 'preventiva', 'falla', 'mantenimiento'] },
+    { clave: 'archivo', titulo: 'Archivo', icono: <FolderOpen size={15} aria-hidden="true" />, ids: ['borradores', 'recuperar', 'admin'] },
+  ];
+  const gruposVisibles = GRUPOS_OPCIONES.map(g => ({ ...g, visibles: g.ids.filter(coincide) })).filter(g => g.visibles.length > 0);
+
   const opciones = (
-    <div className="dash-grupos">
-      <section className="dash-grupo" aria-labelledby="dash-grupo-terreno">
-        <h2 id="dash-grupo-terreno" className="dash-grupo__titulo"><ClipboardCheck size={15} aria-hidden="true" /> Registros en terreno</h2>
-        <div className="dash-grupo__lista">{tareas.checklist}{tareas.gg}{tareas.tablaMantenimiento}{tareas.impresion}{tareas.mapa}</div>
-      </section>
-      <section className="dash-grupo" aria-labelledby="dash-grupo-informes">
-        <h2 id="dash-grupo-informes" className="dash-grupo__titulo"><FileStack size={15} aria-hidden="true" /> Otros informes</h2>
-        <div className="dash-grupo__lista">{tareas.cierre}{tareas.presentacion}{tareas.presentacionFds}{tareas.preventiva}{tareas.falla}{tareas.mantenimiento}</div>
-      </section>
-      <section className="dash-grupo" aria-labelledby="dash-grupo-archivo">
-        <h2 id="dash-grupo-archivo" className="dash-grupo__titulo"><FolderOpen size={15} aria-hidden="true" /> Archivo</h2>
-        <div className="dash-grupo__lista">{tareas.borradores}{tareas.recuperar}{tareas.admin}</div>
-      </section>
+    <div className="dash-opciones">
+      <label className="block">
+        <span className="sr-only">Buscar una opción</span>
+        <input type="search" value={busquedaOpc} onChange={e => setBusquedaOpc(e.target.value)}
+          placeholder="Buscar una opción (ej.: gg, cierre, borradores)"
+          className="w-full rounded-lg border border-[#c9d3da] bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0E4660]/30" />
+      </label>
+      <div className="dash-grupos mt-3">
+        {gruposVisibles.map(g => (
+          <section key={g.clave} className="dash-grupo" aria-labelledby={`dash-grupo-${g.clave}`}>
+            <h2 id={`dash-grupo-${g.clave}`} className="dash-grupo__titulo">{g.icono} {g.titulo}</h2>
+            <div className="dash-grupo__lista">{g.visibles.map(id => <Fragment key={id}>{tareas[id]}</Fragment>)}</div>
+          </section>
+        ))}
+        {gruposVisibles.length === 0 && <p className="text-sm text-gray-500">No hay opciones que coincidan con «{busquedaOpc}».</p>}
+      </div>
     </div>
   );
 
@@ -483,7 +502,7 @@ export default function Dashboard({
               {ladoLateral.length > 0 && <aside className="dash-rol__lateral" aria-label="Resumen y accesos">{ladoLateral.map(b => <Fragment key={b}>{bloques[b]}</Fragment>)}</aside>}
             </div>
             {esAndina && diseno.lateral.includes('accesos') && accesos}
-            <details className="dash-mas">
+            <details className="dash-mas" open={buscando ? true : undefined}>
               <summary><ChevronDown size={16} aria-hidden="true" /> Todas las opciones</summary>
               {opciones}
             </details>
