@@ -193,7 +193,7 @@ export default function Dashboard({
     gg: <Tarea icono={Fuel} color="#9a5b00" titulo="Reportabilidad de GG" onClick={() => onNavigate('reportabilidad-gg')}
       estado="Combustible, horómetro, niveles y temperatura" ayuda />,
     tablaMantenimiento: division === 'el_salvador' ? <Tarea icono={Table2} color="#0E4660" titulo="Tabla de mantenimiento GG" onClick={() => onNavigate('tabla-mantenimiento')}
-      estado="Horas de mantenimiento de generadores" /> : null,
+      estado="Mantenimientos, cambio de correa y último reporte de cada GG" /> : null,
     impresion: <Tarea icono={Printer} color="#0E4660" titulo="Impresión rápida" onClick={() => onNavigate('impresion')}
       estado={diaDelTurno === 1 ? 'Imprime el kit de formularios de esta semana' : diaDelTurno >= DIAS_POR_TURNO - 1 ? 'Prepara el kit de la próxima semana' : 'Formularios de faena listos para imprimir'}
       tono={diaDelTurno === 1 || diaDelTurno >= DIAS_POR_TURNO - 1 ? 'aviso' : undefined} />,

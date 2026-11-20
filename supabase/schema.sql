@@ -1123,6 +1123,10 @@ create table if not exists public.mantenimiento_gg (
   horas_registradas numeric,
   ciclo_dias integer not null default 180 check (ciclo_dias in (180, 210)),
   refrigerante text,
+  status_pct smallint not null default 100 check (status_pct between 0 and 100),
+  horas_registradas_en timestamptz,
+  correa_horas numeric,
+  correa_fecha date,
   orden integer not null default 0,
   actualizado_por uuid default auth.uid(),
   updated_at timestamptz not null default now(),
@@ -1157,5 +1161,49 @@ insert into public.mantenimiento_gg (division, sitio, nombre, ultimo_horas, ulti
   ('el_salvador', 'LTE_CM_MMOO_01', 'Chancado Primario', 228, '2025-08-27', 404, 180, 'Alta', 11),
   ('el_salvador', 'LTE_CMF_04', 'Cerro Antenas', 5201, '2026-11-14', 5227, 210, 'Alta', 12)
 on conflict (division, sitio) do nothing;
+
+-- ---------------------------------------------------------------------------------------
+-- Tabla de mantenimiento GG (noviembre 2026): STATUS MMTTO, cuándo se escribieron las horas registradas
+-- (si un reporte de GG es más nuevo, la app usa el reporte) y el último cambio de correa (cada 1500 h).
+-- Se puede correr más de una vez.
+alter table public.mantenimiento_gg
+  add column if not exists status_pct smallint not null default 100 check (status_pct between 0 and 100),
+  add column if not exists horas_registradas_en timestamptz,
+  add column if not exists correa_horas numeric,
+  add column if not exists correa_fecha date;
+
+-- Las horas registradas que ya había quedan con la fecha de su último cambio.
+update public.mantenimiento_gg set horas_registradas_en = updated_at
+where horas_registradas_en is null and horas_registradas is not null;
+
+-- Último cambio de correa (planilla, hoja "Tabla para presentacion"). No pisa lo escrito en la app.
+update public.mantenimiento_gg m
+set correa_horas = v.horas, correa_fecha = v.fecha::date
+from (values
+  ('LTE_CM_MMOO_01', 228, '2025-09-11'),
+  ('LTE_11', 933, '2025-09-10'),
+  ('LTE_CMM_07', 1320, '2025-08-07'),
+  ('LTE_CMF_08', 2650, '2025-10-13'),
+  ('LTE_CMF_02', 3287, '2026-11-05'),
+  ('LTE_CMM_05', 2557, '2025-05-05'),
+  ('LTE_CMF_01', 3262, '2026-06-04'),
+  ('LTE_CMM_10', 4683, '2026-10-28'),
+  ('LTE_CMF_09', 2068, '2025-09-10'),
+  ('LTE_CMM_06', 3571, '2026-06-03'),
+  ('LTE_CMM_03', 4207, '2026-07-29'),
+  ('LTE_CMF_04', 3831, '2025-05-30')
+) as v(sitio, horas, fecha)
+where m.division = 'el_salvador' and m.sitio = v.sitio and m.correa_horas is null and m.correa_fecha is null;
+
+-- En vivo: lo que alguien cambia en la tabla se ve al instante en los otros equipos.
+do $$
+begin
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'mantenimiento_gg'
+  ) then
+    alter publication supabase_realtime add table public.mantenimiento_gg;
+  end if;
+end $$;
 
 notify pgrst, 'reload schema';

@@ -51,6 +51,8 @@ export interface SitioGG {
   alertas: AlertaGG[];
   /** Reportes del periodo, del más antiguo al más reciente (para los minigráficos). */
   serie: ReporteGG[];
+  /** Horas de uso por día típicas del generador (mediana entre reportes), o null si hay pocos datos. */
+  ritmoHorasDia: number | null;
 }
 
 const instante = (r: ReporteGG) => Date.parse(`${r.fecha}T${r.hora ?? '12:00'}:00`);
@@ -150,7 +152,7 @@ export function analizarSitio(sitio: string, reportes: ReporteGG[], hoy: string)
   const estado: EstadoGG = !ultimo ? 'sin_datos'
     : alertas.some(a => a.severidad === 'critico') ? 'critico'
       : alertas.length ? 'atencion' : 'ok';
-  return { sitio, estado, ultimo, diasSinReporte, alertas, serie };
+  return { sitio, estado, ultimo, diasSinReporte, alertas, serie, ritmoHorasDia: deltasHoras.length >= 2 ? ritmoNormal : null };
 }
 
 export function analizarGeneradores(sitios: string[], reportes: ReporteGG[], hoy: string) {

@@ -1,121 +1,274 @@
-// Tabla de mantenimiento de generadores, en formato de planilla: se edita directo en cada celda
-// y cada cambio se guarda solo. Las horas del próximo mantenimiento y las horas restantes se calculan.
-// En el celular cada equipo es una tarjeta con sus campos (la planilla ancha no cabe).
-import { useEffect, useState } from 'react';
-import { ArrowLeft, Check, CircleAlert, Loader2 } from 'lucide-react';
+// Tabla de mantenimiento de generadores (la planilla Excel "Datos GG Generadores", ahora en la app):
+//  - Mantenimiento: los indicadores de la planilla (próximo, faltan, desde el último, fecha estimada,
+//    fecha por año, status), editables celda por celda.
+//  - Cambio de correa: horas y fecha del último cambio y cuándo toca el próximo (cada 1.500 h).
+//  - Reportabilidad: el último reporte de GG de cada generador, sus alertas y los últimos reportes.
+// Las horas actuales salen solas del último reporte de GG (o de lo que se escriba aquí, si es más nuevo).
+import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
+import { ArrowLeft, CloudOff, DatabaseZap, Download, Loader2, TriangleAlert } from 'lucide-react';
+import { saveAs } from 'file-saver';
 import CuentaCabecera from '../componentes/CuentaCabecera';
 import logoPsinet from '../assets/logo_psinet.png';
 import logoEdificio from '../assets/LogoEdificio.png';
 import { useSesion } from '../auth/sesion';
 import { configDivision } from '../datos/divisiones';
-import { OPCIONES_REFRIGERANTE } from '../datos/reportesGG';
-import { HORAS_ENTRE_MANTENIMIENTOS, guardarMantenimientoGG, listarMantenimientoGG, type FilaMantenimientoGG } from '../datos/mantenimientoGG';
+import { hoyLocalISO } from '../datos/fechas';
+import { registrarDeshacer } from '../lib/deshacer';
 import { esErrorDeRed } from '../lib/conexion';
+import { crearLibroExcel, type HojaExcel } from '../lib/excel';
+import {
+  descartarPendienteMantenimientoGG, guardarCambiosMantenimientoGG, listarMantenimientoGG, sincronizarMantenimientoGG,
+  suscribirMantenimientoGG, usePendientesMantenimientoGG, type CambiosMantenimientoGG, type FilaMantenimientoGG, type TablaMantenimientoCargada,
+} from '../datos/mantenimientoGG';
+import {
+  AVISO_DIAS, AVISO_HORAS_CORREA, AVISO_HORAS_MANTENIMIENTO, HORAS_ENTRE_CAMBIOS_CORREA, HORAS_ENTRE_MANTENIMIENTOS,
+  contarEstados, horasActuales, indicadoresCorrea, indicadoresMantenimiento, ultimoConHorometro, type Vencimiento,
+} from '../datos/indicadoresMantenimientoGG';
+import type { EstadoGG } from '../datos/analisisGG';
+import PestanaMantenimiento from './mantenimientoGG/PestanaMantenimiento';
+import PestanaCorrea from './mantenimientoGG/PestanaCorrea';
+import PestanaReportes from './mantenimientoGG/PestanaReportes';
+import DialogoRegistro from './mantenimientoGG/DialogoRegistro';
+import { useAnalisisGG } from './mantenimientoGG/useAnalisisGG';
+import {
+  ETIQUETA_ESTADO, NOMBRE_REFRIGERANTE, cuandoLectura, fmtFecha, fmtHoras,
+  type EquipoCalculado, type EstadoGuardado, type TipoRegistro,
+} from './mantenimientoGG/formato';
+import './mantenimientoGG/mantenimientoGG.css';
 
-type EstadoGuardado = 'guardando' | 'guardado' | 'error';
-type Vencimiento = 'vencido' | 'proximo' | 'al_dia' | 'sin_datos';
-const numero = new Intl.NumberFormat('es-CL');
-const proximaDe = (f: FilaMantenimientoGG) => (f.ultimoHoras === null ? null : f.ultimoHoras + HORAS_ENTRE_MANTENIMIENTOS);
-const restanDe = (f: FilaMantenimientoGG) => {
-  const proxima = proximaDe(f);
-  return proxima === null || f.horasRegistradas === null ? null : proxima - f.horasRegistradas;
+type Pestana = 'mantenimiento' | 'correa' | 'reportes';
+const PESTANAS: { id: Pestana; titulo: string; corto: string }[] = [
+  { id: 'mantenimiento', titulo: 'Mantenimiento', corto: 'Mantención' },
+  { id: 'correa', titulo: 'Cambio de correa', corto: 'Correa' },
+  { id: 'reportes', titulo: 'Reportabilidad', corto: 'Reportes' },
+];
+const CLAVE_PESTANA = 'psinet_mtto_gg_pestana';
+const leerPestana = (): Pestana => {
+  try {
+    const p = localStorage.getItem(CLAVE_PESTANA);
+    return p === 'correa' || p === 'reportes' ? p : 'mantenimiento';
+  } catch { return 'mantenimiento'; }
 };
-const vencimientoDe = (restan: number | null): Vencimiento =>
-  restan === null ? 'sin_datos' : restan <= 0 ? 'vencido' : restan <= 25 ? 'proximo' : 'al_dia';
 
-/** Aviso según las horas que faltan: vencido (rojo), próximo (amarillo), al día (verde). */
-function Aviso({ restan }: { restan: number | null }) {
-  const v = vencimientoDe(restan);
-  if (v === 'sin_datos') return <span className="text-xs text-gray-500">Sin datos</span>;
-  if (v === 'vencido') return <span className="text-xs font-bold rounded-full px-2 py-0.5 bg-[#fde8e8] text-[#9b1c1c] whitespace-nowrap">Vencido</span>;
-  if (v === 'proximo') return <span className="text-xs font-bold rounded-full px-2 py-0.5 bg-[#fff4d6] text-[#7a5200] whitespace-nowrap">Próximo</span>;
-  return <span className="text-xs font-bold rounded-full px-2 py-0.5 bg-[#e6f6e6] text-[#006300] whitespace-nowrap">Al día</span>;
-}
+/** Estado de la Reportabilidad en los mismos colores que los vencimientos. */
+const COLOR_GG: Record<EstadoGG, Vencimiento> = { critico: 'vencido', atencion: 'proximo', ok: 'al_dia', sin_datos: 'sin_datos' };
+const estadoReportes = (e: EquipoCalculado): Vencimiento => (e.gg ? COLOR_GG[e.gg.estado] : 'sin_datos');
+const ESTADO_DE: Record<Pestana, (e: EquipoCalculado) => Vencimiento> = {
+  mantenimiento: e => e.mtto.estado,
+  correa: e => e.correa.estado,
+  reportes: estadoReportes,
+};
+/** Texto de los filtros de cada pestaña ("2 vencidos", "1 en atención"…). */
+const FILTROS: Record<Pestana, Record<Vencimiento, [string, string]>> = {
+  mantenimiento: { vencido: ['vencido', 'vencidos'], proximo: ['próximo', 'próximos'], al_dia: ['al día', 'al día'], sin_datos: ['sin datos', 'sin datos'] },
+  correa: { vencido: ['vencido', 'vencidos'], proximo: ['próximo', 'próximos'], al_dia: ['al día', 'al día'], sin_datos: ['sin datos', 'sin datos'] },
+  reportes: { vencido: ['crítico', 'críticos'], proximo: ['en atención', 'en atención'], al_dia: ['normal', 'normales'], sin_datos: ['sin reportes', 'sin reportes'] },
+};
+const ORDEN_FILTROS: Vencimiento[] = ['vencido', 'proximo', 'al_dia', 'sin_datos'];
 
-function EstadoCelda({ estado }: { estado?: EstadoGuardado }) {
-  if (estado === 'guardando') return <span className="flex items-center gap-1 text-gray-500"><Loader2 size={13} className="animate-spin" /> Guardando</span>;
-  if (estado === 'guardado') return <span className="flex items-center gap-1 text-[#006300]"><Check size={13} /> Guardado</span>;
-  if (estado === 'error') return <span className="flex items-center gap-1 text-[#9b1c1c]"><CircleAlert size={13} /> No se guardó</span>;
-  return null;
-}
-
-const CAMPO = 'w-full min-h-10 px-2 py-1.5 border border-[#DCE1E6] rounded-md text-sm bg-white';
-const ETIQUETA = 'block text-[11px] font-bold text-gray-600 mb-1';
+/** "Reporte 20-11-2026 09:12 (Max Diaz)" para el Excel. */
+const lecturaParaExcel = (e: EquipoCalculado) => {
+  const l = e.actuales;
+  if (!l) return '';
+  const cuando = [l.fecha ? fmtFecha(l.fecha) : '', l.hora ?? ''].filter(Boolean).join(' ');
+  return `${l.fuente === 'reporte' ? 'Reporte' : 'Escrita en la tabla'}${cuando ? ` ${cuando}` : ''}${l.reporta ? ` (${l.reporta})` : ''}`;
+};
 
 export default function TablaMantenimientoGG({ onBack }: { onBack: () => void }) {
   const { division } = useSesion();
-  const [filas, setFilas] = useState<FilaMantenimientoGG[] | null>(null);
+  const hoy = hoyLocalISO();
+  const [tabla, setTabla] = useState<TablaMantenimientoCargada | null>(null);
   const [error, setError] = useState('');
-  const [estados, setEstados] = useState<Record<string, EstadoGuardado>>({});
+  const [version, setVersion] = useState(0);
+  const [pestana, setPestana] = useState<Pestana>(leerPestana);
+  const [filtro, setFiltro] = useState<Vencimiento | null>(null);
+  const [guardados, setGuardados] = useState<Record<string, EstadoGuardado>>({});
+  const [registro, setRegistro] = useState<{ tipo: TipoRegistro; sitio: string } | null>(null);
+  const [descargando, setDescargando] = useState(false);
+  const [avisoExcel, setAvisoExcel] = useState('');
+  const pendientes = usePendientesMantenimientoGG(division);
+  const { analisis, error: errorReportes } = useAnalisisGG(division);
+  // Guardados en curso: si llega un cambio de otra persona mientras tanto, se recarga al terminar
+  // (así una recarga no muestra por un momento el valor anterior de lo que se está guardando).
+  const enCurso = useRef(0);
+  const recargarAlTerminar = useRef(false);
 
   useEffect(() => {
     let vivo = true;
     listarMantenimientoGG(division)
-      .then(r => { if (vivo) { setFilas(r); setError(''); } })
+      .then(t => { if (vivo) { setTabla(t); setError(''); } })
       .catch(e => {
-        if (vivo) setError(esErrorDeRed(e) ? 'Sin conexión: no se pudo cargar la tabla.' : 'No se pudo cargar la tabla. ¿Ya se creó la tabla mantenimiento_gg en Supabase?');
+        if (!vivo) return;
+        setError(esErrorDeRed(e)
+          ? 'Sin conexión: esta tabla todavía no se ha abierto con señal en este equipo. Ábrela una vez con conexión para tenerla también sin señal.'
+          : 'No se pudo cargar la tabla. ¿Ya se creó la tabla mantenimiento_gg en Supabase?');
       });
     return () => { vivo = false; };
+  }, [division, version]);
+
+  // Cambios de otras personas (se ven al instante) y cambios que quedaron sin subir por falta de señal.
+  useEffect(() => suscribirMantenimientoGG(division, () => {
+    if (enCurso.current) recargarAlTerminar.current = true;
+    else setVersion(v => v + 1);
+  }), [division]);
+  useEffect(() => { void sincronizarMantenimientoGG(); }, []);
+
+  const guardar = useCallback((sitio: string, cambios: CambiosMantenimientoGG) => {
+    setTabla(t => t && { ...t, filas: t.filas.map(f => (f.sitio === sitio ? { ...f, ...cambios } : f)) });
+    setGuardados(g => ({ ...g, [sitio]: 'guardando' }));
+    enCurso.current += 1;
+    guardarCambiosMantenimientoGG(division, sitio, cambios)
+      .then(r => {
+        setGuardados(g => ({ ...g, [sitio]: r }));
+        if (r === 'falta_bd') setTabla(t => t && { ...t, faltaActualizarBD: true });
+      })
+      .catch(error => {
+        console.error('No se pudo guardar la tabla de mantenimiento GG:', error);
+        setGuardados(g => ({ ...g, [sitio]: 'error' }));
+        recargarAlTerminar.current = true; // vuelve a mostrar lo que de verdad quedó guardado
+      })
+      .finally(() => {
+        enCurso.current -= 1;
+        if (!enCurso.current && recargarAlTerminar.current) {
+          recargarAlTerminar.current = false;
+          setVersion(v => v + 1);
+        }
+      });
   }, [division]);
 
-  const guardar = async (f: FilaMantenimientoGG) => {
-    setEstados(e => ({ ...e, [f.sitio]: 'guardando' }));
+  const abrirRegistro = useCallback((tipo: TipoRegistro, sitio: string) => setRegistro({ tipo, sitio }), []);
+  const cerrarRegistro = useCallback(() => setRegistro(null), []);
+  const acciones = useMemo(() => ({ guardar, registrar: abrirRegistro }), [guardar, abrirRegistro]);
+
+  // Cada equipo con sus horas actuales (último reporte o lo escrito, lo más nuevo) y sus indicadores.
+  const equipos = useMemo<EquipoCalculado[]>(() => (tabla?.filas ?? []).map(fila => {
+    const gg = analisis?.porSitio.get(fila.sitio) ?? null;
+    const actuales = horasActuales(fila, gg ? ultimoConHorometro(gg.serie) : null);
+    const ritmo = gg?.ritmoHorasDia ?? null;
+    return { fila, gg, actuales, ritmo, mtto: indicadoresMantenimiento(fila, actuales, hoy, ritmo), correa: indicadoresCorrea(fila, actuales, hoy, ritmo) };
+  }), [tabla, analisis, hoy]);
+
+  const conteos = useMemo(() => ({
+    mantenimiento: contarEstados(equipos.map(ESTADO_DE.mantenimiento)),
+    correa: contarEstados(equipos.map(ESTADO_DE.correa)),
+    reportes: contarEstados(equipos.map(ESTADO_DE.reportes)),
+  }), [equipos]);
+  const conteo = conteos[pestana];
+  // Si después de un cambio ya no queda ninguno en el estado elegido, se vuelve a ver todos.
+  const filtroActivo = filtro && conteo[filtro] > 0 ? filtro : null;
+  const visibles = filtroActivo ? equipos.filter(e => ESTADO_DE[pestana](e) === filtroActivo) : equipos;
+  const reportesListos = !!analisis;
+  // "Sin señal" deja de mostrarse en el equipo apenas su cambio sube.
+  const guardadosVisibles = useMemo(() => {
+    const enCola = new Set(pendientes.map(p => p.sitio));
+    return Object.fromEntries(Object.entries(guardados).map(([sitio, e]) => [sitio, e === 'pendiente' && !enCola.has(sitio) ? 'guardado' : e])) as Record<string, EstadoGuardado>;
+  }, [guardados, pendientes]);
+
+  const cambiarPestana = (p: Pestana) => {
+    setPestana(p);
+    setFiltro(null);
+    try { localStorage.setItem(CLAVE_PESTANA, p); } catch { /* sin almacenamiento */ }
+  };
+  // Flechas izquierda/derecha entre pestañas (como en cualquier lista de pestañas).
+  const alTeclearPestanas = (e: KeyboardEvent<HTMLDivElement>) => {
+    if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+    const i = PESTANAS.findIndex(p => p.id === pestana);
+    const siguiente = PESTANAS[(i + (e.key === 'ArrowRight' ? 1 : PESTANAS.length - 1)) % PESTANAS.length].id;
+    cambiarPestana(siguiente);
+    document.getElementById(`mgg-pestana-${siguiente}`)?.focus();
+  };
+
+  const confirmarRegistro = (cambios: CambiosMantenimientoGG) => {
+    const pedido = registro;
+    const equipo = pedido && equipos.find(x => x.fila.sitio === pedido.sitio);
+    if (!pedido || !equipo) return;
+    const anteriores = Object.fromEntries(Object.keys(cambios).map(k => [k, equipo.fila[k as keyof FilaMantenimientoGG]])) as CambiosMantenimientoGG;
+    guardar(pedido.sitio, cambios);
+    setRegistro(null);
+    const nombre = equipo.fila.nombre || equipo.fila.sitio;
+    registrarDeshacer(
+      pedido.tipo === 'mantenimiento' ? `Mantenimiento registrado: ${nombre}` : `Cambio de correa registrado: ${nombre}`,
+      () => guardar(pedido.sitio, anteriores),
+    );
+  };
+
+  const descargarExcel = async () => {
+    setDescargando(true);
+    setAvisoExcel('');
     try {
-      await guardarMantenimientoGG(division, f);
-      setEstados(e => ({ ...e, [f.sitio]: 'guardado' }));
-    } catch {
-      setEstados(e => ({ ...e, [f.sitio]: 'error' }));
+      const mtto: HojaExcel = {
+        nombre: 'Mantenimiento GG',
+        columnas: [
+          { titulo: 'Sitio', tipo: 'texto', ancho: 17 }, { titulo: 'Nombre del Equipo', tipo: 'texto', ancho: 22 },
+          { titulo: 'Último Mantenimiento (hrs)', tipo: 'numero', ancho: 13 }, { titulo: 'Fecha Último Mantenimiento', tipo: 'fecha', ancho: 14 },
+          { titulo: 'STATUS MMTTO', tipo: 'porcentaje', ancho: 10 }, { titulo: 'Próximo Mantenimiento (hrs)', tipo: 'numero', ancho: 13 },
+          { titulo: 'Horas de Mantenimiento', tipo: 'numero', ancho: 12 }, { titulo: 'Días de mantenimiento', tipo: 'numero', ancho: 12 },
+          { titulo: 'Fecha Estimada Próximo Mantenimiento', tipo: 'fecha', ancho: 16 }, { titulo: 'Fecha Mantenimiento Por Año', tipo: 'fecha', ancho: 15 },
+          { titulo: 'Nivel de refrigerante', tipo: 'texto', ancho: 12 }, { titulo: `Horas Registradas al ${fmtFecha(hoy)}`, tipo: 'numero', ancho: 14 },
+          { titulo: 'Lectura de las horas', tipo: 'texto', ancho: 34 }, { titulo: 'Horas restantes para el próximo MTTO', tipo: 'numero', ancho: 15 },
+          { titulo: 'Horas desde Último Mantenimiento', tipo: 'numero', ancho: 15 }, { titulo: 'status', tipo: 'numero', ancho: 9 },
+          { titulo: 'Estado', tipo: 'texto', ancho: 11 }, { titulo: 'Llega a las 250 h (aprox.)', tipo: 'fecha', ancho: 14 },
+        ],
+        filas: equipos.map(e => {
+          const { fila: f, mtto: m } = e;
+          return [
+            f.sitio, f.nombre, f.ultimoHoras, f.ultimoFecha, f.statusPct / 100, m.proximoHoras, HORAS_ENTRE_MANTENIMIENTOS, f.cicloDias,
+            m.fechaEstimada, m.fechaAnual, NOMBRE_REFRIGERANTE[f.refrigerante ?? ''] ?? f.refrigerante, e.actuales?.valor ?? null,
+            lecturaParaExcel(e), m.faltanHoras, m.desdeUltimo, m.desdeUltimo === null ? null : m.desdeUltimo - HORAS_ENTRE_MANTENIMIENTOS,
+            ETIQUETA_ESTADO[m.estado], m.fechaPorHoras,
+          ];
+        }),
+      };
+      const correa: HojaExcel = {
+        nombre: 'Cambio de correa',
+        columnas: [
+          { titulo: 'Sitio', tipo: 'texto', ancho: 17 }, { titulo: 'Nombre del Equipo', tipo: 'texto', ancho: 22 },
+          { titulo: 'Horas del Último Cambio de Correa', tipo: 'numero', ancho: 15 }, { titulo: 'Último Cambio de correa (Fecha)', tipo: 'fecha', ancho: 15 },
+          { titulo: 'Próximo Cambio de correa (Horas)', tipo: 'numero', ancho: 15 }, { titulo: 'Horas Registradas', tipo: 'numero', ancho: 12 },
+          { titulo: 'Horas restantes para el cambio', tipo: 'numero', ancho: 14 }, { titulo: 'Horas desde el último cambio', tipo: 'numero', ancho: 14 },
+          { titulo: 'Estado', tipo: 'texto', ancho: 11 },
+        ],
+        filas: equipos.map(e => [
+          e.fila.sitio, e.fila.nombre, e.fila.correaHoras, e.fila.correaFecha, e.correa.proximoHoras, e.actuales?.valor ?? null,
+          e.correa.faltanHoras, e.correa.desdeUltimo, ETIQUETA_ESTADO[e.correa.estado],
+        ]),
+      };
+      const reportes: HojaExcel = {
+        nombre: 'Último reporte GG',
+        columnas: [
+          { titulo: 'Sitio', tipo: 'texto', ancho: 17 }, { titulo: 'Nombre del Equipo', tipo: 'texto', ancho: 22 },
+          { titulo: 'Fecha', tipo: 'fecha', ancho: 12 }, { titulo: 'Hora', tipo: 'hora', ancho: 8 },
+          { titulo: 'P Q REPORTA', tipo: 'texto', ancho: 20 }, { titulo: 'TURNO', tipo: 'texto', ancho: 10 },
+          { titulo: 'Horómetro', tipo: 'numero', ancho: 11 }, { titulo: 'Uso diario (h/día)', tipo: 'numero', ancho: 11 },
+          { titulo: 'Nro Partidas', tipo: 'numero', ancho: 11 }, { titulo: 'Combustible', tipo: 'texto', ancho: 11 },
+          { titulo: 'Nivel de Refrigerante', tipo: 'texto', ancho: 13 }, { titulo: 'Nivel de Aceite', tipo: 'texto', ancho: 13 },
+          { titulo: 'Temperatura del Generador', tipo: 'numero', ancho: 13 }, { titulo: 'Estado', tipo: 'texto', ancho: 12 },
+          { titulo: 'Alertas', tipo: 'texto', ancho: 40 }, { titulo: 'Observaciones', tipo: 'texto', ancho: 40 },
+        ],
+        filas: equipos.map(e => {
+          const u = e.gg?.ultimo ?? null;
+          return [
+            e.fila.sitio, e.fila.nombre, u?.fecha, u?.hora, u?.reporta, u?.turno, u?.horometro ?? null,
+            e.ritmo === null ? null : Math.round(e.ritmo * 10) / 10, u?.nroPartidas ?? null, u?.combustible, u?.nivelRefrigerante,
+            u?.nivelAceite, u?.temperatura ?? null, e.gg ? { critico: 'Crítico', atencion: 'Atención', ok: 'Normal', sin_datos: 'Sin reportes' }[e.gg.estado] : 'Sin reportes',
+            (e.gg?.alertas ?? []).map(a => a.titulo).join(' · '), u?.observaciones,
+          ];
+        }),
+      };
+      saveAs(await crearLibroExcel([mtto, correa, reportes]), `Mantenimiento_GG_${hoy}.xlsx`);
+    } catch (error) {
+      console.error('No se pudo generar el Excel de mantenimiento GG:', error);
+      setAvisoExcel('No se pudo generar el Excel.');
+    } finally {
+      setDescargando(false);
     }
   };
 
-  /** Cambia una celda. `ahora` guarda al instante (listas y fechas); los números se guardan al salir de la celda. */
-  const actualizar = (i: number, cambio: Partial<FilaMantenimientoGG>, ahora: boolean) => {
-    if (!filas) return;
-    const nueva = { ...filas[i], ...cambio };
-    setFilas(filas.map((f, j) => (j === i ? nueva : f)));
-    if (ahora) void guardar(nueva);
-  };
-
-  const aNumero = (texto: string) => (texto.trim() === '' ? null : Math.round(Number(texto)));
-
-  // Resumen de vencimientos (arriba de la tabla).
-  const conteo = (filas ?? []).reduce<Record<Vencimiento, number>>((n, f) => {
-    n[vencimientoDe(restanDe(f))] += 1;
-    return n;
-  }, { vencido: 0, proximo: 0, al_dia: 0, sin_datos: 0 });
-
-  // Campos de cada equipo (los mismos en la planilla y en las tarjetas del celular).
-  const campoUltimasHoras = (f: FilaMantenimientoGG, i: number) => (
-    <input type="number" inputMode="numeric" min={0} aria-label={`${f.nombre}: últimas horas del mantenimiento`}
-      value={f.ultimoHoras ?? ''} className={CAMPO}
-      onChange={e => actualizar(i, { ultimoHoras: aNumero(e.target.value) }, false)}
-      onBlur={() => void guardar(filas![i])} />
-  );
-  const campoFecha = (f: FilaMantenimientoGG, i: number) => (
-    <input type="date" aria-label={`${f.nombre}: fecha del último mantenimiento`}
-      value={f.ultimoFecha ?? ''} className={CAMPO}
-      onChange={e => actualizar(i, { ultimoFecha: e.target.value || null }, true)} />
-  );
-  const campoHorasRegistradas = (f: FilaMantenimientoGG, i: number) => (
-    <input type="number" inputMode="numeric" min={0} aria-label={`${f.nombre}: horas registradas`}
-      value={f.horasRegistradas ?? ''} className={CAMPO}
-      onChange={e => actualizar(i, { horasRegistradas: aNumero(e.target.value) }, false)}
-      onBlur={() => void guardar(filas![i])} />
-  );
-  const campoCiclo = (f: FilaMantenimientoGG, i: number) => (
-    <select aria-label={`${f.nombre}: cada cuántos días`} value={f.cicloDias} className={CAMPO}
-      onChange={e => actualizar(i, { cicloDias: Number(e.target.value) }, true)}>
-      <option value={180}>180 días</option>
-      <option value={210}>210 días</option>
-    </select>
-  );
-  const campoRefrigerante = (f: FilaMantenimientoGG, i: number) => (
-    <select aria-label={`${f.nombre}: nivel de refrigerante`} value={f.refrigerante ?? ''} className={CAMPO}
-      onChange={e => actualizar(i, { refrigerante: e.target.value || null }, true)}>
-      <option value="">—</option>
-      {OPCIONES_REFRIGERANTE.map(o => <option key={o} value={o}>{o}</option>)}
-    </select>
-  );
+  const rechazados = pendientes.filter(p => p.rechazo);
+  const equipoRegistro = registro ? equipos.find(e => e.fila.sitio === registro.sitio) : undefined;
+  const copiaTabla = tabla?.copiaDel ?? null;
+  const copiaReportes = analisis?.copiaDel ?? null;
+  const cuandoCopia = (iso: string) => { const d = new Date(iso); return cuandoLectura({ fecha: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`, hora: `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}` }); };
 
   return (
     <div className="min-h-screen pb-16">
@@ -125,7 +278,7 @@ export default function TablaMantenimientoGG({ onBack }: { onBack: () => void })
             <div className="site-header__plate"><img src={logoPsinet} alt="PSINet" /></div>
             <div className="min-w-0">
               <div className="site-header__title font-display font-bold text-xl leading-tight truncate">Tabla de mantenimiento GG</div>
-              <div className="site-header__meta text-xs truncate">{configDivision(division).sigla} / Horas de mantenimiento de generadores</div>
+              <div className="site-header__meta text-xs truncate">{configDivision(division).sigla} / Mantenimiento, correa y reportes de los generadores</div>
             </div>
           </div>
           <CuentaCabecera />
@@ -134,114 +287,117 @@ export default function TablaMantenimientoGG({ onBack }: { onBack: () => void })
         <div className="site-header__rule" />
       </header>
 
-      <main className="max-w-[1280px] mx-auto p-4 sm:p-5 space-y-4">
-        <button type="button" onClick={onBack} className="btn-outline text-[#0E4660] px-3 py-1.5 rounded-md text-xs font-bold hover:bg-[#d5e7f8] flex items-center gap-1.5">
-          <ArrowLeft size={14} /> Volver al menú
-        </button>
+      <main className="mgg-main mx-auto p-4 sm:p-5 space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <button type="button" onClick={onBack} className="btn-outline text-[#0E4660] px-3 py-1.5 rounded-md text-xs font-bold hover:bg-[#d5e7f8] flex items-center gap-1.5">
+            <ArrowLeft size={14} /> Volver al menú
+          </button>
+          <button type="button" onClick={() => void descargarExcel()} disabled={!equipos.length || descargando}
+            className="btn-outline text-[#0E4660] px-3 py-1.5 rounded-md text-xs font-bold hover:bg-[#d5e7f8] flex items-center gap-1.5 disabled:opacity-50">
+            {descargando ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />} Descargar Excel
+          </button>
+        </div>
+        {avisoExcel && <p className="mgg-aviso mgg-aviso--error" role="alert">{avisoExcel}</p>}
 
-        <section className="panel p-4 sm:p-5 space-y-3" aria-labelledby="tabla-mtto-gg">
-          <div className="flex flex-wrap items-end justify-between gap-3">
-            <div className="min-w-0">
-              <h1 id="tabla-mtto-gg" className="font-display font-bold text-lg text-[#0E4660]">Tabla de mantenimiento de generadores</h1>
-              <p className="text-xs text-gray-600">Escribe las horas y la fecha de cada equipo. Se guarda al salir de cada campo. Próximo mantenimiento = últimas horas + {HORAS_ENTRE_MANTENIMIENTOS}.</p>
-            </div>
-            {filas && filas.length > 0 && (
-              <div className="flex flex-wrap gap-1.5" aria-label="Resumen de vencimientos">
-                {conteo.vencido > 0 && <span className="text-xs font-bold rounded-full px-2.5 py-1 bg-[#fde8e8] text-[#9b1c1c]">{conteo.vencido} vencido{conteo.vencido === 1 ? '' : 's'}</span>}
-                {conteo.proximo > 0 && <span className="text-xs font-bold rounded-full px-2.5 py-1 bg-[#fff4d6] text-[#7a5200]">{conteo.proximo} próximo{conteo.proximo === 1 ? '' : 's'}</span>}
-                <span className="text-xs font-bold rounded-full px-2.5 py-1 bg-[#e6f6e6] text-[#006300]">{conteo.al_dia} al día</span>
-              </div>
-            )}
+        <section className="panel mgg-panel" aria-labelledby="mgg-titulo">
+          <div className="mgg-encabezado">
+            <h1 id="mgg-titulo" className="font-display">Tabla de mantenimiento de generadores</h1>
+            <p>
+              Mantenimiento cada {HORAS_ENTRE_MANTENIMIENTOS} h o cada 180/210 días, lo que ocurra primero · correa cada {fmtHoras(HORAS_ENTRE_CAMBIOS_CORREA)} h.
+              {' '}Las horas actuales salen solas del último reporte de GG.
+            </p>
           </div>
 
-          {error && <p className="text-sm text-red-800 bg-red-50 border border-red-200 rounded-md p-3">{error}</p>}
-          {!error && filas === null && (
-            <p className="text-sm text-gray-600 flex items-center gap-2"><Loader2 size={16} className="animate-spin" /> Cargando tabla…</p>
+          {(copiaTabla || copiaReportes) && (
+            <p className="mgg-aviso mgg-aviso--sin-senal">
+              <CloudOff size={15} aria-hidden="true" />
+              <span>Sin conexión: estás viendo {copiaTabla ? `la tabla guardada en este equipo (${cuandoCopia(copiaTabla)})` : 'la tabla'}{copiaReportes ? ` y los reportes de GG guardados (${cuandoCopia(copiaReportes)})` : ''}. Lo que cambies se sube solo al volver la señal.</span>
+            </p>
+          )}
+          {pendientes.length > rechazados.length && (
+            <p className="mgg-aviso mgg-aviso--sin-senal" role="status">
+              <CloudOff size={15} aria-hidden="true" />
+              <span>Cambios de {pendientes.length - rechazados.length === 1 ? 'un generador' : `${pendientes.length - rechazados.length} generadores`} guardados solo en este equipo: se suben solos apenas vuelva la señal.</span>
+            </p>
+          )}
+          {rechazados.map(p => (
+            <p key={p.sitio} className="mgg-aviso mgg-aviso--error" role="alert">
+              <TriangleAlert size={15} aria-hidden="true" />
+              <span>La nube no aceptó los cambios de {p.sitio} ({p.rechazo}). <button type="button" className="mgg-enlace" onClick={() => { descartarPendienteMantenimientoGG(division, p.sitio); setVersion(v => v + 1); }}>Descartar esos cambios</button></span>
+            </p>
+          ))}
+          {tabla?.faltaActualizarBD && (
+            <p className="mgg-aviso mgg-aviso--base">
+              <DatabaseZap size={15} aria-hidden="true" />
+              <span>Falta una actualización de la base de datos (avísale al administrador): por ahora no se pueden guardar el status del mantenimiento ni el cambio de correa. Lo demás se guarda normal.</span>
+            </p>
           )}
 
-          {filas && (
-            <>
-              {/* Planilla (pantallas anchas) */}
-              <div className="hidden lg:block overflow-x-auto">
-                <table className="min-w-[980px] w-full text-sm border-collapse">
-                  <thead>
-                    <tr className="text-left text-xs text-[#0E4660] border-b border-[#DCE1E6]">
-                      <th className="py-2 pr-3 font-bold">Equipo</th>
-                      <th className="py-2 pr-3 font-bold">Últimas horas (mantenimiento)</th>
-                      <th className="py-2 pr-3 font-bold">Fecha último mantenimiento</th>
-                      <th className="py-2 pr-3 font-bold">Horas registradas</th>
-                      <th className="py-2 pr-3 font-bold">Próximo (h)</th>
-                      <th className="py-2 pr-3 font-bold">Faltan (h)</th>
-                      <th className="py-2 pr-3 font-bold">Estado</th>
-                      <th className="py-2 pr-3 font-bold">Cada</th>
-                      <th className="py-2 pr-3 font-bold">Refrigerante</th>
-                      <th className="py-2 font-bold">Guardado</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filas.map((f, i) => {
-                      const restan = restanDe(f);
-                      const proxima = proximaDe(f);
-                      return (
-                        <tr key={f.sitio} className="border-b border-[#eef1f4] align-middle">
-                          <td className="py-1.5 pr-3">
-                            <div className="font-bold text-[#0E4660]">{f.nombre}</div>
-                            <div className="text-[11px] text-gray-500 font-mono">{f.sitio}</div>
-                          </td>
-                          <td className="py-1.5 pr-3 w-36">{campoUltimasHoras(f, i)}</td>
-                          <td className="py-1.5 pr-3 w-40">{campoFecha(f, i)}</td>
-                          <td className="py-1.5 pr-3 w-36">{campoHorasRegistradas(f, i)}</td>
-                          <td className="py-1.5 pr-3 text-right tabular-nums">{proxima === null ? '—' : numero.format(proxima)}</td>
-                          <td className="py-1.5 pr-3 text-right tabular-nums font-bold">{restan === null ? '—' : numero.format(restan)}</td>
-                          <td className="py-1.5 pr-3"><Aviso restan={restan} /></td>
-                          <td className="py-1.5 pr-3 w-28">{campoCiclo(f, i)}</td>
-                          <td className="py-1.5 pr-3 w-32">{campoRefrigerante(f, i)}</td>
-                          <td className="py-1.5 text-xs"><EstadoCelda estado={estados[f.sitio]} /></td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
+          {error && <p className="mgg-aviso mgg-aviso--error">{error}</p>}
+          {!error && tabla === null && <p className="mgg-aviso"><Loader2 size={15} className="animate-spin" aria-hidden="true" /> Cargando tabla…</p>}
+          {tabla && tabla.filas.length === 0 && <p className="mgg-aviso">Esta división todavía no tiene generadores en la tabla de mantenimiento.</p>}
 
-              {/* Tarjetas (celular y tablet: dos columnas) */}
-              <ul className="lg:hidden grid gap-3 sm:grid-cols-2">
-                {filas.map((f, i) => {
-                  const restan = restanDe(f);
-                  const proxima = proximaDe(f);
-                  const v = vencimientoDe(restan);
-                  const borde = v === 'vencido' ? 'border-l-[#b3261e]' : v === 'proximo' ? 'border-l-[#d39b00]' : v === 'al_dia' ? 'border-l-[#1e8e3e]' : 'border-l-[#c9d3da]';
+          {tabla && tabla.filas.length > 0 && (
+            <>
+              <div className="mgg-pestanas" role="tablist" aria-label="Tablas" onKeyDown={alTeclearPestanas}>
+                {PESTANAS.map(p => {
+                  const c = conteos[p.id];
+                  const listo = p.id !== 'reportes' || reportesListos;
+                  const marca = !listo ? null : c.vencido ? { n: c.vencido, tipo: 'vencido' } : c.proximo ? { n: c.proximo, tipo: 'proximo' } : null;
                   return (
-                    <li key={f.sitio} className={`rounded-lg border border-[#DCE1E6] border-l-4 ${borde} p-3 space-y-3`}>
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0">
-                          <div className="font-bold text-[#0E4660] leading-tight">{f.nombre}</div>
-                          <div className="text-[11px] text-gray-500 font-mono">{f.sitio}</div>
-                        </div>
-                        <Aviso restan={restan} />
-                      </div>
-                      <div className="grid grid-cols-2 gap-2">
-                        <label><span className={ETIQUETA}>Últimas horas</span>{campoUltimasHoras(f, i)}</label>
-                        <label><span className={ETIQUETA}>Fecha último</span>{campoFecha(f, i)}</label>
-                        <label><span className={ETIQUETA}>Horas registradas</span>{campoHorasRegistradas(f, i)}</label>
-                        <label><span className={ETIQUETA}>Cada</span>{campoCiclo(f, i)}</label>
-                        <label className="col-span-2"><span className={ETIQUETA}>Refrigerante</span>{campoRefrigerante(f, i)}</label>
-                      </div>
-                      <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
-                        <span className="text-gray-600">
-                          Próximo <strong className="tabular-nums text-[#222]">{proxima === null ? '—' : `${numero.format(proxima)} h`}</strong>
-                          {' · '}Faltan <strong className="tabular-nums text-[#222]">{restan === null ? '—' : `${numero.format(restan)} h`}</strong>
+                    <button key={p.id} type="button" role="tab" id={`mgg-pestana-${p.id}`} aria-controls={`mgg-panel-${p.id}`}
+                      aria-selected={pestana === p.id} tabIndex={pestana === p.id ? 0 : -1} className="mgg-pestana" onClick={() => cambiarPestana(p.id)}>
+                      <span className="mgg-pestana__largo">{p.titulo}</span><span className="mgg-pestana__corto">{p.corto}</span>
+                      {marca && (
+                        <span className={`mgg-pestana__cuenta mgg-pestana__cuenta--${marca.tipo}`}
+                          title={`${marca.n} ${FILTROS[p.id][marca.tipo as Vencimiento][marca.n === 1 ? 0 : 1]}`}>
+                          {marca.n}
                         </span>
-                        <EstadoCelda estado={estados[f.sitio]} />
-                      </div>
-                    </li>
+                      )}
+                    </button>
                   );
                 })}
-              </ul>
+              </div>
+
+              <div role="tabpanel" id={`mgg-panel-${pestana}`} aria-labelledby={`mgg-pestana-${pestana}`} className="mgg-contenido">
+                {(pestana !== 'reportes' || reportesListos) && (
+                  <div className="mgg-filtros" role="group" aria-label="Ver solo">
+                    {ORDEN_FILTROS.filter(v => conteo[v] > 0).map(v => (
+                      <button key={v} type="button" aria-pressed={filtroActivo === v} className={`mgg-filtro mgg-filtro--${v}`}
+                        onClick={() => setFiltro(f => (f === v ? null : v))}>
+                        <b>{conteo[v]}</b> {FILTROS[pestana][v][conteo[v] === 1 ? 0 : 1]}
+                      </button>
+                    ))}
+                    {filtroActivo && <button type="button" className="mgg-enlace" onClick={() => setFiltro(null)}>Ver todos</button>}
+                  </div>
+                )}
+
+                {pestana === 'mantenimiento' && <PestanaMantenimiento equipos={visibles} guardados={guardadosVisibles} acciones={acciones} faltaActualizarBD={tabla.faltaActualizarBD} />}
+                {pestana === 'correa' && <PestanaCorrea equipos={visibles} guardados={guardadosVisibles} acciones={acciones} faltaActualizarBD={tabla.faltaActualizarBD} />}
+                {pestana === 'reportes' && <PestanaReportes equipos={visibles} cargando={!analisis && !errorReportes} error={errorReportes && !analisis} />}
+              </div>
+
+              <details className="mgg-calculo">
+                <summary>Cómo se calcula</summary>
+                <ul>
+                  <li><b>Horas actuales:</b> la lectura más reciente del horómetro, sea del último reporte de GG o la que se escriba en la tabla.</li>
+                  <li><b>Próximo mantenimiento</b> = horas del último + {HORAS_ENTRE_MANTENIMIENTOS}. <b>Faltan</b> = próximo − horas actuales (negativo: horas pasadas). <b>Desde el último</b> = horas actuales − horas del último.</li>
+                  <li><b>Próximo por fecha</b> = fecha del último + 180 o 210 días. <b>Anual</b> = fecha del último + 365 días.</li>
+                  <li><b>Vencido</b> si faltan 0 horas o menos, o si ya pasó la fecha. <b>Próximo</b> si faltan {AVISO_HORAS_MANTENIMIENTO} h o menos, o {AVISO_DIAS} días o menos. Manda lo que ocurra primero.</li>
+                  <li><b>Correa:</b> próximo cambio = horas del último cambio + {fmtHoras(HORAS_ENTRE_CAMBIOS_CORREA)}. Próximo cuando faltan {AVISO_HORAS_CORREA} h o menos.</li>
+                  <li><b>≈ fecha por horas:</b> cuándo se llegaría a las horas al ritmo de uso de los reportes de los últimos 30 días (aprox.).</li>
+                </ul>
+              </details>
             </>
           )}
         </section>
       </main>
+
+      {registro && equipoRegistro && (
+        <DialogoRegistro tipo={registro.tipo} equipo={equipoRegistro} faltaActualizarBD={!!tabla?.faltaActualizarBD}
+          onCerrar={cerrarRegistro} onGuardar={confirmarRegistro} />
+      )}
     </div>
   );
 }
+
