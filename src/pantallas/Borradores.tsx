@@ -1,6 +1,6 @@
 import CuentaCabecera from '../componentes/CuentaCabecera';
 import { useState } from 'react';
-import { ArrowLeft, Trash2, FolderOpen, CalendarDays, Users, Camera, Plus, Cloud, Sun, Moon, History, Download, Loader2, Wrench, AlertTriangle, FileText, FileUp, Lock } from 'lucide-react';
+import { ArrowLeft, ChevronDown, Trash2, FolderOpen, CalendarDays, Users, Camera, Plus, Cloud, Sun, Moon, History, Download, Loader2, Wrench, AlertTriangle, FileText, FileUp, Lock } from 'lucide-react';
 import SelectorDivision from '../componentes/SelectorDivision';
 import logoPsinet from "../assets/logo_psinet.png";
 import logoEdificio from "../assets/LogoEdificio.png";
@@ -477,16 +477,21 @@ export default function Borradores({
                   Semanas anteriores · {tituloTab} ({totalAnteriores})
                 </summary>
                 <div className="space-y-5 mt-4">
-                  {gruposAnteriores.map(({ semana: sem, entries }) => (
-                    <div key={sem.inicio} className="space-y-3">
-                      <div className="text-sm font-bold text-[#0E4660]">
-                        Turno {sem.letra} · {rangoSemana(sem)}
-                        <span className="ml-2 text-xs font-normal text-gray-500">
-                          {entries.length} informe{entries.length === 1 ? '' : 's'} guardado{entries.length === 1 ? '' : 's'}
+                  {gruposAnteriores.map(({ semana: sem, entries }, indice) => (
+                    <details key={sem.inicio} open={indice === 0} className="group rounded-lg border border-[#dce1e6] bg-white">
+                      <summary className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 cursor-pointer select-none">
+                        <span className="flex items-center gap-2 text-sm font-bold text-[#0E4660]">
+                          <ChevronDown size={16} className="transition-transform group-open:rotate-180" aria-hidden="true" />
+                          Turno {sem.letra} · {rangoSemana(sem)}
                         </span>
+                        <span className="rounded-full bg-[#eef5fb] px-3 py-0.5 text-xs font-bold text-[#0E4660]">
+                          {entries.length} informe{entries.length === 1 ? '' : 's'}
+                        </span>
+                      </summary>
+                      <div className="space-y-3 border-t border-[#eef1f2] px-4 pb-4 pt-3">
+                        {entries.map(renderEntry)}
                       </div>
-                      {entries.map(renderEntry)}
-                    </div>
+                    </details>
                   ))}
                 </div>
               </details>
