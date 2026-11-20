@@ -696,6 +696,7 @@ html[data-tema-oscuro] .hover\:text-red-700:hover { color: #ffa39b !important; }
   border-radius: 999px; background: rgba(255, 255, 255, 0.12); border: 1px solid rgba(255, 255, 255, 0.24);
   color: #fff; cursor: text; transition: background-color 0.15s ease, border-color 0.15s ease;
 }
+.buscador-cabecera__campo > svg { flex: 0 0 auto; width: 16px; height: 16px; color: #fff; opacity: 0.9; }
 .buscador-cabecera__campo:hover { background: rgba(255, 255, 255, 0.18); }
 .buscador-cabecera__campo:focus-within { background: rgba(255, 255, 255, 0.22); border-color: var(--amber); }
 .buscador-cabecera__campo input {
