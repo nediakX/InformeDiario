@@ -8,7 +8,7 @@ import { promediosPorCarro } from '../datos/promediosGG';
 import { suscribirReportesGG, todosLosReportesGG, type ReporteGG } from '../datos/reportesGG';
 import { esErrorDeRed } from '../lib/conexion';
 
-const PERIODOS = [{ dias: 7, etiqueta: '7 días' }, { dias: 30, etiqueta: '30 días' }];
+const PERIODOS = [{ dias: 7, etiqueta: '7 días' }, { dias: 10, etiqueta: '10 días' }, { dias: 15, etiqueta: '15 días' }];
 const fmt = (n: number) => n.toLocaleString('es-CL', { maximumFractionDigits: 1 });
 
 const celda = 'px-3 py-2.5 border-b border-[#e6ebef] text-sm';
@@ -25,7 +25,7 @@ function Indicador({ etiqueta, valor, detalle }: { etiqueta: string; valor: stri
 }
 
 export default function PromedioCarrosGG({ division, sitios }: { division: Division; sitios: string[] }) {
-  const [dias, setDias] = useState(30);
+  const [dias, setDias] = useState(15);
   const [reportes, setReportes] = useState<ReporteGG[] | null>(null);
   const [error, setError] = useState('');
   const [version, setVersion] = useState(0);
