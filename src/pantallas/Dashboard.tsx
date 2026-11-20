@@ -20,7 +20,7 @@ import { SITIOS_MAPA, carrosSinUbicacion } from '../datos/sitiosMapa';
 // La vista previa del mapa trae Leaflet: se carga aparte para no demorar el panel.
 const MiniMapaSitios = lazy(() => import('./MiniMapaSitios'));
 import { PorRevisar, ResumenContrato } from './BloquesRol';
-import { DISENO_INICIO, DISENO_INICIO_ANDINA, ETIQUETA_CORTA_ROL, ETIQUETA_ROL, ORDEN_COMPLETO, ORDEN_COMPLETO_ANDINA, rolDePersona, type BloqueInicio, type IdTarea } from '../datos/roles';
+import { DISENO_INICIO, DISENO_INICIO_ANDINA, ETIQUETA_CORTA_ROL, ETIQUETA_ROL, ORDEN_COMPLETO, rolDePersona, type BloqueInicio, type IdTarea } from '../datos/roles';
 
 type TipoBorradorTab = 'diario' | 'mantenimiento' | 'falla';
 type EstadoPip = 'pendiente' | 'iniciado' | 'finalizado' | 'futuro';
@@ -179,11 +179,11 @@ export default function Dashboard({
     try { localStorage.setItem('psinet_inicio_completo', v ? '0' : '1'); } catch { /* sin almacenamiento */ }
     return !v;
   });
-  // Andina tiene su propio inicio: solo Turno Día. Su monitor de generadores y su mapa usan sus propios carros.
+  // Andina tiene la misma distribución que El Salvador; cambian solo sus accesos rápidos (y trabaja solo el
+  // Turno Día). Su monitor de generadores y su mapa usan sus propios carros.
   const esAndina = division === 'andina';
   const diseno = esAndina ? DISENO_INICIO_ANDINA[rol] : DISENO_INICIO[rol];
-  // Columna lateral del rol. En Andina los accesos no van aquí, sino en una franja de ancho completo debajo.
-  const ladoLateral = diseno.lateral.filter(b => !(esAndina && b === 'accesos'));
+  const ladoLateral = diseno.lateral;
   const esGestion = rol === 'supervisor' || rol === 'jefe' || rol === 'contrato' || rol === 'lider_tecnico' || rol === 'ingeniero_especialista';
 
   // Accesos a cada pantalla (se usan en "Accesos rápidos" del rol y en "Todas las opciones").
@@ -288,7 +288,7 @@ export default function Dashboard({
   );
 
   const accesos = (
-    <section className={`dash-accesos${esAndina ? ' dash-accesos--compactos' : ''}`} aria-labelledby="dash-accesos-titulo">
+    <section className="dash-accesos" aria-labelledby="dash-accesos-titulo">
       <h2 id="dash-accesos-titulo" className="dash-grupo__titulo">Accesos rápidos</h2>
       <div className="dash-grupo__lista">
         {diseno.accesos.filter(id => tareas[id]).map(id => <Fragment key={id}>{tareas[id]}</Fragment>)}
@@ -494,7 +494,7 @@ export default function Dashboard({
 
         {verTodo ? (
           <>
-            {(esAndina ? ORDEN_COMPLETO_ANDINA : ORDEN_COMPLETO).map(b => <Fragment key={b}>{bloques[b]}</Fragment>)}
+            {ORDEN_COMPLETO.map(b => <Fragment key={b}>{bloques[b]}</Fragment>)}
             {opciones}
           </>
         ) : (
@@ -503,7 +503,6 @@ export default function Dashboard({
               <div className="dash-rol__principal">{diseno.principal.map(b => <Fragment key={b}>{bloques[b]}</Fragment>)}</div>
               {ladoLateral.length > 0 && <aside className="dash-rol__lateral" aria-label="Resumen y accesos">{ladoLateral.map(b => <Fragment key={b}>{bloques[b]}</Fragment>)}</aside>}
             </div>
-            {esAndina && diseno.lateral.includes('accesos') && accesos}
             <details className="dash-mas" open={buscando ? true : undefined}>
               <summary><ChevronDown size={16} aria-hidden="true" /> Todas las opciones</summary>
               {opciones}

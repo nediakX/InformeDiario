@@ -332,18 +332,6 @@
   .dash-cuenta > [role='radiogroup'] > button { padding-left: 10px; padding-right: 10px; }
 }
 
-/* Andina: accesos en una franja de ancho completo (todos en una fila si caben; 2 columnas en el celular), sin flecha */
-.dash-accesos--compactos .dash-grupo__lista { grid-template-columns: repeat(auto-fit, minmax(136px, 1fr)); gap: 10px; }
-.dash-accesos--compactos .dash-tarea { flex-direction: column; align-items: flex-start; gap: 10px; height: 100%; padding: 14px; }
-.dash-accesos--compactos .dash-tarea__icono { width: 36px; height: 36px; }
-.dash-accesos--compactos .dash-tarea__texto { gap: 4px; }
-.dash-accesos--compactos .dash-tarea__titulo { font-size: 0.92rem; line-height: 1.25; }
-.dash-accesos--compactos .dash-tarea__estado { font-size: 0.76rem; line-height: 1.35; }
-.dash-accesos--compactos .dash-tarea__flecha { display: none; }
-@media (max-width: 720px) {
-  .dash-accesos--compactos .dash-grupo__lista { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-}
-
 /* Todas las opciones en estilo de app (cuadrícula de íconos, como Facebook o Instagram) */
 .dash-grupos .dash-grupo__lista { grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 6px 4px; }
 .dash-grupos .dash-tarea {
@@ -365,12 +353,11 @@
 
 /* Tablet (inicio en una columna): accesos en dos columnas y, si están los dos, turno y generadores lado a lado. */
 @media (min-width: 560px) and (max-width: 900px) {
-  .dash-accesos:not(.dash-accesos--compactos) .dash-grupo__lista { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .dash-accesos .dash-grupo__lista { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .dash-rol__lateral:has(> .dash-turno-mini):has(> .dash-gg-mini) { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: stretch; }
-  .dash-rol__lateral > .dash-accesos, .dash-rol__lateral > .dash-minimapa { grid-column: 1 / -1; }
+  .dash-rol__lateral > .dash-accesos { grid-column: 1 / -1; }
   .dash-rol__lateral > .dash-gg-mini > .dash-gg-mini__boton { height: 100%; align-content: start; }
 }
 
-/* Cuadrículas de íconos (Todas las opciones y accesos de Andina): títulos alineados arriba en cada fila. */
-.dash-grupos .dash-tarea__texto,
-.dash-accesos--compactos .dash-tarea__texto { align-content: start; }
+/* Cuadrícula de íconos de Todas las opciones: títulos alineados arriba en cada fila. */
+.dash-grupos .dash-tarea__texto { align-content: start; }

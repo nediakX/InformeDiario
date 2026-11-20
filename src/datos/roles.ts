@@ -89,21 +89,18 @@ export const DISENO_INICIO: Record<Rol, DisenoInicio> = {
 /** "Ver todo": el inicio completo, igual para todos, en una columna. */
 export const ORDEN_COMPLETO: BloqueInicio[] = ['turno', 'hoy', 'revisar', 'generadores', 'mapa'];
 
-/** Inicio de División Andina: su propia composición. Tiene el monitor de generadores, la Reportabilidad de GG
- *  y el mapa con sus propios carros, igual que El Salvador, y trabaja solo el Turno Día. El mapa va en la
- *  columna lateral (sus accesos van en una franja de ancho completo). Solo cambian el orden y los accesos:
- *  permisos y datos no cambian. */
+/** Inicio de División Andina: la misma distribución que El Salvador (mismos bloques y en el mismo lugar).
+ *  Solo cambian los accesos rápidos de cada rol (Andina usa la mantención preventiva y no tiene presentaciones
+ *  ni tabla de mantenimiento); permisos y datos no cambian. Andina trabaja solo el Turno Día. */
+const conAccesosAndina = (rol: Rol, accesos: IdTarea[]): DisenoInicio => ({ ...DISENO_INICIO[rol], accesos });
 export const DISENO_INICIO_ANDINA: Record<Rol, DisenoInicio> = {
-  tecnico: { principal: ['hoy', 'revisar'], lateral: ['turnoMini', 'generadoresMini', 'mapa', 'accesos'], accesos: ['checklist', 'gg', 'preventiva', 'falla', 'borradores'] },
-  experto_sso: { principal: ['hoy', 'revisar'], lateral: ['turnoMini', 'generadoresMini', 'mapa', 'accesos'], accesos: ['checklist', 'gg', 'impresion', 'falla', 'borradores'] },
-  electrico: { principal: ['hoy', 'revisar'], lateral: ['generadoresMini', 'turnoMini', 'mapa', 'accesos'], accesos: ['falla', 'mantenimiento', 'checklist', 'borradores'] },
-  electromecanico: { principal: ['generadores', 'hoy', 'revisar'], lateral: ['turnoMini', 'mapa', 'accesos'], accesos: ['gg', 'mantenimiento', 'preventiva', 'checklist', 'borradores'] },
-  supervisor: { principal: ['revisar', 'generadores', 'hoy'], lateral: ['turnoMini', 'mapa', 'accesos'], accesos: ['gg', 'cierre', 'impresion', 'preventiva', 'borradores'] },
-  lider_tecnico: { principal: ['revisar', 'generadores', 'hoy'], lateral: ['turnoMini', 'mapa', 'accesos'], accesos: ['gg', 'cierre', 'impresion', 'preventiva', 'borradores'] },
-  ingeniero_especialista: { principal: ['revisar', 'generadores', 'hoy'], lateral: ['turnoMini', 'mapa', 'accesos'], accesos: ['gg', 'cierre', 'impresion', 'preventiva', 'borradores'] },
-  jefe: { principal: ['turno', 'revisar', 'hoy'], lateral: ['generadoresMini', 'mapa', 'accesos'], accesos: ['cierre', 'impresion', 'checklist', 'gg', 'borradores'] },
-  contrato: { principal: ['contrato', 'turno'], lateral: ['generadoresMini', 'mapa', 'accesos'], accesos: ['admin', 'cierre', 'impresion', 'gg', 'borradores'] },
+  tecnico: conAccesosAndina('tecnico', ['checklist', 'gg', 'preventiva', 'falla', 'borradores']),
+  experto_sso: conAccesosAndina('experto_sso', ['checklist', 'gg', 'impresion', 'falla', 'borradores']),
+  electrico: conAccesosAndina('electrico', ['falla', 'mantenimiento', 'checklist', 'borradores']),
+  electromecanico: conAccesosAndina('electromecanico', ['gg', 'mantenimiento', 'preventiva', 'checklist', 'borradores']),
+  supervisor: conAccesosAndina('supervisor', ['gg', 'cierre', 'impresion', 'preventiva', 'borradores']),
+  lider_tecnico: conAccesosAndina('lider_tecnico', ['gg', 'cierre', 'impresion', 'preventiva', 'borradores']),
+  ingeniero_especialista: conAccesosAndina('ingeniero_especialista', ['gg', 'cierre', 'impresion', 'preventiva', 'borradores']),
+  jefe: conAccesosAndina('jefe', ['cierre', 'impresion', 'checklist', 'gg', 'borradores']),
+  contrato: conAccesosAndina('contrato', ['admin', 'cierre', 'impresion', 'gg', 'borradores']),
 };
-
-/** "Ver todo" en Andina: el inicio completo, igual que El Salvador. */
-export const ORDEN_COMPLETO_ANDINA: BloqueInicio[] = ['turno', 'hoy', 'revisar', 'generadores', 'mapa'];
