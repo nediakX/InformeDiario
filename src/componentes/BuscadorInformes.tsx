@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { createPortal } from 'react-dom';
-import { Search, X } from 'lucide-react';
+import { ArrowLeft, Search, X } from 'lucide-react';
 import { useSesion } from '../auth/sesion';
 import { fetchBorradores, type BorradorEntry } from '../datos/borradoresDiario';
 import { formatDiaMes, hoyLocalISO } from '../datos/fechas';
@@ -28,6 +28,7 @@ export default function BuscadorInformes() {
   const [posicion, setPosicion] = useState<CSSProperties>({});
   const [activo, setActivo] = useState(0);
   const campoRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
   const itemsRef = useRef<(HTMLButtonElement | null)[]>([]);
   const abierto = enfocado;
 
@@ -104,12 +105,25 @@ export default function BuscadorInformes() {
     window.dispatchEvent(new CustomEvent('psinet:abrir-diario', { detail: b }));
   };
 
+  // En móvil el campo está oculto: el botón de lupa lo abre a todo el ancho de la barra.
+  const abrirMovil = () => {
+    setEnfocado(true);
+    requestAnimationFrame(() => inputRef.current?.focus());
+  };
+
   return (
     <>
-      <div ref={campoRef} className="buscador-cabecera">
+      <button type="button" className="buscador-lupa" onClick={abrirMovil} aria-label="Buscar informe" title="Buscar informe">
+        <Search size={18} aria-hidden="true" />
+      </button>
+      <div ref={campoRef} className={`buscador-cabecera${abierto ? ' buscador-cabecera--abierto' : ''}`}>
+        <button type="button" className="buscador-cabecera__cerrar" onClick={() => setEnfocado(false)} aria-label="Cerrar búsqueda">
+          <ArrowLeft size={18} aria-hidden="true" />
+        </button>
         <label className="buscador-cabecera__campo">
           <Search size={16} aria-hidden="true" />
           <input
+            ref={inputRef}
             type="search"
             value={consulta}
             onChange={e => { setConsulta(e.target.value); setActivo(0); }}

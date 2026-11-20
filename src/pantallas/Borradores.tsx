@@ -301,26 +301,26 @@ export default function Borradores({
       </header>
 
       <main className="max-w-[900px] mx-auto p-5 space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <button type="button" onClick={onBack} className="btn-outline text-[#0E4660] px-3 py-1.5 rounded-md text-xs font-bold hover:bg-[#d5e7f8] flex items-center gap-1.5">
+        <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center sm:justify-between">
+          <button type="button" onClick={onBack} className="btn-outline text-[#0E4660] px-3 py-1.5 rounded-md text-xs font-bold hover:bg-[#d5e7f8] flex items-center justify-center gap-1.5">
             <ArrowLeft size={14} /> Volver al menú
           </button>
-          <SelectorDivision className="mr-auto" />
-          <button type="button" onClick={onImportar} className="btn-outline text-[#0E4660] px-3 py-1.5 rounded-md text-xs font-bold hover:bg-[#d5e7f8] flex items-center gap-1.5" title="Recuperar un informe borrado desde su Word">
+          <SelectorDivision className="sm:mr-auto" />
+          <button type="button" onClick={onImportar} className="btn-outline text-[#0E4660] px-3 py-1.5 rounded-md text-xs font-bold hover:bg-[#d5e7f8] flex items-center justify-center gap-1.5" title="Recuperar un informe borrado desde su Word">
             <FileUp size={14} /> Importar desde Word
           </button>
           {tipoTab === 'diario' ? (
-            <button type="button" onClick={() => setNuevoOpen(true)} className="bg-[#0E4660] text-white px-3 py-1.5 rounded-md text-xs font-bold hover:bg-[#0a3549] flex items-center gap-1.5">
+            <button type="button" onClick={() => setNuevoOpen(true)} className="bg-[#0E4660] text-white px-3 py-1.5 rounded-md text-xs font-bold hover:bg-[#0a3549] flex items-center justify-center gap-1.5">
               <Plus size={14} /> Nuevo informe diario
             </button>
           ) : (
-            <button type="button" onClick={configOtro?.onNuevo} className="bg-[#0E4660] text-white px-3 py-1.5 rounded-md text-xs font-bold hover:bg-[#0a3549] flex items-center gap-1.5">
+            <button type="button" onClick={configOtro?.onNuevo} className="bg-[#0E4660] text-white px-3 py-1.5 rounded-md text-xs font-bold hover:bg-[#0a3549] flex items-center justify-center gap-1.5">
               <Plus size={14} /> Nuevo informe
             </button>
           )}
         </div>
 
-        <div role="tablist" aria-label="Tipo de informe" className="flex gap-2 flex-wrap">
+        <div role="tablist" aria-label="Tipo de informe" className="scroll-x-oculto -mx-5 px-5 pb-1 flex gap-2 overflow-x-auto sm:flex-wrap sm:overflow-visible">
           {TIPOS_TAB.map(t => {
             const activo = !verAnteriores && tipoTab === t.key;
             return (
@@ -330,7 +330,7 @@ export default function Borradores({
                 role="tab"
                 aria-selected={activo}
                 onClick={() => { setVerAnteriores(false); onTipoTabChange(t.key); }}
-                className={`flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-bold border transition-colors ${
+                className={`shrink-0 whitespace-nowrap flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-bold border transition-colors ${
                   activo ? 'bg-[#0E4660] text-white border-[#0E4660]' : 'bg-white text-[#0E4660] border-[#DCE1E6] hover:bg-[#f0f6fb]'
                 }`}
               >
@@ -340,7 +340,7 @@ export default function Borradores({
             );
           })}
           <button type="button" role="tab" aria-selected={verAnteriores} onClick={() => setVerAnteriores(true)}
-            className={`flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-bold border transition-colors ${
+            className={`shrink-0 whitespace-nowrap flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-bold border transition-colors ${
               verAnteriores ? 'bg-[#0E4660] text-white border-[#0E4660]' : 'bg-white text-[#0E4660] border-[#DCE1E6] hover:bg-[#f0f6fb]'
             }`}>
             <History size={15} /> Semanas anteriores
