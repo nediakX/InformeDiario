@@ -2,6 +2,7 @@
 // que el formulario de Google "REPORTABILIDAD DE GG") y la tabla con todos los reportes, que se
 // puede filtrar y descargar en Excel con el formato de la planilla.
 import CuentaCabecera from '../componentes/CuentaCabecera';
+import PromedioCarrosGG from './PromedioCarrosGG';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AlertTriangle, ArrowLeft, Check, CheckCircle2, CircleDashed, CloudOff, Download, Fuel, Loader2, Pencil, Save, Trash2, X } from 'lucide-react';
 import { saveAs } from 'file-saver';
@@ -563,6 +564,9 @@ export default function ReportabilidadGG({ onBack }: { onBack: () => void }) {
         </section>
         </div>
         <div className="min-w-0">
+        {/* Promedio por carro: horas y partidas por día (supervisor y administración) */}
+        <PromedioCarrosGG division={division} sitios={sitios} />
+
         {/* Tabla */}
         <section className="panel p-5 space-y-3">
           <div className="flex flex-wrap items-end justify-between gap-3">
