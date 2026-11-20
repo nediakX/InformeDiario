@@ -586,11 +586,6 @@ export default function ReportabilidadGG({ onBack }: { onBack: () => void }) {
         </section>
         </div>
         <div className="min-w-0">
-        {/* Promedio por carro: horas y partidas por día (supervisor y administración) */}
-        <div id="seccion-promedio" className="scroll-mt-4">
-          <PromedioCarrosGG division={division} sitios={sitios} />
-        </div>
-
         {/* Tabla */}
         <section id="seccion-reportes" className="panel p-5 space-y-3 scroll-mt-4">
           <div className="flex flex-wrap items-end justify-between gap-3">
@@ -687,6 +682,11 @@ export default function ReportabilidadGG({ onBack }: { onBack: () => void }) {
             </div>
           )}
         </section>
+
+        {/* Promedio por carro: horas y partidas por día (supervisor y administración) */}
+        <div id="seccion-promedio" className="scroll-mt-4">
+          <PromedioCarrosGG division={division} sitios={sitios} />
+        </div>
         </div>
         </div>
       </main>
