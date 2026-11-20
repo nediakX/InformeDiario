@@ -8,7 +8,7 @@ import { promediosPorCarro } from '../datos/promediosGG';
 import { suscribirReportesGG, todosLosReportesGG, type ReporteGG } from '../datos/reportesGG';
 import { esErrorDeRed } from '../lib/conexion';
 
-const PERIODOS = [{ dias: 7, etiqueta: '7 días' }, { dias: 30, etiqueta: '30 días' }, { dias: 90, etiqueta: '90 días' }];
+const PERIODOS = [{ dias: 7, etiqueta: '7 días' }, { dias: 30, etiqueta: '30 días' }];
 const fmt = (n: number) => n.toLocaleString('es-CL', { maximumFractionDigits: 1 });
 
 const celda = 'px-3 py-2.5 border-b border-[#e6ebef] text-sm';
