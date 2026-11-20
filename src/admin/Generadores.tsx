@@ -28,6 +28,21 @@ const valorDe = (r: ReporteGG, m: Metrica): number | null =>
   m === 'combustible' ? (r.combustible ? COMBUSTIBLE_PCT[r.combustible] ?? null : null) : r[m];
 const diasEntre = (a: string, b: string) => Math.round((Date.parse(b) - Date.parse(a)) / 86_400_000);
 
+/**
+ * Consumo diario de un contador acumulado (horómetro o partidas) en el periodo: suma las diferencias entre
+ * reportes consecutivos (sin contar retrocesos, que se revisan como alerta) y divide entre los días medidos.
+ */
+function consumoPorDia(reportes: ReporteGG[], campo: 'horometro' | 'nroPartidas'): number | null {
+  const serie = reportes
+    .filter(r => r[campo] != null)
+    .sort((a, b) => Date.parse(`${a.fecha}T${a.hora ?? '12:00'}:00`) - Date.parse(`${b.fecha}T${b.hora ?? '12:00'}:00`));
+  if (serie.length < 2) return null;
+  let total = 0;
+  for (let i = 1; i < serie.length; i++) total += Math.max(0, serie[i][campo]! - serie[i - 1][campo]!);
+  const dias = Math.max(1, diasEntre(serie[0].fecha, serie[serie.length - 1].fecha));
+  return total / dias;
+}
+
 /** Escala "bonita" para el eje: 4 marcas redondas que cubren [min, max]. */
 function marcasEje(min: number, max: number, cantidad = 4): number[] {
   if (min === max) { min -= 1; max += 1; }
@@ -227,6 +242,29 @@ export default function Generadores() {
   const met = METRICAS.find(m => m.valor === metrica)!;
   const diasCompletos = porDia.filter(d => d.sitios.length >= sitios.length).length;
 
+  // Promedio por carro: horas y partidas por día, y promedio general de los carros que tienen datos.
+  const promedios = useMemo(() => {
+    const filas = sitios.map(s => {
+      const delSitio = (reportes ?? []).filter(r => r.sitio === s);
+      return {
+        sitio: s,
+        reportes: delSitio.length,
+        horasDia: consumoPorDia(delSitio, 'horometro'),
+        partidasDia: consumoPorDia(delSitio, 'nroPartidas'),
+      };
+    });
+    const promedio = (valores: (number | null)[]) => {
+      const v = valores.filter((x): x is number => x != null);
+      return v.length ? v.reduce((a, b) => a + b, 0) / v.length : null;
+    };
+    return {
+      filas,
+      totalReportes: filas.reduce((a, f) => a + f.reportes, 0),
+      horasDia: promedio(filas.map(f => f.horasDia)),
+      partidasDia: promedio(filas.map(f => f.partidasDia)),
+    };
+  }, [reportes, sitios]);
+
   if (error) return <div className="rounded-md border border-[#f1c0c0] bg-[#fbe9e9] text-[#a32626] text-sm px-4 py-3">{error}</div>;
   if (!reportes) return <div className="flex items-center gap-2 text-sm text-gray-500 py-10 justify-center"><Loader2 size={18} className="animate-spin" /> Cargando reportes de GG…</div>;
 
@@ -284,6 +322,33 @@ export default function Generadores() {
           </div>
         }>
         <LineaTiempo puntos={puntos} unidad={met.unidad} vacio={`${sitio} no tiene reportes con ${met.etiqueta.toLowerCase()} en este periodo.`} />
+      </TarjetaGrafico>
+
+      <TarjetaGrafico titulo="Promedio por carro" subtitulo={`Por día calendario, con los reportes de los últimos ${dias} días`}>
+        <div className="viz-table-wrap">
+          <table className="viz-table viz-table--tarjetas">
+            <thead>
+              <tr><th>Sitio</th><th className="num">Reportes</th><th className="num">Horas por día</th><th className="num">Partidas por día</th></tr>
+            </thead>
+            <tbody>
+              {promedios.filas.map(f => (
+                <tr key={f.sitio}>
+                  <td><strong>{f.sitio}</strong></td>
+                  <td className="num">{f.reportes}</td>
+                  <td className="num">{f.horasDia != null ? fmt(f.horasDia) : '—'}</td>
+                  <td className="num">{f.partidasDia != null ? fmt(f.partidasDia) : '—'}</td>
+                </tr>
+              ))}
+              <tr>
+                <td><strong>Promedio general</strong></td>
+                <td className="num">{promedios.totalReportes}</td>
+                <td className="num"><strong>{promedios.horasDia != null ? fmt(promedios.horasDia) : '—'}</strong></td>
+                <td className="num"><strong>{promedios.partidasDia != null ? fmt(promedios.partidasDia) : '—'}</strong></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p className="text-xs text-gray-500 mt-2">Promedio de los carros con al menos dos lecturas en el periodo. Un carro sin lecturas suficientes aparece con —.</p>
       </TarjetaGrafico>
 
       <TarjetaGrafico titulo="Estado de cada sitio" subtitulo="Último reporte de cada generador">
