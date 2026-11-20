@@ -508,7 +508,7 @@ export default function ReportabilidadGG({ onBack }: { onBack: () => void }) {
             </label>
             <div className="col-span-2">
               <span className={etiqueta}>Quién reporta</span>
-              {editando && esAdmin ? (
+              {editando && esSupervisor ? (
                 <select className={campo} value={form.reporta} onChange={e => poner('reporta', e.target.value)} aria-label="Quién reporta">
                   {/* Se incluye el valor guardado aunque no esté en el listado (p. ej. una cuenta sin trabajador asociado). */}
                   {[...new Set([form.reporta, ...personasDeLaDivision])].filter(Boolean).map(p => <option key={p} value={p}>{p}</option>)}
