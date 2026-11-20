@@ -14,6 +14,16 @@ const fmt = (n: number) => n.toLocaleString('es-CL', { maximumFractionDigits: 1 
 const celda = 'px-3 py-2.5 border-b border-[#e6ebef] text-sm';
 const encabezado = 'px-3 py-2.5 border-b-2 border-[#c9d3da] text-xs font-bold text-[#0E4660] text-left whitespace-nowrap';
 
+function Indicador({ etiqueta, valor, detalle }: { etiqueta: string; valor: string; detalle: string }) {
+  return (
+    <div className="rounded-lg border border-[#dce1e6] bg-[#f8fbfd] px-4 py-3">
+      <div className="text-xs font-bold uppercase tracking-wide text-gray-500">{etiqueta}</div>
+      <div className="font-display font-bold text-2xl text-[#0E4660] tabular-nums">{valor}</div>
+      <div className="text-xs text-gray-500">{detalle}</div>
+    </div>
+  );
+}
+
 export default function PromedioCarrosGG({ division, sitios }: { division: Division; sitios: string[] }) {
   const [dias, setDias] = useState(30);
   const [reportes, setReportes] = useState<ReporteGG[] | null>(null);
@@ -32,9 +42,11 @@ export default function PromedioCarrosGG({ division, sitios }: { division: Divis
   useEffect(() => suscribirReportesGG(division, () => setVersion(v => v + 1)), [division]);
 
   const promedios = useMemo(() => promediosPorCarro(reportes ?? [], sitios), [reportes, sitios]);
+  const conDatos = promedios.filas.filter(f => f.horasDia != null).length;
+  const maxHoras = Math.max(1, ...promedios.filas.map(f => f.horasDia ?? 0));
 
   return (
-    <section className="panel p-5 space-y-4" aria-labelledby="promedio-carros">
+    <section className="panel p-5 space-y-5" aria-labelledby="promedio-carros">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 id="promedio-carros" className="font-display font-bold text-lg text-[#0E4660]">Promedio por carro</h2>
@@ -56,13 +68,20 @@ export default function PromedioCarrosGG({ division, sitios }: { division: Divis
         <div className="flex items-center gap-2 text-sm text-gray-500 py-4 justify-center"><Loader2 size={16} className="animate-spin" /> Calculando…</div>
       ) : (
         <>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            <Indicador etiqueta="Horas por día" valor={promedios.horasDia != null ? fmt(promedios.horasDia) : '—'} detalle="promedio por carro" />
+            <Indicador etiqueta="Partidas por día" valor={promedios.partidasDia != null ? fmt(promedios.partidasDia) : '—'} detalle="promedio por carro" />
+            <Indicador etiqueta="Reportes" valor={String(promedios.totalReportes)} detalle={`últimos ${dias} días`} />
+            <Indicador etiqueta="Carros con datos" valor={`${conDatos} de ${sitios.length}`} detalle="con al menos dos lecturas" />
+          </div>
+
           <div className="overflow-x-auto rounded-lg border border-[#dce1e6]">
             <table className="w-full border-collapse">
               <thead>
                 <tr className="bg-[#f4f6f8]">
                   <th className={encabezado}>Sitio</th>
                   <th className={`${encabezado} text-right`}>Reportes</th>
-                  <th className={`${encabezado} text-right`}>Horas por día</th>
+                  <th className={`${encabezado} min-w-[11rem]`}>Horas por día</th>
                   <th className={`${encabezado} text-right`}>Partidas por día</th>
                 </tr>
               </thead>
@@ -70,9 +89,18 @@ export default function PromedioCarrosGG({ division, sitios }: { division: Divis
                 {promedios.filas.map(f => (
                   <tr key={f.sitio} className="hover:bg-[#f8fbfd]">
                     <td className={celda}><strong className="text-[#14181c]">{f.sitio}</strong></td>
-                    <td className={`${celda} text-right tabular-nums`}>{f.reportes}</td>
-                    <td className={`${celda} text-right tabular-nums`}>{f.horasDia != null ? fmt(f.horasDia) : '—'}</td>
-                    <td className={`${celda} text-right tabular-nums`}>{f.partidasDia != null ? fmt(f.partidasDia) : '—'}</td>
+                    <td className={`${celda} text-right tabular-nums text-gray-600`}>{f.reportes}</td>
+                    <td className={celda}>
+                      {f.horasDia != null ? (
+                        <div className="flex items-center gap-2">
+                          <div className="h-2 flex-1 rounded-full bg-[#e6ebef] overflow-hidden" aria-hidden="true">
+                            <div className="h-full rounded-full bg-[#0E4660]" style={{ width: `${(f.horasDia / maxHoras) * 100}%` }} />
+                          </div>
+                          <span className="tabular-nums w-10 text-right font-semibold">{fmt(f.horasDia)}</span>
+                        </div>
+                      ) : <span className="text-gray-400">—</span>}
+                    </td>
+                    <td className={`${celda} text-right tabular-nums`}>{f.partidasDia != null ? fmt(f.partidasDia) : <span className="text-gray-400">—</span>}</td>
                   </tr>
                 ))}
               </tbody>
@@ -80,13 +108,13 @@ export default function PromedioCarrosGG({ division, sitios }: { division: Divis
                 <tr className="bg-[#eef5fb]">
                   <td className={`${celda} font-bold text-[#0E4660]`}>Promedio general</td>
                   <td className={`${celda} text-right tabular-nums font-bold text-[#0E4660]`}>{promedios.totalReportes}</td>
-                  <td className={`${celda} text-right tabular-nums font-bold text-[#0E4660]`}>{promedios.horasDia != null ? fmt(promedios.horasDia) : '—'}</td>
+                  <td className={`${celda} tabular-nums font-bold text-[#0E4660]`}>{promedios.horasDia != null ? fmt(promedios.horasDia) : '—'}</td>
                   <td className={`${celda} text-right tabular-nums font-bold text-[#0E4660]`}>{promedios.partidasDia != null ? fmt(promedios.partidasDia) : '—'}</td>
                 </tr>
               </tfoot>
             </table>
           </div>
-          <p className="text-xs text-gray-500">Promedio de los carros con al menos dos lecturas en el periodo. Un carro sin lecturas suficientes aparece con —.</p>
+          <p className="text-xs text-gray-500">Se cuentan las diferencias entre reportes consecutivos del periodo, divididas entre los días medidos. Un carro con menos de dos lecturas aparece con —.</p>
         </>
       )}
     </section>
