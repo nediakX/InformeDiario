@@ -468,8 +468,8 @@ export default function ReportabilidadGG({ onBack }: { onBack: () => void }) {
         </section>}
 
         {/* Debajo: formulario a la izquierda y tabla de reportes a la derecha en pantallas grandes; en celular van apilados. */}
-        <div className="grid grid-cols-1 lg:grid-cols-[minmax(340px,5fr)_7fr] gap-5 items-start">
-        <div className="min-w-0">
+        <div className="grid grid-cols-1 gap-5 items-start">
+        <div className={`min-w-0 w-full ${vista === 'reportar' ? 'max-w-3xl mx-auto' : ''}`}>
         {/* Formulario */}
         {vista === 'reportar' && <section ref={formRef} className={`panel p-5 space-y-4 scroll-mt-4 ${editando ? 'ring-2 ring-[#ED7D31]' : ''}`}>
           <div className="flex flex-wrap items-center justify-between gap-2">
@@ -583,7 +583,7 @@ export default function ReportabilidadGG({ onBack }: { onBack: () => void }) {
           </div>
         </section>}
         </div>
-        <div className="min-w-0">
+        <div className="min-w-0 w-full">
         {/* Promedio por carro: horas y partidas por día (supervisor y administración) */}
         {vista === 'promedio' && <PromedioCarrosGG division={division} sitios={sitios} />}
 
