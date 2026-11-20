@@ -687,9 +687,10 @@ html[data-tema-oscuro] .hover\:text-green-800:hover { color: #a6e4b8 !important;
 html[data-tema-oscuro] .hover\:text-red-700:hover { color: #ffa39b !important; }
 
 /* Buscador de informes centrado en la barra superior */
+/* Dentro de la barra como un ítem flexible: se achica en vez de encimar la cuenta o la foto. */
 .buscador-cabecera {
-  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
-  width: min(440px, 36vw); z-index: 3;
+  position: relative; z-index: 3; align-self: center;
+  flex: 0 1 440px; min-width: 0; width: 100%; max-width: 440px; margin: 0 16px;
 }
 .buscador-cabecera__campo {
   display: flex; align-items: center; gap: 8px; height: 38px; padding: 0 12px;
