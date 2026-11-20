@@ -114,7 +114,7 @@ export default function BuscadorInformes() {
   return (
     <>
       <button type="button" className="buscador-lupa" onClick={abrirMovil} aria-label="Buscar informe" title="Buscar informe">
-        <Search size={18} aria-hidden="true" />
+        <Search size={15} aria-hidden="true" />
       </button>
       <div ref={campoRef} className={`buscador-cabecera${abierto ? ' buscador-cabecera--abierto' : ''}`}>
         <button type="button" className="buscador-cabecera__cerrar" onClick={() => setEnfocado(false)} aria-label="Cerrar búsqueda">

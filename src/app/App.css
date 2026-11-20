@@ -703,9 +703,11 @@ html[data-tema-oscuro] .hover\:text-red-700:hover { color: #ffa39b !important; }
 /* Móvil: lupa en la barra; al tocarla el buscador ocupa toda la barra superior. */
 @media (max-width: 900px) {
   .buscador-lupa {
-    display: grid; place-items: center; flex: none; align-self: center; width: 44px; height: 44px; border-radius: 999px;
+    position: relative; display: grid; place-items: center; flex: none; align-self: center; width: 34px; height: 34px; border-radius: 999px;
     color: #fff; background: rgba(255, 255, 255, 0.12); border: 1px solid rgba(255, 255, 255, 0.24);
   }
+  /* Se ve chica, pero el área para tocarla sigue siendo de 44 px. */
+  .buscador-lupa::after { content: ""; position: absolute; inset: -5px; border-radius: 999px; }
   .buscador-cabecera { display: none; }
   .buscador-cabecera--abierto {
     display: flex; align-items: center; gap: 8px; position: fixed; top: 0; left: 0; right: 0; width: auto;
