@@ -11,6 +11,7 @@ import logoEdificio from "../../assets/LogoEdificio.png";
 import BotonAccionesInforme from '../../componentes/BotonAccionesInforme';
 
 import VisorFoto from '../../componentes/VisorFoto';
+import { fotoConBloque } from '../../componentes/fotosDelVisor';
 import { gruposTareas } from '../../datos/catalogos';
 import EscanerDocumento from '../../componentes/EscanerDocumento';
 import TextoQueCrece from '../../componentes/TextoQueCrece';
@@ -475,7 +476,7 @@ export default function InformeDiario({ d, volverABorradores, goToNewInforme }: 
                     <img
                       src={vertivCarroPhotos[i] || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='75'%3E%3Crect width='100%25' height='100%25' fill='%23eee'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%23aaa' font-size='9'%3ESin foto%3C/text%3E%3C/svg%3E"}
                       alt={title}
-                      onClick={e => { if (vertivCarroPhotos[i]) { e.stopPropagation(); setFotoAmpliada(vertivCarroPhotos[i]); } }}
+                      onClick={e => { if (vertivCarroPhotos[i]) { e.stopPropagation(); setFotoAmpliada(fotoConBloque(vertivCarroPhotos, i, 'Vertiv · evidencia por carro', VERTIV_CARROS_FLAT)); } }}
                       className={`w-[92px] h-[70px] object-cover rounded mx-auto mb-1 bg-gray-100 ${vertivCarroPhotos[i] ? 'cursor-zoom-in' : ''}`}
                     />
                     <span className="block text-[9px] text-gray-500">Imagen, cámara o app de escaneo:</span>
@@ -514,7 +515,7 @@ export default function InformeDiario({ d, volverABorradores, goToNewInforme }: 
                     <img
                       src={vertivItemPhotos[i] || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='75'%3E%3Crect width='100%25' height='100%25' fill='%23eee'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%23aaa' font-size='9'%3ESin foto%3C/text%3E%3C/svg%3E"}
                       alt={item}
-                      onClick={e => { if (vertivItemPhotos[i]) { e.stopPropagation(); setFotoAmpliada(vertivItemPhotos[i]); } }}
+                      onClick={e => { if (vertivItemPhotos[i]) { e.stopPropagation(); setFotoAmpliada(fotoConBloque(vertivItemPhotos, i, 'Vertiv · ítems de monitoreo', VERTIV_ITEMS)); } }}
                       className={`w-[92px] h-[70px] object-cover rounded mx-auto mb-1 bg-gray-100 ${vertivItemPhotos[i] ? 'cursor-zoom-in' : ''}`}
                     />
                     <span className="block text-[9px] text-gray-500">Imagen, cámara o app de escaneo:</span>
@@ -646,7 +647,7 @@ export default function InformeDiario({ d, volverABorradores, goToNewInforme }: 
                       <img
                         src={src || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='130' height='98'%3E%3Crect width='100%25' height='100%25' fill='%23eee'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%23aaa' font-size='10'%3EArrastra o pega%3C/text%3E%3C/svg%3E"}
                         alt="Evidencia"
-                        onClick={e => { if (src) { e.stopPropagation(); setFotoAmpliada(src); } }}
+                        onClick={e => { if (src) { e.stopPropagation(); setFotoAmpliada(fotoConBloque(block.photos, pi, block.title)); } }}
                         className={`w-full aspect-[4/3] sm:w-[120px] sm:h-[90px] sm:aspect-auto max-w-full object-cover rounded mx-auto mb-1 bg-gray-100 ${src ? 'cursor-zoom-in' : ''}`}
                       />
                       <button type="button" onClick={() => openDocumentScanner({ type: 'evidence', blockIndex: bi, photoIndex: pi })} className="w-full bg-[#0E4660] text-white rounded px-1.5 py-1 mb-1 text-[10px] font-bold">Escanear documento</button>
@@ -705,7 +706,7 @@ export default function InformeDiario({ d, volverABorradores, goToNewInforme }: 
                       )}
                       <div className="aspect-[16/10] rounded bg-gray-100 overflow-hidden mb-1 flex items-center justify-center">
                         {src
-                          ? <img src={src} alt={leyendaCuadroVertiv(sitio)} className="w-full h-full object-contain cursor-zoom-in" onClick={e => { e.stopPropagation(); setFotoAmpliada(src); }} />
+                          ? <img src={src} alt={leyendaCuadroVertiv(sitio)} className="w-full h-full object-contain cursor-zoom-in" onClick={e => { e.stopPropagation(); setFotoAmpliada(fotoConBloque(evidenceBlocks[indiceCuadroVertiv].photos, i, 'Cuadro Vertiv', CUADRO_VERTIV_SITIOS.map(leyendaCuadroVertiv))); }} />
                           : <span className="text-[10px] text-gray-400">Pega o carga la captura</span>}
                       </div>
                       <span className="block text-[11px] font-bold text-[#0E4660] mb-1">{leyendaCuadroVertiv(sitio)}</span>
@@ -867,7 +868,7 @@ export default function InformeDiario({ d, volverABorradores, goToNewInforme }: 
         </div>
       )}
 
-      {fotoAmpliada && <VisorFoto src={fotoAmpliada} onClose={() => setFotoAmpliada(null)} />}
+      {fotoAmpliada && <VisorFoto {...fotoAmpliada} onClose={() => setFotoAmpliada(null)} />}
     </div>
   );
 }

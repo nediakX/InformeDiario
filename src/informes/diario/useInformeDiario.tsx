@@ -32,6 +32,7 @@ import { BLUE, type BorradorLocal, DECORACIONES_MENSUALES, DEFAULT_ACTIVIDADES_D
 import { cargarSinEvidencia, desmarcarSinEvidencia, marcarSinEvidencia, suscribirSinEvidencia } from '../../datos/sinEvidencia';
 import { CONFIG_DIVISION, type Division } from '../../datos/divisiones';
 import { useDragReorder } from './useDragReorder';
+import type { FotoAmpliada } from '../../componentes/fotosDelVisor';
 
 export interface OpcionesInformeDiario {
   /** Pantalla actual: el autoguardado y la sincronización solo corren mientras se está en el Informe Diario. */
@@ -167,7 +168,7 @@ export function useInformeDiario({ view, setBorradores, borradoresRef, division,
     if (remoto && esDeOtroEquipo(remoto)) traerFotosDe(remoto);
   };
 
-  const [fotoAmpliada, setFotoAmpliada] = useState<string | null>(null);
+  const [fotoAmpliada, setFotoAmpliada] = useState<FotoAmpliada | null>(null);
 
   // Al cambiar de división se carga su personal y su plantilla de actividades (se ajusta al renderizar, no en un efecto).
   const [divisionCargada, setDivisionCargada] = useState<string | null>(null);

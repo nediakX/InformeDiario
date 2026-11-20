@@ -17,6 +17,7 @@ import logoPsinet from '../../assets/logo_psinet.png';
 import logoEdificio from '../../assets/LogoEdificio.png';
 import EscanerDocumento from '../../componentes/EscanerDocumento';
 import VisorFoto from '../../componentes/VisorFoto';
+import { fotoConBloque, type FotoAmpliada } from '../../componentes/fotosDelVisor';
 import { copiarImagenAlPortapapel } from '../../lib/copiarImagen';
 import { pareceDocumento } from '../../lib/documentosEscaneables';
 import { fileToDataUrl, uid } from '../../lib/fotos';
@@ -116,7 +117,7 @@ export default function InformePreventiva({ onBack, borradorInicial = null }: Pr
 
   const [generando, setGenerando] = useState(false);
   const [toast, setToast] = useState<{ text: string; error?: boolean } | null>(null);
-  const [fotoAmpliada, setFotoAmpliada] = useState<string | null>(null);
+  const [fotoAmpliada, setFotoAmpliada] = useState<FotoAmpliada | null>(null);
   const [escanear, setEscanear] = useState<{ seccion: string; foto: string } | null>(null);
   const [seleccion, setSeleccion] = useState<{ seccion: string; foto: string } | null>(null);
   const showToast = (text: string, error = false) => { setToast({ text, error }); setTimeout(() => setToast(null), 3500); };
@@ -294,7 +295,7 @@ export default function InformePreventiva({ onBack, borradorInicial = null }: Pr
         onClick={() => setSeleccion({ seccion: s.id, foto: f.id })}>
         <div className="w-[92px] flex-none">
           <div className="relative">
-            <img src={f.photo || PLACEHOLDER} alt="" onClick={e => { if (f.photo) { e.stopPropagation(); setFotoAmpliada(f.photo); } }}
+            <img src={f.photo || PLACEHOLDER} alt="" onClick={e => { if (f.photo) { e.stopPropagation(); setFotoAmpliada(fotoConBloque(s.fotos.map(x => x.photo), s.fotos.indexOf(f), s.titulo, s.fotos.map(leyendaCasilla))); } }}
               className={`w-full h-[68px] object-cover rounded bg-[#eef1f2] ${f.photo ? 'cursor-zoom-in' : ''}`} />
             {f.photo ? (
               <span className="absolute top-1 right-1 bg-[#1e8e3e] text-white rounded-full w-4 h-4 flex items-center justify-center"><Check size={11} /></span>
@@ -567,7 +568,7 @@ export default function InformePreventiva({ onBack, borradorInicial = null }: Pr
       {toast && (
         <div role="status" className={`toast-anim fixed bottom-5 left-1/2 -translate-x-1/2 ${toast.error ? 'bg-red-800' : 'bg-[#0E4660]'} text-white py-3 px-5 rounded-lg text-sm shadow-lg z-50`}>{toast.text}</div>
       )}
-      {fotoAmpliada && <VisorFoto src={fotoAmpliada} onClose={() => setFotoAmpliada(null)} />}
+      {fotoAmpliada && <VisorFoto {...fotoAmpliada} onClose={() => setFotoAmpliada(null)} />}
       {escanear && (
         <EscanerDocumento onCancelar={() => setEscanear(null)}
           onUsar={doc => { cambiarFoto(escanear.seccion, escanear.foto, { photo: doc }); setEscanear(null); }} />

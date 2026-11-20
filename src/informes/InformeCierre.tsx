@@ -10,6 +10,7 @@ import {
 import logoPsinet from "../assets/logo_psinet.png";
 import logoEdificio from "../assets/LogoEdificio.png";
 import VisorFoto from '../componentes/VisorFoto';
+import { fotoConBloque, type FotoAmpliada } from '../componentes/fotosDelVisor';
 import { copiarImagenAlPortapapel } from '../lib/copiarImagen';
 import { N_CONTRATO } from '../datos/catalogos';
 import { fileToDataUrl, uid } from '../lib/fotos';
@@ -164,7 +165,7 @@ export default function InformeCierre({ onBack }: InformeCierreProps) {
   const [isGenerating, setIsGenerating] = useState(false);
   const [toastMessage, setToastMessage] = useState<{ text: string; isError?: boolean } | null>(null);
   const showToast = (text: string, isError?: boolean) => setToastMessage({ text, isError });
-  const [fotoAmpliada, setFotoAmpliada] = useState<string | null>(null);
+  const [fotoAmpliada, setFotoAmpliada] = useState<FotoAmpliada | null>(null);
 
   const META_DIAS = 7;
 
@@ -1062,7 +1063,7 @@ export default function InformeCierre({ onBack }: InformeCierreProps) {
                         <img
                           src={src || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='75'%3E%3Crect width='100%25' height='100%25' fill='%23eee'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%23aaa' font-size='9'%3ESin foto%3C/text%3E%3C/svg%3E"}
                           alt=""
-                          onClick={e => { if (src) { e.stopPropagation(); setFotoAmpliada(src); } }}
+                          onClick={e => { if (src) { e.stopPropagation(); setFotoAmpliada(fotoConBloque(seccion.photos, pi, seccion.title)); } }}
                           className={`w-[110px] h-[82px] object-cover rounded mx-auto mb-1 bg-gray-100 ${src ? 'cursor-zoom-in' : ''}`}
                         />
                         <input type="file" accept="image/*" onChange={e => e.target.files?.[0] && assignFotoSeccion(e.target.files[0], seccion.id, pi)} className="text-[9px] w-full" />
@@ -1111,7 +1112,7 @@ export default function InformeCierre({ onBack }: InformeCierreProps) {
                       <img
                         src={c[cual] || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='90'%3E%3Crect width='100%25' height='100%25' fill='%23eee'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%23aaa' font-size='9'%3ESin foto%3C/text%3E%3C/svg%3E"}
                         alt={cual}
-                        onClick={e => { if (c[cual]) { e.stopPropagation(); setFotoAmpliada(c[cual]); } }}
+                        onClick={e => { if (c[cual]) { e.stopPropagation(); setFotoAmpliada(fotoConBloque([c.antes, c.despues], cual === 'antes' ? 0 : 1, c.placa.trim() ? `Camioneta ${c.placa.trim()}` : 'Camioneta', ['Antes', 'Después'])); } }}
                         className={`w-full h-[90px] object-cover rounded mb-1 bg-gray-100 ${c[cual] ? 'cursor-zoom-in' : ''}`}
                       />
                       <input type="file" accept="image/*" onChange={e => e.target.files?.[0] && assignCamionetaFoto(e.target.files[0], c.id, cual)} className="text-[9px] w-full" />
@@ -1138,7 +1139,7 @@ export default function InformeCierre({ onBack }: InformeCierreProps) {
                   <img
                     src={fotoReportabilidad.src}
                     alt="Evidencia Reportabilidad GG"
-                    onClick={() => setFotoAmpliada(fotoReportabilidad.src)}
+                    onClick={() => setFotoAmpliada({ src: fotoReportabilidad.src })}
                     className="w-[140px] h-[70px] object-cover rounded border border-[#DCE1E6] bg-gray-100 cursor-zoom-in"
                   />
                   <button
@@ -1181,7 +1182,7 @@ export default function InformeCierre({ onBack }: InformeCierreProps) {
         </div>
       )}
 
-      {fotoAmpliada && <VisorFoto src={fotoAmpliada} onClose={() => setFotoAmpliada(null)} />}
+      {fotoAmpliada && <VisorFoto {...fotoAmpliada} onClose={() => setFotoAmpliada(null)} />}
     </div>
   );
 }

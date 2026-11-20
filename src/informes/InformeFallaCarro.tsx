@@ -11,6 +11,7 @@ import { pareceDocumento } from '../lib/documentosEscaneables';
 import logoPsinet from "../assets/logo_psinet.png";
 import logoEdificio from "../assets/LogoEdificio.png";
 import VisorFoto from '../componentes/VisorFoto';
+import { fotoConBloque, type FotoAmpliada } from '../componentes/fotosDelVisor';
 import { copiarImagenAlPortapapel } from '../lib/copiarImagen';
 import { N_CONTRATO, LINEA_SERVICIO } from '../datos/catalogos';
 import { fileToDataUrl, uid } from '../lib/fotos';
@@ -367,7 +368,7 @@ export default function InformeFallaCarro({ onBack, borradorInicial = null }: In
     setToastMessage({ text, isError });
     setTimeout(() => setToastMessage(null), 3500);
   };
-  const [fotoAmpliada, setFotoAmpliada] = useState<string | null>(null);
+  const [fotoAmpliada, setFotoAmpliada] = useState<FotoAmpliada | null>(null);
   // Casilla para la que se abrió el escáner de documentos (ART, bloqueo, permisos…).
   const [escanearEn, setEscanearEn] = useState<{ grupoId: string; fotoId: string } | null>(null);
 
@@ -1205,7 +1206,7 @@ export default function InformeFallaCarro({ onBack, borradorInicial = null }: In
                       <img
                         src={slot.photo || placeholderImg}
                         alt=""
-                        onClick={e => { if (slot.photo) { e.stopPropagation(); setFotoAmpliada(slot.photo); } }}
+                        onClick={e => { if (slot.photo) { e.stopPropagation(); setFotoAmpliada(fotoConBloque(grupo.fotos.map(f => f.photo), grupo.fotos.indexOf(slot), `Bloque ${gi + 1}`, grupo.fotos.map(f => f.caption))); } }}
                         className={`w-full h-[80px] object-cover rounded mb-1 bg-gray-100 ${slot.photo ? 'cursor-zoom-in' : ''}`}
                       />
                       <button type="button" onClick={e => { e.stopPropagation(); setEscanearEn({ grupoId: grupo.id, fotoId: slot.id }); }}
@@ -1260,7 +1261,7 @@ export default function InformeFallaCarro({ onBack, borradorInicial = null }: In
         </div>
       )}
 
-      {fotoAmpliada && <VisorFoto src={fotoAmpliada} onClose={() => setFotoAmpliada(null)} />}
+      {fotoAmpliada && <VisorFoto {...fotoAmpliada} onClose={() => setFotoAmpliada(null)} />}
 
       {escanearEn && (
         <EscanerDocumento

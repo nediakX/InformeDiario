@@ -11,6 +11,7 @@ import { pareceDocumento } from '../lib/documentosEscaneables';
 import logoPsinet from "../assets/logo_psinet.png";
 import logoEdificio from "../assets/LogoEdificio.png";
 import VisorFoto from '../componentes/VisorFoto';
+import { fotoConBloque, type FotoAmpliada } from '../componentes/fotosDelVisor';
 import { copiarImagenAlPortapapel } from '../lib/copiarImagen';
 import { fileToDataUrl, uid } from '../lib/fotos';
 import { type BorradorOtroEntry, upsertBorradorOtro, deleteBorradorOtro, contarFotosGenerico } from '../datos/borradoresOtros';
@@ -212,7 +213,7 @@ export default function InformeMantenimiento({ onBack, borradorInicial = null }:
     setToastMessage({ text, isError });
     setTimeout(() => setToastMessage(null), 3500);
   };
-  const [fotoAmpliada, setFotoAmpliada] = useState<string | null>(null);
+  const [fotoAmpliada, setFotoAmpliada] = useState<FotoAmpliada | null>(null);
   // Casilla para la que se abrió el escáner de documentos (ART, bloqueo/LOTO, permisos…).
   const [escanearFotoId, setEscanearFotoId] = useState<string | null>(null);
   const [selectedFotoId, setSelectedFotoId] = useState<string | null>(null);
@@ -1042,7 +1043,7 @@ export default function InformeMantenimiento({ onBack, borradorInicial = null }:
                       <img
                         src={item.photo || placeholderImg}
                         alt=""
-                        onClick={e => { if (item.photo) { e.stopPropagation(); setFotoAmpliada(item.photo); } }}
+                        onClick={e => { if (item.photo) { e.stopPropagation(); setFotoAmpliada(fotoConBloque(fotos.map(f => f.photo), indice, 'Registro fotográfico', fotos.map(f => f.caption || f.section))); } }}
                         className={`w-full h-[80px] object-cover rounded mb-1 bg-gray-100 ${item.photo ? 'cursor-zoom-in' : ''}`}
                       />
                       <input type="file" accept="image/*" capture="environment" onClick={e => e.stopPropagation()} onChange={e => e.target.files?.[0] && assignFoto(item.id, e.target.files[0])} className="hidden" id={`foto-camara-${item.id}`} />
@@ -1196,7 +1197,7 @@ export default function InformeMantenimiento({ onBack, borradorInicial = null }:
         </div>
       )}
 
-      {fotoAmpliada && <VisorFoto src={fotoAmpliada} onClose={() => setFotoAmpliada(null)} />}
+      {fotoAmpliada && <VisorFoto {...fotoAmpliada} onClose={() => setFotoAmpliada(null)} />}
 
       {escanearFotoId && (
         <EscanerDocumento
