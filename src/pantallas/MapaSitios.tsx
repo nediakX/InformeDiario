@@ -7,12 +7,12 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import './mapaSitios.css';
-import { ArrowLeft, Copy, Crosshair, Layers, LocateFixed, Navigation, Radio, Search } from 'lucide-react';
+import { ArrowLeft, Copy, Crosshair, Layers, LocateFixed, MapPinOff, Navigation, Radio, Search } from 'lucide-react';
 import logoPsinet from '../assets/logo_psinet.png';
 import logoEdificio from '../assets/LogoEdificio.png';
 import { useSesion } from '../auth/sesion';
 import { configDivision } from '../datos/divisiones';
-import { SITIOS_MAPA, type SitioMapa, distanciaMetros, puntoDesde, textoCoordenadas } from '../datos/sitiosMapa';
+import { SITIOS_MAPA, type SitioMapa, carrosSinUbicacion, distanciaMetros, puntoDesde, textoCoordenadas } from '../datos/sitiosMapa';
 import type { ReporteGG } from '../datos/reportesGG';
 import type { EstadoGG, SitioGG } from '../datos/analisisGG';
 import { useGGSitios } from './useGGSitios';
@@ -67,7 +67,11 @@ export default function MapaSitios({ onBack }: { onBack: () => void }) {
   const datos = SITIOS_MAPA[division];
   const { ubicacionPorCarro } = configDivision(division);
   const sitios = useMemo(() => datos?.sitios ?? [], [datos]);
+  // Carros de la división que aún no tienen coordenadas: se listan aparte, con su reportabilidad.
+  const pendientes = useMemo(() => carrosSinUbicacion(division), [division]);
+  const todos = useMemo(() => [...sitios, ...pendientes.map(codigo => ({ codigo }))], [sitios, pendientes]);
   const ubicacion = (s: SitioMapa) => ubicacionPorCarro[s.carro ?? s.codigo] ?? '';
+  const conSectores = sitios.some(s => s.azimuts?.length);
 
   const contenedorRef = useRef<HTMLDivElement>(null);
   const mapaRef = useRef<L.Map | null>(null);
@@ -85,21 +89,23 @@ export default function MapaSitios({ onBack }: { onBack: () => void }) {
   const [copiado, setCopiado] = useState<string | null>(null);
 
   // --- Reportabilidad de GG (mismos datos y reglas que el monitoreo del panel) ---
-  const ggPorCodigo = useGGSitios(division, sitios);
+  const ggPorCodigo = useGGSitios(division, todos);
 
   // Mapa (una sola vez)
   useEffect(() => {
-    if (!contenedorRef.current || !sitios.length) return;
+    const centro = datos?.centro;
+    if (!contenedorRef.current || (!sitios.length && !centro)) return;
     const mapa = L.map(contenedorRef.current, { zoomControl: false, attributionControl: true });
     L.control.zoom({ position: 'bottomright' }).addTo(mapa);
-    mapa.fitBounds(L.latLngBounds(sitios.map(s => [s.lat, s.lon] as [number, number])).pad(0.12));
+    if (sitios.length) mapa.fitBounds(L.latLngBounds(sitios.map(s => [s.lat, s.lon] as [number, number])).pad(0.12));
+    else if (centro) mapa.setView([centro.lat, centro.lon], centro.zoom);
     sectoresRef.current = L.layerGroup().addTo(mapa);
     yoRef.current = L.layerGroup().addTo(mapa);
 
     for (const s of sitios) {
       const icono = L.divIcon({
         className: 'mapa-pin-envoltura',
-        html: `<span class="mapa-pin${s.nota ? ' mapa-pin--aviso' : ''}"><span class="mapa-pin__punto"></span><span class="mapa-pin__texto">${escapar(corto(s.codigo))}</span></span>`,
+        html: `<span class="mapa-pin${s.nota ? ' mapa-pin--aviso' : ''}${s.etiquetaIzquierda ? ' mapa-pin--izq' : ''}"><span class="mapa-pin__punto"></span><span class="mapa-pin__texto">${escapar(corto(s.codigo))}</span></span>`,
         iconSize: [0, 0],
       });
       const marcador = L.marker([s.lat, s.lon], { icon: icono, title: s.codigo, keyboard: true, riseOnHover: true }).addTo(mapa);
@@ -114,7 +120,7 @@ export default function MapaSitios({ onBack }: { onBack: () => void }) {
     const observador = new ResizeObserver(() => mapa.invalidateSize());
     observador.observe(contenedorRef.current);
     return () => { observador.disconnect(); mapa.remove(); mapaRef.current = null; marcadores.clear(); };
-  }, [sitios]);
+  }, [sitios, datos]);
 
   // Globo y color de cada carro según su reportabilidad (se actualiza al llegar reportes nuevos).
   useEffect(() => {
@@ -203,13 +209,33 @@ export default function MapaSitios({ onBack }: { onBack: () => void }) {
     // En el celular el mapa queda arriba de la lista.
     contenedorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   };
-  const verTodos = () => mapaRef.current?.flyToBounds(L.latLngBounds(sitios.map(s => [s.lat, s.lon] as [number, number])).pad(0.12), { duration: 0.8 });
+  const verTodos = () => {
+    const centro = datos?.centro;
+    if (sitios.length) mapaRef.current?.flyToBounds(L.latLngBounds(sitios.map(s => [s.lat, s.lon] as [number, number])).pad(0.12), { duration: 0.8 });
+    else if (centro) mapaRef.current?.flyTo([centro.lat, centro.lon], centro.zoom, { duration: 0.8 });
+  };
 
   const copiar = async (s: SitioMapa) => {
     try { await navigator.clipboard.writeText(textoCoordenadas(s)); setCopiado(s.codigo); setTimeout(() => setCopiado(null), 1800); } catch { /* sin portapapeles */ }
   };
 
   const q = busqueda.trim().toLowerCase();
+  const normal = (t: string) => t.toLowerCase().replace(/[^a-z0-9]/g, '');
+  const pendientesFiltrados = pendientes.filter(c => !q || c.toLowerCase().includes(q) || (ubicacionPorCarro[c] ?? '').toLowerCase().includes(q));
+  /** Reportabilidad de GG de un carro, en una línea (igual para carros con y sin ubicación). */
+  const lineaGG = (codigo: string) => {
+    const g = ggPorCodigo.get(codigo);
+    if (g === null) return null;
+    if (g === undefined) return <span className="mapa-item__gg">GG: cargando…</span>;
+    const u = g.ultimo;
+    return (
+      <span className={`mapa-item__gg mapa-item__gg--${g.estado}`}>
+        <span className="mapa-item__gg-estado">{ESTADO_TEXTO[g.estado]}</span>
+        {u ? ` ${cuandoReporte(u)} · Comb. ${u.combustible ?? '—'} · ${fmtNum(u.horometro)} h` : ' en los últimos 30 días'}
+        {u && g.alertas.length > 0 && ` · ${g.alertas[0].corto}${g.alertas.length > 1 ? ` +${g.alertas.length - 1}` : ''}`}
+      </span>
+    );
+  };
   const lista = sitios
     .map(s => ({ s, dist: yo ? distanciaMetros(yo, s) : null }))
     .filter(({ s }) => !q || s.codigo.toLowerCase().includes(q) || ubicacion(s).toLowerCase().includes(q))
@@ -223,7 +249,7 @@ export default function MapaSitios({ onBack }: { onBack: () => void }) {
             <div className="site-header__plate"><img src={logoPsinet} alt="PSINet" /></div>
             <div className="min-w-0">
               <div className="site-header__title font-display font-bold text-xl leading-tight truncate">Mapa de sitios</div>
-              <div className="site-header__meta text-xs truncate">{datos ? `${datos.nombre} · ${sitios.length} carros` : 'Sin datos para esta división'}</div>
+              <div className="site-header__meta text-xs truncate">{datos ? `${datos.nombre} · ${todos.length} carros${sitios.length ? '' : ' · ubicaciones pendientes'}` : 'Sin datos para esta división'}</div>
             </div>
           </div>
           <CuentaCabecera />
@@ -249,17 +275,26 @@ export default function MapaSitios({ onBack }: { onBack: () => void }) {
               </div>
             </div>
             <div className="mapa-controles mapa-controles--derecha">
-              <button type="button" className={`mapa-btn ${verSectores ? 'mapa-btn--activo' : ''}`} aria-pressed={verSectores} onClick={() => setVerSectores(v => !v)} title="Sectores de antena">
-                <Radio size={16} /> <span className="mapa-btn__texto">Sectores</span>
-              </button>
-              <button type="button" className="mapa-btn" onClick={verTodos} title="Ver todos los sitios"><Layers size={16} /> <span className="mapa-btn__texto">Todos</span></button>
+              {conSectores && (
+                <button type="button" className={`mapa-btn ${verSectores ? 'mapa-btn--activo' : ''}`} aria-pressed={verSectores} onClick={() => setVerSectores(v => !v)} title="Sectores de antena">
+                  <Radio size={16} /> <span className="mapa-btn__texto">Sectores</span>
+                </button>
+              )}
+              <button type="button" className="mapa-btn" onClick={verTodos} title={sitios.length ? 'Ver todos los sitios' : 'Volver a la mina'}><Layers size={16} /> <span className="mapa-btn__texto">{sitios.length ? 'Todos' : 'Mina'}</span></button>
               <button type="button" className={`mapa-btn ${yo ? 'mapa-btn--activo' : ''}`} onClick={ubicarme} title="Mi ubicación"><LocateFixed size={16} /> <span className="mapa-btn__texto">Mi ubicación</span></button>
             </div>
             {errorUbicacion && <div className="mapa-aviso" role="status">{errorUbicacion}</div>}
-            <div className="mapa-leyenda" aria-label="Estado de la reportabilidad de GG">
-              <span><i data-gg="ok" /> Normal</span><span><i data-gg="atencion" /> Atención</span>
-              <span><i data-gg="critico" /> Crítico</span><span><i data-gg="na" /> Sin GG</span>
-            </div>
+            {sitios.length > 0 ? (
+              <div className="mapa-leyenda" aria-label="Estado de la reportabilidad de GG">
+                <span><i data-gg="ok" /> Normal</span><span><i data-gg="atencion" /> Atención</span>
+                <span><i data-gg="critico" /> Crítico</span><span><i data-gg="na" /> Sin GG</span>
+              </div>
+            ) : (
+              <div className="mapa-pendiente" role="note">
+                <MapPinOff size={16} aria-hidden="true" />
+                <span><strong>Ubicaciones pendientes.</strong> Los carros aparecerán en el mapa cuando se carguen sus coordenadas.</span>
+              </div>
+            )}
           </div>
 
           <aside className="mapa-lista" aria-label="Lista de sitios">
@@ -275,19 +310,7 @@ export default function MapaSitios({ onBack }: { onBack: () => void }) {
                     <button type="button" className="mapa-item__principal" onClick={() => irA(s)}>
                       <span className="mapa-item__codigo">{s.codigo}{s.nota && <span className="mapa-item__aviso" title={s.nota}>revisar</span>}</span>
                       <span className="mapa-item__detalle">{[ubicacion(s), s.altitud ? `${s.altitud} m` : ''].filter(Boolean).join(' · ') || textoCoordenadas(s)}</span>
-                      {(() => {
-                        const g = ggPorCodigo.get(s.codigo);
-                        if (g === null) return null;
-                        if (g === undefined) return <span className="mapa-item__gg">GG: cargando…</span>;
-                        const u = g.ultimo;
-                        return (
-                          <span className={`mapa-item__gg mapa-item__gg--${g.estado}`}>
-                            <span className="mapa-item__gg-estado">{ESTADO_TEXTO[g.estado]}</span>
-                            {u ? ` ${cuandoReporte(u)} · Comb. ${u.combustible ?? '—'} · ${fmtNum(u.horometro)} h` : ' en los últimos 30 días'}
-                            {u && g.alertas.length > 0 && ` · ${g.alertas[0].corto}${g.alertas.length > 1 ? ` +${g.alertas.length - 1}` : ''}`}
-                          </span>
-                        );
-                      })()}
+                      {lineaGG(s.codigo)}
                     </button>
                     {dist !== null && <span className="mapa-item__dist">{formatoDistancia(dist)}</span>}
                     <button type="button" className="mapa-item__accion" onClick={() => void copiar(s)} title="Copiar coordenadas" aria-label={`Copiar coordenadas de ${s.codigo}`}>
@@ -298,6 +321,28 @@ export default function MapaSitios({ onBack }: { onBack: () => void }) {
                 </li>
               ))}
             </ul>
+            {pendientesFiltrados.length > 0 && (
+              <>
+                <p className="mapa-lista__titulo">{sitios.length ? 'Sin ubicación todavía' : `Carros de ${datos.nombre}`}</p>
+                <ul>
+                  {pendientesFiltrados.map(codigo => {
+                    const lugar = ubicacionPorCarro[codigo] ?? '';
+                    return (
+                      <li key={codigo}>
+                        <div className="mapa-item mapa-item--pendiente">
+                          <div className="mapa-item__principal">
+                            <span className="mapa-item__codigo">{codigo}<span className="mapa-item__aviso">sin ubicación</span></span>
+                            {lugar && normal(lugar) !== normal(codigo) && <span className="mapa-item__detalle">{lugar}</span>}
+                            {lineaGG(codigo)}
+                          </div>
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </>
+            )}
+            {lista.length === 0 && pendientesFiltrados.length === 0 && <p className="mapa-lista__nota">Ningún sitio coincide con «{busqueda}».</p>}
           </aside>
         </main>
       )}

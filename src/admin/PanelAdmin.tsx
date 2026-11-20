@@ -115,12 +115,12 @@ export default function PanelAdmin({ onBack, pestana, onPestanaChange }: {
 
       <main className="max-w-[1100px] mx-auto p-5 space-y-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <button type="button" onClick={onBack} className="btn-outline text-[#0E4660] px-3 py-1.5 rounded-md text-xs font-bold hover:bg-[#d5e7f8] flex items-center gap-1.5">
-            <ArrowLeft size={14} /> Volver al menú
+          <button type="button" onClick={onBack} className="btn-outline text-[#0E4660] px-3 py-1.5 rounded-md text-xs font-bold hover:bg-[#d5e7f8] flex items-center gap-1.5 whitespace-nowrap">
+            <ArrowLeft size={14} /> <span className="sm:hidden">Menú</span><span className="hidden sm:inline">Volver al menú</span>
           </button>
           <SelectorDivision />
-          <button type="button" onClick={() => void cargar()} disabled={cargando} className="btn-mini" aria-label="Actualizar datos">
-            {cargando ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />} Actualizar
+          <button type="button" onClick={() => void cargar()} disabled={cargando} className="btn-mini" aria-label="Actualizar datos" title="Actualizar datos">
+            {cargando ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />} <span className="hidden sm:inline">Actualizar</span>
           </button>
         </div>
 

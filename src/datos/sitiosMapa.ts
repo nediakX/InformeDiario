@@ -1,7 +1,9 @@
 // Ubicación de los carros LTE en la mina (Rajo Inca, División El Salvador).
 // Fuente: listado de coordenadas entregado y "KMZ_SITIOS_19-08-2026.kmz" (altitud y orientación de
 // los 3 sectores de cada sitio). Los azimuts se redondean a la decena, como se planifican.
-import type { Division } from './divisiones';
+// División Andina todavía no tiene las coordenadas de sus carros: su mapa muestra la mina y lista los
+// carros como "ubicación pendiente" hasta que se carguen aquí.
+import { CONFIG_DIVISION, type Division } from './divisiones';
 
 export interface SitioMapa {
   /** Código como aparece en el listado (ej: LTE_CMF_09). */
@@ -18,10 +20,12 @@ export interface SitioMapa {
   gg?: string;
   /** Aviso para revisar el dato. */
   nota?: string;
+  /** El nombre va a la izquierda del punto (cuando a la derecha hay otro carro muy cerca). */
+  etiquetaIzquierda?: boolean;
 }
 
 const RAJO_INCA: SitioMapa[] = [
-  { codigo: 'LIGHT_LTE_12', carro: 'Light_12', gg: '', lat: -26.254049, lon: -69.54821996 },
+  { codigo: 'LIGHT_LTE_12', carro: 'Light_12', gg: '', lat: -26.254049, lon: -69.54821996, etiquetaIzquierda: true },
   { codigo: 'LTE_CMF_01', lat: -26.272367, lon: -69.589742, altitud: 2486, azimuts: [90, 210, 330] },
   { codigo: 'LTE_CMF_02', lat: -26.255425, lon: -69.592775, altitud: 2458, azimuts: [30, 110, 180] },
   { codigo: 'LTE_CMF_04', lat: -26.239322, lon: -69.557997, altitud: 2763, azimuts: [10, 90, 210] },
@@ -39,12 +43,29 @@ const RAJO_INCA: SitioMapa[] = [
   { codigo: 'MMOO_01', carro: 'MMOO_01', gg: 'LTE_CM_MMOO_01', lat: -26.281941, lon: -69.592235 },
 ];
 
-export const SITIOS_MAPA: Partial<Record<Division, { nombre: string; sitios: SitioMapa[] }>> = {
+export interface MapaDivision {
+  /** Nombre de la faena o mina que se muestra en el mapa. */
+  nombre: string;
+  sitios: SitioMapa[];
+  /** Encuadre del mapa mientras no haya coordenadas de los carros (centro y nivel de zoom). */
+  centro?: { lat: number; lon: number; zoom: number };
+}
+
+export const SITIOS_MAPA: Partial<Record<Division, MapaDivision>> = {
   el_salvador: { nombre: 'Mina Rajo Inca', sitios: RAJO_INCA },
+  // Sin coordenadas de los carros por ahora: el mapa se centra en la mina Andina (Río Blanco), con las
+  // coordenadas públicas de la mina (33°07'32" S, 70°15'27" O).
+  andina: { nombre: 'División Andina', sitios: [], centro: { lat: -33.1256, lon: -70.2575, zoom: 13 } },
 };
 
+/** Carros de la división que todavía no tienen coordenadas en el mapa (se listan como "ubicación pendiente"). */
+export function carrosSinUbicacion(division: Division): string[] {
+  const sitios = SITIOS_MAPA[division]?.sitios ?? [];
+  return CONFIG_DIVISION[division].carros.filter(c => !sitios.some(s => (s.carro ?? s.codigo) === c));
+}
+
 /** Sitio de la Reportabilidad de GG que corresponde al carro del mapa (null = no reporta GG). */
-export const sitioGGDe = (s: SitioMapa): string | null => (s.gg === undefined ? s.codigo : s.gg || null);
+export const sitioGGDe = (s: Pick<SitioMapa, 'codigo' | 'gg'>): string | null => (s.gg === undefined ? s.codigo : s.gg || null);
 
 /** "lat, lon" con 6 decimales. */
 export const textoCoordenadas = (s: Pick<SitioMapa, 'lat' | 'lon'>) => `${s.lat.toFixed(6)}, ${s.lon.toFixed(6)}`;

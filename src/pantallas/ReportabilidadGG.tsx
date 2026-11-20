@@ -53,6 +53,11 @@ interface Formulario {
 }
 
 type VistaGG = 'hoy' | 'reportar' | 'reportes' | 'promedio';
+/** Nombre de sitio que puede cortarse después de cada "_" (LTE_CM_ / MMOO_01) en tarjetas angostas. */
+const conCortes = (sitio: string) => sitio.split('_').map((parte, i, partes) => (
+  <span key={i}>{parte}{i < partes.length - 1 && <>_<wbr /></>}</span>
+));
+
 const VISTAS: { valor: VistaGG; etiqueta: string }[] = [
   { valor: 'hoy', etiqueta: 'Hoy' },
   { valor: 'reportar', etiqueta: 'Reportar' },
@@ -424,7 +429,7 @@ export default function ReportabilidadGG({ onBack }: { onBack: () => void }) {
                   return (
                     <button key={sitio} type="button" onClick={() => elegirSitio(sitio)}
                       className={`text-left rounded-lg border-2 border-dashed px-3 py-2.5 hover:bg-[#eef5fb] ${form.sitio === sitio && !editando ? 'border-[#0E4660] bg-[#eef5fb]' : 'border-[#C9D3DA] bg-white'}`}>
-                      <span className="block font-bold text-sm text-[#0E4660]">{sitio}</span>
+                      <span className="block font-bold text-sm text-[#0E4660] [overflow-wrap:anywhere]">{conCortes(sitio)}</span>
                       <span className="text-xs text-gray-500 flex items-center gap-1"><CircleDashed size={12} /> Pendiente · tocar para reportar</span>
                     </button>
                   );
@@ -438,10 +443,10 @@ export default function ReportabilidadGG({ onBack }: { onBack: () => void }) {
                 return (
                   <div key={sitio} className={`rounded-lg border px-3 py-2.5 ${estilo}`}>
                     <div className="flex items-start justify-between gap-1">
-                      <span className="font-bold text-sm text-[#0E4660]">{sitio}</span>
+                      <span className="min-w-0 font-bold text-sm text-[#0E4660] [overflow-wrap:anywhere]">{conCortes(sitio)}</span>
                       {puedeEditar(r) && (
                         <button type="button" onClick={() => editar(r)} aria-label={`Corregir reporte de ${sitio}`} title="Corregir"
-                          className="text-[#0E4660] hover:bg-white rounded p-1 -m-1"><Pencil size={13} /></button>
+                          className="shrink-0 text-[#0E4660] hover:bg-white rounded p-1 -m-1"><Pencil size={13} /></button>
                       )}
                     </div>
                     <span className={`text-xs flex items-center gap-1 ${motivoRechazo ? 'text-[#8a1c1c]' : noRealizada ? 'text-[#9a5b00]' : 'text-[#006300]'}`}>
@@ -577,9 +582,9 @@ export default function ReportabilidadGG({ onBack }: { onBack: () => void }) {
             <span className="text-[11px] text-gray-500">{form.observaciones.length}/500</span>
             {error('observaciones')}
           </label>
-          <div className="flex justify-end">
+          <div className="flex sm:justify-end">
             <button type="button" onClick={() => void guardar()} disabled={guardando}
-              className="bg-[#0E4660] text-white px-5 py-2.5 rounded-md text-sm font-bold hover:bg-[#0a3549] disabled:opacity-50 flex items-center gap-2">
+              className="w-full sm:w-auto justify-center bg-[#0E4660] text-white px-5 py-3 sm:py-2.5 rounded-md text-sm font-bold hover:bg-[#0a3549] disabled:opacity-50 flex items-center gap-2">
               {guardando ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />} {editando ? 'Guardar corrección' : 'Guardar reporte'}
             </button>
           </div>
@@ -622,8 +627,8 @@ export default function ReportabilidadGG({ onBack }: { onBack: () => void }) {
           </div>
           <p className="text-[11px] text-gray-500">El Excel trae todos los reportes del filtro, con las mismas columnas de la planilla del formulario.</p>
           {esSupervisor ? (
-            <p className="text-xs rounded-md px-3 py-2 bg-[#eef5fb] text-[#0E4660] flex items-center gap-1.5">
-              <Pencil size={13} /> <strong>Vista de supervisor:</strong> puedes corregir <Pencil size={11} className="inline" /> o eliminar <Trash2 size={11} className="inline" /> cualquier reporte.
+            <p className="text-xs leading-relaxed rounded-md px-3 py-2 bg-[#eef5fb] text-[#0E4660]">
+              <strong>Vista de supervisor:</strong> puedes corregir <Pencil size={11} className="inline align-[-1px]" aria-label="(lápiz)" /> o eliminar <Trash2 size={11} className="inline align-[-1px]" aria-label="(papelero)" /> cualquier reporte.
             </p>
           ) : (
             <p className="text-xs rounded-md px-3 py-2 bg-[#f6f7f8] text-gray-600">Si un reporte quedó con un error, avísale a un supervisor: solo los supervisores pueden corregir o eliminar reportes.</p>

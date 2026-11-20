@@ -134,6 +134,21 @@ export default function Borradores({
   const pestanas: readonly (typeof turnos)[number][] = mostrarNoche ? turnos : turnos.filter(t => t.key === 'dia');
   const tituloTab = tabVisible === 'dia' ? 'Turno Día' : 'Turno Noche';
 
+  const explicacionTurno = (
+    <>
+      Aquí aparecen los 7 días del turno según el calendario 7x7. Cada informe queda <b>Pendiente</b> hasta que adjuntas su primera foto:
+      entonces se guarda en Supabase como <b>Iniciado</b>, y pasa a <b>Finalizado</b> cuando están todas las fotos o cuando lo finalizas a mano desde el informe. El {formatDiaMes(proxima.inicio)} empieza
+      el Turno {proxima.letra} y aquí aparecerán sus 7 días; esta semana pasará a "Semanas anteriores".
+    </>
+  );
+
+  const explicacionOtros = (
+    <>
+      Estos borradores no dependen del calendario de turno: cada uno es un carro o un generador distinto, y quedan guardados
+      hasta que los termines o los elimines. Se guardan en la nube apenas tienen la primera foto. Los finalizados dejan de aparecer para continuar, pero siguen aquí.
+    </>
+  );
+
   const chipEnTurno = (
     <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#F5B300] text-white">En turno</span>
   );
@@ -301,26 +316,28 @@ export default function Borradores({
       </header>
 
       <main className="max-w-[900px] mx-auto p-5 space-y-4">
-        <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center sm:justify-between">
-          <button type="button" onClick={onBack} className="btn-outline text-[#0E4660] px-3 py-1.5 rounded-md text-xs font-bold hover:bg-[#d5e7f8] flex items-center justify-center gap-1.5">
-            <ArrowLeft size={14} /> Volver al menú
+        <div className="flex flex-wrap items-center gap-2">
+          <button type="button" onClick={onBack} className="btn-outline text-[#0E4660] px-3 py-1.5 rounded-md text-xs font-bold hover:bg-[#d5e7f8] flex items-center justify-center gap-1.5 whitespace-nowrap">
+            <ArrowLeft size={14} /> <span className="sm:hidden">Menú</span><span className="hidden sm:inline">Volver al menú</span>
           </button>
-          <SelectorDivision className="sm:mr-auto" />
-          <button type="button" onClick={onImportar} className="btn-outline text-[#0E4660] px-3 py-1.5 rounded-md text-xs font-bold hover:bg-[#d5e7f8] flex items-center justify-center gap-1.5" title="Recuperar un informe borrado desde su Word">
-            <FileUp size={14} /> Importar desde Word
-          </button>
-          {tipoTab === 'diario' ? (
-            <button type="button" onClick={() => setNuevoOpen(true)} className="bg-[#0E4660] text-white px-3 py-1.5 rounded-md text-xs font-bold hover:bg-[#0a3549] flex items-center justify-center gap-1.5">
-              <Plus size={14} /> Nuevo informe diario
+          <SelectorDivision className="ml-auto sm:ml-0 sm:mr-auto" />
+          <div className="grid grid-cols-2 gap-2 w-full sm:flex sm:w-auto">
+            <button type="button" onClick={onImportar} className="btn-outline text-[#0E4660] px-3 py-2 sm:py-1.5 rounded-md text-xs font-bold hover:bg-[#d5e7f8] flex items-center justify-center gap-1.5 whitespace-nowrap" title="Recuperar un informe borrado desde su Word">
+              <FileUp size={14} /> <span className="sm:hidden">Importar Word</span><span className="hidden sm:inline">Importar desde Word</span>
             </button>
-          ) : (
-            <button type="button" onClick={configOtro?.onNuevo} className="bg-[#0E4660] text-white px-3 py-1.5 rounded-md text-xs font-bold hover:bg-[#0a3549] flex items-center justify-center gap-1.5">
-              <Plus size={14} /> Nuevo informe
-            </button>
-          )}
+            {tipoTab === 'diario' ? (
+              <button type="button" onClick={() => setNuevoOpen(true)} className="bg-[#0E4660] text-white px-3 py-2 sm:py-1.5 rounded-md text-xs font-bold hover:bg-[#0a3549] flex items-center justify-center gap-1.5 whitespace-nowrap">
+                <Plus size={14} /> <span className="sm:hidden">Nuevo informe</span><span className="hidden sm:inline">Nuevo informe diario</span>
+              </button>
+            ) : (
+              <button type="button" onClick={configOtro?.onNuevo} className="bg-[#0E4660] text-white px-3 py-2 sm:py-1.5 rounded-md text-xs font-bold hover:bg-[#0a3549] flex items-center justify-center gap-1.5 whitespace-nowrap">
+                <Plus size={14} /> Nuevo informe
+              </button>
+            )}
+          </div>
         </div>
 
-        <div role="tablist" aria-label="Tipo de informe" className="scroll-x-oculto -mx-5 px-5 pb-1 flex gap-2 overflow-x-auto sm:flex-wrap sm:overflow-visible">
+        <div role="tablist" aria-label="Tipo de informe" className="scroll-x-oculto -mx-5 px-5 pb-1 flex gap-2 overflow-x-auto">
           {TIPOS_TAB.map(t => {
             const activo = !verAnteriores && tipoTab === t.key;
             return (
@@ -330,20 +347,20 @@ export default function Borradores({
                 role="tab"
                 aria-selected={activo}
                 onClick={() => { setVerAnteriores(false); onTipoTabChange(t.key); }}
-                className={`shrink-0 whitespace-nowrap flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-bold border transition-colors ${
+                className={`shrink-0 whitespace-nowrap flex items-center justify-center gap-2 px-3 lg:px-4 py-2 rounded-lg text-sm font-bold border transition-colors ${
                   activo ? 'bg-[#0E4660] text-white border-[#0E4660]' : 'bg-white text-[#0E4660] border-[#DCE1E6] hover:bg-[#f0f6fb]'
                 }`}
               >
-                {t.icono} {t.titulo}
+                <span className="sm:max-lg:hidden">{t.icono}</span> {t.titulo}
                 <span className={`text-[11px] px-1.5 py-0.5 rounded-full ${activo ? 'bg-white/20' : 'bg-gray-100 text-gray-500'}`}>{t.count}</span>
               </button>
             );
           })}
           <button type="button" role="tab" aria-selected={verAnteriores} onClick={() => setVerAnteriores(true)}
-            className={`shrink-0 whitespace-nowrap flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-bold border transition-colors ${
+            className={`shrink-0 whitespace-nowrap flex items-center justify-center gap-2 px-3 lg:px-4 py-2 rounded-lg text-sm font-bold border transition-colors ${
               verAnteriores ? 'bg-[#0E4660] text-white border-[#0E4660]' : 'bg-white text-[#0E4660] border-[#DCE1E6] hover:bg-[#f0f6fb]'
             }`}>
-            <History size={15} /> Semanas anteriores
+            <span className="sm:max-lg:hidden"><History size={15} /></span> Semanas anteriores
             <span className={`text-[11px] px-1.5 py-0.5 rounded-full ${verAnteriores ? 'bg-white/20' : 'bg-gray-100 text-gray-500'}`}>{totalAnteriores}</span>
           </button>
         </div>
@@ -385,13 +402,13 @@ export default function Borradores({
                 <h2 className="font-display font-bold text-lg text-[#0E4660]">Turno {semana.letra} · {rangoSemana(semana)}</h2>
                 {chipEnTurno}
               </div>
-              <p className="text-xs text-gray-500">
-                Aquí aparecen los 7 días del turno según el calendario 7x7. Cada informe queda <b>Pendiente</b> hasta que adjuntas su primera foto:
-                entonces se guarda en Supabase como <b>Iniciado</b>, y pasa a <b>Finalizado</b> cuando están todas las fotos o cuando lo finalizas a mano desde el informe. El {formatDiaMes(proxima.inicio)} empieza
-                el Turno {proxima.letra} y aquí aparecerán sus 7 días; esta semana pasará a "Semanas anteriores".
-              </p>
-              <div className="flex items-center justify-between gap-2 text-sm text-gray-500 mt-3">
-                <span className="font-bold text-[#0E4660]">{tituloTab}</span>
+              <p className="hidden sm:block text-xs text-gray-500">{explicacionTurno}</p>
+              <details className="sm:hidden text-xs text-gray-500">
+                <summary className="cursor-pointer font-bold text-[#0E4660]">¿Cómo cambia el estado de cada informe?</summary>
+                <p className="mt-1.5">{explicacionTurno}</p>
+              </details>
+              <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 text-sm text-gray-500 mt-3">
+                <span className="font-bold text-[#0E4660] whitespace-nowrap">{tituloTab}</span>
                 <span>{finalizados} finalizado{finalizados === 1 ? '' : 's'} · {enCurso} en curso{noRealizados ? ` · ${noRealizados} no realizado${noRealizados === 1 ? '' : 's'}` : ''} · de {DIAS_POR_TURNO} días</span>
               </div>
               {tabVisible === 'noche' && onSemanaNocheNoRealizada && (
@@ -467,13 +484,13 @@ export default function Borradores({
                     role="tab"
                     aria-selected={activo}
                     onClick={() => onTabChange(t.key)}
-                    className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-bold border transition-colors ${
+                    className={`flex-1 flex items-center justify-center gap-2 px-3 sm:px-4 py-2.5 rounded-lg text-sm font-bold border whitespace-nowrap transition-colors ${
                       activo
                         ? 'bg-[#0E4660] text-white border-[#0E4660]'
                         : 'bg-white text-[#0E4660] border-[#DCE1E6] hover:bg-[#f0f6fb]'
                     }`}
                   >
-                    {t.icono} {t.titulo}
+                    {t.icono} <span><span className="hidden sm:inline">Turno </span>{t.titulo.replace(/^Turno /, '')}</span>
                     <span className={`text-[11px] px-1.5 py-0.5 rounded-full ${activo ? 'bg-white/20' : 'bg-gray-100 text-gray-500'}`}>
                       {delTurnoActual(t.key).length}
                     </span>
@@ -482,10 +499,10 @@ export default function Borradores({
               })}
             </div>
 
-            <div role="radiogroup" aria-label="Filtrar informes" className="flex flex-wrap gap-1.5">
+            <div role="radiogroup" aria-label="Filtrar informes" className="scroll-x-oculto -mx-5 px-5 flex gap-1.5 overflow-x-auto sm:flex-wrap sm:overflow-visible">
               {FILTROS_BORRADOR.map(f => (
                 <button key={f.valor} type="button" role="radio" aria-checked={filtro === f.valor} onClick={() => elegirFiltro(f.valor)}
-                  className={`rounded-full border px-3 py-1 text-xs font-bold ${filtro === f.valor ? 'bg-[#0E4660] text-white border-[#0E4660]' : 'bg-white text-[#0E4660] border-[#DCE1E6] hover:bg-[#f0f6fb]'}`}>
+                  className={`shrink-0 whitespace-nowrap rounded-full border px-3 py-1.5 text-xs font-bold ${filtro === f.valor ? 'bg-[#0E4660] text-white border-[#0E4660]' : 'bg-white text-[#0E4660] border-[#DCE1E6] hover:bg-[#f0f6fb]'}`}>
                   {f.etiqueta}
                 </button>
               ))}
@@ -512,14 +529,15 @@ export default function Borradores({
         ) : (
           <>
             <div className="panel p-5">
-              <div className="flex items-center gap-2 mb-1 flex-wrap">
-                {configOtro?.icono}
-                <h2 className="font-display font-bold text-lg text-[#0E4660]">{configOtro?.titulo}</h2>
+              <div className="flex items-start gap-2 mb-1">
+                <span className="mt-1 shrink-0">{configOtro?.icono}</span>
+                <h2 className="font-display font-bold text-lg leading-tight text-[#0E4660]">{configOtro?.titulo}</h2>
               </div>
-              <p className="text-xs text-gray-500">
-                Estos borradores no dependen del calendario de turno: cada uno es un carro o un generador distinto, y quedan guardados
-                hasta que los termines o los elimines. Se guardan en la nube apenas tienen la primera foto. Los finalizados dejan de aparecer para continuar, pero siguen aquí.
-              </p>
+              <p className="hidden sm:block text-xs text-gray-500">{explicacionOtros}</p>
+              <details className="sm:hidden text-xs text-gray-500">
+                <summary className="cursor-pointer font-bold text-[#0E4660]">¿Cómo se guardan estos borradores?</summary>
+                <p className="mt-1.5">{explicacionOtros}</p>
+              </details>
             </div>
 
             {(configOtro?.lista.length ?? 0) === 0 ? (

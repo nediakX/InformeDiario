@@ -501,9 +501,10 @@ textarea:focus {
 .site-header button:focus-visible { outline: 3px solid var(--amber); outline-offset: 2px; }
 @media (max-width: 720px) {
   .site-header__cuenta { padding: 0 10px; gap: 6px; }
-  .cuenta-boton { padding: 3px; }
+  .cuenta-boton { padding: 5px; }
   .cuenta-boton__nombre, .cuenta-boton__rol, .cuenta-salir__txt { display: none; }
-  .cuenta-salir { width: 40px; height: 40px; padding: 0; justify-content: center; }
+  /* En el celular "Salir" va dentro del menú de la cuenta (se abre al tocar el avatar). */
+  .cuenta-salir { display: none; }
   .cuenta-boton__avatar { width: 32px; height: 32px; }
   .site-header__meta { display: none; }
 }
@@ -759,3 +760,58 @@ html[data-tema-oscuro] .hover\:text-red-700:hover { color: #ffa39b !important; }
   .site-header__cuenta { gap: 6px; padding: 0 10px 0 4px; }
   .buscador-panel { max-height: min(60vh, 420px); }
 }
+/* Escritorio: la marca termina antes del buscador centrado (su texto se corta en vez de pasar por
+   debajo) y la cuenta queda siempre a la derecha. */
+@media (min-width: 901px) {
+  .site-header__inner > div:first-child { max-width: calc(50% - min(220px, 18vw) - 16px); }
+  .site-header__cuenta { margin-left: auto; }
+}
+/* Celular: logo un poco más chico y los títulos largos en dos líneas en vez de cortarse. */
+@media (max-width: 720px) {
+  .site-header__inner > div:first-child { gap: 10px !important; padding-top: 7px !important; padding-bottom: 7px !important; }
+  .site-header__plate { padding: 5px 9px; }
+  .site-header__plate img { height: 19px; }
+  .site-header__title {
+    white-space: normal !important; font-size: 1.04rem !important; line-height: 1.08 !important;
+    display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden;
+  }
+}
+
+/* Menú de la cuenta (celular): datos de la cuenta, Mi perfil y Cerrar sesión. */
+.cuenta-menu {
+  position: fixed; z-index: 1100; width: min(280px, calc(100vw - 16px)); padding: 6px;
+  background: var(--panel); color: var(--ink); border: 1px solid var(--line); border-radius: 14px;
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.28); animation: modalIn 0.14s ease-out both; transform-origin: top right;
+}
+.cuenta-menu__cabecera { display: flex; align-items: center; gap: 10px; padding: 8px 8px 12px; margin-bottom: 4px; border-bottom: 1px solid var(--line-soft); }
+.cuenta-menu__avatar {
+  display: grid; place-items: center; width: 38px; height: 38px; flex: none; border-radius: 50%;
+  background: var(--amber); color: #14181c; font-weight: 800;
+}
+.cuenta-menu__datos { display: grid; gap: 1px; min-width: 0; }
+.cuenta-menu__nombre { display: flex; align-items: center; gap: 6px; font-weight: 800; color: var(--ink); }
+.cuenta-menu__rol { flex: none; font-size: 0.64rem; font-weight: 700; color: var(--ink); background: var(--bg-cfe0ea, #cfe0ea); border-radius: 999px; padding: 1px 7px; }
+.cuenta-menu__correo { font-size: 0.78rem; color: var(--text-soft); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cuenta-menu__opcion {
+  display: flex; align-items: center; gap: 10px; width: 100%; min-height: 46px; padding: 0 10px; border-radius: 10px;
+  font-size: 0.95rem; font-weight: 700; color: var(--brand-text); text-align: left; cursor: pointer;
+}
+.cuenta-menu__opcion:hover, .cuenta-menu__opcion:focus-visible { background: var(--panel-2); outline: none; }
+.cuenta-menu__opcion--salir { color: var(--tx-a32626, #a32626); }
+
+/* Selector de archivo de las fotos: solo el botón, con el estilo de la app (sin el texto
+   "Ningún archivo seleccionado" del navegador, que en el celular quedaba cortado). */
+input[type="file"]:not(.hidden):not(.sr-only) { width: auto; max-width: 100%; font-size: 11px; color: transparent; cursor: pointer; }
+input[type="file"]::file-selector-button {
+  margin: 0; padding: 5px 10px; border: 1px solid var(--line); border-radius: 6px; cursor: pointer;
+  background: var(--panel); color: var(--brand-text); font-family: inherit; font-size: 11px; font-weight: 700;
+}
+input[type="file"]::file-selector-button:hover { background: var(--panel-2); border-color: var(--brand-blue); }
+/* Modo oscuro: el campo del buscador de la barra no lleva el fondo de los demás campos. */
+html[data-tema-oscuro] .buscador-cabecera__campo input { background-color: transparent; border: 0; color: #fff; }
+/* Celular: fondo oscuro detrás del buscador abierto. */
+.buscador-fondo { display: none; }
+@media (max-width: 900px) {
+  .buscador-fondo { display: block; position: fixed; inset: 0; z-index: 999; background: rgba(10, 14, 16, 0.5); animation: buscadorFondo 0.15s ease-out both; }
+}
+@keyframes buscadorFondo { from { opacity: 0; } to { opacity: 1; } }

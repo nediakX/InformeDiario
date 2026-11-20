@@ -1,12 +1,13 @@
 // Panel principal · vista previa del Mapa de sitios: los carros sobre la imagen satelital, con el
 // color de su reportabilidad de GG. Es solo para mirar: al tocarla se abre el mapa completo.
+// Si la división aún no tiene coordenadas de sus carros, muestra la mina y avisa que faltan.
 import { useEffect, useMemo, useRef } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import './mapaSitios.css';
-import { ChevronRight, Map as MapIcon } from 'lucide-react';
+import { ChevronRight, Map as MapIcon, MapPinOff } from 'lucide-react';
 import { useSesion } from '../auth/sesion';
-import { SITIOS_MAPA } from '../datos/sitiosMapa';
+import { SITIOS_MAPA, carrosSinUbicacion } from '../datos/sitiosMapa';
 import type { EstadoGG } from '../datos/analisisGG';
 import { useGGSitios } from './useGGSitios';
 
@@ -16,12 +17,16 @@ export default function MiniMapaSitios({ onAbrir }: { onAbrir: () => void }) {
   const { division } = useSesion();
   const datos = SITIOS_MAPA[division];
   const sitios = useMemo(() => datos?.sitios ?? [], [datos]);
-  const gg = useGGSitios(division, sitios);
+  const pendientes = useMemo(() => carrosSinUbicacion(division), [division]);
+  // Todos los carros (con y sin coordenadas) para el conteo de la reportabilidad de GG.
+  const todos = useMemo(() => [...sitios, ...pendientes.map(codigo => ({ codigo }))], [sitios, pendientes]);
+  const gg = useGGSitios(division, todos);
   const contenedorRef = useRef<HTMLDivElement>(null);
   const marcadoresRef = useRef(new Map<string, L.Marker>());
 
   useEffect(() => {
-    if (!contenedorRef.current || !sitios.length) return;
+    const centro = datos?.centro;
+    if (!contenedorRef.current || (!sitios.length && !centro)) return;
     const mapa = L.map(contenedorRef.current, {
       zoomControl: false, attributionControl: true, dragging: false, scrollWheelZoom: false, doubleClickZoom: false,
       boxZoom: false, keyboard: false, touchZoom: false, zoomSnap: 0.25,
@@ -29,12 +34,19 @@ export default function MiniMapaSitios({ onAbrir }: { onAbrir: () => void }) {
     L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
       maxZoom: 18, attribution: '© Esri',
     }).addTo(mapa);
-    const encuadrar = () => mapa.fitBounds(L.latLngBounds(sitios.map(s => [s.lat, s.lon] as [number, number])), { padding: [26, 26] });
+    // Arriba queda espacio para el resumen (carros y alertas), así no tapa ningún punto.
+    const encuadrar = () => {
+      if (sitios.length) {
+        mapa.fitBounds(L.latLngBounds(sitios.map(s => [s.lat, s.lon] as [number, number])), { paddingTopLeft: [26, 52], paddingBottomRight: [26, 22] });
+      } else if (centro) {
+        mapa.setView([centro.lat, centro.lon], centro.zoom);
+      }
+    };
     encuadrar();
     for (const s of sitios) {
       const icono = L.divIcon({
         className: 'mapa-pin-envoltura',
-        html: `<span class="mapa-pin mapa-pin--mini"><span class="mapa-pin__punto"></span><span class="mapa-pin__texto">${corto(s.codigo)}</span></span>`,
+        html: `<span class="mapa-pin mapa-pin--mini${s.etiquetaIzquierda ? ' mapa-pin--izq' : ''}"><span class="mapa-pin__punto"></span><span class="mapa-pin__texto">${corto(s.codigo)}</span></span>`,
         iconSize: [0, 0],
       });
       marcadoresRef.current.set(s.codigo, L.marker([s.lat, s.lon], { icon: icono, interactive: false, keyboard: false }).addTo(mapa));
@@ -43,7 +55,7 @@ export default function MiniMapaSitios({ onAbrir }: { onAbrir: () => void }) {
     const observador = new ResizeObserver(() => { mapa.invalidateSize(); encuadrar(); });
     observador.observe(contenedorRef.current);
     return () => { observador.disconnect(); mapa.remove(); marcadores.clear(); };
-  }, [sitios]);
+  }, [sitios, datos]);
 
   // Color de cada punto según la reportabilidad de GG.
   useEffect(() => {
@@ -55,9 +67,11 @@ export default function MiniMapaSitios({ onAbrir }: { onAbrir: () => void }) {
   }, [gg, sitios]);
 
   if (!datos) return null;
-  const cuenta = (e: EstadoGG[]) => sitios.filter(s => { const g = gg.get(s.codigo); return g && e.includes(g.estado); }).length;
+  const cuenta = (e: EstadoGG[]) => todos.filter(s => { const g = gg.get(s.codigo); return g && e.includes(g.estado); }).length;
   const criticos = cuenta(['critico', 'sin_datos']);
   const atencion = cuenta(['atencion']);
+  const total = todos.length;
+  const sinUbicacion = sitios.length === 0;
 
   return (
     <section className="dash-minimapa" aria-labelledby="dash-minimapa-titulo">
@@ -65,13 +79,18 @@ export default function MiniMapaSitios({ onAbrir }: { onAbrir: () => void }) {
         <h2 id="dash-minimapa-titulo" className="font-display"><MapIcon size={17} aria-hidden="true" /> Mapa de sitios</h2>
         <button type="button" onClick={onAbrir} className="dash-enlace dash-gg__abrir">Abrir mapa <ChevronRight size={14} aria-hidden="true" /></button>
       </div>
-      <button type="button" className="dash-minimapa__lienzo" onClick={onAbrir} aria-label={`Abrir el mapa de sitios: ${sitios.length} carros en ${datos.nombre}`}>
+      <button type="button" className="dash-minimapa__lienzo" onClick={onAbrir}
+        aria-label={`Abrir el mapa de sitios: ${total} carros en ${datos.nombre}${sinUbicacion ? ', ubicaciones pendientes' : ''}`}>
         <div ref={contenedorRef} className="dash-minimapa__mapa" aria-hidden="true" />
         <span className="dash-minimapa__resumen">
-          {sitios.length} carros · {datos.nombre}
+          {total} carros · {datos.nombre}
+          {pendientes.length > 0 && !sinUbicacion && <span className="dash-minimapa__chip dash-minimapa__chip--pendiente">{pendientes.length} sin ubicación</span>}
           {criticos > 0 && <span className="dash-minimapa__chip dash-minimapa__chip--critico">{criticos} crítico{criticos === 1 ? '' : 's'}</span>}
           {atencion > 0 && <span className="dash-minimapa__chip dash-minimapa__chip--atencion">{atencion} en atención</span>}
         </span>
+        {sinUbicacion && (
+          <span className="dash-minimapa__aviso"><MapPinOff size={14} aria-hidden="true" /> Ubicaciones de los carros pendientes</span>
+        )}
       </button>
     </section>
   );

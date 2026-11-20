@@ -36,7 +36,7 @@ export default function Perfil({ onBack }: { onBack: () => void }) {
   };
   const [tema, setTema] = useState<Tema>(() => leerTema());
   const opcionesTema: { valor: Tema; etiqueta: string }[] = [
-    { valor: 'automatico', etiqueta: 'Automático (oscuro de noche)' },
+    { valor: 'automatico', etiqueta: 'Automático' },
     { valor: 'claro', etiqueta: 'Claro' },
     { valor: 'oscuro', etiqueta: 'Oscuro' },
   ];
@@ -246,14 +246,15 @@ export default function Perfil({ onBack }: { onBack: () => void }) {
         {/* Apariencia */}
         <section className="panel p-5 space-y-4" aria-labelledby="perfil-apariencia">
           <h2 id="perfil-apariencia" className="font-display font-bold text-lg text-[#0E4660] flex items-center gap-2"><Moon size={18} /> Apariencia</h2>
-          <div role="radiogroup" aria-label="Tema" className="inline-flex flex-wrap rounded-md border border-[#C9D3DA] overflow-hidden text-xs font-bold">
-            {opcionesTema.map(o => (
+          <div role="radiogroup" aria-label="Tema" className="grid grid-cols-3 sm:inline-grid rounded-md border border-[#C9D3DA] overflow-hidden text-xs font-bold">
+            {opcionesTema.map((o, i) => (
               <button key={o.valor} type="button" role="radio" aria-checked={tema === o.valor} onClick={() => elegirTema(o.valor)}
-                className={`px-3 py-2 ${tema === o.valor ? 'bg-[#0E4660] text-white' : 'bg-white text-[#0E4660] hover:bg-[#eef5fb]'}`}>
+                className={`px-3 sm:px-5 py-2.5 whitespace-nowrap ${i > 0 ? 'border-l border-[#C9D3DA]' : ''} ${tema === o.valor ? 'bg-[#0E4660] text-white' : 'bg-white text-[#0E4660] hover:bg-[#eef5fb]'}`}>
                 {o.etiqueta}
               </button>
             ))}
           </div>
+          <p className="text-xs text-gray-500">Automático usa el tema oscuro de 19:00 a 07:00, según la hora del equipo.</p>
         </section>
 
         {/* Accesibilidad */}

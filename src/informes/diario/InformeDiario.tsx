@@ -21,6 +21,17 @@ import { ACTIVIDAD_SUGERIDA_MANTENCION, getDefaultPersonal } from './constantes'
 import { creadoPorDiario } from '../../datos/divisiones';
 import type { InformeDiarioEstado } from './useInformeDiario';
 
+/** Quitar una fila: con texto en pantallas anchas y como papelero en el celular (deja más espacio al campo). */
+function BotonQuitar({ onClick, etiqueta }: { onClick: () => void; etiqueta: string }) {
+  return (
+    <button type="button" onClick={onClick} aria-label={etiqueta} title={etiqueta}
+      className="inline-flex h-9 w-9 items-center justify-center rounded bg-red-50 text-xs font-bold text-red-700 hover:bg-red-100 sm:h-auto sm:w-auto sm:px-2 sm:py-1">
+      <Trash2 size={15} className="sm:hidden" aria-hidden="true" />
+      <span className="hidden sm:inline">Quitar</span>
+    </button>
+  );
+}
+
 interface InformeDiarioProps {
   d: InformeDiarioEstado;
   volverABorradores: () => void;
@@ -296,14 +307,14 @@ export default function InformeDiario({ d, volverABorradores, goToNewInforme }: 
                       <GripVertical size={16} />
                     </button>
                   </td>
-                  <td className="w-[41%] p-1">
-                    <input type="text" value={p.nombre} onChange={e => handleUpdatePersonal(i, 'nombre', e.target.value)} className="w-full p-1.5 border border-[#DCE1E6] rounded" />
+                  <td className="p-1">
+                    <div className="grid gap-1 sm:grid-cols-[minmax(0,52fr)_minmax(0,48fr)] sm:gap-2">
+                      <input type="text" value={p.nombre} onChange={e => handleUpdatePersonal(i, 'nombre', e.target.value)} placeholder="Nombre" aria-label={`Nombre de la persona ${i + 1}`} className="w-full p-1.5 border border-[#DCE1E6] rounded" />
+                      <input type="text" value={p.cargo} onChange={e => handleUpdatePersonal(i, 'cargo', e.target.value)} placeholder="Cargo" aria-label={`Cargo de la persona ${i + 1}`} className="w-full px-1.5 py-1 sm:py-1.5 border border-[#DCE1E6] rounded text-[13px] sm:text-sm" />
+                    </div>
                   </td>
-                  <td className="w-[39%] p-1">
-                    <input type="text" value={p.cargo} onChange={e => handleUpdatePersonal(i, 'cargo', e.target.value)} className="w-full p-1.5 border border-[#DCE1E6] rounded" />
-                  </td>
-                  <td className="w-[12%] p-1 text-right">
-                    <button onClick={() => handleRemovePersonal(i)} className="bg-red-50 text-red-700 px-2 py-1 rounded text-xs hover:bg-red-100">Quitar</button>
+                  <td className="w-px p-1 text-right">
+                    <BotonQuitar onClick={() => handleRemovePersonal(i)} etiqueta={`Quitar a ${p.nombre || `la persona ${i + 1}`}`} />
                   </td>
                 </tr>
               ))}
@@ -369,11 +380,11 @@ export default function InformeDiario({ d, volverABorradores, goToNewInforme }: 
                       <GripVertical size={16} />
                     </button>
                   </td>
-                  <td className="w-[74%] p-1">
-                    <input type="text" value={act} onChange={e => handleUpdateActividad(i, e.target.value)} className="w-full p-1.5 border border-[#DCE1E6] rounded" />
+                  <td className="p-1">
+                    <TextoQueCrece value={act} onChange={v => handleUpdateActividad(i, v)} aria-label={`Actividad ${i + 1}`} className="block w-full p-1.5 border border-[#DCE1E6] rounded" />
                   </td>
-                  <td className="w-[18%] p-1 text-right whitespace-nowrap">
-                    <button type="button" onClick={() => handleRemoveActividad(i)} className="bg-red-50 text-red-700 px-2 py-1 rounded text-xs hover:bg-red-100">Quitar</button>
+                  <td className="w-px p-1 text-right whitespace-nowrap">
+                    <BotonQuitar onClick={() => handleRemoveActividad(i)} etiqueta={`Quitar la actividad ${i + 1}`} />
                   </td>
                 </tr>
               ))}
@@ -531,15 +542,15 @@ export default function InformeDiario({ d, volverABorradores, goToNewInforme }: 
             <tbody>
               {observaciones.map((obs, i) => (
                 <tr key={i} className="border-b border-gray-100">
-                  <td className="w-[90%] p-1">
+                  <td className="p-1">
                     <input type="text" value={obs} onChange={e => {
                       const updated = [...observaciones];
                       updated[i] = e.target.value;
                       setObservaciones(updated);
                     }} className="w-full p-1.5 border border-[#DCE1E6] rounded" />
                   </td>
-                  <td className="w-[10%] p-1 text-right">
-                    <button onClick={() => handleRemoveObservacion(i)} className="bg-red-50 text-red-700 px-2 py-1 rounded text-xs hover:bg-red-100">Quitar</button>
+                  <td className="w-px p-1 text-right">
+                    <BotonQuitar onClick={() => handleRemoveObservacion(i)} etiqueta={`Quitar la observación ${i + 1}`} />
                   </td>
                 </tr>
               ))}
@@ -636,7 +647,7 @@ export default function InformeDiario({ d, volverABorradores, goToNewInforme }: 
                         src={src || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='130' height='98'%3E%3Crect width='100%25' height='100%25' fill='%23eee'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%23aaa' font-size='10'%3EArrastra o pega%3C/text%3E%3C/svg%3E"}
                         alt="Evidencia"
                         onClick={e => { if (src) { e.stopPropagation(); setFotoAmpliada(src); } }}
-                        className={`w-[120px] max-w-full h-[90px] object-cover rounded mx-auto mb-1 bg-gray-100 ${src ? 'cursor-zoom-in' : ''}`}
+                        className={`w-full aspect-[4/3] sm:w-[120px] sm:h-[90px] sm:aspect-auto max-w-full object-cover rounded mx-auto mb-1 bg-gray-100 ${src ? 'cursor-zoom-in' : ''}`}
                       />
                       <button type="button" onClick={() => openDocumentScanner({ type: 'evidence', blockIndex: bi, photoIndex: pi })} className="w-full bg-[#0E4660] text-white rounded px-1.5 py-1 mb-1 text-[10px] font-bold">Escanear documento</button>
                       <span className="block text-[10px] text-gray-500">Imagen, cámara o app de escaneo:</span>

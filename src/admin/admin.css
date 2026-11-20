@@ -747,3 +747,14 @@ html[data-tema-oscuro] .admin-root .usuarios-resumen__alerta { background: #3d34
 html[data-tema-oscuro] .admin-root .celda--en_curso { color: #e6ebee; }
 html[data-tema-oscuro] .admin-root .celda--iniciado { color: #1a1a1a; }
 html[data-tema-oscuro] .admin-root .celda--sin_fotos { color: #1a1a1a; }
+
+/* --- Pulido en el celular ------------------------------------------------------------------ */
+@media (max-width: 640px) {
+  /* 7 pestañas: 4 + 3 en vez de 5 + 2. */
+  .admin-tabs { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  /* Filtros de hasta 3 opciones: en una sola fila y de igual ancho (el texto largo baja a dos líneas). */
+  .segmented:not(:has(> button:nth-child(4))) { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); }
+  .segmented:not(:has(> button:nth-child(4))) button { white-space: normal; line-height: 1.2; padding: 7px 6px; }
+  /* Filtros de 4 opciones: en dos filas de dos. */
+  .segmented:has(> button:nth-child(4)):not(:has(> button:nth-child(5))) { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}

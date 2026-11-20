@@ -8,14 +8,14 @@ export default function SelectorDivision({ className = '' }: { className?: strin
 
   if (!esAdmin) {
     return (
-      <span className={`inline-flex items-center gap-1.5 text-xs font-bold text-[#0E4660] bg-[#e3edf3] rounded-full px-3 py-1.5 ${className}`}>
+      <span className={`inline-flex flex-none items-center gap-1.5 whitespace-nowrap text-xs font-bold text-[#0E4660] bg-[#e3edf3] rounded-full px-3 py-1.5 ${className}`}>
         <MapPin size={14} /> {CONFIG_DIVISION[division].nombre}
       </span>
     );
   }
 
   return (
-    <div role="radiogroup" aria-label="División" className={`inline-flex items-center rounded-full border border-[#DCE1E6] bg-white p-0.5 text-xs font-bold ${className}`}>
+    <div role="radiogroup" aria-label="División" className={`inline-flex flex-none items-center whitespace-nowrap rounded-full border border-[#DCE1E6] bg-white p-0.5 text-xs font-bold ${className}`}>
       <MapPin size={14} className="mx-1.5 text-[#0E4660]" aria-hidden="true" />
       {DIVISIONES.map(d => {
         const activa = d === division;

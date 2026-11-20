@@ -66,19 +66,19 @@ export default function Resumen({ stats, rango, enLinea }: { stats: Estadisticas
           <p className="viz-empty">Sin informes guardados en el periodo.</p>
         ) : (
           <div className="viz-table-wrap">
-            <table className="viz-table">
+            <table className="viz-table viz-table--tarjetas">
               <thead>
                 <tr><th>Tipo</th><th>Informe</th><th>Fecha</th><th>Estado</th><th>Editado por</th><th>Guardado</th></tr>
               </thead>
               <tbody>
                 {stats.recientes.map(r => (
                   <tr key={r.id}>
-                    <td>{r.tipo}</td>
-                    <td className="max-w-[260px] truncate" title={r.titulo}>{r.titulo || '—'}</td>
-                    <td>{formatFechaCorta(r.fecha)}</td>
-                    <td><span className={`pill pill--${r.estado}`}>{ESTADO_INFORME[r.estado]}</span></td>
-                    <td>{r.autor}</td>
-                    <td className="whitespace-nowrap">{fechaHora(r.savedAt)}</td>
+                    <td className="celda-titulo font-bold sm:font-normal">{r.tipo}</td>
+                    <td data-label="Informe" className="celda-detalle max-w-[260px] truncate" title={r.titulo}>{r.titulo || '—'}</td>
+                    <td data-label="Fecha" className="whitespace-nowrap">{formatFechaCorta(r.fecha)}</td>
+                    <td data-label="Estado"><span className={`pill pill--${r.estado}`}>{ESTADO_INFORME[r.estado]}</span></td>
+                    <td data-label="Editado por">{r.autor}</td>
+                    <td data-label="Guardado" className="whitespace-nowrap">{fechaHora(r.savedAt)}</td>
                   </tr>
                 ))}
               </tbody>

@@ -89,20 +89,21 @@ export const DISENO_INICIO: Record<Rol, DisenoInicio> = {
 /** "Ver todo": el inicio completo, igual para todos, en una columna. */
 export const ORDEN_COMPLETO: BloqueInicio[] = ['turno', 'hoy', 'revisar', 'generadores', 'mapa'];
 
-/** Inicio de División Andina: su propia composición. Tiene el monitor de generadores y la Reportabilidad de GG
- *  con sus propios carros, igual que El Salvador. No tiene mapa y trabaja solo el Turno Día. Solo cambian el
- *  orden y los accesos: permisos y datos no cambian. */
+/** Inicio de División Andina: su propia composición. Tiene el monitor de generadores, la Reportabilidad de GG
+ *  y el mapa con sus propios carros, igual que El Salvador, y trabaja solo el Turno Día. El mapa va en la
+ *  columna lateral (sus accesos van en una franja de ancho completo). Solo cambian el orden y los accesos:
+ *  permisos y datos no cambian. */
 export const DISENO_INICIO_ANDINA: Record<Rol, DisenoInicio> = {
-  tecnico: { principal: ['hoy', 'revisar'], lateral: ['turnoMini', 'generadoresMini', 'accesos'], accesos: ['checklist', 'gg', 'preventiva', 'falla', 'borradores'] },
-  experto_sso: { principal: ['hoy', 'revisar'], lateral: ['turnoMini', 'generadoresMini', 'accesos'], accesos: ['checklist', 'gg', 'impresion', 'falla', 'borradores'] },
-  electrico: { principal: ['hoy', 'revisar'], lateral: ['generadoresMini', 'turnoMini', 'accesos'], accesos: ['falla', 'mantenimiento', 'checklist', 'borradores'] },
-  electromecanico: { principal: ['generadores', 'hoy', 'revisar'], lateral: ['turnoMini', 'accesos'], accesos: ['gg', 'mantenimiento', 'preventiva', 'checklist', 'borradores'] },
-  supervisor: { principal: ['revisar', 'generadores', 'hoy'], lateral: ['turnoMini', 'accesos'], accesos: ['gg', 'cierre', 'impresion', 'preventiva', 'borradores'] },
-  lider_tecnico: { principal: ['revisar', 'generadores', 'hoy'], lateral: ['turnoMini', 'accesos'], accesos: ['gg', 'cierre', 'impresion', 'preventiva', 'borradores'] },
-  ingeniero_especialista: { principal: ['revisar', 'generadores', 'hoy'], lateral: ['turnoMini', 'accesos'], accesos: ['gg', 'cierre', 'impresion', 'preventiva', 'borradores'] },
-  jefe: { principal: ['turno', 'revisar', 'hoy'], lateral: ['generadoresMini', 'accesos'], accesos: ['cierre', 'impresion', 'checklist', 'gg', 'borradores'] },
-  contrato: { principal: ['contrato', 'turno'], lateral: ['generadoresMini', 'accesos'], accesos: ['admin', 'cierre', 'impresion', 'gg', 'borradores'] },
+  tecnico: { principal: ['hoy', 'revisar'], lateral: ['turnoMini', 'generadoresMini', 'mapa', 'accesos'], accesos: ['checklist', 'gg', 'preventiva', 'falla', 'borradores'] },
+  experto_sso: { principal: ['hoy', 'revisar'], lateral: ['turnoMini', 'generadoresMini', 'mapa', 'accesos'], accesos: ['checklist', 'gg', 'impresion', 'falla', 'borradores'] },
+  electrico: { principal: ['hoy', 'revisar'], lateral: ['generadoresMini', 'turnoMini', 'mapa', 'accesos'], accesos: ['falla', 'mantenimiento', 'checklist', 'borradores'] },
+  electromecanico: { principal: ['generadores', 'hoy', 'revisar'], lateral: ['turnoMini', 'mapa', 'accesos'], accesos: ['gg', 'mantenimiento', 'preventiva', 'checklist', 'borradores'] },
+  supervisor: { principal: ['revisar', 'generadores', 'hoy'], lateral: ['turnoMini', 'mapa', 'accesos'], accesos: ['gg', 'cierre', 'impresion', 'preventiva', 'borradores'] },
+  lider_tecnico: { principal: ['revisar', 'generadores', 'hoy'], lateral: ['turnoMini', 'mapa', 'accesos'], accesos: ['gg', 'cierre', 'impresion', 'preventiva', 'borradores'] },
+  ingeniero_especialista: { principal: ['revisar', 'generadores', 'hoy'], lateral: ['turnoMini', 'mapa', 'accesos'], accesos: ['gg', 'cierre', 'impresion', 'preventiva', 'borradores'] },
+  jefe: { principal: ['turno', 'revisar', 'hoy'], lateral: ['generadoresMini', 'mapa', 'accesos'], accesos: ['cierre', 'impresion', 'checklist', 'gg', 'borradores'] },
+  contrato: { principal: ['contrato', 'turno'], lateral: ['generadoresMini', 'mapa', 'accesos'], accesos: ['admin', 'cierre', 'impresion', 'gg', 'borradores'] },
 };
 
-/** "Ver todo" en Andina: el inicio completo, sin mapa. */
-export const ORDEN_COMPLETO_ANDINA: BloqueInicio[] = ['turno', 'hoy', 'revisar', 'generadores'];
+/** "Ver todo" en Andina: el inicio completo, igual que El Salvador. */
+export const ORDEN_COMPLETO_ANDINA: BloqueInicio[] = ['turno', 'hoy', 'revisar', 'generadores', 'mapa'];

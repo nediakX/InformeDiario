@@ -16,7 +16,7 @@ const encabezado = 'px-3 py-2.5 border-b-2 border-[#c9d3da] text-xs font-bold te
 
 function Indicador({ etiqueta, valor, detalle }: { etiqueta: string; valor: string; detalle: string }) {
   return (
-    <div className="rounded-lg border border-[#dce1e6] bg-[#f8fbfd] px-4 py-3">
+    <div className="rounded-lg border border-[#dce1e6] bg-[#f7fafc] px-4 py-3">
       <div className="text-xs font-bold uppercase tracking-wide text-gray-500">{etiqueta}</div>
       <div className="font-display font-bold text-2xl text-[#0E4660] tabular-nums">{valor}</div>
       <div className="text-xs text-gray-500">{detalle}</div>
@@ -80,20 +80,20 @@ export default function PromedioCarrosGG({ division, sitios }: { division: Divis
               <thead>
                 <tr className="bg-[#f4f6f8]">
                   <th className={encabezado}>Sitio</th>
-                  <th className={`${encabezado} text-right`}>Reportes</th>
-                  <th className={`${encabezado} min-w-[11rem]`}>Horas por día</th>
-                  <th className={`${encabezado} text-right`}>Partidas por día</th>
+                  <th className={`${encabezado} text-right hidden sm:table-cell`}>Reportes</th>
+                  <th className={`${encabezado} sm:min-w-[11rem]`}><span className="sm:hidden">Horas/día</span><span className="hidden sm:inline">Horas por día</span></th>
+                  <th className={`${encabezado} text-right`}><span className="sm:hidden">Partidas/día</span><span className="hidden sm:inline">Partidas por día</span></th>
                 </tr>
               </thead>
               <tbody>
                 {promedios.filas.map(f => (
-                  <tr key={f.sitio} className="hover:bg-[#f8fbfd]">
-                    <td className={celda}><strong className="text-[#14181c]">{f.sitio}</strong></td>
-                    <td className={`${celda} text-right tabular-nums text-gray-600`}>{f.reportes}</td>
+                  <tr key={f.sitio} className="hover:bg-[#f0f6fb]">
+                    <td className={celda}><strong className="text-[#222]">{f.sitio}</strong></td>
+                    <td className={`${celda} text-right tabular-nums text-gray-600 hidden sm:table-cell`}>{f.reportes}</td>
                     <td className={celda}>
                       {f.horasDia != null ? (
                         <div className="flex items-center gap-2">
-                          <div className="h-2 flex-1 rounded-full bg-[#e6ebef] overflow-hidden" aria-hidden="true">
+                          <div className="hidden sm:block h-2 flex-1 rounded-full bg-[#e6ebef] overflow-hidden" aria-hidden="true">
                             <div className="h-full rounded-full bg-[#0E4660]" style={{ width: `${(f.horasDia / maxHoras) * 100}%` }} />
                           </div>
                           <span className="tabular-nums w-10 text-right font-semibold">{fmt(f.horasDia)}</span>
@@ -107,7 +107,7 @@ export default function PromedioCarrosGG({ division, sitios }: { division: Divis
               <tfoot>
                 <tr className="bg-[#eef5fb]">
                   <td className={`${celda} font-bold text-[#0E4660]`}>Promedio general</td>
-                  <td className={`${celda} text-right tabular-nums font-bold text-[#0E4660]`}>{promedios.totalReportes}</td>
+                  <td className={`${celda} text-right tabular-nums font-bold text-[#0E4660] hidden sm:table-cell`}>{promedios.totalReportes}</td>
                   <td className={`${celda} tabular-nums font-bold text-[#0E4660]`}>{promedios.horasDia != null ? fmt(promedios.horasDia) : '—'}</td>
                   <td className={`${celda} text-right tabular-nums font-bold text-[#0E4660]`}>{promedios.partidasDia != null ? fmt(promedios.partidasDia) : '—'}</td>
                 </tr>

@@ -145,6 +145,9 @@ export default function BuscadorInformes() {
         </label>
       </div>
       {abierto && createPortal(
+        <>
+        {/* Celular: oscurece la página detrás del buscador (tocarla cierra la búsqueda sin abrir lo de atrás). */}
+        <div className="buscador-fondo" aria-hidden="true" />
         <div data-buscador-panel id="buscador-resultados" role="listbox" aria-label="Resultados" className="buscador-panel" style={posicion}>
           {error && <p className="px-3 py-2 text-xs text-[#a32626]">{error}</p>}
           {!error && informes === null && <p className="px-3 py-2 text-xs text-gray-500">Cargando informes…</p>}
@@ -168,7 +171,8 @@ export default function BuscadorInformes() {
               <span className="block text-xs text-gray-500 truncate">{b.creadoNombre || 'Sin creador'}{b.sinTurno ? ' · no realizado' : ''}</span>
             </button>
           ))}
-        </div>,
+        </div>
+        </>,
         document.body,
       )}
     </>

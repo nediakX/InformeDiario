@@ -109,3 +109,48 @@
 
 /* Reportabilidad aún cargando o sin conexión: punto gris claro (no se confunde con un estado) */
 .mapa-pin[data-gg="cargando"] .mapa-pin__punto { background: #cfd6da; }
+
+/* Carros sin coordenadas todavía (División Andina por ahora) */
+.mapa-lista__titulo { margin: 4px 2px 6px; font-size: 11px; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; color: var(--brand-text); }
+.mapa-lista ul:empty { display: none; }
+.mapa-lista ul:not(:empty) + .mapa-lista__titulo { margin-top: 16px; }
+.mapa-item--pendiente { border-style: dashed; padding-right: 4px; }
+.mapa-item--pendiente .mapa-item__principal { cursor: default; }
+.mapa-pendiente {
+  position: absolute; left: 10px; right: 64px; bottom: 22px; z-index: 500; display: flex; align-items: flex-start; gap: 8px;
+  max-width: 420px; padding: 8px 12px; border-radius: 10px; background: rgba(255, 255, 255, 0.94); color: #26313a;
+  font-size: 12px; line-height: 1.35; box-shadow: 0 1px 6px rgba(0, 0, 0, 0.3);
+}
+.mapa-pendiente svg { flex: none; margin-top: 1px; color: #0e4660; }
+.dash-minimapa__chip--pendiente { background: var(--bg-e3edf3, #e3edf3); color: var(--brand-text); }
+
+/* Nombre a la izquierda del punto (para no tapar a un carro vecino) */
+.mapa-pin--izq { flex-direction: row-reverse; transform: translate(calc(-100% + 7px), -7px); }
+.mapa-pin--mini.mapa-pin--izq { transform: translate(calc(-100% + 5px), -5px); }
+
+/* Modo oscuro: controles sobre el mapa en oscuro (los de la app y los de Leaflet), con texto claro. */
+html[data-tema-oscuro] .mapa-btn,
+html[data-tema-oscuro] .mapa-segmento button,
+html[data-tema-oscuro] .mapa-leyenda,
+html[data-tema-oscuro] .mapa-pendiente,
+html[data-tema-oscuro] .dash-minimapa__resumen {
+  background: rgba(27, 35, 39, 0.94); color: #e6ebee; border-color: rgba(255, 255, 255, 0.16);
+}
+html[data-tema-oscuro] .mapa-btn--activo,
+html[data-tema-oscuro] .mapa-segmento button[aria-pressed="true"] { background: #0e4660; color: #fff; border-color: #0e4660; }
+html[data-tema-oscuro] .mapa-pendiente svg { color: #8cc4de; }
+html[data-tema-oscuro] .leaflet-bar a { background: #1b2327; color: #e6ebee; border-bottom-color: #3b474e; }
+html[data-tema-oscuro] .leaflet-bar a:hover { background: #24313a; }
+html[data-tema-oscuro] .leaflet-control-attribution { background: rgba(27, 35, 39, 0.8) !important; color: #aab6bc; }
+html[data-tema-oscuro] .leaflet-control-attribution a { color: #8cc4de; }
+html[data-tema-oscuro] .mapa-buscar { border-color: var(--line); }
+html[data-tema-oscuro] .mapa-buscar input { background: transparent; color: var(--ink); }
+html[data-tema-oscuro] .mapa-lista { border-color: var(--line); }
+
+/* Vista previa sin coordenadas: aviso al centro del mapa */
+.dash-minimapa__aviso {
+  position: absolute; left: 50%; top: 58%; transform: translate(-50%, -50%); z-index: 500; display: inline-flex; align-items: center; gap: 6px;
+  max-width: calc(100% - 24px); padding: 7px 13px; border-radius: 999px; background: rgba(20, 24, 28, 0.74); color: #fff;
+  font-size: 12px; font-weight: 700; white-space: nowrap; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+.dash-minimapa__aviso svg { flex: none; color: var(--amber); }

@@ -16,7 +16,7 @@ import { semanaDeFecha, turnosDeDivision, DIAS_POR_TURNO } from '../datos/turnos
 import { estadoChecklistDelDia } from '../informes/checklist/catalogo';
 import MonitorGeneradores from './MonitorGeneradores';
 import { esPreventiva } from '../informes/preventiva/modelo';
-import { SITIOS_MAPA } from '../datos/sitiosMapa';
+import { SITIOS_MAPA, carrosSinUbicacion } from '../datos/sitiosMapa';
 // La vista previa del mapa trae Leaflet: se carga aparte para no demorar el panel.
 const MiniMapaSitios = lazy(() => import('./MiniMapaSitios'));
 import { PorRevisar, ResumenContrato } from './BloquesRol';
@@ -179,7 +179,7 @@ export default function Dashboard({
     try { localStorage.setItem('psinet_inicio_completo', v ? '0' : '1'); } catch { /* sin almacenamiento */ }
     return !v;
   });
-  // Andina tiene su propio inicio: sin mapa y solo Turno Día. Su monitor de generadores usa sus propios carros.
+  // Andina tiene su propio inicio: solo Turno Día. Su monitor de generadores y su mapa usan sus propios carros.
   const esAndina = division === 'andina';
   const diseno = esAndina ? DISENO_INICIO_ANDINA[rol] : DISENO_INICIO[rol];
   // Columna lateral del rol. En Andina los accesos no van aquí, sino en una franja de ancho completo debajo.
@@ -213,7 +213,9 @@ export default function Dashboard({
       onClick={() => (borradoresPreventiva.length ? setModalMant('preventiva') : onNuevaPreventiva())}
       estado={borradoresPreventiva.length ? `${borradoresPreventiva.length} borrador${borradoresPreventiva.length === 1 ? '' : 'es'}` : 'Paneles, baterías, GG, torre y consolas'} />,
     mapa: SITIOS_MAPA[division] ? <Tarea icono={MapIcon} color="#2E7D32" titulo="Mapa de sitios" onClick={() => onNavigate('mapa')}
-      estado={`${SITIOS_MAPA[division]!.sitios.length} carros en ${SITIOS_MAPA[division]!.nombre}`} /> : null,
+      estado={SITIOS_MAPA[division]!.sitios.length
+        ? `${SITIOS_MAPA[division]!.sitios.length + carrosSinUbicacion(division).length} carros en ${SITIOS_MAPA[division]!.nombre}`
+        : `${carrosSinUbicacion(division).length} carros · ubicaciones pendientes`} /> : null,
     borradores: <Tarea icono={FolderOpen} color="#55636B" titulo="Borradores" onClick={() => onNavigate('borradores')}
       estado={`${borradorCount} informe${borradorCount === 1 ? '' : 's'} guardado${borradorCount === 1 ? '' : 's'}`} />,
     recuperar: <Tarea icono={FileUp} color="#0E7C86" titulo="Recuperar informe desde Word" onClick={onImportar}

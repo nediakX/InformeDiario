@@ -7,8 +7,9 @@ import { EVENTO_GG, SITIOS_GG, pendientesGG, suscribirReportesGG, todosLosReport
 import { analizarGeneradores, type SitioGG } from '../datos/analisisGG';
 import { type SitioMapa, sitioGGDe } from '../datos/sitiosMapa';
 
-/** Por código del carro: el análisis, undefined mientras carga, o null si el carro no reporta GG. */
-export function useGGSitios(division: Division, sitios: SitioMapa[]): Map<string, SitioGG | null | undefined> {
+/** Por código del carro: el análisis, undefined mientras carga, o null si el carro no reporta GG.
+ *  Sirve también para carros sin coordenadas (solo se usa su código). */
+export function useGGSitios(division: Division, sitios: Pick<SitioMapa, 'codigo' | 'gg'>[]): Map<string, SitioGG | null | undefined> {
   const hoy = hoyLocalISO();
   const desde = sumarDias(hoy, -30);
   const [reportes, setReportes] = useState<ReporteGG[] | null>(null);
