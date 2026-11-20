@@ -89,6 +89,8 @@ export default function ReportabilidadGG({ onBack }: { onBack: () => void }) {
   const formRef = useRef<HTMLElement>(null);
   const [vista, setVista] = useState<VistaGG>('hoy');
   // Al reportar o corregir se pasa a la vista de Reportar; el scroll va después de que el formulario aparezca.
+  // La barra de secciones lleva a cada categoría dentro de la misma página.
+  const irA = (v: VistaGG) => { setVista(v); document.getElementById(`seccion-${v}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }); };
   const irAlFormulario = () => { setVista('reportar'); setTimeout(() => formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50); };
 
   // --- Lo de hoy: qué sitios ya tienen reporte y cuáles faltan -----------------------------------
@@ -365,7 +367,7 @@ export default function ReportabilidadGG({ onBack }: { onBack: () => void }) {
         {/* Navegación entre secciones: se muestra solo el dato que se necesita. */}
         <nav aria-label="Secciones de Reportabilidad de GG" className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
           {VISTAS.map(v => (
-            <button key={v.valor} type="button" aria-pressed={vista === v.valor} onClick={() => setVista(v.valor)}
+            <button key={v.valor} type="button" aria-pressed={vista === v.valor} onClick={() => irA(v.valor)}
               className={`shrink-0 px-4 py-2 rounded-full text-sm font-bold border transition-colors ${vista === v.valor ? 'bg-[#0E4660] text-white border-[#0E4660]' : 'bg-white text-[#0E4660] border-[#c9d3da] hover:bg-[#d5e7f8]'}`}>
               {v.etiqueta}
             </button>
@@ -373,7 +375,7 @@ export default function ReportabilidadGG({ onBack }: { onBack: () => void }) {
         </nav>
 
         {/* Hoy: avance de la reportabilidad del día, a todo el ancho */}
-        {vista === 'hoy' && <section className="panel p-5 space-y-3" aria-labelledby="gg-hoy">
+        <section id="seccion-hoy" className="panel p-5 space-y-3 scroll-mt-4" aria-labelledby="gg-hoy">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h2 id="gg-hoy" className="font-display font-bold text-lg text-[#0E4660]">Hoy · {ddmmaaaa(hoy)}</h2>
             <span className={`text-xs font-bold rounded-full px-3 py-1 ${faltanHoy.length === 0 ? 'bg-[#e6f6e6] text-[#006300]' : 'bg-[#eef5fb] text-[#0E4660]'}`}>
@@ -465,13 +467,13 @@ export default function ReportabilidadGG({ onBack }: { onBack: () => void }) {
             </div>
             </>
           )}
-        </section>}
+        </section>
 
         {/* Debajo: formulario a la izquierda y tabla de reportes a la derecha en pantallas grandes; en celular van apilados. */}
-        <div className="grid grid-cols-1 gap-5 items-start">
-        <div className={`min-w-0 w-full ${vista === 'reportar' ? 'max-w-3xl mx-auto' : ''}`}>
+        <div className="grid grid-cols-1 lg:grid-cols-[minmax(340px,5fr)_7fr] gap-5 items-start">
+        <div className="min-w-0">
         {/* Formulario */}
-        {vista === 'reportar' && <section ref={formRef} className={`panel p-5 space-y-4 scroll-mt-4 ${editando ? 'ring-2 ring-[#ED7D31]' : ''}`}>
+        <section id="seccion-reportar" ref={formRef} className={`panel p-5 space-y-4 scroll-mt-4 ${editando ? 'ring-2 ring-[#ED7D31]' : ''}`}>
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h2 className="font-display font-bold text-lg text-[#0E4660] flex items-center gap-2"><Fuel size={18} /> {editando ? `Corregir reporte · ${editando.sitio}` : 'Nuevo reporte'}</h2>
             {editando && (
@@ -581,14 +583,16 @@ export default function ReportabilidadGG({ onBack }: { onBack: () => void }) {
               {guardando ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />} {editando ? 'Guardar corrección' : 'Guardar reporte'}
             </button>
           </div>
-        </section>}
+        </section>
         </div>
-        <div className="min-w-0 w-full">
+        <div className="min-w-0">
         {/* Promedio por carro: horas y partidas por día (supervisor y administración) */}
-        {vista === 'promedio' && <PromedioCarrosGG division={division} sitios={sitios} />}
+        <div id="seccion-promedio" className="scroll-mt-4">
+          <PromedioCarrosGG division={division} sitios={sitios} />
+        </div>
 
         {/* Tabla */}
-        {vista === 'reportes' && <section className="panel p-5 space-y-3">
+        <section id="seccion-reportes" className="panel p-5 space-y-3 scroll-mt-4">
           <div className="flex flex-wrap items-end justify-between gap-3">
             <div className="flex flex-wrap items-center gap-2">
               <h2 className="font-display font-bold text-lg text-[#0E4660]">{soloHoy ? 'Reportes de hoy' : 'Reportes'}</h2>
@@ -682,7 +686,7 @@ export default function ReportabilidadGG({ onBack }: { onBack: () => void }) {
               </button>
             </div>
           )}
-        </section>}
+        </section>
         </div>
         </div>
       </main>
