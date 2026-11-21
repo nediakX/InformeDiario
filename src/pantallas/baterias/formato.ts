@@ -7,8 +7,9 @@ const formato = new Intl.NumberFormat('es-CL', { minimumFractionDigits: 2, maxim
 export const fmtValor = (n: number | null | undefined) => (n === null || n === undefined || !Number.isFinite(n) ? '—' : formato.format(n));
 /** Para escribir en una casilla: 3.38 → "3,38" (sin ceros de más). */
 export const valorACasilla = (n: number | null) => (n === null ? '' : String(Math.round(n * 1000) / 1000).replace('.', ','));
-/** Cambio contra la medición anterior: "+0,42" o "−0,10". */
-export const fmtCambio = (d: number) => `${d > 0 ? '+' : '−'}${formato.format(Math.abs(d))}`;
+const formato2 = new Intl.NumberFormat('es-CL', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+/** Cambio contra la medición anterior, con 2 decimales: "+0,42" o "−0,10". */
+export const fmtCambio = (d: number) => `${d > 0 ? '+' : '−'}${formato2.format(Math.abs(d))}`;
 /** "2026-09-12" → "12 sep 2026" */
 export const fmtFecha = (iso: string | null) => (iso ? `${formatDiaMes(iso)} ${iso.slice(0, 4)}` : '—');
 

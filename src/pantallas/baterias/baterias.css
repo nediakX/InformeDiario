@@ -388,6 +388,7 @@ html[data-tema-oscuro] .bat-control:focus { border-color: var(--brand-text); box
 .bat-fila-form__nombre { font-size: 0.8rem; font-weight: 800; color: var(--text-soft); }
 .bat-fila-form__estado { min-width: 0; }
 .bat-fila-form__aviso { grid-column: 2 / -1; font-size: 0.74rem; line-height: 1.4; color: var(--tx-a32626, #a32626); }
+.bat-fila-form__aviso--suave { color: var(--tx-7a5b00, #7a5b00); }
 .bat-fila-form__aviso b { font-variant-numeric: tabular-nums; }
 
 /* Celular: el estado de cada batería queda solo con su ícono (el texto sigue para los lectores de pantalla). */

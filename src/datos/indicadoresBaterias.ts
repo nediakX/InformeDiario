@@ -19,8 +19,9 @@ export const BATERIAS_POR_DEFECTO = 4;
 export const MAX_BANCOS = 8;
 /** La planilla tiene columnas para 7 baterías por banco. */
 export const MAX_BATERIAS = 7;
-/** Más que esto no es una lectura real: casi siempre falta la coma (ej. 338 en vez de 3,38). */
+/** Sobre esto se avisa que la resistencia es muy alta (sin coma, casi siempre falta la coma: 338 en vez de 3,38). */
 export const RESISTENCIA_MAXIMA = 30;
+/** Más que esto no es una lectura real de una batería de 12 V. */
 export const VOLTAJE_MAXIMO = 20;
 
 export type EstadoBateria = 'buen_estado' | 'advertencia' | 'falla' | 'sin_medir';
@@ -141,46 +142,59 @@ export function leerValor(texto: string): number | null {
   return Number.isFinite(n) ? n : NaN;
 }
 
+/** Lo escrito en una casilla: el número y si se escribió con coma (o punto) decimal. */
+export interface LecturaCasilla { valor: number | null; conComa: boolean }
+export const leerCasilla = (texto: string): LecturaCasilla => ({ valor: leerValor(texto), conComa: /[.,]/.test(texto) });
+
 export interface RevisionValor {
   /** El valor no se puede guardar así. */
   error?: string;
-  /** Lo que probablemente se quiso escribir (faltó la coma). */
+  /** Se puede guardar, pero conviene mirarlo (no bloquea). */
+  aviso?: string;
+  /** Lo que probablemente se quiso escribir (se corrió o faltó la coma). */
   sugerencia?: number;
 }
 
-/** Corre la coma hasta que el valor quede en un rango real (338 → 3,38; 1207 → 12,07). */
-function conComa(valor: number, minimo: number, maximo: number): number | undefined {
-  for (const divisor of [10, 100, 1000]) {
+/** Corre la coma hasta que el valor quede en un rango real (338 → 3,38; 1410 → 14,10). */
+function correrComa(valor: number, divisores: number[], minimo: number, maximo: number): number | undefined {
+  for (const divisor of divisores) {
     const v = Math.round((valor / divisor) * 1000) / 1000;
     if (v >= minimo && v <= maximo) return v;
   }
   return undefined;
 }
+const textoNumero = (n: number) => String(n).replace('.', ',');
 
-export function revisarResistencia(r: number | null): RevisionValor {
+/**
+ * Resistencia interna (mΩ). Una batería mala puede pasar de 30 mΩ (en la planilla hay 36,72): escrita con
+ * coma se respeta. Sin coma, 100 o más casi siempre es la coma que faltó (338 → 3,38) y no se guarda así;
+ * entre 31 y 99 solo se avisa (puede ser 3,5 o una batería de 35 mΩ).
+ * `conComa`: si se escribió con decimales (los valores ya guardados cuentan como escritos con coma).
+ */
+export function revisarResistencia(r: number | null, conComa = true): RevisionValor {
   if (r === null) return {};
   if (Number.isNaN(r)) return { error: 'Escribe un número (ej. 3,38).' };
   if (r <= 0) return { error: 'Debe ser mayor que 0. Si no se midió, déjala vacía.' };
-  if (r > RESISTENCIA_MAXIMA) return { error: `Más de ${RESISTENCIA_MAXIMA} mΩ no es una lectura real.`, sugerencia: conComa(r, 1, RESISTENCIA_MAXIMA) };
+  if (!conComa && r >= 100) {
+    return {
+      error: `Sin coma, ${textoNumero(r)} mΩ no parece una lectura real (si lo es, escríbelo con coma: ${textoNumero(r)},0).`,
+      sugerencia: correrComa(r, [100, 1000, 10], 1, RESISTENCIA_MAXIMA),
+    };
+  }
+  if (!conComa && r > RESISTENCIA_MAXIMA) {
+    return { aviso: `¿Falta la coma? Si de verdad es ${textoNumero(r)} mΩ, déjalo así.`, sugerencia: correrComa(r, [10], 1, RESISTENCIA_MAXIMA) };
+  }
+  if (r > RESISTENCIA_MAXIMA) return { aviso: 'Muy alta: revisa que esté bien escrita.' };
+  if (r < 1) return { aviso: 'Muy baja: revisa la coma.', sugerencia: correrComa(r * 1000, [100, 1000], 1, RESISTENCIA_MAXIMA) };
   return {};
 }
 
-export function revisarVoltaje(v: number | null): RevisionValor {
+/** Voltaje (V) de una batería de 12 V: más de 20 no es una lectura real; con coma y bajo 8, puede que se haya corrido la coma (1,282 → 12,82). */
+export function revisarVoltaje(v: number | null, conComa = true): RevisionValor {
   if (v === null) return {};
   if (Number.isNaN(v)) return { error: 'Escribe un número (ej. 13,52).' };
   if (v <= 0) return { error: 'Debe ser mayor que 0. Si no se midió, déjalo vacío.' };
-  if (v > VOLTAJE_MAXIMO) return { error: `Más de ${VOLTAJE_MAXIMO} V no es una lectura real.`, sugerencia: conComa(v, 8, VOLTAJE_MAXIMO) };
+  if (v > VOLTAJE_MAXIMO) return { error: `Más de ${VOLTAJE_MAXIMO} V no es una lectura real.`, sugerencia: correrComa(v, [10, 100, 1000, 10000], 8, VOLTAJE_MAXIMO) };
+  if (conComa && v < 8 && v * 10 >= 8 && v * 10 <= VOLTAJE_MAXIMO) return { aviso: 'Muy bajo: ¿se corrió la coma?', sugerencia: Math.round(v * 10 * 1000) / 1000 };
   return {};
-}
-
-/** Resumen de los valores de una medición que no se pueden guardar. */
-export function erroresDeMedicion(bancos: Banco[]): number {
-  let n = 0;
-  for (const banco of bancos) {
-    for (const b of banco.baterias) {
-      if (revisarResistencia(b.resistencia).error) n += 1;
-      if (revisarVoltaje(b.voltaje).error) n += 1;
-    }
-  }
-  return n;
 }

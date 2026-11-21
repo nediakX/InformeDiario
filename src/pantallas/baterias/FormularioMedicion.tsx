@@ -8,7 +8,7 @@ import { BatteryCharging, Minus, Plus, X } from 'lucide-react';
 import type { Division } from '../../datos/divisiones';
 import { hoyLocalISO } from '../../datos/fechas';
 import {
-  MAX_BANCOS, MAX_BATERIAS, estadoBateria, estructuraDe, estructuraPorDefecto, leerValor, medicionesDelCarro,
+  MAX_BANCOS, MAX_BATERIAS, estadoBateria, estructuraDe, estructuraPorDefecto, leerCasilla, medicionesDelCarro,
   revisarResistencia, revisarVoltaje, turnoDeFecha, type MedicionBaterias, type RevisionValor,
 } from '../../datos/indicadoresBaterias';
 import { guardarBorradorBaterias, leerBorradorBaterias, type CasillasBateria } from '../../datos/medicionBaterias';
@@ -109,8 +109,10 @@ export default function FormularioMedicion({ division, carros, mediciones, edita
   );
   const repetida = mediciones.find(m => m.carro === carro && m.fecha === fecha && m.id !== idEditando) ?? null;
 
-  const valores = casillas.map(b => b.map(c => ({ resistencia: leerValor(c.r), voltaje: leerValor(c.v) })));
-  const revisiones = valores.map(b => b.map(x => ({ r: revisarResistencia(x.resistencia), v: revisarVoltaje(x.voltaje) })));
+  // Se revisa lo escrito tal cual: "338" (sin coma) no es lo mismo que "33,8".
+  const lecturas = casillas.map(b => b.map(c => ({ r: leerCasilla(c.r), v: leerCasilla(c.v) })));
+  const valores = lecturas.map(b => b.map(x => ({ resistencia: x.r.valor, voltaje: x.v.valor })));
+  const revisiones = lecturas.map(b => b.map(x => ({ r: revisarResistencia(x.r.valor, x.r.conComa), v: revisarVoltaje(x.v.valor, x.v.conComa) })));
   const errores = revisiones.flat().reduce((n, x) => n + (x.r.error ? 1 : 0) + (x.v.error ? 1 : 0), 0);
   const total = casillas.reduce((n, b) => n + b.length, 0);
   const medidas = valores.flat().filter(x => x.resistencia !== null && !Number.isNaN(x.resistencia)).length;
@@ -205,9 +207,10 @@ export default function FormularioMedicion({ division, carros, mediciones, edita
   const sitio = carros.find(c => c.codigo === carro)?.sitio;
   let orden = 0;
 
-  const aviso = (rev: RevisionValor, b: number, j: number, campo: keyof CasillasBateria, unidad: string) => rev.error && (
-    <span className="bat-fila-form__aviso" role="alert">
-      {rev.error}
+  // Error (no se guarda así) en rojo; aviso (se puede guardar, pero conviene mirarlo) en ámbar.
+  const aviso = (rev: RevisionValor, b: number, j: number, campo: keyof CasillasBateria, unidad: string) => (rev.error || rev.aviso) && (
+    <span className={`bat-fila-form__aviso${rev.error ? '' : ' bat-fila-form__aviso--suave'}`} role={rev.error ? 'alert' : 'status'}>
+      {rev.error ?? rev.aviso}
       {rev.sugerencia !== undefined && (
         <> ¿Quisiste decir <b>{fmtValor(rev.sugerencia)} {unidad}</b>?{' '}
           <button type="button" className="bat-enlace" onClick={() => cambiarCasilla(b, j, campo, valorACasilla(rev.sugerencia ?? null))}>Usar {fmtValor(rev.sugerencia)}</button>

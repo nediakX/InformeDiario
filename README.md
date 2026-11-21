@@ -136,6 +136,9 @@ Reemplaza la planilla "MEDICION BATERIAS DSAL" (El Salvador; acceso rápido del 
   en cola y se sube solo. Borrar: quien la registró, supervisores y administradores.
 - Criterio (resistencia interna): hasta 6 mΩ buen estado, hasta 8 mΩ advertencia, más de 8 mΩ falla
   (`src/datos/indicadoresBaterias.ts`). Requiere correr `supabase/schema.sql` (tabla `mediciones_baterias`).
+- Historial de la planilla (febrero, junio y septiembre de 2026): `supabase/importar_baterias_planilla.sql`
+  (se corre una vez, después de schema.sql; no duplica). Los valores digitados sin coma ya vienen corregidos y lo
+  dudoso quedó en las observaciones de cada medición ("Revisar: …").
 
 ## Rutas
 
