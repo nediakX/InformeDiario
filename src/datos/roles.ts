@@ -64,7 +64,7 @@ export function esSupervisorGG(perfil: { rut: string | null; rol?: string | null
 export type BloqueInicio = 'contrato' | 'revisar' | 'turno' | 'turnoMini' | 'hoy' | 'generadores' | 'generadoresMini' | 'mapa' | 'accesos';
 /** Accesos directos a pantallas (en el orden de "Todas las opciones"). */
 export const IDS_TAREA = [
-  'checklist', 'gg', 'tablaMantenimiento', 'impresion', 'mapa',
+  'checklist', 'gg', 'tablaMantenimiento', 'baterias', 'impresion', 'mapa',
   'cierre', 'presentacion', 'presentacionFds', 'preventiva', 'falla', 'mantenimiento',
   'borradores', 'recuperar', 'admin',
 ] as const;
@@ -87,7 +87,7 @@ export interface DisenoInicio {
 export const DISENO_INICIO: Record<Rol, DisenoInicio> = {
   tecnico: { principal: ['hoy', 'revisar', 'mapa'], lateral: ['accesos', 'turnoMini', 'generadoresMini'], accesos: ['checklist', 'gg', 'falla', 'borradores'] },
   experto_sso: { principal: ['hoy', 'revisar', 'mapa'], lateral: ['accesos', 'turnoMini', 'generadoresMini'], accesos: ['checklist', 'gg', 'falla', 'borradores'] },
-  electrico: { principal: ['hoy', 'revisar', 'mapa'], lateral: ['accesos', 'generadoresMini', 'turnoMini'], accesos: ['falla', 'checklist', 'mantenimiento', 'borradores'] },
+  electrico: { principal: ['hoy', 'revisar', 'mapa'], lateral: ['accesos', 'generadoresMini', 'turnoMini'], accesos: ['baterias', 'falla', 'checklist', 'mantenimiento', 'borradores'] },
   electromecanico: { principal: ['generadores', 'hoy', 'mapa'], lateral: ['accesos', 'turnoMini'], accesos: ['gg', 'tablaMantenimiento', 'mantenimiento', 'checklist', 'borradores'] },
   supervisor: { principal: ['revisar', 'generadores', 'hoy', 'mapa'], lateral: ['turnoMini', 'accesos'], accesos: ['gg', 'tablaMantenimiento', 'impresion', 'cierre', 'presentacion', 'presentacionFds', 'preventiva', 'borradores'] },
   lider_tecnico: { principal: ['revisar', 'generadores', 'hoy', 'mapa'], lateral: ['turnoMini', 'accesos'], accesos: ['gg', 'tablaMantenimiento', 'impresion', 'cierre', 'presentacion', 'presentacionFds', 'preventiva', 'borradores'] },

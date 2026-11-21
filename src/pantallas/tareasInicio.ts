@@ -1,6 +1,6 @@
 // Nombre, ícono y color de cada acceso del inicio (los usan el panel y el editor de accesos rápidos).
 import {
-  AlertTriangle, CalendarDays, ClipboardCheck, FileStack, FileUp, FolderOpen, Fuel, Map as MapIcon, Presentation,
+  AlertTriangle, BatteryCharging, CalendarDays, ClipboardCheck, FileStack, FileUp, FolderOpen, Fuel, Map as MapIcon, Presentation,
   Printer, RadioTower, ShieldCheck, Table2, Wrench, type LucideIcon,
 } from 'lucide-react';
 import type { IdTarea } from '../datos/roles';
@@ -11,6 +11,7 @@ export const INFO_TAREA: Record<IdTarea, InfoTarea> = {
   checklist: { titulo: 'Checklist de camioneta', icono: ClipboardCheck, color: '#1E8E3E' },
   gg: { titulo: 'Reportabilidad de GG', icono: Fuel, color: '#9a5b00' },
   tablaMantenimiento: { titulo: 'Tabla de mantenimiento GG', icono: Table2, color: '#0E4660' },
+  baterias: { titulo: 'Medición de baterías', icono: BatteryCharging, color: '#1E8E3E' },
   impresion: { titulo: 'Impresión rápida', icono: Printer, color: '#0E4660' },
   mapa: { titulo: 'Mapa de sitios', icono: MapIcon, color: '#2E7D32' },
   cierre: { titulo: 'Informe de cierre', icono: FileStack, color: '#ED7D31' },

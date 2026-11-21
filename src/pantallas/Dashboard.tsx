@@ -58,7 +58,7 @@ function Tarea({ id, estado, tono, etiqueta, ayuda, onClick }: {
 }
 
 interface DashboardProps {
-  onNavigate: (view: 'borradores' | 'cierre' | 'presentacion' | 'presentacion-fds' |'checklist' | 'impresion' | 'reportabilidad-gg' | 'tabla-mantenimiento' | 'mapa' | 'admin' | 'perfil') => void;
+  onNavigate: (view: 'borradores' | 'cierre' | 'presentacion' | 'presentacion-fds' |'checklist' | 'impresion' | 'reportabilidad-gg' | 'tabla-mantenimiento' | 'baterias' | 'mapa' | 'admin' | 'perfil') => void;
   /** Informes de hoy (Día y Noche), guardados o todavía pendientes: la persona elige con cuál trabajar. */
   informesHoy?: BorradorEntry[];
   onAbrirInforme: (entry: BorradorEntry) => void;
@@ -209,6 +209,8 @@ export default function Dashboard({
       estado="Combustible, horómetro, niveles y temperatura" ayuda />,
     tablaMantenimiento: division === 'el_salvador' ? <Tarea id="tablaMantenimiento" onClick={() => onNavigate('tabla-mantenimiento')}
       estado="Mantenimientos, cambio de correa y último reporte de cada GG" /> : null,
+    baterias: division === 'el_salvador' ? <Tarea id="baterias" onClick={() => onNavigate('baterias')}
+      estado="Resistencia interna y voltaje de los bancos de cada carro" /> : null,
     impresion: <Tarea id="impresion" onClick={() => onNavigate('impresion')}
       estado={diaDelTurno === 1 ? 'Imprime el kit de formularios de esta semana' : diaDelTurno >= DIAS_POR_TURNO - 1 ? 'Prepara el kit de la próxima semana' : 'Formularios de faena listos para imprimir'}
       tono={diaDelTurno === 1 || diaDelTurno >= DIAS_POR_TURNO - 1 ? 'aviso' : undefined} />,
@@ -249,7 +251,7 @@ export default function Dashboard({
     return !buscando || normalizarOpc(INFO_TAREA[id].titulo).includes(normalizarOpc(busquedaOpc.trim()));
   };
   const GRUPOS_OPCIONES: { clave: string; titulo: string; icono: ReactNode; ids: IdTarea[] }[] = [
-    { clave: 'terreno', titulo: 'Registros en terreno', icono: <ClipboardCheck size={15} aria-hidden="true" />, ids: ['checklist', 'gg', 'tablaMantenimiento', 'impresion', 'mapa'] },
+    { clave: 'terreno', titulo: 'Registros en terreno', icono: <ClipboardCheck size={15} aria-hidden="true" />, ids: ['checklist', 'gg', 'tablaMantenimiento', 'baterias', 'impresion', 'mapa'] },
     { clave: 'informes', titulo: 'Otros informes', icono: <FileStack size={15} aria-hidden="true" />, ids: ['cierre', 'presentacion', 'presentacionFds', 'preventiva', 'falla', 'mantenimiento'] },
     { clave: 'archivo', titulo: 'Archivo', icono: <FolderOpen size={15} aria-hidden="true" />, ids: ['borradores', 'recuperar', 'admin'] },
   ];

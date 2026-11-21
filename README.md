@@ -122,10 +122,25 @@ El botón **Imprimir** abre directamente el diálogo de impresión (en celular a
 - Las posiciones de cada campo en los PDF están en `src/impresion/plantillas.ts`: si un formulario cambia, se ajustan ahí.
 - El panel principal recuerda imprimir el kit el primer día y los dos últimos días de cada semana de turno.
 
+## Medición de baterías (`/medicion-baterias`)
+
+Reemplaza la planilla "MEDICION BATERIAS DSAL" (El Salvador; acceso rápido del rol eléctrico).
+
+- **Carros**: el estado de cada carro según su última medición (un cuadro por batería), cuándo toca la
+  próxima (cada 3 meses) y los totales, que también sirven de filtro. **Descargar Excel** con las hojas
+  "Resumen" y "Registro Baterías" (una fila por banco, con las columnas de la planilla).
+- **Detalle** (`/medicion-baterias/:carro`): cada medición banco por banco, el cambio de resistencia contra la
+  anterior y la tendencia de cada batería (resistencia o voltaje).
+- **Nueva medición / Corregir**: pensado para el celular. Lo escrito queda en el equipo mientras se llena;
+  cada casilla muestra el valor anterior ("ant. 3,38") y avisa si falta la coma (338 → 3,38). Sin señal queda
+  en cola y se sube solo. Borrar: quien la registró, supervisores y administradores.
+- Criterio (resistencia interna): hasta 6 mΩ buen estado, hasta 8 mΩ advertencia, más de 8 mΩ falla
+  (`src/datos/indicadoresBaterias.ts`). Requiere correr `supabase/schema.sql` (tabla `mediciones_baterias`).
+
 ## Rutas
 
 `/` panel · `/informe-diario/:id` · `/borradores/:tipo` · `/cierre` · `/mantenimiento/:id?` · `/falla/:id?` ·
-`/impresion` · `/admin`, `/admin/en-linea`, `/admin/usuarios`, `/admin/actividad`, `/admin/sistema` (solo administradores) · `/login`, `/registro`.
+`/impresion` · `/medicion-baterias/:carro?` · `/admin`, `/admin/en-linea`, `/admin/usuarios`, `/admin/actividad`, `/admin/sistema` (solo administradores) · `/login`, `/registro`.
 `vercel.json` redirige cualquier ruta a `index.html` para que los enlaces directos funcionen.
 
 ## Estructura

@@ -16,11 +16,12 @@
 //   /mapa-sitios               Mapa con la ubicación de los carros
 //   /reportabilidad-gg         Reportabilidad de GG (formulario + tabla de grupos generadores)
 //   /tabla-mantenimiento       Tabla de mantenimiento de generadores (horas, editable)
+//   /medicion-baterias/:carro? Medición de baterías (sin carro = todos los carros)
 //   /perfil                    Mi perfil (datos, contraseña y firma)
 //   /admin/:pestana?           Panel de administración (resumen | actividades | generadores | en-linea | usuarios | actividad | sistema)
 //   /login, /registro          Acceso (solo sin sesión)
 
-export type Vista = 'dashboard' | 'diario' | 'borradores' | 'cierre' | 'presentacion' | 'presentacion-fds' | 'mantenimiento' | 'preventiva' | 'falla-carro' | 'checklist' | 'impresion' | 'reportabilidad-gg' | 'tabla-mantenimiento' | 'mapa' | 'admin' | 'perfil';
+export type Vista = 'dashboard' | 'diario' | 'borradores' | 'cierre' | 'presentacion' | 'presentacion-fds' | 'mantenimiento' | 'preventiva' | 'falla-carro' | 'checklist' | 'impresion' | 'reportabilidad-gg' | 'tabla-mantenimiento' | 'baterias' | 'mapa' | 'admin' | 'perfil';
 export type TipoBorradores = 'diario' | 'mantenimiento' | 'falla';
 export type PestanaAdmin = 'resumen' | 'actividades' | 'generadores' | 'en-linea' | 'usuarios' | 'actividad' | 'sistema';
 
@@ -39,6 +40,7 @@ export const NOMBRE_PANTALLA: Record<Vista, string> = {
   impresion: 'Impresión Rápida',
   'reportabilidad-gg': 'Reportabilidad de GG',
   'tabla-mantenimiento': 'Tabla de mantenimiento de generadores',
+  baterias: 'Medición de baterías',
   mapa: 'Mapa de sitios',
   admin: 'Panel de administración',
   perfil: 'Mi perfil',
@@ -58,12 +60,13 @@ const BASE: Record<Vista, string> = {
   impresion: '/impresion',
   'reportabilidad-gg': '/reportabilidad-gg',
   'tabla-mantenimiento': '/tabla-mantenimiento',
+  baterias: '/medicion-baterias',
   mapa: '/mapa-sitios',
   admin: '/admin',
   perfil: '/perfil',
 };
 
-/** URL de una pantalla; `param` es el id del informe, el tipo de borradores o la pestaña de administración. */
+/** URL de una pantalla; `param` es el id del informe, el tipo de borradores, la pestaña de administración o el carro. */
 export function rutaDe(vista: Vista, param?: string | null): string {
   return param ? `${BASE[vista]}/${encodeURIComponent(param)}` : BASE[vista];
 }

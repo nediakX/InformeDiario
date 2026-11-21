@@ -1207,3 +1207,65 @@ begin
 end $$;
 
 notify pgrst, 'reload schema';
+
+-- ===========================================================================
+-- Medición de baterías (noviembre 2026): reemplaza la planilla "MEDICION BATERIAS DSAL".
+-- Una fila por medición: un carro en una fecha, con todos sus bancos y baterías en "bancos":
+--   [{"baterias": [{"resistencia": 3.38, "voltaje": 13.52}, ...]}, ...]   (resistencia en mΩ, voltaje en V)
+-- Todos los de la división ven, registran y corrigen mediciones; borrar una: quien la registró, un
+-- supervisor o un administrador. Se puede correr más de una vez.
+-- ===========================================================================
+create table if not exists public.mediciones_baterias (
+  id uuid primary key default gen_random_uuid(),
+  division text not null default 'el_salvador' check (division in ('el_salvador', 'andina')),
+  carro text not null,
+  fecha date not null,
+  turno text check (turno in ('TURNO A', 'TURNO B')),
+  bancos jsonb not null default '[]'::jsonb check (jsonb_typeof(bancos) = 'array'),
+  observaciones text,
+  registrado_por uuid default auth.uid(),
+  registrado_nombre text,
+  actualizado_nombre text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists mediciones_baterias_division_carro_fecha_idx on public.mediciones_baterias (division, carro, fecha desc);
+
+alter table public.mediciones_baterias enable row level security;
+
+drop policy if exists "mediciones_baterias_select" on public.mediciones_baterias;
+create policy "mediciones_baterias_select" on public.mediciones_baterias
+for select to authenticated using (public.puede_ver_division(division));
+
+drop policy if exists "mediciones_baterias_insert" on public.mediciones_baterias;
+create policy "mediciones_baterias_insert" on public.mediciones_baterias
+for insert to authenticated
+with check (public.puede_ver_division(division) and (registrado_por is null or registrado_por = auth.uid()));
+
+drop policy if exists "mediciones_baterias_update" on public.mediciones_baterias;
+create policy "mediciones_baterias_update" on public.mediciones_baterias
+for update to authenticated using (public.puede_ver_division(division)) with check (public.puede_ver_division(division));
+
+drop policy if exists "mediciones_baterias_delete" on public.mediciones_baterias;
+create policy "mediciones_baterias_delete" on public.mediciones_baterias
+for delete to authenticated
+using (public.puede_ver_division(division) and (registrado_por = auth.uid() or public.es_supervisor() or public.es_admin()));
+
+drop trigger if exists mediciones_baterias_set_updated_at on public.mediciones_baterias;
+create trigger mediciones_baterias_set_updated_at
+before update on public.mediciones_baterias
+for each row execute function public.set_updated_at();
+
+-- En vivo: una medición registrada se ve al instante en los otros equipos.
+do $$
+begin
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'mediciones_baterias'
+  ) then
+    alter publication supabase_realtime add table public.mediciones_baterias;
+  end if;
+end $$;
+
+notify pgrst, 'reload schema';

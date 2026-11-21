@@ -1,0 +1,417 @@
+/* Medición de baterías: carros, detalle con tendencia y formulario de medición (pensado para el celular).
+   Colores con las variables de la app (modo oscuro incluido). */
+
+:root {
+  /* Estado de cada batería (mapa del carro, franjas del gráfico y bordes) */
+  --bat-buen: #0ca30c;
+  --bat-advertencia: #fab219;
+  --bat-falla: #d03b3b;
+  --bat-sin: transparent;
+  /* Una línea por batería en la tendencia (paleta validada contra el fondo blanco) */
+  --bat-serie-1: #2a78d6;
+  --bat-serie-2: #eb6834;
+  --bat-serie-3: #1baf7a;
+  --bat-serie-4: #eda100;
+  --bat-serie-5: #e87ba4;
+  --bat-serie-6: #008300;
+  --bat-serie-7: #6250d6;
+  --bat-franja-advertencia: rgba(250, 178, 25, 0.14);
+  --bat-franja-falla: rgba(208, 59, 59, 0.09);
+}
+html[data-tema-oscuro] {
+  --bat-serie-1: #3987e5;
+  --bat-serie-2: #d95926;
+  --bat-serie-3: #199e70;
+  --bat-serie-4: #c98500;
+  --bat-serie-5: #d55181;
+  --bat-serie-6: #0ca30c;
+  --bat-serie-7: #9085e9;
+  --bat-franja-advertencia: rgba(250, 178, 25, 0.12);
+  --bat-franja-falla: rgba(208, 59, 59, 0.16);
+}
+
+.bat-main { max-width: 1180px; }
+.bat-panel { display: grid; gap: 14px; padding: 16px; min-width: 0; }
+@media (min-width: 640px) { .bat-panel { padding: 20px; } }
+
+.bat-encabezado { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 10px 16px; }
+.bat-encabezado h1 { font-size: 1.15rem; font-weight: 700; color: var(--brand-text); line-height: 1.2; }
+.bat-encabezado p { margin-top: 4px; font-size: 0.8rem; color: var(--text-soft); max-width: 70ch; }
+@media (max-width: 560px) { .bat-encabezado__nueva { flex: 1 1 100%; } }
+
+.bat-criterio { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; list-style: none; }
+
+/* Avisos */
+.bat-aviso {
+  display: flex; align-items: flex-start; gap: 8px; padding: 9px 12px; border-radius: 8px; font-size: 0.8rem; line-height: 1.4;
+  background: var(--bg-eef1f2, #eef1f2); color: var(--text-soft);
+}
+.bat-aviso > svg { flex: none; margin-top: 2px; }
+.bat-aviso--sin-senal { background: var(--bg-eef4f8, #eef4f8); color: var(--brand-text); }
+.bat-aviso--base { background: var(--bg-fff3cd, #fff3cd); color: var(--tx-7a5b00, #7a5b00); }
+.bat-aviso--error { background: var(--bg-fbe9e9, #fbe9e9); color: var(--tx-a32626, #a32626); }
+
+.bat-enlace {
+  display: inline-flex; align-items: center; gap: 4px; padding: 2px 4px; border: 0; background: none; cursor: pointer;
+  color: var(--brand-text); font: inherit; font-size: 0.8rem; font-weight: 700; text-decoration: underline; text-underline-offset: 3px;
+}
+.bat-enlace--suave { color: var(--text-soft); font-weight: 600; }
+.bat-aviso .bat-enlace { padding: 0; color: inherit; }
+
+/* Botones */
+.bat-boton {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 40px; padding: 8px 14px;
+  border-radius: 8px; border: 1px solid var(--line); background: var(--panel); color: var(--brand-text);
+  font-size: 0.84rem; font-weight: 700; cursor: pointer; transition: background-color 0.15s ease, transform 0.1s ease;
+}
+.bat-boton:hover:not(:disabled) { background: var(--panel-2); }
+.bat-boton:active:not(:disabled) { transform: scale(0.98); }
+.bat-boton:disabled { opacity: 0.5; cursor: not-allowed; }
+.bat-boton:focus-visible, .bat-enlace:focus-visible, .bat-icono-boton:focus-visible { outline: 2px solid var(--brand-blue); outline-offset: 2px; }
+.bat-boton--principal { background: var(--brand-blue); border-color: var(--brand-blue); border-left: 4px solid var(--amber); color: #fff; }
+.bat-boton--principal:hover:not(:disabled) { background: var(--brand-blue-deep); }
+.bat-boton--peligro { color: var(--tx-a32626, #a32626); }
+.bat-boton--peligro:hover:not(:disabled) { background: var(--bg-fbe9e9, #fbe9e9); }
+.bat-icono-boton {
+  display: inline-grid; place-items: center; flex: none; width: 36px; height: 36px; border-radius: 8px; border: 1px solid var(--line);
+  background: var(--panel); color: var(--brand-text); cursor: pointer;
+}
+.bat-icono-boton:hover { background: var(--panel-2); }
+
+/* Estado de una batería o de un carro: ícono + texto */
+.bat-estado {
+  position: relative; display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 999px;
+  font-size: 0.72rem; font-weight: 800; white-space: nowrap; line-height: 1.5;
+}
+.bat-estado > svg { flex: none; }
+.bat-estado--compacto { padding: 1px 7px; font-size: 0.68rem; }
+.bat-estado--buen_estado { background: var(--bg-e6f4ea, #e6f4ea); color: var(--tx-1e6b34, #1e6b34); }
+.bat-estado--advertencia { background: var(--bg-fff3cd, #fff3cd); color: var(--tx-7a5b00, #7a5b00); }
+.bat-estado--falla { background: var(--bg-fbe9e9, #fbe9e9); color: var(--tx-a32626, #a32626); }
+.bat-estado--sin_medir { background: var(--bg-eef1f2, #eef1f2); color: var(--text-soft); }
+
+/* Conteos ("2 en falla · 18 en buen estado") */
+.bat-conteos { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px; font-size: 0.76rem; color: var(--text-soft); }
+.bat-conteos--vacio { font-style: italic; }
+.bat-conteo b { font-size: 0.86rem; font-weight: 800; font-variant-numeric: tabular-nums; color: var(--ink); }
+.bat-conteo--falla, .bat-conteo--falla b { color: var(--tx-a32626, #a32626); }
+.bat-conteo--advertencia, .bat-conteo--advertencia b { color: var(--tx-7a5b00, #7a5b00); }
+
+/* Mapa del carro: una fila por banco, un cuadro por batería */
+.bat-mapa { display: inline-grid; gap: 3px; justify-content: start; }
+.bat-mapa__banco { display: flex; gap: 3px; }
+.bat-mapa__bateria { width: 14px; height: 14px; border-radius: 3px; background: var(--bat-sin); box-shadow: inset 0 0 0 1px var(--line); }
+.bat-mapa__bateria--buen_estado { background: var(--bat-buen); box-shadow: none; }
+/* Además del color: rayas en advertencia y un punto en falla (se distinguen sin ver colores). */
+.bat-mapa__bateria--advertencia {
+  background: var(--bat-advertencia); /* navegadores sin color-mix */
+  background: repeating-linear-gradient(135deg, var(--bat-advertencia) 0 3px, color-mix(in srgb, var(--bat-advertencia) 55%, var(--panel)) 3px 5px);
+  box-shadow: none;
+}
+.bat-mapa__bateria--falla { background: radial-gradient(circle, var(--panel) 0 2px, transparent 2.5px), var(--bat-falla); box-shadow: none; }
+
+/* ---------------------------------------------------------------------------------------------
+   Resumen y carros
+   --------------------------------------------------------------------------------------------- */
+.bat-kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+@media (max-width: 860px) { .bat-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 300px) { .bat-kpis { grid-template-columns: minmax(0, 1fr); } }
+.bat-kpi {
+  display: flex; align-items: center; gap: 10px; min-width: 0; padding: 10px 12px; border-radius: 10px;
+  border: 1px solid var(--line); border-left-width: 4px; background: var(--panel); color: var(--ink); text-align: left; font: inherit;
+}
+button.bat-kpi { cursor: pointer; transition: background-color 0.15s ease, box-shadow 0.15s ease; }
+button.bat-kpi:hover { background: var(--panel-2); }
+button.bat-kpi:focus-visible { outline: 2px solid var(--brand-blue); outline-offset: 2px; }
+.bat-kpi[aria-pressed="true"] { background: var(--panel-2); box-shadow: inset 0 0 0 2px currentColor; }
+.bat-kpi__valor { flex: none; min-width: 1.6ch; font-size: 1.65rem; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; }
+.bat-kpi__texto { display: grid; gap: 1px; min-width: 0; }
+.bat-kpi__titulo { font-size: 0.78rem; font-weight: 800; line-height: 1.2; }
+.bat-kpi__sub { font-size: 0.7rem; color: var(--text-soft); line-height: 1.25; }
+.bat-kpi--activo.bat-kpi--falla { border-left-color: var(--bat-falla); color: var(--tx-a32626, #a32626); }
+.bat-kpi--activo.bat-kpi--advertencia { border-left-color: var(--bat-advertencia); color: var(--tx-7a5b00, #7a5b00); }
+.bat-kpi--activo.bat-kpi--por_medir { border-left-color: var(--bat-advertencia); color: var(--tx-7a5b00, #7a5b00); }
+.bat-kpi--activo.bat-kpi--proxima { border-left-color: var(--brand-blue); color: var(--brand-text); }
+html[data-tema-oscuro] .bat-kpi--activo.bat-kpi--proxima { border-left-color: var(--brand-text); }
+.bat-kpi:not(.bat-kpi--activo) .bat-kpi__valor { color: var(--text-soft); }
+
+.bat-filtro-activo { font-size: 0.78rem; color: var(--text-soft); margin-top: -4px; }
+
+.bat-carros { display: grid; grid-template-columns: repeat(auto-fill, minmax(232px, 1fr)); gap: 10px; margin: 0; padding: 0; list-style: none; }
+@media (max-width: 300px) { .bat-carros { grid-template-columns: minmax(0, 1fr); } }
+.bat-carros > li { min-width: 0; }
+/* Ficha del carro: datos a la izquierda y el mapa de baterías a la derecha (así la lista es corta en el celular). */
+.bat-carro {
+  --bat-borde: var(--line);
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: auto auto auto 1fr auto;
+  grid-template-areas: "nombre mapa" "estado mapa" "conteos mapa" ". mapa" "pie pie";
+  gap: 6px 12px; width: 100%; height: 100%; padding: 11px 12px 10px 13px; text-align: left;
+  border: 1px solid var(--line); border-left: 4px solid var(--bat-borde); border-radius: 10px; background: var(--panel);
+  color: var(--ink); font: inherit; cursor: pointer; transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.bat-carro__estado { grid-area: estado; justify-self: start; display: flex; }
+.bat-carro__conteos { grid-area: conteos; min-width: 0; }
+.bat-carro__mapa { grid-area: mapa; align-self: start; display: flex; }
+.bat-carro__vacio { grid-area: estado; }
+.bat-carro:hover { box-shadow: 0 2px 10px rgba(14, 70, 96, 0.12); border-top-color: var(--brand-blue); border-right-color: var(--brand-blue); border-bottom-color: var(--brand-blue); }
+.bat-carro:focus-visible { outline: 2px solid var(--brand-blue); outline-offset: 2px; }
+.bat-carro--falla { --bat-borde: var(--bat-falla); }
+.bat-carro--advertencia { --bat-borde: var(--bat-advertencia); }
+.bat-carro--buen_estado { --bat-borde: var(--bat-buen); }
+.bat-carro__nombre { grid-area: nombre; display: grid; min-width: 0; }
+.bat-carro__codigo { font-weight: 800; color: var(--brand-text); line-height: 1.2; overflow-wrap: anywhere; }
+.bat-carro__sitio { font-size: 0.74rem; color: var(--text-soft); line-height: 1.25; }
+.bat-carro__vacio { font-size: 0.78rem; color: var(--text-soft); font-style: italic; }
+.bat-carro__pie {
+  grid-area: pie; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 8px;
+  margin-top: 2px; padding-top: 8px; border-top: 1px solid var(--line-soft); font-size: 0.72rem; color: var(--text-soft);
+}
+
+.bat-proxima-chip { display: inline-flex; align-items: center; padding: 1px 8px; border-radius: 999px; font-weight: 800; white-space: nowrap; }
+.bat-proxima-chip--vencida { background: var(--bg-fbe9e9, #fbe9e9); color: var(--tx-a32626, #a32626); }
+.bat-proxima-chip--proxima, .bat-proxima-chip--sin_mediciones { background: var(--bg-fff3cd, #fff3cd); color: var(--tx-7a5b00, #7a5b00); }
+.bat-proxima-chip--al_dia { background: var(--bg-eef1f2, #eef1f2); color: var(--text-soft); font-weight: 700; }
+
+.bat-sin-subir { display: inline-flex; align-items: center; gap: 4px; font-size: 0.72rem; font-weight: 700; color: var(--brand-text); }
+
+.bat-vacio { display: grid; justify-items: start; gap: 10px; padding: 16px; border: 1px dashed var(--line); border-radius: 10px; font-size: 0.86rem; color: var(--text-soft); }
+
+.bat-calculo { font-size: 0.78rem; color: var(--text-soft); border-top: 1px solid var(--line-soft); padding-top: 10px; }
+.bat-calculo > summary { cursor: pointer; font-weight: 700; color: var(--brand-text); width: fit-content; }
+.bat-calculo ul { margin: 8px 0 0; padding-left: 18px; display: grid; gap: 4px; list-style: disc; }
+.bat-calculo b { color: var(--ink); }
+
+/* ---------------------------------------------------------------------------------------------
+   Detalle de un carro
+   --------------------------------------------------------------------------------------------- */
+.bat-detalle { display: grid; gap: 12px; min-width: 0; }
+.bat-detalle__volver { justify-self: start; padding-left: 0; }
+.bat-detalle__cabecera { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 10px 16px; }
+.bat-detalle__titulo { font-size: 1.35rem; font-weight: 800; color: var(--brand-text); line-height: 1.15; overflow-wrap: anywhere; }
+.bat-detalle__sitio { font-size: 0.84rem; color: var(--text-soft); }
+@media (max-width: 560px) { .bat-detalle__cabecera > .bat-boton { flex: 1 1 100%; } }
+
+.bat-proxima { padding: 8px 12px; border-radius: 8px; font-size: 0.82rem; background: var(--panel-2); color: var(--text-soft); }
+.bat-proxima b { color: var(--ink); }
+.bat-proxima--vencida { background: var(--bg-fbe9e9, #fbe9e9); color: var(--tx-a32626, #a32626); }
+.bat-proxima--proxima, .bat-proxima--sin_mediciones { background: var(--bg-fff3cd, #fff3cd); color: var(--tx-7a5b00, #7a5b00); }
+.bat-proxima--vencida b, .bat-proxima--proxima b, .bat-proxima--sin_mediciones b { color: inherit; }
+
+.bat-mediciones {
+  display: flex; gap: 6px; overflow-x: auto; padding: 2px 2px 4px; margin: 0 -2px; scrollbar-width: thin;
+  -webkit-overflow-scrolling: touch;
+}
+.bat-mediciones button {
+  display: inline-flex; align-items: center; gap: 5px; flex: none; min-height: 34px; padding: 5px 12px; border-radius: 999px;
+  border: 1px solid var(--line); background: var(--panel); color: var(--ink); font-size: 0.78rem; font-weight: 700; cursor: pointer; white-space: nowrap;
+}
+.bat-mediciones button:hover { border-color: var(--brand-blue); }
+.bat-mediciones button[aria-pressed="true"] { background: var(--brand-blue); border-color: var(--brand-blue); color: #fff; }
+.bat-mediciones button:focus-visible { outline: 2px solid var(--brand-blue); outline-offset: 2px; }
+
+.bat-medicion { display: grid; gap: 10px; padding: 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); min-width: 0; }
+.bat-medicion__cabecera { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 8px; }
+.bat-medicion__titulo { font-size: 1rem; font-weight: 800; color: var(--ink); line-height: 1.25; }
+.bat-medicion__meta { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 10px; margin-top: 2px; font-size: 0.76rem; color: var(--text-soft); }
+.bat-medicion__nota { font-size: 0.72rem; color: var(--text-soft); }
+.bat-medicion__obs { padding: 9px 12px; border-radius: 8px; background: var(--panel-2); font-size: 0.82rem; color: var(--ink); overflow-wrap: anywhere; white-space: pre-line; }
+.bat-medicion__acciones { display: flex; flex-wrap: wrap; gap: 8px; }
+
+.bat-bancos { display: grid; grid-template-columns: repeat(auto-fill, minmax(270px, 1fr)); gap: 10px; }
+@media (max-width: 300px) { .bat-bancos { grid-template-columns: minmax(0, 1fr); } }
+.bat-banco { --bat-borde: var(--line); min-width: 0; padding: 8px 10px 4px; border: 1px solid var(--line-soft); border-top: 3px solid var(--bat-borde); border-radius: 8px; }
+.bat-banco--falla { --bat-borde: var(--bat-falla); }
+.bat-banco--advertencia { --bat-borde: var(--bat-advertencia); }
+.bat-banco--buen_estado { --bat-borde: var(--bat-buen); }
+.bat-banco__titulo { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 2px 8px; font-size: 0.84rem; font-weight: 800; color: var(--ink); margin-bottom: 2px; }
+.bat-banco__titulo .bat-conteos { font-weight: 500; }
+
+.bat-tabla-banco { width: 100%; border-collapse: collapse; font-size: 0.82rem; font-variant-numeric: tabular-nums; }
+.bat-tabla-banco th, .bat-tabla-banco td { padding: 5px 4px; border-top: 1px solid var(--line-soft); vertical-align: middle; }
+/* Encabezados sin mayúsculas: "mΩ" (miliohm) no es "MΩ" (megaohm). */
+.bat-tabla-banco thead th { border-top: 0; padding-top: 2px; font-size: 0.7rem; font-weight: 800; color: var(--text-soft); text-align: left; }
+.bat-tabla-banco tbody th { width: 2.1rem; font-weight: 800; color: var(--text-soft); text-align: left; }
+.bat-tabla-banco .bat-num { text-align: right; white-space: nowrap; }
+.bat-tabla-banco td:nth-child(4), .bat-tabla-banco th:nth-child(4) { padding-left: 10px; }
+/* Estado de cada batería con su ícono (el texto queda para los lectores de pantalla) y la fila en falla o
+   advertencia resaltada: lo que destaca es lo que está mal. */
+.bat-tabla-banco .bat-estado { padding: 4px; }
+.bat-tabla-banco .bat-estado > span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.bat-tabla-banco tr.bat-fila--falla > * { background: var(--bg-fbe9e9, #fbe9e9); }
+.bat-tabla-banco tr.bat-fila--advertencia > * { background: var(--bg-fff3cd, #fff3cd); }
+.bat-tabla-banco tr.bat-fila--falla > th, .bat-tabla-banco tr.bat-fila--falla > td:nth-child(2) { color: var(--tx-a32626, #a32626); font-weight: 800; }
+.bat-tabla-banco tr.bat-fila--advertencia > th, .bat-tabla-banco tr.bat-fila--advertencia > td:nth-child(2) { color: var(--tx-7a5b00, #7a5b00); font-weight: 800; }
+.bat-cambio { color: var(--text-soft); font-size: 0.76rem; }
+.bat-cambio--alto { color: var(--ink); font-weight: 800; }
+.bat-cambio-sub { display: none; }
+@media (max-width: 360px) {
+  /* Celular angosto: el cambio va bajo la resistencia (la columna no cabe). */
+  .bat-tabla-banco .bat-col-cambio { display: none; }
+  .bat-cambio-sub { display: block; font-size: 0.66rem; line-height: 1.2; color: var(--text-soft); }
+  .bat-cambio-sub.bat-cambio--alto { color: var(--ink); font-weight: 800; }
+  .bat-tabla-banco th, .bat-tabla-banco td { padding-left: 3px; padding-right: 3px; }
+  .bat-tabla-banco td:nth-child(4), .bat-tabla-banco th:nth-child(4) { padding-left: 6px; }
+}
+
+.bat-tendencia { display: grid; gap: 8px; padding-top: 4px; min-width: 0; }
+.bat-tendencia__titulo { font-size: 0.95rem; font-weight: 800; color: var(--ink); }
+
+/* Gráfico de tendencia */
+.bat-grafico { display: grid; gap: 10px; min-width: 0; }
+.bat-grafico__vacio { font-size: 0.8rem; color: var(--text-soft); padding: 12px; border: 1px dashed var(--line); border-radius: 8px; }
+.bat-grafico__controles { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 14px; }
+.bat-grafico__grupo { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.bat-grafico__etiqueta { font-size: 0.74rem; font-weight: 700; color: var(--text-soft); }
+.bat-segmentado { display: inline-flex; flex-wrap: wrap; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: var(--panel); }
+.bat-segmentado button {
+  min-height: 34px; min-width: 34px; padding: 5px 10px; border: 0; border-right: 1px solid var(--line); background: none;
+  color: var(--text-soft); font: inherit; font-size: 0.78rem; font-weight: 700; cursor: pointer; white-space: nowrap;
+}
+.bat-segmentado button:last-child { border-right: 0; }
+.bat-segmentado button:hover { background: var(--panel-2); color: var(--brand-text); }
+.bat-segmentado button[aria-pressed="true"] { background: var(--brand-blue); color: #fff; }
+.bat-segmentado button:focus-visible { outline: 2px solid var(--brand-blue); outline-offset: -2px; }
+.bat-unidad { font-weight: 500; }
+
+.bat-leyenda { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 0; padding: 0; list-style: none; font-size: 0.74rem; color: var(--text-soft); }
+.bat-leyenda li { display: inline-flex; align-items: center; gap: 6px; }
+.bat-leyenda__linea { display: inline-block; flex: none; width: 16px; height: 3px; border-radius: 2px; background: var(--bat-color); }
+
+.bat-serie-1 { --bat-color: var(--bat-serie-1); }
+.bat-serie-2 { --bat-color: var(--bat-serie-2); }
+.bat-serie-3 { --bat-color: var(--bat-serie-3); }
+.bat-serie-4 { --bat-color: var(--bat-serie-4); }
+.bat-serie-5 { --bat-color: var(--bat-serie-5); }
+.bat-serie-6 { --bat-color: var(--bat-serie-6); }
+.bat-serie-7 { --bat-color: var(--bat-serie-7); }
+
+.bat-grafico__lienzo { position: relative; min-width: 0; border-radius: 8px; }
+.bat-grafico__lienzo:focus-visible { outline: 2px solid var(--brand-blue); outline-offset: 2px; }
+.bat-grafico__lienzo svg { display: block; overflow: visible; }
+.bat-franja--advertencia { fill: var(--bat-franja-advertencia); }
+.bat-franja--falla { fill: var(--bat-franja-falla); }
+.bat-franja__texto { font-size: 10px; font-weight: 700; fill: var(--text-soft); }
+.bat-eje line { stroke: var(--line-soft); stroke-width: 1; }
+.bat-eje text { font-size: 10.5px; fill: var(--text-soft); font-variant-numeric: tabular-nums; }
+.bat-cruz { stroke: var(--text-soft); stroke-width: 1; }
+.bat-linea { fill: none; stroke: var(--bat-color); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.bat-punto { fill: var(--bat-color); stroke: var(--panel); stroke-width: 2; }
+.bat-etiqueta-final { font-size: 10.5px; font-weight: 700; fill: var(--ink); }
+.bat-grafico__captura { fill: transparent; cursor: crosshair; touch-action: pan-y; }
+.bat-tooltip {
+  position: absolute; top: 6px; width: 180px; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--line);
+  background: var(--panel); color: var(--ink); box-shadow: 0 6px 18px rgba(0, 0, 0, 0.14); font-size: 0.74rem; pointer-events: none; z-index: 2;
+}
+.bat-tooltip__fecha { font-weight: 800; margin-bottom: 4px; }
+.bat-tooltip__fila { display: grid; grid-template-columns: 16px auto minmax(0, 1fr); align-items: center; gap: 6px; line-height: 1.6; }
+.bat-tooltip__fila b { font-variant-numeric: tabular-nums; }
+.bat-tooltip__fila span:last-child { color: var(--text-soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.bat-grafico__tabla > summary { cursor: pointer; width: fit-content; font-size: 0.78rem; font-weight: 700; color: var(--brand-text); }
+.bat-tabla-envoltura { overflow-x: auto; margin-top: 6px; }
+.bat-tabla-envoltura table { border-collapse: collapse; font-size: 0.78rem; font-variant-numeric: tabular-nums; }
+.bat-tabla-envoltura th, .bat-tabla-envoltura td { padding: 4px 10px 4px 0; border-top: 1px solid var(--line-soft); white-space: nowrap; }
+.bat-tabla-envoltura thead th { border-top: 0; font-size: 0.7rem; color: var(--text-soft); text-align: right; }
+.bat-tabla-envoltura thead th:first-child, .bat-tabla-envoltura tbody th { text-align: left; }
+.bat-tabla-envoltura td { text-align: right; }
+
+/* ---------------------------------------------------------------------------------------------
+   Formulario de medición (pantalla completa en el celular)
+   --------------------------------------------------------------------------------------------- */
+.bat-form-fondo {
+  position: fixed; inset: 0; z-index: 50; display: flex; align-items: center; justify-content: center; padding: 16px;
+  background: rgba(0, 0, 0, 0.5);
+}
+.bat-form {
+  display: flex; flex-direction: column; width: 100%; max-width: 580px; max-height: calc(100dvh - 32px);
+  border-radius: 12px; background: var(--panel); color: var(--ink); box-shadow: 0 20px 50px rgba(0, 0, 0, 0.3); overflow: hidden;
+}
+.bat-form:focus { outline: none; }
+@media (max-width: 600px) {
+  .bat-form-fondo { padding: 0; align-items: stretch; }
+  .bat-form { max-width: none; max-height: none; height: 100dvh; border-radius: 0; }
+}
+.bat-form__cabecera { flex: none; display: flex; align-items: center; gap: 12px; padding: 14px 16px 12px; border-bottom: 1px solid var(--line-soft); }
+.bat-form__icono { display: grid; place-items: center; flex: none; width: 36px; height: 36px; border-radius: 10px; background: var(--panel-2); color: var(--brand-text); }
+.bat-form__titulo { font-size: 1.05rem; font-weight: 800; color: var(--brand-text); line-height: 1.25; }
+.bat-form__subtitulo { font-size: 0.78rem; color: var(--text-soft); overflow-wrap: anywhere; }
+.bat-form__cuerpo { flex: 1; display: grid; align-content: start; gap: 14px; padding: 14px 16px 18px; overflow-y: auto; overscroll-behavior: contain; }
+.bat-form__datos { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: 10px; }
+@media (max-width: 340px) { .bat-form__datos { grid-template-columns: minmax(0, 1fr); } }
+.bat-form__ayuda { font-size: 0.76rem; color: var(--text-soft); line-height: 1.45; }
+.bat-form__ayuda b { color: var(--ink); }
+.bat-form__bancos { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.bat-form__pie {
+  flex: none; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px;
+  padding: 12px 16px calc(12px + env(safe-area-inset-bottom)); border-top: 1px solid var(--line-soft); background: var(--panel);
+}
+.bat-form__progreso { font-size: 0.78rem; font-weight: 700; color: var(--text-soft); }
+.bat-form__botones { display: flex; gap: 8px; margin-left: auto; }
+@media (max-width: 420px) {
+  .bat-form__botones { flex: 1 1 100%; }
+  .bat-form__botones .bat-boton { flex: 1; }
+  .bat-form__botones .bat-boton--principal { flex: 2; }
+}
+
+.bat-campo { display: grid; gap: 4px; min-width: 0; }
+.bat-campo > span { font-size: 0.76rem; font-weight: 700; color: var(--ink); }
+.bat-campo > small { font-size: 0.72rem; color: var(--text-soft); min-height: 1em; }
+.bat-control {
+  width: 100%; min-width: 0; min-height: 44px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px;
+  background: var(--panel); color: var(--ink); font: inherit; font-size: 1rem; /* 16 px: el iPhone no hace zoom al escribir */
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+textarea.bat-control { min-height: 64px; resize: vertical; line-height: 1.4; }
+select.bat-control { cursor: pointer; }
+.bat-control:focus { outline: none; border-color: var(--brand-blue); box-shadow: 0 0 0 3px rgba(14, 70, 96, 0.2); }
+html[data-tema-oscuro] .bat-control:focus { border-color: var(--brand-text); box-shadow: 0 0 0 3px rgba(140, 196, 222, 0.25); }
+.bat-control:disabled { opacity: 0.7; cursor: not-allowed; }
+.bat-control[aria-invalid="true"] { border-color: var(--bat-falla); box-shadow: 0 0 0 2px rgba(208, 59, 59, 0.18); }
+.bat-control--num { text-align: right; font-variant-numeric: tabular-nums; padding-left: 6px; padding-right: 8px; }
+.bat-control::placeholder { color: var(--text-soft); opacity: 0.75; }
+/* Lo de la medición anterior ("ant. 3,38"): más chico y en cursiva, para que no parezca escrito. */
+.bat-control--num::placeholder { font-size: 0.8rem; font-style: italic; }
+.bat-error, .bat-campo > small.bat-error { color: var(--tx-a32626, #a32626); font-weight: 700; }
+
+.bat-nota { padding: 9px 12px; border-radius: 8px; background: var(--bg-eef4f8, #eef4f8); color: var(--brand-text); font-size: 0.8rem; line-height: 1.4; }
+.bat-nota--aviso { background: var(--bg-fff3cd, #fff3cd); color: var(--tx-7a5b00, #7a5b00); }
+.bat-nota .bat-enlace { padding: 0; color: inherit; }
+
+.bat-banco-form { min-width: 0; margin: 0; padding: 8px 10px 8px; border: 1px solid var(--line); border-radius: 10px; }
+.bat-banco-form > legend { display: flex; align-items: baseline; gap: 8px; padding: 0 4px; font-size: 0.86rem; font-weight: 800; color: var(--brand-text); }
+.bat-banco-form__avance { font-size: 0.72rem; font-weight: 600; color: var(--text-soft); font-variant-numeric: tabular-nums; }
+.bat-banco-form__acciones { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 4px; }
+
+.bat-fila-form { display: grid; grid-template-columns: 2rem minmax(0, 1fr) minmax(0, 1fr) 6.6rem; align-items: center; gap: 4px 8px; padding: 3px 0; }
+.bat-fila-form--titulos { padding: 0; font-size: 0.66rem; font-weight: 800; color: var(--text-soft); text-transform: uppercase; letter-spacing: 0.03em; }
+.bat-fila-form--titulos > span:nth-child(2), .bat-fila-form--titulos > span:nth-child(3) { text-align: right; padding-right: 8px; text-transform: none; }
+.bat-fila-form__nombre { font-size: 0.8rem; font-weight: 800; color: var(--text-soft); }
+.bat-fila-form__estado { min-width: 0; }
+.bat-fila-form__aviso { grid-column: 2 / -1; font-size: 0.74rem; line-height: 1.4; color: var(--tx-a32626, #a32626); }
+.bat-fila-form__aviso b { font-variant-numeric: tabular-nums; }
+
+/* Celular: el estado de cada batería queda solo con su ícono (el texto sigue para los lectores de pantalla). */
+@media (max-width: 460px) {
+  .bat-fila-form { grid-template-columns: 1.7rem minmax(0, 1fr) minmax(0, 1fr) 1.9rem; gap: 4px 6px; }
+  .bat-fila-form__titulo-estado { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .bat-fila-form__estado .bat-estado { padding: 4px; }
+  .bat-fila-form__estado .bat-estado > span {
+    position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap;
+  }
+}
+
+@media (max-width: 380px) {
+  .bat-panel { padding: 12px; }
+  .bat-medicion { padding: 10px; }
+}
+@media (max-width: 300px) {
+  .bat-main { padding-left: 10px; padding-right: 10px; }
+  .bat-form__cuerpo { padding-left: 10px; padding-right: 10px; }
+  .bat-banco-form { padding-left: 6px; padding-right: 6px; }
+  .bat-banco { padding-left: 6px; padding-right: 6px; }
+  .bat-mapa__bateria { width: 12px; height: 12px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bat-boton, .bat-kpi, .bat-carro, .bat-control { transition: none; }
+}
