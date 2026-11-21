@@ -27,7 +27,6 @@ import { borrandose, registrarDeshacer, reinsertar } from '../../lib/deshacer';
 import { type BorradorOtroEntry, upsertBorradorOtro, deleteBorradorOtro, contarFotosGenerico } from '../../datos/borradoresOtros';
 import { marcarFinalizado, mensajeErrorFinalizar } from '../../datos/finalizarInforme';
 import BotonAccionesInforme from '../../componentes/BotonAccionesInforme';
-import { hoyLocalISO } from '../../datos/fechas';
 import { letraDeFecha } from '../../datos/turnos';
 import { configDivision } from '../../datos/divisiones';
 import { TRABAJADORES } from '../../datos/trabajadores';
@@ -35,26 +34,19 @@ import { getPersonalGuardado } from '../diario/constantes';
 import { useSesion } from '../../auth/sesion';
 import {
   type DatosPreventiva, type FotoPrev, type HorasBitacora, type PersonaPrev, type SeccionPrev,
-  ADMINISTRATIVAS_DEFECTO, CANTIDAD_DE, CIERRE_DESCRIPCION, COORDENADAS_CONOCIDAS, HORAS_DEFECTO, actividadesDeSecciones, bitacoraDefecto,
-  casillaNueva, ENLACES_EXTRA, nombreEnlace, planificadasDefecto, rehacerCasillas, seccionExtra, seccionesPorDefecto, sinPunto,
+  CANTIDAD_DE, casillaNueva, ENLACES_EXTRA, nombreEnlace, rehacerCasillas, seccionExtra, sinPunto,
 } from './modelo';
 import { generarPreventivaWord, nombreArchivoPreventiva } from './word';
+import {
+  armarDatosPreventiva, estadoInicialPreventiva, faltaParaWordPreventiva, fotosCargadasPreventiva, leerCoordenadas, personalDelTurno,
+  recordarCoordenadas,
+} from './borrador';
 
 interface Props {
   onBack: () => void;
   borradorInicial?: BorradorOtroEntry | null;
 }
 
-const LS_COORDENADAS = 'psinet_coordenadas_sitios_v1';
-const leerCoordenadas = (): Record<string, string> => {
-  try { return { ...COORDENADAS_CONOCIDAS, ...JSON.parse(localStorage.getItem(LS_COORDENADAS) || '{}') }; } catch { return { ...COORDENADAS_CONOCIDAS }; }
-};
-const recordarCoordenadas = (sitio: string, coord: string) => {
-  try {
-    const actual = JSON.parse(localStorage.getItem(LS_COORDENADAS) || '{}') as Record<string, string>;
-    localStorage.setItem(LS_COORDENADAS, JSON.stringify({ ...actual, [sitio]: coord }));
-  } catch { /* sin almacenamiento */ }
-};
 
 const PLACEHOLDER = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='75'%3E%3Crect width='100%25' height='100%25' fill='%23eef1f2'/%3E%3C/svg%3E";
 const campo = 'w-full p-2 border border-[#DCE1E6] rounded-md text-sm bg-white';
@@ -78,12 +70,14 @@ export default function InformePreventiva({ onBack, borradorInicial = null }: Pr
   const cfg = configDivision(division);
   const { carros, ubicacionPorCarro } = cfg;
   const d0 = (borradorInicial?.datos ?? null) as Partial<DatosPreventiva> | null;
+  // Lo guardado en el borrador o, si falta, lo de un informe nuevo (igual que "Descargar" en Borradores).
+  const [inicial] = useState(() => estadoInicialPreventiva(borradorInicial?.datos, division));
 
   // --- Datos que cambian en cada informe ---
-  const [fecha, setFecha] = useState(() => d0?.fecha ?? hoyLocalISO());
-  const [sitio, setSitio] = useState(() => d0?.sitio ?? carros[0] ?? '');
-  const [sector, setSector] = useState(() => d0?.sector ?? ubicacionPorCarro[carros[0]] ?? '');
-  const [coordenadas, setCoordenadas] = useState(() => d0?.coordenadas ?? leerCoordenadas()[carros[0]] ?? '');
+  const [fecha, setFecha] = useState(inicial.fecha);
+  const [sitio, setSitio] = useState(inicial.sitio);
+  const [sector, setSector] = useState(inicial.sector);
+  const [coordenadas, setCoordenadas] = useState(inicial.coordenadas);
   const [sitioAMano, setSitioAMano] = useState(() => !!d0?.sitio && !carros.includes(d0.sitio));
   const [editarUbicacion, setEditarUbicacion] = useState(false);
 
@@ -100,20 +94,13 @@ export default function InformePreventiva({ onBack, borradorInicial = null }: Pr
         return true;
       });
   }, [cfg]);
-  const creadorDefecto = cfg.diario.creadorPorDefecto[letraDeFecha(hoyLocalISO()) === 'B' ? 'B' : 'A'];
-  const [creadoNombre, setCreadoNombre] = useState(() => d0?.creadoNombre ?? sinPunto(creadorDefecto.nombre));
-  const [creadoCargo, setCreadoCargo] = useState(() => d0?.creadoCargo ?? sinPunto(creadorDefecto.cargo));
+  const [creadoNombre, setCreadoNombre] = useState(inicial.creadoNombre);
+  const [creadoCargo, setCreadoCargo] = useState(inicial.creadoCargo);
   const [creadoAMano, setCreadoAMano] = useState(false);
 
-  const personalDelTurno = (iso: string): PersonaPrev[] =>
-    getPersonalGuardado(letraDeFecha(iso), division).map(p => ({ id: uid(), nombre: sinPunto(p.nombre), cargo: sinPunto(p.cargo), ejecutante: false }));
-  const [personal, setPersonal] = useState<PersonaPrev[]>(() => d0?.personal ?? personalDelTurno(d0?.fecha ?? hoyLocalISO()));
-  const [secciones, setSecciones] = useState<SeccionPrev[]>(() => d0?.secciones ?? seccionesPorDefecto(cfg.vertiv));
-  const [horas, setHoras] = useState<HorasBitacora>(() => d0?.horas ?? HORAS_DEFECTO);
-
-  // --- Lo fijo (igual en todos los reportes) ---
-  const revisados = useMemo(() => cfg.falla.revisadoText.split('\n').map(sinPunto).filter(Boolean), [cfg]);
-  const autorizado = division === 'el_salvador' ? { nombre: 'Cesar Orellana Martinez.', cargo: 'ADC' } : cfg.diario.autorizado;
+  const [personal, setPersonal] = useState<PersonaPrev[]>(inicial.personal);
+  const [secciones, setSecciones] = useState<SeccionPrev[]>(inicial.secciones);
+  const [horas, setHoras] = useState<HorasBitacora>(inicial.horas);
 
   const [generando, setGenerando] = useState(false);
   const [toast, setToast] = useState<{ text: string; error?: boolean } | null>(null);
@@ -163,7 +150,7 @@ export default function InformePreventiva({ onBack, borradorInicial = null }: Pr
     if (quitada) registrarDeshacer('Se quitó una casilla de foto', () => cambiarSeccion(sid, x => ({ ...x, fotos: reinsertar(x.fotos, i, quitada) })));
   };
   const totalFotos = secciones.filter(s => s.activa).reduce((n, s) => n + s.fotos.length, 0);
-  const fotosListas = secciones.filter(s => s.activa).reduce((n, s) => n + s.fotos.filter(f => f.photo).length, 0);
+  const fotosListas = fotosCargadasPreventiva({ secciones });
 
   // Ctrl+V sobre la casilla elegida; la selección avanza sola a la siguiente casilla vacía.
   const seccionesRef = useRef(secciones);
@@ -187,13 +174,7 @@ export default function InformePreventiva({ onBack, borradorInicial = null }: Pr
   }, [seleccion]);
 
   // --- Datos completos del informe (lo variable + lo fijo) ---
-  const datos: DatosPreventiva = {
-    clase: 'preventiva', fecha, sitio, sector, coordenadas, creadoNombre, creadoCargo,
-    revisados, autorizadoNombre: autorizado.nombre, autorizadoCargo: autorizado.cargo,
-    actividades: actividadesDeSecciones(secciones), cierreDescripcion: CIERRE_DESCRIPCION, personal,
-    administrativas: ADMINISTRATIVAS_DEFECTO, planificadas: planificadasDefecto(sitio, sector), secciones,
-    bitacora: bitacoraDefecto(sitio, sector, secciones, horas), horas,
-  };
+  const datos: DatosPreventiva = armarDatosPreventiva({ fecha, sitio, sector, coordenadas, creadoNombre, creadoCargo, personal, secciones, horas }, division);
   const datosRef = useRef(datos);
   useEffect(() => { datosRef.current = datos; });
 
@@ -263,10 +244,8 @@ export default function InformePreventiva({ onBack, borradorInicial = null }: Pr
   };
 
   const generar = async () => {
-    if (!sitio.trim()) { showToast('Indica el sitio.', true); return; }
-    if (!fecha) { showToast('Selecciona la fecha.', true); return; }
-    if (!fotosListas) { showToast('Agrega al menos una foto.', true); return; }
-    if (!personal.some(p => p.ejecutante)) { showToast('Marca quién ejecutó el mantenimiento (en Personal).', true); return; }
+    const falta = faltaParaWordPreventiva({ fecha, sitio, sector, coordenadas, creadoNombre, creadoCargo, personal, secciones, horas });
+    if (falta) { showToast(falta, true); return; }
     if (sitio.trim() && coordenadas.trim()) recordarCoordenadas(sitio.trim(), coordenadas.trim());
     setGenerando(true);
     try {
@@ -463,7 +442,7 @@ export default function InformePreventiva({ onBack, borradorInicial = null }: Pr
           <datalist id="pv-personas">{nombresSugeridos.map(n => <option key={n} value={n} />)}</datalist>
           <div className="flex gap-2 flex-wrap mt-2">
             <button type="button" onClick={() => setPersonal(prev => [...prev, { id: uid(), nombre: '', cargo: '', ejecutante: true }])} className={btnSec}><Plus size={13} /> Agregar persona</button>
-            <button type="button" onClick={() => setPersonal(personalDelTurno(fecha))} className={btnSec}><RefreshCw size={13} /> Cargar personal del Turno {letraDeFecha(fecha)}</button>
+            <button type="button" onClick={() => setPersonal(personalDelTurno(fecha, division))} className={btnSec}><RefreshCw size={13} /> Cargar personal del Turno {letraDeFecha(fecha)}</button>
           </div>
         </Panel>
 

@@ -1,6 +1,5 @@
 import CuentaCabecera from '../componentes/CuentaCabecera';
 import { useState, useEffect, useRef, type Dispatch, type SetStateAction } from 'react';
-import type * as docx from 'docx';
 import { saveAs } from 'file-saver';
 import { registrarActividad } from '../lib/actividad';
 import {
@@ -13,18 +12,21 @@ import logoEdificio from "../assets/LogoEdificio.png";
 import VisorFoto from '../componentes/VisorFoto';
 import { fotoConBloque, type FotoAmpliada } from '../componentes/fotosDelVisor';
 import { copiarImagenAlPortapapel } from '../lib/copiarImagen';
-import { N_CONTRATO, LINEA_SERVICIO } from '../datos/catalogos';
 import { fileToDataUrl, uid } from '../lib/fotos';
 import { type BorradorOtroEntry, upsertBorradorOtro, deleteBorradorOtro, contarFotosGenerico } from '../datos/borradoresOtros';
 import { marcarFinalizado, mensajeErrorFinalizar } from '../datos/finalizarInforme';
 import BotonAccionesInforme from '../componentes/BotonAccionesInforme';
 import { borrandose, registrarDeshacer, reinsertar } from '../lib/deshacer';
-import { hoyLocalISO, formatFechaLarga } from '../datos/fechas';
-import { BLUE, ORANGE } from '../datos/plantillaWord';
+import { hoyLocalISO } from '../datos/fechas';
 import { configDivision } from '../datos/divisiones';
 import { useSesion } from '../auth/sesion';
 import { mapaFotosSubidas, aplicarFotosSubidas } from '../lib/storage';
-import { cargarDocx, logosInforme, resolverImagenes, bytesDeImagen, precargarGeneracionWord } from '../lib/docxRecursos';
+import { precargarGeneracionWord } from '../lib/docxRecursos';
+import {
+  type DatosAuto, type RegistroGrupo, FALLAS_COMUNES, HORAS_INICIALES, carroDisplay, construirGruposEstandar, formatHora12,
+  nuevoGrupo, separarNombres, unirNombres,
+} from './falla/modelo';
+import { faltaParaWordFalla, generarWordFalla, nombreArchivoFalla } from './falla/word';
 
 interface InformeFallaCarroProps {
   onBack: () => void;
@@ -33,30 +35,7 @@ interface InformeFallaCarroProps {
 }
 
 interface PersonalItem { nombre: string; cargo: string; }
-interface FotoSlot { id: string; photo: string | null; caption?: string; }
 
-/** Un bloque del registro fotográfico: puede ser solo una nota (sin fotos), solo fotos con leyenda, o ambas. */
-interface RegistroGrupo {
-  id: string;
-  /** Texto que va en su propio recuadro, ANTES de las fotos (ej: "Horario 07:49 - Origen alarma – Sin Gestión"). Opcional. */
-  nota: string;
-  /** Hasta 4 fotos, se muestran de a 2 por fila dentro del mismo recuadro. */
-  fotos: FotoSlot[];
-  /** Leyenda bajo las fotos (una línea por renglón). Opcional. */
-  caption: string;
-}
-
-// ---------------------------------------------------------------------------------------
-// Datos fijos del encabezado / portada — se mantienen en el documento pero ya no se piden
-// en el formulario (quedan ocultos, siempre con el mismo valor salvo que se editen aquí).
-// ---------------------------------------------------------------------------------------
-const N_CONTRATO_FIJO = N_CONTRATO;
-const VERSION_FIJA = "1";
-const LINEA_SERVICIO_FIJA = LINEA_SERVICIO;
-// Revisado / Autorizado por dependen de la división (ver datos/divisiones.ts).
-
-// --- Listado de carros / sitios ---
-const carroDisplay = (codigo: string) => `Carro ${codigo.replace(/_/g, " ")}`;
 
 // Ubicación física de cada carro (según la división, ver datos/divisiones.ts): al elegir el carro se
 // rellena sola la "Ubicación" de la portada. (Ref. El Salvador: O&M_LTE_CMM_03, O&M_LTE_CMF_09, O&M_MMOO 01, etc.)
@@ -86,208 +65,7 @@ const PERSONAL_EQUIPO_B: PersonalItem[] = [
   { nombre: "Camilo Andrés Pailapan Hormazabal", cargo: "Supervisor de Operaciones" },
 ];
 
-const ddmmyyyy = (iso: string) => { const [y, m, d] = iso.split("-"); return `${d}/${m}/${y}`; };
-const formatHora12 = (hhmm: string) => {
-  if (!hhmm) return "—";
-  const [hStr, mStr] = hhmm.split(":");
-  let h = parseInt(hStr, 10);
-  const ampm = h >= 12 ? "PM" : "AM";
-  h = h % 12; if (h === 0) h = 12;
-  return `${String(h).padStart(2, "0")}:${mStr} ${ampm}`;
-};
 
-// ---------------------------------------------------------------------------------------
-// Fallas comunes — plantillas tomadas de los informes de referencia. Al elegir una y pulsar
-// "Autocompletar", se generan la descripción, la notificación, los hallazgos y la solución
-// usando el carro, la fecha, las horas y el técnico seleccionados en ese momento.
-// ---------------------------------------------------------------------------------------
-interface DatosAuto {
-  codigo: string; carro: string; fecha: string;
-  horaAlarma: string; horaRespuesta: string; horaOperativo: string;
-}
-interface TextosGenerados {
-  descripcionTexto: string;
-  notificacionIntro: string;
-  notificacionPuntos: string[];
-  notificacionCheckItem: string;
-  solucionIntro: string;
-  hallazgos: string[];
-  accionesSolucion: string[];
-  verificacionTexto: string;
-  verificacionCheckItem: string;
-  // --- Leyendas de los recuadros estándar del registro fotográfico (mismo orden que el informe de referencia) ---
-  captionVistaGeneral: string;
-  captionOrigenAlarma: string;
-  captionAlarmasSitio: string;
-  captionAjusteAccion: string;
-  captionEvidenciaRestablecida: string;
-}
-
-const SOLUCION_INTRO_DEFECTO = "Con el fin de restablecer la gestión remota del sistema, se realizaron las siguientes acciones en terreno:";
-const VERIFICACION_TEXTO_DEFECTO = "El personal del NOC confirma la recuperación completa de la gestión del sistema, validando que es posible acceder al panel de monitoreo sin presentar errores.";
-
-// --- Recuadros que son siempre iguales, cualquiera sea el tipo de falla (boilerplate del informe) ---
-const notaSolicitudNOC = () =>
-  "Se solicita la información del estado de la alarma externa al personal de NOC.\nInformando que el sitio se encuentra sin alarmas críticas.";
-const captionART = (carro: string) => `Registro de ART: Atención de Falla ${carro}.`;
-const CAPTION_ENTORNO = "Verificación de condiciones de entorno";
-const CAPTION_CHARLA = "Charla 5 Minutos";
-
-const FALLAS_COMUNES: { id: string; label: string; build: (d: DatosAuto) => TextosGenerados }[] = [
-  {
-    id: "sin_gestion_energia",
-    label: "Sin Gestión — falla de alimentación / energía",
-    build: (d) => ({
-      descripcionTexto:
-        `A las ${formatHora12(d.horaAlarma)} horas del ${ddmmyyyy(d.fecha)}, el Centro de Operaciones de Red (NOC) informa que el sitio ${d.codigo} – ${d.carro}, presenta una falla de alimentación - Energía, indicando que no es posible acceder remotamente al sistema para monitoreo.\n` +
-        `Pese a esta condición, se confirma que el sitio permanece sin transmisión, por lo cual sin conectividad y cobertura LTE.\n` +
-        `La falla se clasifica como "Sin Gestión", lo cual impide el acceso al sistema de monitoreo remoto, en tanto implica pérdida de energía.`,
-      notificacionIntro: `Centro de operaciones de red (NOC), nos informa que el sitio ${d.codigo} (${d.carro}) presenta una notificación:`,
-      notificacionPuntos: [
-        `${d.carro}: Sin Gestión. –`,
-        `Verificar Fuente de energía.`,
-        `Tiempo de origen llamado de falla por NOC.`,
-        `Horario ${formatHora12(d.horaAlarma)} – Sitio sin comunicación. -`,
-        `Tiempo de respuesta; ${formatHora12(d.horaRespuesta)}.`,
-      ],
-      notificacionCheckItem: `Horario ${formatHora12(d.horaRespuesta)} – Sitio sin comunicación, verifica fuente de energía.`,
-      solucionIntro: SOLUCION_INTRO_DEFECTO,
-      hallazgos: [`Se efectuó una inspección física del gabinete de energía, encontrándose en condiciones normales, sin anomalías visibles ni señales de falla eléctrica, tanto en gabinetes eléctricos como en el inversor.`],
-      accionesSolucion: [`Se verificó el acceso remoto y la correcta gestión del sistema desde la plataforma de monitoreo central.`],
-      verificacionTexto: VERIFICACION_TEXTO_DEFECTO,
-      verificacionCheckItem: `Horario en la cual queda al 100 % operativo ${formatHora12(d.horaOperativo)}`,
-      captionVistaGeneral: `Vista general del sitio ${d.codigo}.`,
-      captionOrigenAlarma: `Horario ${formatHora12(d.horaAlarma)} - Origen alarma – Sin Gestión`,
-      captionAlarmasSitio: `Alarmas Sitio sin Gestión`,
-      captionAjusteAccion: `Cambia Bancos de Baterías\nComunicación restablecida– ${d.codigo}.${d.carro}`,
-      captionEvidenciaRestablecida: `Evidencia de Gestión reestablecida a las ${formatHora12(d.horaOperativo)}`,
-    }),
-  },
-  {
-    id: "falla_general_generador",
-    label: "Falla General del generador (código de error / baja frecuencia)",
-    build: (d) => ({
-      descripcionTexto:
-        `A las ${formatHora12(d.horaAlarma)} horas del ${ddmmyyyy(d.fecha)}, el Centro de Operaciones de Red (NOC) informa que el sitio ${d.codigo}, presenta una falla general del generador eléctrico - Energía, indicando que se generó una alarma en la base de la estación externa.\n` +
-        `La falla se clasifica como "Falla General", lo cual indica que no se podrá realizar una partida automática.`,
-      notificacionIntro: `Centro de operaciones de red (NOC), nos informa que el sitio ${d.codigo} presenta una notificación:`,
-      notificacionPuntos: [
-        `${d.carro}: Caída de servicio. –`,
-        `Verificar Fuente de energía.`,
-        `Tiempo de origen llamado de falla por NOC.`,
-        `Horario ${formatHora12(d.horaAlarma)} – GE Falla General. -`,
-        `Tiempo de respuesta; ${formatHora12(d.horaRespuesta)}.`,
-      ],
-      notificacionCheckItem: `Horario ${formatHora12(d.horaRespuesta)} – Sitio sin comunicación, verifica fuente de energía.`,
-      solucionIntro: SOLUCION_INTRO_DEFECTO,
-      hallazgos: [`Se efectuó una inspección física del gabinete de energía, encontrándose apagado; se revisa display el cual indicaba código de error. Tras revisar las fallas activas, el sistema indicaba que el generador se encontraba con baja frecuencia, funcionando con RPM bajo el estándar.`],
-      accionesSolucion: [
-        `Inicio manual del generador.`,
-        `Bombeo manual del combustible.`,
-        `Se deja en inicio automático del generador.`,
-        `Se verificó con especialista de NOC la correcta gestión del sistema desde la plataforma de monitoreo central.`,
-      ],
-      verificacionTexto: VERIFICACION_TEXTO_DEFECTO,
-      verificacionCheckItem: `Horario en la cual queda al 100 % operativo ${formatHora12(d.horaOperativo)}`,
-      captionVistaGeneral: `Vista general del sitio ${d.codigo}.`,
-      captionOrigenAlarma: `Horario ${formatHora12(d.horaAlarma)} - Origen alarma – GE Falla General`,
-      captionAlarmasSitio: `Alarmas Sitio Falla General`,
-      captionAjusteAccion: `Inicio manual del generador y bombeo de combustible\nComunicación restablecida– ${d.codigo}.${d.carro}`,
-      captionEvidenciaRestablecida: `Evidencia de Gestión reestablecida a las ${formatHora12(d.horaOperativo)}`,
-    }),
-  },
-  {
-    id: "disyuntor_sobrecorriente",
-    label: "Disyuntor saltado por sobre corriente / batería descargada",
-    build: (d) => ({
-      descripcionTexto:
-        `A las ${formatHora12(d.horaAlarma)} horas del ${ddmmyyyy(d.fecha)}, el Centro de Operaciones de Red (NOC) informa que el sitio ${d.codigo} – ${d.carro}, presenta una falla de alimentación de energía, indicando que no es posible acceder remotamente al sistema para monitoreo.\n` +
-        `Pese a esta condición, se confirma que el sitio permanece sin transmisión, por lo cual sin conectividad y cobertura LTE.\n` +
-        `La falla se clasifica como "Sin Gestión", lo cual impide el acceso al sistema de monitoreo remoto, en tanto implica pérdida de energía.`,
-      notificacionIntro: `Centro de operaciones de red (NOC), nos informa que el sitio ${d.codigo} (${d.carro}) presenta una notificación:`,
-      notificacionPuntos: [
-        `${d.carro}: Sin Gestión. –`,
-        `Verificar Fuente de energía.`,
-        `Tiempo de origen llamado de falla por NOC.`,
-        `Horario ${formatHora12(d.horaAlarma)} – Sitio sin comunicación. -`,
-        `Tiempo de respuesta; ${formatHora12(d.horaRespuesta)} (1° asistencia en terreno).`,
-      ],
-      notificacionCheckItem: `Horario ${formatHora12(d.horaRespuesta)} – Sitio sin comunicación, verifica fuente de energía y se observa disyuntor general saltado (por sobre corriente).`,
-      solucionIntro: SOLUCION_INTRO_DEFECTO,
-      hallazgos: [`Se efectuó una inspección física del gabinete de energía, encontrándose en condiciones anormales: falla de carga de baterías 48 DC, falla eléctrica. Se ajusta y realiza puesta en servicio del sitio.`],
-      accionesSolucion: [
-        `Se dio inicio a la configuración de las salidas de alimentación desde el backplane hacia los artefactos de consumo.`,
-        `Se verificó el acceso remoto y la correcta gestión del sistema desde la plataforma de monitoreo central (NOC).`,
-      ],
-      verificacionTexto: VERIFICACION_TEXTO_DEFECTO,
-      verificacionCheckItem: `Recuperación validada a las ${formatHora12(d.horaOperativo)}.`,
-      captionVistaGeneral: `Vista general del sitio ${d.codigo}.`,
-      captionOrigenAlarma: `Horario ${formatHora12(d.horaAlarma)} - Origen alarma – Sin Gestión`,
-      captionAlarmasSitio: `Alarmas Sitio sin Gestión`,
-      captionAjusteAccion: `Ajuste Disyuntor Termomagnético Saltado General DC\nComunicación restablecida– ${d.codigo}.${d.carro}`,
-      captionEvidenciaRestablecida: `Evidencia de Gestión reestablecida a las ${formatHora12(d.horaOperativo)}`,
-    }),
-  },
-  {
-    id: "personalizado",
-    label: "Personalizado (dejar en blanco y redactar a mano)",
-    build: (d) => ({
-      descripcionTexto: `A las ${formatHora12(d.horaAlarma)} horas del ${ddmmyyyy(d.fecha)}, el Centro de Operaciones de Red (NOC) informa que el sitio ${d.codigo} – ${d.carro}, presenta [describir falla].`,
-      notificacionIntro: `Centro de operaciones de red (NOC), nos informa que el sitio ${d.codigo} (${d.carro}) presenta una notificación:`,
-      notificacionPuntos: [
-        `${d.carro}: [tipo de falla]. –`,
-        `Verificar Fuente de energía.`,
-        `Tiempo de origen llamado de falla por NOC.`,
-        `Horario ${formatHora12(d.horaAlarma)} – Sitio sin comunicación. -`,
-        `Tiempo de respuesta; ${formatHora12(d.horaRespuesta)}.`,
-      ],
-      notificacionCheckItem: `Horario ${formatHora12(d.horaRespuesta)} – [detalle de la verificación en terreno].`,
-      solucionIntro: SOLUCION_INTRO_DEFECTO,
-      hallazgos: [`[Describir hallazgo en terreno]`],
-      accionesSolucion: [`[Describir acción realizada]`],
-      verificacionTexto: VERIFICACION_TEXTO_DEFECTO,
-      verificacionCheckItem: `Horario en la cual queda al 100 % operativo ${formatHora12(d.horaOperativo)}`,
-      captionVistaGeneral: `Vista general del sitio ${d.codigo}.`,
-      captionOrigenAlarma: `Horario ${formatHora12(d.horaAlarma)} - Origen alarma`,
-      captionAlarmasSitio: `Alarmas del sitio ${d.codigo}`,
-      captionAjusteAccion: `[Describir acción de terreno]\nComunicación restablecida– ${d.codigo}.${d.carro}`,
-      captionEvidenciaRestablecida: `Evidencia de Gestión reestablecida a las ${formatHora12(d.horaOperativo)}`,
-    }),
-  },
-];
-
-const nuevoGrupo = (nota = "", caption = "", nFotos = 1): RegistroGrupo => ({
-  id: uid(), nota, caption, fotos: Array.from({ length: nFotos }, () => ({ id: uid(), photo: null })),
-});
-
-/** Arma los 8 recuadros estándar del informe (vista general, alarma, ajuste, ART, entorno/charla...) a partir de los textos generados y el carro. */
-const construirGruposEstandar = (t: TextosGenerados, carro: string): RegistroGrupo[] => {
-  const gEntornoCharla = nuevoGrupo("", "", 2);
-  gEntornoCharla.fotos[0].caption = CAPTION_ENTORNO;
-  gEntornoCharla.fotos[1].caption = CAPTION_CHARLA;
-  return [
-    nuevoGrupo("", t.captionVistaGeneral, 1),
-    nuevoGrupo("", t.captionOrigenAlarma, 2),
-    nuevoGrupo("", t.captionAlarmasSitio, 2),
-    nuevoGrupo(notaSolicitudNOC(), "", 0),
-    nuevoGrupo("", t.captionAjusteAccion, 2),
-    nuevoGrupo("", t.captionEvidenciaRestablecida, 2),
-    nuevoGrupo("", captionART(carro), 2),
-    gEntornoCharla,
-  ];
-};
-
-/** ["Max Diaz", "Carlos Moll", "José Escobar"] → "Max Diaz, Carlos Moll y José Escobar". */
-const unirNombres = (nombres: string[]) => {
-  const lista = nombres.map(n => n.trim().replace(/\.+$/, '')).filter(Boolean);
-  if (lista.length <= 1) return nombres.find(n => n.trim())?.trim() ?? '';
-  return `${lista.slice(0, -1).join(', ')} y ${lista[lista.length - 1]}`;
-};
-/** Inverso de unirNombres (para informes guardados antes, con un solo texto). */
-const separarNombres = (texto: string) => {
-  const partes = texto.split(/\s*,\s*|\s+y\s+/).map(t => t.trim()).filter(Boolean);
-  return partes.length ? partes : [texto];
-};
 
 export default function InformeFallaCarro({ onBack, borradorInicial = null }: InformeFallaCarroProps) {
   const { division } = useSesion();
@@ -314,9 +92,9 @@ export default function InformeFallaCarro({ onBack, borradorInicial = null }: In
   const [creadoCargo, setCreadoCargo] = useState(config.creado.cargo);
 
   // --- Automatización: horas, técnico y tipo de falla común ---
-  const [horaAlarma, setHoraAlarma] = useState("07:49");
-  const [horaRespuesta, setHoraRespuesta] = useState("10:15");
-  const [horaOperativo, setHoraOperativo] = useState("11:40");
+  const [horaAlarma, setHoraAlarma] = useState(HORAS_INICIALES.alarma);
+  const [horaRespuesta, setHoraRespuesta] = useState(HORAS_INICIALES.respuesta);
+  const [horaOperativo, setHoraOperativo] = useState(HORAS_INICIALES.operativo);
   // Personas que participaron en la atención (1° asistencia / tiempo de respuesta). En los textos
   // se escriben juntas: "Max Diaz, Carlos Moll y José Escobar".
   const [tecnicos, setTecnicos] = useState<string[]>([config.tecnico]);
@@ -653,257 +431,18 @@ export default function InformeFallaCarro({ onBack, borradorInicial = null }: In
   // Generación del documento Word
   // ---------------------------------------------------------------------------------------
   const generarDocumento = async () => {
-    if (!fecha) { showToast("Selecciona la fecha del informe.", true); return; }
-    if (!carroCodigo.trim()) { showToast("Selecciona el carro / sitio.", true); return; }
+    const falta = faltaParaWordFalla({ fecha, carroCodigo });
+    if (falta) { showToast(falta, true); return; }
 
     setIsGenerating(true);
     try {
-      const {
-        Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell,
-        Header, ImageRun, WidthType, BorderStyle, AlignmentType,
-        HeadingLevel, VerticalAlign, TableLayoutType,
-      } = await cargarDocx(); // se descarga una sola vez (y se precarga al abrir el formulario)
-
-      const cellBorders = (color?: string) => {
-        const b = { style: BorderStyle.SINGLE, size: 4, color: color || "D9D9D9" };
-        return { top: b, bottom: b, left: b, right: b };
-      };
-      const noBorders = () => {
-        const n = { style: BorderStyle.NONE, size: 0, color: "FFFFFF" };
-        return { top: n, bottom: n, left: n, right: n, insideHorizontal: n, insideVertical: n };
-      };
-
-      // Logos (en caché) y TODAS las fotos se resuelven en paralelo antes de armar el documento;
-      // el documento se arma igual que antes, solo que ya no espera cada descarga por separado.
-      const [{ logoBytes, logoType, coverBytes, coverType }, imagenes] = await Promise.all([
-        logosInforme(),
-        resolverImagenes(grupos.flatMap(g => g.fotos.map(f => f.photo))),
-      ]);
-      const revisadoPor = REVISADO_TEXT_FIJO.split("\n").map(s => s.trim()).filter(Boolean);
-      const carroNombre = carroDisplay(carroCodigo);
-
-      const headerCellMargins = { top: 160, bottom: 160, left: 220, right: 220 };
-
-      // --- Encabezado repetido en cada página del cuerpo del informe ---
-      const header = new Header({
-        children: [
-          new Table({
-            width: { size: 9360, type: WidthType.DXA },
-            layout: TableLayoutType.FIXED,
-            columnWidths: [2059, 4493, 2808],
-            borders: cellBorders("000000"),
-            rows: [
-              new TableRow({
-                children: [
-                  new TableCell({
-                    width: { size: 2059, type: WidthType.DXA },
-                    borders: cellBorders("000000"),
-                    margins: headerCellMargins,
-                    verticalAlign: VerticalAlign.CENTER,
-                    children: [new Paragraph({
-                      alignment: AlignmentType.CENTER,
-                      children: [new ImageRun({ data: logoBytes, transformation: { width: 120, height: 40 }, type: logoType })],
-                    })],
-                  }),
-                  new TableCell({
-                    width: { size: 4493, type: WidthType.DXA },
-                    borders: cellBorders("000000"),
-                    margins: headerCellMargins,
-                    verticalAlign: VerticalAlign.CENTER,
-                    children: [
-                      new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 40 }, children: [new TextRun({ text: "Reporte Falla", size: 18, font: "Arial", bold: true })] }),
-                      new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: LINEA_SERVICIO_FIJA, size: 14, font: "Arial" })] }),
-                    ],
-                  }),
-                  new TableCell({
-                    width: { size: 2808, type: WidthType.DXA },
-                    borders: cellBorders("000000"),
-                    margins: headerCellMargins,
-                    verticalAlign: VerticalAlign.CENTER,
-                    children: [
-                      new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 30 }, children: [new TextRun({ text: `N° Contrato: ${N_CONTRATO_FIJO}`, size: 15, font: "Arial" })] }),
-                      new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 30 }, children: [new TextRun({ text: `Versión: ${VERSION_FIJA}`, size: 15, font: "Arial" })] }),
-                      new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: `Fecha: ${formatFechaLarga(fecha)}`, size: 15, font: "Arial" })] }),
-                    ],
-                  }),
-                ],
-              }),
-            ],
-          }),
-        ],
+      const blob = await generarWordFalla({
+        fecha, carroCodigo, ubicacion, creadoNombre, creadoCargo,
+        descripcionTexto, notificacionIntro, notificacionPuntos, notificacionCheckItem,
+        solucionIntro, hallazgos, accionesSolucion, verificacionTexto, verificacionCheckItem, grupos,
+        revisadoText: REVISADO_TEXT_FIJO, autorizadoNombre: AUTORIZADO_NOMBRE_FIJO, autorizadoCargo: AUTORIZADO_CARGO_FIJO,
       });
-
-      // --- Portada ---
-      const coverLeftChildren: docx.Paragraph[] = [
-        new Paragraph({ children: [new ImageRun({ data: logoBytes, transformation: { width: 200, height: 66 }, type: logoType })] }),
-        new Paragraph({ text: "" }),
-        new Paragraph({ text: "" }),
-        new Paragraph({ children: [new ImageRun({ data: coverBytes, transformation: { width: 340, height: 255 }, type: coverType })] }),
-        new Paragraph({ text: "" }),
-        new Paragraph({ children: [new TextRun({ text: "REPORTE DE FALLA", size: 30, font: "Arial", color: "000000" })] }),
-        new Paragraph({ children: [new TextRun({ text: carroNombre, bold: true, size: 30, font: "Arial", color: "000000" })] }),
-        ...(ubicacion.trim() ? [new Paragraph({ children: [new TextRun({ text: ubicacion, size: 24, font: "Arial", color: "000000" })] })] : []),
-        new Paragraph({ children: [new TextRun({ text: formatFechaLarga(fecha), size: 24, font: "Arial", color: "000000" })] }),
-      ];
-
-      const cajaFirmas: docx.Paragraph[] = [
-        new Paragraph({ spacing: { before: 120 }, children: [new TextRun({ text: "Creado por:", size: 20, font: "Arial", bold: true })] }),
-        new Paragraph({ text: "" }),
-        new Paragraph({ children: [new TextRun({ text: creadoNombre, size: 20, font: "Arial" })] }),
-        new Paragraph({ children: [new TextRun({ text: `Cargo: ${creadoCargo}`, size: 20, font: "Arial" })] }),
-        new Paragraph({ text: "_______________" }),
-        new Paragraph({ text: "" }),
-        new Paragraph({ children: [new TextRun({ text: "Revisado por:", size: 20, font: "Arial", bold: true })] }),
-        new Paragraph({ text: "" }),
-        ...revisadoPor.map(line => new Paragraph({ children: [new TextRun({ text: line, size: 20, font: "Arial" })] })),
-        new Paragraph({ text: "_______________" }),
-        new Paragraph({ text: "" }),
-        new Paragraph({ children: [new TextRun({ text: "Autorizado por:", size: 20, font: "Arial", bold: true })] }),
-        new Paragraph({ text: "" }),
-        new Paragraph({ children: [new TextRun({ text: AUTORIZADO_NOMBRE_FIJO, size: 20, font: "Arial" })] }),
-        new Paragraph({ text: "" }),
-        new Paragraph({ children: [new TextRun({ text: `Cargo: ${AUTORIZADO_CARGO_FIJO}`, size: 20, font: "Arial" })] }),
-      ];
-
-      const coverTable = new Table({
-        width: { size: 9360, type: WidthType.DXA },
-        layout: TableLayoutType.FIXED,
-        columnWidths: [6360, 3000],
-        borders: noBorders(),
-        rows: [new TableRow({
-          children: [
-            new TableCell({ width: { size: 6360, type: WidthType.DXA }, borders: noBorders(), children: coverLeftChildren }),
-            new TableCell({
-              width: { size: 3000, type: WidthType.DXA },
-              borders: { top: { style: BorderStyle.NONE }, bottom: { style: BorderStyle.NONE }, right: { style: BorderStyle.NONE }, left: { style: BorderStyle.SINGLE, size: 18, color: ORANGE } },
-              margins: { left: 260, top: 100, bottom: 100, right: 100 },
-              children: [
-                new Table({
-                  width: { size: 2640, type: WidthType.DXA },
-                  layout: TableLayoutType.FIXED,
-                  columnWidths: [2640],
-                  borders: cellBorders("000000"),
-                  rows: [new TableRow({ children: [new TableCell({ borders: cellBorders("000000"), margins: { top: 100, bottom: 100, left: 120, right: 120 }, children: cajaFirmas })] })],
-                }),
-              ],
-            }),
-          ],
-        })],
-      });
-
-      // --- Registro fotográfico: bloques con nota opcional + fotos (de a 2) + leyenda opcional ---
-      const buildFotoImgCell = async (slot: FotoSlot, widthDxa: number, columnSpan: 1 | 2) => {
-        const children: docx.Paragraph[] = [];
-        if (slot.photo) {
-          const { bytes, type } = imagenes.get(slot.photo) ?? await bytesDeImagen(slot.photo);
-          const w = columnSpan === 2 ? 420 : 240;
-          const h = columnSpan === 2 ? 260 : 220;
-          children.push(new Paragraph({ alignment: AlignmentType.CENTER, children: [new ImageRun({ data: bytes, transformation: { width: w, height: h }, type })] }));
-        } else {
-          children.push(new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "(Sin foto cargada)", italics: true, color: "999999", size: 18, font: "Arial" })] }));
-        }
-        if (slot.caption?.trim()) {
-          children.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { before: 60 }, children: [new TextRun({ text: slot.caption, bold: true, size: 18, font: "Arial" })] }));
-        }
-        return new TableCell({ width: { size: widthDxa, type: WidthType.DXA }, columnSpan, borders: cellBorders(), margins: { top: 100, bottom: 100, left: 100, right: 100 }, children });
-      };
-
-      const buildGrupoTable = async (grupo: RegistroGrupo) => {
-        const rows: docx.TableRow[] = [];
-        const colWidth = 9360;
-
-        if (grupo.nota.trim()) {
-          const notaLineas = grupo.nota.split("\n").map(s => s.trim()).filter(Boolean);
-          rows.push(new TableRow({
-            children: [new TableCell({
-              columnSpan: 2, borders: cellBorders(), margins: { top: 100, bottom: 100, left: 120, right: 120 },
-              children: notaLineas.map(linea => new Paragraph({ children: [new TextRun({ text: linea, bold: true, font: "Arial", size: 20 })] })),
-            })],
-          }));
-        }
-
-        for (let i = 0; i < grupo.fotos.length; i += 2) {
-          const chunk = grupo.fotos.slice(i, i + 2);
-          if (chunk.length === 2) {
-            const cells = await Promise.all(chunk.map(f => buildFotoImgCell(f, colWidth / 2, 1)));
-            rows.push(new TableRow({ children: cells }));
-          } else {
-            const cell = await buildFotoImgCell(chunk[0], colWidth, 2);
-            rows.push(new TableRow({ children: [cell] }));
-          }
-        }
-
-        if (grupo.caption.trim()) {
-          const captionLineas = grupo.caption.split("\n").map(s => s.trim()).filter(Boolean);
-          rows.push(new TableRow({
-            children: [new TableCell({
-              columnSpan: 2, borders: cellBorders(), margins: { top: 100, bottom: 100, left: 120, right: 120 },
-              children: captionLineas.map(linea => new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: linea, font: "Arial", size: 19 })] })),
-            })],
-          }));
-        }
-
-        if (rows.length === 0) return null;
-        return new Table({ width: { size: 9360, type: WidthType.DXA }, layout: TableLayoutType.FIXED, columnWidths: [4680, 4680], borders: cellBorders(), rows });
-      };
-
-      const fotoBlocks: (docx.Paragraph | docx.Table)[] = [
-        new Paragraph({ text: "", pageBreakBefore: true }),
-        new Paragraph({ heading: HeadingLevel.HEADING_1, children: [new TextRun({ text: "C. Registro Fotográfico", color: BLUE, size: 26, font: "Arial", bold: true })] }),
-        new Paragraph({ text: "" }),
-      ];
-      for (const grupo of grupos) {
-        const tabla = await buildGrupoTable(grupo);
-        if (tabla) {
-          fotoBlocks.push(tabla);
-          fotoBlocks.push(new Paragraph({ text: "" }));
-        }
-      }
-
-      // --- Cuerpo del informe ---
-      const doc = new Document({
-        styles: { default: { document: { run: { font: "Arial", size: 21 } } } },
-        sections: [
-          { properties: { page: { size: { width: 12240, height: 15840 } } }, children: [coverTable] },
-          {
-            properties: { page: { size: { width: 12240, height: 15840 } } },
-            headers: { default: header },
-            children: [
-              new Paragraph({ heading: HeadingLevel.HEADING_1, children: [new TextRun({ text: "A. Descripción de falla", color: BLUE, size: 26, font: "Arial", bold: true })] }),
-              ...descripcionTexto.split("\n").map(linea => new Paragraph({ children: [new TextRun({ text: linea, font: "Arial" })] })),
-              new Paragraph({ text: "" }),
-              new Paragraph({ children: [new TextRun({ text: notificacionIntro, font: "Arial" })] }),
-              new Paragraph({ text: "" }),
-              ...notificacionPuntos.filter(p => p.trim()).map((p, idx) => new Paragraph({ indent: { left: 400 }, children: [new TextRun({ text: `${idx + 1}) ${p}`, font: "Arial" })] })),
-              ...(notificacionCheckItem.trim() ? [new Paragraph({ indent: { left: 800 }, children: [new TextRun({ text: `✓ ${notificacionCheckItem}`, font: "Arial", underline: {} })] })] : []),
-              new Paragraph({ text: "" }),
-
-              new Paragraph({ heading: HeadingLevel.HEADING_1, spacing: { before: 200 }, children: [new TextRun({ text: "B. Solución Implementada", color: BLUE, size: 26, font: "Arial", bold: true })] }),
-              new Paragraph({ children: [new TextRun({ text: solucionIntro, font: "Arial" })] }),
-              new Paragraph({ text: "" }),
-              ...hallazgos.filter(h => h.trim()).map(h => new Paragraph({ text: h, bullet: { level: 0 } })),
-              new Paragraph({ text: "" }),
-              new Paragraph({ children: [new TextRun({ text: "Solución", font: "Arial", bold: true })] }),
-              new Paragraph({ text: "" }),
-              ...accionesSolucion.filter(a => a.trim()).map(a => new Paragraph({ text: a, bullet: { level: 0 } })),
-              new Paragraph({ text: "" }),
-
-              new Paragraph({ heading: HeadingLevel.HEADING_1, spacing: { before: 200 }, children: [new TextRun({ text: "Verificación Final", color: BLUE, size: 26, font: "Arial", bold: true })] }),
-              new Paragraph({ children: [new TextRun({ text: verificacionTexto, font: "Arial" })] }),
-              ...(verificacionCheckItem.trim() ? [
-                new Paragraph({ text: "" }),
-                new Paragraph({ indent: { left: 400 }, children: [new TextRun({ text: `✓ ${verificacionCheckItem}`, font: "Arial", underline: {} })] }),
-              ] : []),
-
-              ...fotoBlocks,
-            ],
-          },
-        ],
-      });
-
-      const blob = await Packer.toBlob(doc);
-      const [year, month, day] = fecha.split("-");
-      const filename = `Informe_de_falla_${carroCodigo}_${day}-${month}-${year}.docx`;
+      const filename = nombreArchivoFalla({ fecha, carroCodigo });
       saveAs(blob, filename);
       void registrarActividad('word_generado', filename, currentDraftId);
       showToast(`Documento generado exitosamente: ${filename}`);

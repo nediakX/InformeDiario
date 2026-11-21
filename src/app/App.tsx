@@ -424,6 +424,23 @@ function AppContenido() {
     if (!ok) window.alert("No se pudo generar el documento. Intenta nuevamente.");
   };
 
+  // Mantenimiento, mantención preventiva y falla: el mismo Word que genera cada informe, sin abrirlo.
+  const descargarBorradorOtro = async (entry: BorradorOtroEntry) => {
+    if (descargandoId) return;
+    setDescargandoId(entry.id);
+    try {
+      const { descargarWordDeBorrador } = await import('../informes/descargarBorrador');
+      await descargarWordDeBorrador(entry);
+    } catch (error) {
+      console.error('No se pudo generar el Word del borrador:', error);
+      window.alert(error instanceof Error && error.name === 'FaltanDatos'
+        ? `No se pudo descargar: ${error.message} Ábrelo para completarlo.`
+        : 'No se pudo generar el documento. Revisa la conexión e intenta nuevamente.');
+    } finally {
+      setDescargandoId(null);
+    }
+  };
+
   // --- Importar informe desde Word (recuperar un informe borrado) -------------------------------
   const [importadorAbierto, setImportadorAbierto] = useState(false);
   const [checklistFechaInicial, setChecklistFechaInicial] = useState<string | null>(null);
@@ -570,6 +587,7 @@ function AppContenido() {
         onBack={() => setView('dashboard')}
         onNew={goToNewInforme}
         onDownload={descargarInforme}
+        onDownloadOtro={descargarBorradorOtro}
         descargandoId={descargandoId}
         borradoresMantenimiento={borradoresMantenimiento}
         borradoresFalla={borradoresFalla}

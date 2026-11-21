@@ -30,6 +30,9 @@ interface BorradoresProps {
   onNew: (turno: 'dia' | 'noche') => void;
   /** Descarga el Word de un informe finalizado. */
   onDownload: (entry: BorradorEntry) => void;
+  /** Descarga el Word de un borrador de Mantenimiento o Falla finalizado (el mismo que genera el informe). */
+  onDownloadOtro?: (entry: BorradorOtroEntry) => void;
+  /** Informe cuyo Word se está generando (Diario, Mantenimiento o Falla). */
   descargandoId: string | null;
   /** Mantenimiento e Falla: borradores en la nube, sin calendario de turno (uno por carro/generador). */
   borradoresMantenimiento?: BorradorOtroEntry[];
@@ -72,7 +75,7 @@ const ESTADOS = {
 } as const;
 
 export default function Borradores({
-  borradores, tab, onTabChange, onOpen, onSemanaNocheNoRealizada, onDelete, onBack, onNew, onDownload, descargandoId,
+  borradores, tab, onTabChange, onOpen, onSemanaNocheNoRealizada, onDelete, onBack, onNew, onDownload, onDownloadOtro, descargandoId,
   tipoTab, onTipoTabChange,
   borradoresMantenimiento = [], borradoresFalla = [],
   onNuevoMantenimiento, onAbrirMantenimiento, onNuevaFalla, onAbrirFalla, onDeleteOtro, onImportar,
@@ -253,6 +256,7 @@ export default function Borradores({
   const renderEntryOtro = (entry: BorradorOtroEntry) => {
     const estado = ESTADOS[estadoBorradorOtro(entry)];
     const fotos = contarFotosGenerico(entry.datos);
+    const descargando = descargandoId === entry.id;
     return (
       <div key={entry.id} className="panel p-4 flex flex-col sm:flex-row sm:items-center gap-3">
         <div className="flex-1 min-w-0">
@@ -268,6 +272,19 @@ export default function Borradores({
           </div>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
+          {/* Igual que en Informe Diario: los finalizados se descargan desde la lista, sin abrirlos. */}
+          {estadoBorradorOtro(entry) === 'finalizado' && onDownloadOtro && (
+            <button
+              type="button"
+              onClick={() => onDownloadOtro(entry)}
+              disabled={descargandoId !== null}
+              className="bg-green-600 text-white px-3 py-1.5 rounded-md text-xs font-bold hover:bg-green-700 disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-1.5"
+              title="Descargar el informe en Word"
+            >
+              {descargando ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
+              {descargando ? 'Generando…' : 'Descargar'}
+            </button>
+          )}
           <button type="button" onClick={() => configOtro?.onAbrir(entry)} className="bg-[#0E4660] text-white px-3 py-1.5 rounded-md text-xs font-bold hover:bg-[#0a3549]">
             {estado.boton}
           </button>
