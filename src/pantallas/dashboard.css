@@ -51,7 +51,8 @@
 .dash-dia--futuro { opacity: 0.45; }
 
 .dash-pip { display: inline-block; height: 6px; width: 100%; border-radius: 3px; background: transparent; border: 1px solid #55636b; }
-.dash-pip--finalizado { background: #34a853; border-color: #34a853; }
+/* Un turno no realizado queda resuelto: en verde, como uno finalizado. */
+.dash-pip--finalizado, .dash-pip--no_realizado { background: #34a853; border-color: #34a853; }
 .dash-pip--iniciado { background: var(--amber); border-color: var(--amber); }
 .dash-pip--pendiente { border-color: #7b8a92; }
 .dash-pip--futuro { border-style: dashed; border-color: #3e4a51; }

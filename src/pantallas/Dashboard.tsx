@@ -28,10 +28,10 @@ import { PorRevisar, ResumenContrato } from './BloquesRol';
 import { DISENO_INICIO, DISENO_INICIO_ANDINA, ETIQUETA_CORTA_ROL, ETIQUETA_ROL, MAX_ACCESOS_RAPIDOS, ORDEN_COMPLETO, rolDePersona, type BloqueInicio, type IdTarea } from '../datos/roles';
 
 type TipoBorradorTab = 'diario' | 'mantenimiento' | 'falla';
-type EstadoPip = 'pendiente' | 'iniciado' | 'finalizado' | 'futuro';
+type EstadoPip = 'pendiente' | 'iniciado' | 'finalizado' | 'futuro' | 'no_realizado';
 
 const INICIAL_DIA = ['D', 'L', 'M', 'M', 'J', 'V', 'S'];
-const ETIQUETA_ESTADO: Record<EstadoPip, string> = { pendiente: 'sin fotos', iniciado: 'en curso', finalizado: 'finalizado', futuro: 'aún no' };
+const ETIQUETA_ESTADO: Record<EstadoPip, string> = { pendiente: 'sin fotos', iniciado: 'en curso', finalizado: 'finalizado', futuro: 'aún no', no_realizado: 'no realizado' };
 
 /** Acceso a una tarea: ícono, nombre y su estado en una línea. */
 function Tarea({ id, estado, tono, etiqueta, ayuda, onClick }: {
@@ -129,6 +129,8 @@ export default function Dashboard({
   // Estado de cada informe diario de la semana (Día y Noche) para el tablero del turno.
   const estadoDe = (fecha: string, turno: 'dia' | 'noche'): EstadoPip => {
     const b = borradoresSemana.find(x => x.fecha === fecha && x.turno === turno);
+    // Turno marcado como no realizado (p. ej. "Turno noche no realizado esta semana"): queda resuelto, en verde.
+    if (b?.sinTurno) return 'no_realizado';
     if (!b || esSemillaSinEditar(b)) return fecha > hoy ? 'futuro' : 'pendiente';
     return estadoBorrador(b);
   };
@@ -137,7 +139,9 @@ export default function Dashboard({
   const nombreTurno = (turno: 'dia' | 'noche') => (turno === 'dia' ? 'Día' : 'Noche');
   const resumenDia = (fecha: string) => turnos.map(t => `${nombreTurno(t)} ${ETIQUETA_ESTADO[estadoDe(fecha, t)]}`).join(', ');
   const diasQueTocan = semanaHoy.dias.filter(f => f <= hoy);
-  const informesQueTocan = diasQueTocan.length * turnos.length;
+  // Un turno no realizado no se espera (igual que en los KPI): no suma a "de N informes".
+  const informesQueTocan = diasQueTocan.reduce((n, f) => n + turnos.filter(t => estadoDe(f, t) !== 'no_realizado').length, 0);
+  const hayNoRealizados = semanaHoy.dias.some(f => turnos.some(t => estadoDe(f, t) === 'no_realizado'));
   const finalizadosSemana = diasQueTocan.reduce((n, f) => n + turnos.filter(t => estadoDe(f, t) === 'finalizado').length, 0);
   const diasConInformeDia = semanaHoy.dias.filter(f => ['iniciado', 'finalizado'].includes(estadoDe(f, 'dia'))).length;
 
@@ -376,7 +380,7 @@ export default function Dashboard({
             })}
           </ol>
           <p className="dash-leyenda">
-            <span><span className="dash-pip dash-pip--finalizado" /> Finalizado</span>
+            <span><span className="dash-pip dash-pip--finalizado" /> {hayNoRealizados ? 'Finalizado o no realizado' : 'Finalizado'}</span>
             <span><span className="dash-pip dash-pip--iniciado" /> En curso</span>
             <span><span className="dash-pip dash-pip--pendiente" /> Sin fotos</span>
             {turnos.length > 1 && <span className="dash-leyenda__nota">Arriba Día · abajo Noche</span>}
@@ -410,7 +414,7 @@ export default function Dashboard({
                   <span
                     className="dash-anillo"
                     aria-hidden="true"
-                    style={{ '--pct': noRealizado ? 0 : estado === 'finalizado' ? 100 : avance, '--ring': estado === 'finalizado' && !noRealizado ? '#1e8e3e' : 'var(--brand-blue)' } as CSSProperties}
+                    style={{ '--pct': noRealizado || estado === 'finalizado' ? 100 : avance, '--ring': noRealizado || estado === 'finalizado' ? '#1e8e3e' : 'var(--brand-blue)' } as CSSProperties}
                   >
                     <span className="dash-anillo__centro"><Icono size={20} aria-hidden="true" /></span>
                   </span>
@@ -421,7 +425,7 @@ export default function Dashboard({
                         ? `No realizado · ${informe?.sinTurnoMotivo || 'sin motivo'}`
                         : estado === 'finalizado' ? `Finalizado · ${fotos.llenas} fotos` : estado === 'iniciado' ? `${fotos.llenas} de ${fotos.total} fotos` : 'Aún sin fotos'}
                     </span>
-                    <span className="dash-barra" aria-hidden="true"><span style={{ width: `${noRealizado ? 0 : avance}%` }} /></span>
+                    <span className="dash-barra" aria-hidden="true"><span style={{ width: `${noRealizado ? 100 : avance}%` }} /></span>
                   </span>
                   <span className="dash-turno-hoy__accion">
                     {noRealizado ? 'Ver' : estado === 'pendiente' ? 'Comenzar' : estado === 'finalizado' ? 'Revisar' : 'Continuar'}

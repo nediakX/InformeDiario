@@ -394,6 +394,8 @@
 .celda--sin_fotos { background: var(--status-serious); color: var(--tx-3d1b0c, #3d1b0c); }
 .celda--faltante { background: var(--status-critical); color: #fff; }
 .celda--en_curso { background: var(--status-neutral); color: var(--tx-6f6d68, #6f6d68); }
+/* Turno no realizado: resuelto (verde); el ícono lo distingue de un finalizado y no cuenta en los KPI. */
+.celda--no_realizado { background: var(--status-good); color: #fff; }
 
 /* --- Tablas --- */
 .viz-table-wrap {

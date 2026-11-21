@@ -107,12 +107,13 @@ export default function Borradores({
   const lista = delTurnoActual(tabVisible).sort(porFechaAsc);
   const listaFiltrada = lista.filter(b => {
     if (filtro === 'pendientes') return !b.sinTurno && estadoBorrador(b) !== 'finalizado';
-    if (filtro === 'finalizados') return estadoBorrador(b) === 'finalizado';
+    if (filtro === 'finalizados') return !b.sinTurno && estadoBorrador(b) === 'finalizado';
     if (filtro === 'no_realizados') return Boolean(b.sinTurno);
     return true;
   });
-  const finalizados = lista.filter(b => estadoBorrador(b) === 'finalizado').length;
-  const enCurso = lista.filter(b => estadoBorrador(b) === 'iniciado').length;
+  // Cada informe cuenta una sola vez: uno marcado como no realizado no suma como finalizado ni en curso.
+  const finalizados = lista.filter(b => !b.sinTurno && estadoBorrador(b) === 'finalizado').length;
+  const enCurso = lista.filter(b => !b.sinTurno && estadoBorrador(b) === 'iniciado').length;
   const noRealizados = lista.filter(b => b.sinTurno).length;
   const semanaNocheNoRealizada = lista.length > 0 && lista.every(b => b.sinTurno);
 
@@ -172,13 +173,13 @@ export default function Borradores({
             </span>
             {esHoy && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#F5B300] text-white">Hoy</span>}
             {entry.sinTurno ? (
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#fbe9e9] text-[#a32626]">Turno no realizado</span>
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#e6f4ea] text-[#1e6b34]">Turno no realizado</span>
             ) : (
               <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${estado.clase}`}>{estado.etiqueta}</span>
             )}
           </div>
           {entry.sinTurno ? (
-            <p className="text-xs text-[#a32626] mt-1.5"><strong>Motivo:</strong> {entry.sinTurnoMotivo || 'Sin motivo registrado.'}</p>
+            <p className="text-xs text-[#1e6b34] mt-1.5"><strong>Motivo:</strong> {entry.sinTurnoMotivo || 'Sin motivo registrado.'}</p>
           ) : (
             <div className="flex items-center gap-4 mt-1.5 text-xs text-gray-500">
               <span className="flex items-center gap-1"><Users size={12} /> {entry.personal.filter(p => p.nombre.trim()).length} personas</span>
@@ -428,13 +429,13 @@ export default function Borradores({
                           .catch(() => window.alert('No se pudo reactivar el turno noche. Revisa la conexión e inténtalo de nuevo.'))
                           .finally(() => setGuardandoSemana(false));
                       }}
-                      className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors disabled:opacity-50 ${semanaNocheNoRealizada ? 'bg-[#a32626]' : 'bg-gray-300'}`}
+                      className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors disabled:opacity-50 ${semanaNocheNoRealizada ? 'bg-[#1e8e3e]' : 'bg-gray-300'}`}
                     >
                       <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${semanaNocheNoRealizada ? 'translate-x-5' : 'translate-x-0.5'}`} />
                     </button>
                   </div>
                   {semanaNocheNoRealizada && (
-                    <p className="text-xs text-[#a32626]"><strong>Motivo:</strong> {lista.find(b => b.sinTurnoMotivo)?.sinTurnoMotivo || 'sin motivo'}. Los informes de noche de esta semana están bloqueados.</p>
+                    <p className="text-xs text-[#1e6b34]"><strong>Motivo:</strong> {lista.find(b => b.sinTurnoMotivo)?.sinTurnoMotivo || 'sin motivo'}. Los informes de noche de esta semana están bloqueados.</p>
                   )}
                   {pidiendoMotivo && (
                     <div className="space-y-2">
@@ -469,8 +470,9 @@ export default function Borradores({
                 </div>
               )}
               <div className="w-full h-2 bg-gray-100 rounded-full mt-1.5 overflow-hidden flex">
-                <div className="h-full bg-green-500 transition-all" style={{ width: `${Math.min(100, (finalizados / DIAS_POR_TURNO) * 100)}%` }} />
-                <div className="h-full bg-[#F5B300] transition-all" style={{ width: `${Math.min(100 - (finalizados / DIAS_POR_TURNO) * 100, (enCurso / DIAS_POR_TURNO) * 100)}%` }} />
+                {/* Verde: finalizados y no realizados (resueltos); amarillo: en curso. */}
+                <div className="h-full bg-green-500 transition-all" style={{ width: `${Math.min(100, ((finalizados + noRealizados) / DIAS_POR_TURNO) * 100)}%` }} />
+                <div className="h-full bg-[#F5B300] transition-all" style={{ width: `${Math.min(100 - ((finalizados + noRealizados) / DIAS_POR_TURNO) * 100, (enCurso / DIAS_POR_TURNO) * 100)}%` }} />
               </div>
             </div>
 

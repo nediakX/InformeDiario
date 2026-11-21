@@ -176,8 +176,8 @@ export default function InformeDiario({ d, volverABorradores, goToNewInforme }: 
               Reactivar turno
             </button>
           </div>
-          <section className="panel p-5 space-y-3 border-l-4 border-[#a32626]">
-            <h2 className="font-display font-bold text-lg text-[#a32626]">Turno noche no realizado</h2>
+          <section className="panel p-5 space-y-3 border-l-4 border-[#1e8e3e]">
+            <h2 className="font-display font-bold text-lg text-[#1e6b34]">Turno noche no realizado</h2>
             <p className="text-sm"><strong>Motivo:</strong> {sinTurnoMotivo || 'Sin motivo registrado.'}</p>
             <p className="text-xs text-gray-500">Este turno no aparece como faltante y no cuenta en los KPI. Si se realizó, reactívalo con el botón de arriba.</p>
           </section>
