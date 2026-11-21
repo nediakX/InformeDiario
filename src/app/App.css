@@ -628,6 +628,10 @@ html[data-tema-oscuro] .bg-\[\#f4f6f8\] { background-color: #222b35 !important; 
 html[data-tema-oscuro] .bg-\[\#f6f8fa\] { background-color: #1f2b38 !important; }
 html[data-tema-oscuro] .bg-\[\#fff3cd\] { background-color: #3d341a !important; }
 html[data-tema-oscuro] .bg-\[\#fff9e8\] { background-color: #3d341a !important; }
+/* Reportabilidad de GG: tarjeta de "No realizada" (ámbar) y barra de Promedio por carro. */
+html[data-tema-oscuro] .bg-\[\#fff8e6\] { background-color: #3d341a !important; }
+html[data-tema-oscuro] .border-\[\#e8c36a\] { border-color: #a07d2a !important; }
+html[data-tema-oscuro] .bg-\[\#e6ebef\] { background-color: #2a3438 !important; }
 html[data-tema-oscuro] .bg-\[\#dbe7ee\] { background-color: #1c2f3b !important; }
 html[data-tema-oscuro] .bg-\[\#e3edf3\] { background-color: #1a303d !important; }
 html[data-tema-oscuro] .bg-\[\#e6f4ea\] { background-color: #1a3c24 !important; }
