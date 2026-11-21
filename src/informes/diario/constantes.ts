@@ -122,11 +122,14 @@ export const DEFAULT_ACTIVIDADES_DIA: string[] = [
   "Verificación de Ropa Alta Visibilidad.",
   "Registro de Protección Solar.",
   "Registro de Hidratación.",
+  "Lista de Verificación de Carro.",
   "Tareas Administrativas."
 ];
 
 export const ACTIVIDAD_DIA_PERMANENTE = "Verificación de Ropa Alta Visibilidad.";
 export const ACTIVIDAD_ART_VEHICULO_LIVIANO = "Registro ART Conducción Vehículo Liviano.";
+/** Actividad (y bloque de evidencia) de Turno Día agregada en noviembre de 2026; va antes de "Tareas Administrativas.". */
+export const ACTIVIDAD_LISTA_VERIFICACION_CARRO = "Lista de Verificación de Carro.";
 
 // Compara actividades ignorando mayúsculas, espacios y el punto final.
 const normActividad = (s: string) => s.trim().replace(/\.+$/, '').toLowerCase();
@@ -147,6 +150,11 @@ export const ensureActividadesDiaPermanentes = (items: string[]) => {
     updated.splice(fatigueIndex >= 0 ? fatigueIndex : updated.length, 0, ACTIVIDAD_ART_VEHICULO_LIVIANO);
   }
   if (!tiene(ACTIVIDAD_DIA_PERMANENTE)) updated.push(ACTIVIDAD_DIA_PERMANENTE);
+  // Las listas ya guardadas en cada equipo también la reciben (antes de "Tareas Administrativas.", si está).
+  if (!tiene(ACTIVIDAD_LISTA_VERIFICACION_CARRO)) {
+    const tareas = updated.findIndex(it => normActividad(it) === normActividad("Tareas Administrativas."));
+    updated.splice(tareas >= 0 ? tareas : updated.length, 0, ACTIVIDAD_LISTA_VERIFICACION_CARRO);
+  }
   return updated;
 };
 
