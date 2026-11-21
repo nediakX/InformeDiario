@@ -260,6 +260,9 @@
 .dash-rol { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); gap: 28px; align-items: start; }
 .dash-rol--solo { grid-template-columns: minmax(0, 1fr); }
 .dash-rol__principal, .dash-rol__lateral { display: grid; gap: 22px; min-width: 0; }
+/* Cada bloque se ajusta al ancho de su columna (en celulares muy angostos, los textos de una línea se
+   cortan con "…" en vez de ensanchar la página). */
+.dash > *, .dash-rol__principal > *, .dash-rol__lateral > * { min-width: 0; }
 .dash-rol__principal .dash-hoy__turnos { grid-template-columns: 1fr 1fr; }
 .dash-rol .dash-gg-sitios { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
 
@@ -291,6 +294,21 @@
 .dash-accesos { display: grid; gap: 8px; }
 .dash-accesos .dash-tarea { padding: 9px 11px; }
 .dash-accesos .dash-tarea__icono { width: 34px; height: 34px; }
+/* Título con "Editar" a la derecha (la línea de abajo pasa del título a toda la cabecera). */
+.dash-accesos__cabecera { display: flex; align-items: center; justify-content: space-between; gap: 8px; border-bottom: 2px solid var(--line); }
+.dash-accesos__cabecera .dash-grupo__titulo { flex: 1; min-width: 0; border-bottom: 0; padding: 6px 0; }
+.dash-accesos__editar {
+  display: inline-flex; align-items: center; gap: 4px; flex: none; padding: 4px 10px; border-radius: 999px;
+  font-size: 0.76rem; font-weight: 700; color: var(--brand-text); cursor: pointer; transition: background-color 0.15s ease;
+}
+.dash-accesos__editar:hover { background: var(--panel-2); }
+.dash-accesos__vacio {
+  display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; padding: 16px 12px; border-radius: 10px;
+  border: 1px dashed var(--line); background: transparent; color: var(--brand-text); font-size: 0.84rem; font-weight: 700; cursor: pointer;
+}
+.dash-accesos__vacio:hover { border-color: var(--brand-blue); background: var(--panel-2); }
+.dash-accesos__nota { display: flex; align-items: center; gap: 6px; margin: 0; font-size: 0.74rem; color: var(--text-soft); }
+.dash-accesos__nota svg { flex: none; }
 .dash-mas { border-top: 1px solid var(--line); padding-top: 10px; }
 .dash-mas > summary { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; list-style: none; font-weight: 700; font-size: 0.9rem; color: var(--brand-text); padding: 6px 0; }
 .dash-mas > summary::-webkit-details-marker { display: none; }
@@ -373,4 +391,110 @@
   /* Tarjetas de hoy: el botón pasa abajo, a todo el ancho. */
   .dash-rol .dash-turno-hoy, .dash-turno-hoy { flex-wrap: wrap; }
   .dash-turno-hoy__accion { flex: 1 1 100%; justify-content: center; padding: 9px 12px; }
+}
+
+/* --- Editor de accesos rápidos (diálogo) ------------------------------------------------------ */
+.dash-editor-fondo {
+  position: fixed; inset: 0; z-index: 50; display: flex; align-items: center; justify-content: center;
+  padding: 16px; background: rgba(0, 0, 0, 0.5);
+}
+.dash-editor {
+  display: flex; flex-direction: column; width: 100%; max-width: 460px; max-height: calc(100dvh - 32px);
+  background: var(--panel); color: var(--ink); border-radius: 14px; box-shadow: 0 20px 50px rgba(0, 0, 0, 0.28); overflow: hidden;
+}
+.dash-editor:focus { outline: none; }
+.dash-editor button:focus-visible { outline: 3px solid var(--amber); outline-offset: 2px; }
+.dash-editor__cabecera { display: flex; align-items: flex-start; gap: 12px; padding: 16px 16px 12px; border-bottom: 1px solid var(--line-soft); }
+.dash-editor__simbolo {
+  display: grid; place-items: center; flex: none; width: 38px; height: 38px; border-radius: 10px;
+  background: var(--panel-2); color: var(--brand-text);
+}
+.dash-editor__titulo { margin: 0; font-size: 1.1rem; font-weight: 800; line-height: 1.25; color: var(--brand-text); }
+.dash-editor__ayuda { margin: 2px 0 0; font-size: 0.8rem; line-height: 1.4; color: var(--text-soft); }
+.dash-editor__cuerpo {
+  flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain;
+  display: grid; align-content: start; gap: 18px; padding: 14px 16px 16px;
+}
+.dash-editor__seccion {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin: 0 0 8px;
+  font-size: 0.74rem; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; color: var(--brand-text);
+}
+.dash-editor__cuenta { font-size: 0.76rem; font-weight: 700; letter-spacing: 0; text-transform: none; color: var(--text-soft); font-variant-numeric: tabular-nums; }
+.dash-editor__cuenta--lleno { color: var(--tx-8a5a00, #8a5a00); }
+.dash-editor__lista { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.dash-editor__fila {
+  display: flex; align-items: center; gap: 10px; min-height: 50px; padding: 7px 7px 7px 9px;
+  border-radius: 10px; border: 1px solid var(--line); background: var(--panel);
+}
+.dash-editor__fila--anclada { border-left: 4px solid var(--amber); padding-left: 7px; }
+.dash-editor__icono-tarea { display: grid; place-items: center; flex: none; width: 32px; height: 32px; border-radius: 8px; }
+.dash-editor__nombre { flex: 1; min-width: 0; font-size: 0.88rem; font-weight: 700; line-height: 1.25; color: var(--ink); overflow-wrap: break-word; }
+.dash-editor__acciones { display: flex; gap: 4px; flex: none; }
+.dash-editor__boton-icono {
+  display: inline-grid; place-items: center; flex: none; width: 36px; height: 36px; border-radius: 8px;
+  border: 1px solid var(--line); background: var(--panel); color: var(--brand-text); cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+.dash-editor__boton-icono:hover:not(:disabled) { background: var(--panel-2); border-color: var(--brand-blue); }
+.dash-editor__boton-icono:disabled { opacity: 0.3; cursor: not-allowed; }
+.dash-editor__boton-icono--quitar:hover:not(:disabled) { color: var(--tx-b3261e, #b3261e); border-color: #b3261e; background: var(--bg-fdf1f1, #fdf1f1); }
+/* "Otras opciones": toda la fila es el botón para anclar. */
+.dash-editor__fila--boton { width: 100%; text-align: left; cursor: pointer; transition: background-color 0.15s ease, border-color 0.15s ease; }
+.dash-editor__fila--boton:hover:not(:disabled) { border-color: var(--brand-blue); background: var(--panel-2); }
+.dash-editor__fila--boton:disabled { cursor: not-allowed; opacity: 0.5; }
+.dash-editor__anclar {
+  display: inline-flex; align-items: center; gap: 4px; flex: none; padding: 5px 11px; border-radius: 999px;
+  background: var(--panel-2); border: 1px solid var(--line); color: var(--brand-text); font-size: 0.76rem; font-weight: 700;
+}
+.dash-editor__fila--boton:hover:not(:disabled) .dash-editor__anclar { background: var(--brand-blue); border-color: var(--brand-blue); color: #fff; }
+.dash-editor__vacio { margin: 0; padding: 14px 12px; border: 1px dashed var(--line); border-radius: 10px; font-size: 0.82rem; text-align: center; color: var(--text-soft); }
+.dash-editor__aviso {
+  margin: 0 0 8px; padding: 8px 10px; border-radius: 8px; font-size: 0.78rem; font-weight: 600;
+  background: var(--bg-fff3cd, #fff3cd); color: var(--tx-7a5b00, #7a5b00);
+}
+.dash-editor__nota { margin: 8px 0 0; font-size: 0.76rem; color: var(--text-soft); }
+.dash-editor__rol {
+  display: inline-flex; align-items: center; gap: 6px; margin-top: 8px; padding: 4px 0;
+  font-size: 0.8rem; font-weight: 700; color: var(--brand-text); cursor: pointer; text-align: left;
+}
+.dash-editor__rol svg { flex: none; }
+.dash-editor__rol:hover { text-decoration: underline; }
+.dash-editor__pie { display: flex; justify-content: flex-end; gap: 8px; padding: 12px 16px 16px; border-top: 1px solid var(--line-soft); }
+.dash-editor__boton {
+  display: inline-flex; align-items: center; justify-content: center; min-height: 42px; padding: 8px 18px; border-radius: 8px;
+  border: 1px solid var(--line); background: var(--panel); color: var(--brand-text); font-size: 0.86rem; font-weight: 700; cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+.dash-editor__boton:hover:not(:disabled) { background: var(--panel-2); }
+.dash-editor__boton:disabled { opacity: 0.5; cursor: not-allowed; }
+.dash-editor__boton--principal { background: var(--brand-blue); border-color: var(--brand-blue); border-left: 4px solid var(--amber); color: #fff; }
+.dash-editor__boton--principal:hover:not(:disabled) { background: var(--brand-blue-deep); }
+@media (prefers-reduced-motion: reduce) {
+  .dash-editor__boton, .dash-editor__boton-icono, .dash-editor__fila--boton, .dash-accesos__editar { transition: none; }
+}
+@media (max-width: 440px) {
+  .dash-editor__pie .dash-editor__boton { flex: 1; }
+}
+/* Celulares angostos: más espacio para los nombres (sin el ícono de cada opción y con botones algo menores). */
+@media (max-width: 360px) {
+  .dash-editor-fondo { padding: 8px; }
+  .dash-editor { max-height: calc(100dvh - 16px); }
+  .dash-editor__cabecera, .dash-editor__cuerpo, .dash-editor__pie { padding-left: 12px; padding-right: 12px; }
+  .dash-editor__simbolo, .dash-editor__icono-tarea { display: none; }
+  .dash-editor__anclar { padding: 4px 9px; }
+}
+@media (max-width: 300px) {
+  /* Opciones ancladas: el nombre en su propia línea y los botones debajo, a la derecha (sin cortar palabras). */
+  .dash-editor__fila--anclada { flex-wrap: wrap; row-gap: 6px; }
+  .dash-editor__fila--anclada .dash-editor__nombre { flex: 1 1 100%; }
+  .dash-editor__fila--anclada .dash-editor__acciones { margin-left: auto; }
+}
+
+/* Celulares muy angostos (plegables cerrados, ~260 px): los bloques del inicio no ensanchan la página. */
+.dash-gg__caja > *, .dash-gg-alertas > * { min-width: 0; }
+@media (max-width: 300px) {
+  .dash-contrato__grilla { grid-template-columns: minmax(0, 1fr); }
+  /* Selector del dato del gráfico (Temp. · Horómetro · Combustible) a todo el ancho y más compacto. */
+  .dash-gg-dato { display: flex; width: 100%; }
+  .dash-gg-dato button { flex: 1 1 auto; padding: 4px 6px; font-size: 0.68rem; }
 }

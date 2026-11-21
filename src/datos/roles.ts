@@ -62,15 +62,25 @@ export function esSupervisorGG(perfil: { rut: string | null; rol?: string | null
 
 /** Bloques del panel principal ("Mini" = versión de una línea, para la columna lateral). */
 export type BloqueInicio = 'contrato' | 'revisar' | 'turno' | 'turnoMini' | 'hoy' | 'generadores' | 'generadoresMini' | 'mapa' | 'accesos';
-/** Accesos directos a pantallas. */
-export type IdTarea = 'checklist' | 'gg' | 'tablaMantenimiento' | 'impresion' | 'cierre' | 'presentacion' | 'presentacionFds' | 'falla' | 'mantenimiento' | 'preventiva' | 'mapa' | 'borradores' | 'recuperar' | 'admin';
+/** Accesos directos a pantallas (en el orden de "Todas las opciones"). */
+export const IDS_TAREA = [
+  'checklist', 'gg', 'tablaMantenimiento', 'impresion', 'mapa',
+  'cierre', 'presentacion', 'presentacionFds', 'preventiva', 'falla', 'mantenimiento',
+  'borradores', 'recuperar', 'admin',
+] as const;
+export type IdTarea = (typeof IDS_TAREA)[number];
+export const esIdTarea = (v: unknown): v is IdTarea => typeof v === 'string' && (IDS_TAREA as readonly string[]).includes(v);
+
+/** Máximo de accesos rápidos en el inicio (los del rol y los que elija cada cuenta). */
+export const MAX_ACCESOS_RAPIDOS = 5;
 
 export interface DisenoInicio {
   /** Columna principal: lo que responde la pregunta del rol, en grande. */
   principal: BloqueInicio[];
   /** Columna lateral (debajo en el celular): contexto en versión corta y accesos directos. */
   lateral: BloqueInicio[];
-  /** Accesos directos del rol (el resto queda en "Todas las opciones"). */
+  /** Accesos directos del rol, de más a menos importante. El inicio muestra los primeros 5 que la persona
+   *  puede usar, mientras no elija los suyos; el resto queda en "Todas las opciones". */
   accesos: IdTarea[];
 }
 

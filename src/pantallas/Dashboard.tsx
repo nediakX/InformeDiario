@@ -1,7 +1,12 @@
 import CuentaCabecera from '../componentes/CuentaCabecera';
-import { Fragment, Suspense, isValidElement, lazy, useEffect, useState, type CSSProperties, type ReactNode } from 'react';
-import { ChevronDown, ClipboardCheck, FileStack, FolderOpen, ChevronRight, Bell, FilePlus, Sun, Moon, Wrench, AlertTriangle, Printer, ShieldCheck, FileUp, Fuel, LayoutGrid, RadioTower, Map as MapIcon, Presentation, CalendarDays, Table2, type LucideIcon } from 'lucide-react';
+import { Fragment, Suspense, lazy, useEffect, useState, type CSSProperties, type ReactNode } from 'react';
+import { ChevronDown, ClipboardCheck, CloudOff, FileStack, FolderOpen, ChevronRight, Bell, FilePlus, Sun, Moon, Wrench, AlertTriangle, LayoutGrid, Pencil, Pin } from 'lucide-react';
 import { useSesion, nombreVisible } from '../auth/sesion';
+import { useConexion } from '../lib/conexion';
+import { registrarDeshacer } from '../lib/deshacer';
+import { accesosDelRol, guardarAccesosRapidos, useAccesosElegidos } from '../datos/accesosRapidos';
+import { INFO_TAREA } from './tareasInicio';
+import EditorAccesosRapidos from './EditorAccesosRapidos';
 import { CONFIG_DIVISION } from '../datos/divisiones';
 import './dashboard.css';
 import SelectorDivision from '../componentes/SelectorDivision';
@@ -20,7 +25,7 @@ import { SITIOS_MAPA, carrosSinUbicacion } from '../datos/sitiosMapa';
 // La vista previa del mapa trae Leaflet: se carga aparte para no demorar el panel.
 const MiniMapaSitios = lazy(() => import('./MiniMapaSitios'));
 import { PorRevisar, ResumenContrato } from './BloquesRol';
-import { DISENO_INICIO, DISENO_INICIO_ANDINA, ETIQUETA_CORTA_ROL, ETIQUETA_ROL, ORDEN_COMPLETO, rolDePersona, type BloqueInicio, type IdTarea } from '../datos/roles';
+import { DISENO_INICIO, DISENO_INICIO_ANDINA, ETIQUETA_CORTA_ROL, ETIQUETA_ROL, MAX_ACCESOS_RAPIDOS, ORDEN_COMPLETO, rolDePersona, type BloqueInicio, type IdTarea } from '../datos/roles';
 
 type TipoBorradorTab = 'diario' | 'mantenimiento' | 'falla';
 type EstadoPip = 'pendiente' | 'iniciado' | 'finalizado' | 'futuro';
@@ -29,13 +34,14 @@ const INICIAL_DIA = ['D', 'L', 'M', 'M', 'J', 'V', 'S'];
 const ETIQUETA_ESTADO: Record<EstadoPip, string> = { pendiente: 'sin fotos', iniciado: 'en curso', finalizado: 'finalizado', futuro: 'aún no' };
 
 /** Acceso a una tarea: ícono, nombre y su estado en una línea. */
-function Tarea({ icono: Icono, color, titulo, estado, tono, etiqueta, ayuda, onClick }: {
-  icono: LucideIcon; color: string; titulo: string; estado: string;
+function Tarea({ id, estado, tono, etiqueta, ayuda, onClick }: {
+  id: IdTarea; estado: string;
   tono?: 'ok' | 'aviso'; etiqueta?: string;
   /** El texto es solo una descripción fija (no un estado): en el celular se oculta para ahorrar espacio. */
   ayuda?: boolean;
   onClick: () => void;
 }) {
+  const { icono: Icono, color, titulo } = INFO_TAREA[id];
   return (
     <button type="button" onClick={onClick} className="dash-tarea">
       <span className="dash-tarea__icono" style={{ background: color }}><Icono size={20} color="#fff" strokeWidth={2} aria-hidden="true" /></span>
@@ -94,7 +100,8 @@ export default function Dashboard({
 }: DashboardProps) {
   const [modalNoche, setModalNoche] = useState(false);
   const [motivoNoche, setMotivoNoche] = useState('');
-  const { perfil, esAdmin, pendientesAprobacion, division } = useSesion();
+  const { perfil, esAdmin, pendientesAprobacion, division, session } = useSesion();
+  const enLinea = useConexion();
   const checklistHoy = estadoChecklistDelDia(checklistsCamioneta, hoyLocalISO(), CONFIG_DIVISION[division].camionetas.length);
   const [modalInformeOpen, setModalInformeOpen] = useState(false);
   // Modal de Mantenimiento: de generador o preventiva de sitio (cada uno con sus borradores).
@@ -186,41 +193,45 @@ export default function Dashboard({
   const ladoLateral = diseno.lateral;
   const esGestion = rol === 'supervisor' || rol === 'jefe' || rol === 'contrato' || rol === 'lider_tecnico' || rol === 'ingeniero_especialista';
 
-  // Accesos a cada pantalla (se usan en "Accesos rápidos" del rol y en "Todas las opciones").
+  // Accesos rápidos de la cuenta (hasta 5): los que eligió en esta división o, si no ha elegido, los de su rol.
+  const { elegidos, sinSubir: accesosSinSubir } = useAccesosElegidos(session.user, division);
+  const [editorAccesos, setEditorAccesos] = useState(false);
+
+  // Accesos a cada pantalla (se usan en "Accesos rápidos" y en "Todas las opciones").
   const tareas: Record<IdTarea, ReactNode> = {
-    checklist: <Tarea icono={ClipboardCheck} color="#1E8E3E" titulo="Checklist de camioneta" onClick={() => onNavigate('checklist')}
+    checklist: <Tarea id="checklist" onClick={() => onNavigate('checklist')}
       estado={checklistHoy.texto} tono={checklistHoy.completo ? 'ok' : 'aviso'} />,
-    gg: <Tarea icono={Fuel} color="#9a5b00" titulo="Reportabilidad de GG" onClick={() => onNavigate('reportabilidad-gg')}
+    gg: <Tarea id="gg" onClick={() => onNavigate('reportabilidad-gg')}
       estado="Combustible, horómetro, niveles y temperatura" ayuda />,
-    tablaMantenimiento: division === 'el_salvador' ? <Tarea icono={Table2} color="#0E4660" titulo="Tabla de mantenimiento GG" onClick={() => onNavigate('tabla-mantenimiento')}
+    tablaMantenimiento: division === 'el_salvador' ? <Tarea id="tablaMantenimiento" onClick={() => onNavigate('tabla-mantenimiento')}
       estado="Mantenimientos, cambio de correa y último reporte de cada GG" /> : null,
-    impresion: <Tarea icono={Printer} color="#0E4660" titulo="Impresión rápida" onClick={() => onNavigate('impresion')}
+    impresion: <Tarea id="impresion" onClick={() => onNavigate('impresion')}
       estado={diaDelTurno === 1 ? 'Imprime el kit de formularios de esta semana' : diaDelTurno >= DIAS_POR_TURNO - 1 ? 'Prepara el kit de la próxima semana' : 'Formularios de faena listos para imprimir'}
       tono={diaDelTurno === 1 || diaDelTurno >= DIAS_POR_TURNO - 1 ? 'aviso' : undefined} />,
-    cierre: <Tarea icono={FileStack} color="#ED7D31" titulo="Informe de cierre" onClick={() => onNavigate('cierre')}
+    cierre: <Tarea id="cierre" onClick={() => onNavigate('cierre')}
       estado={`${diasConInformeDia} de ${DIAS_POR_TURNO} días de Turno Día con informe`} />,
-    presentacion: division === 'el_salvador' ? <Tarea icono={Presentation} color="#7B3FA0" titulo="Presentación del turno" onClick={() => onNavigate('presentacion')}
+    presentacion: division === 'el_salvador' ? <Tarea id="presentacion" onClick={() => onNavigate('presentacion')}
       estado="Láminas del turno completo desde los informes diarios" /> : null,
-    presentacionFds: division === 'el_salvador' ? <Tarea icono={CalendarDays} color="#7B3FA0" titulo="Presentación fin de semana" onClick={() => onNavigate('presentacion-fds')}
+    presentacionFds: division === 'el_salvador' ? <Tarea id="presentacionFds" onClick={() => onNavigate('presentacion-fds')}
       estado="Viernes a domingo: láminas del fin de semana" /> : null,
-    falla: <Tarea icono={AlertTriangle} color="#B3261E" titulo="Informe de falla de carro" onClick={() => setModalFallaOpen(true)}
+    falla: <Tarea id="falla" onClick={() => setModalFallaOpen(true)}
       estado={borradoresFallaEnCurso.length ? `${borradoresFallaEnCurso.length} borrador${borradoresFallaEnCurso.length === 1 ? '' : 'es'}` : 'Sin borradores'}
       etiqueta="En desarrollo" />,
-    mantenimiento: <Tarea icono={Wrench} color="#55636B" titulo="Mantenimiento de generador" onClick={() => setModalMant('generador')}
+    mantenimiento: <Tarea id="mantenimiento" onClick={() => setModalMant('generador')}
       estado={borradoresGenerador.length ? `${borradoresGenerador.length} borrador${borradoresGenerador.length === 1 ? '' : 'es'}` : 'Sin borradores'}
       etiqueta="En desarrollo" />,
-    preventiva: <Tarea icono={RadioTower} color="#0E7C86" titulo="Mantención preventiva de sitio"
+    preventiva: <Tarea id="preventiva"
       onClick={() => (borradoresPreventiva.length ? setModalMant('preventiva') : onNuevaPreventiva())}
       estado={borradoresPreventiva.length ? `${borradoresPreventiva.length} borrador${borradoresPreventiva.length === 1 ? '' : 'es'}` : 'Paneles, baterías, GG, torre y consolas'} />,
-    mapa: SITIOS_MAPA[division] ? <Tarea icono={MapIcon} color="#2E7D32" titulo="Mapa de sitios" onClick={() => onNavigate('mapa')}
+    mapa: SITIOS_MAPA[division] ? <Tarea id="mapa" onClick={() => onNavigate('mapa')}
       estado={SITIOS_MAPA[division]!.sitios.length
         ? `${SITIOS_MAPA[division]!.sitios.length + carrosSinUbicacion(division).length} carros en ${SITIOS_MAPA[division]!.nombre}`
         : `${carrosSinUbicacion(division).length} carros · ubicaciones pendientes`} /> : null,
-    borradores: <Tarea icono={FolderOpen} color="#55636B" titulo="Borradores" onClick={() => onNavigate('borradores')}
+    borradores: <Tarea id="borradores" onClick={() => onNavigate('borradores')}
       estado={`${borradorCount} informe${borradorCount === 1 ? '' : 's'} guardado${borradorCount === 1 ? '' : 's'}`} />,
-    recuperar: <Tarea icono={FileUp} color="#0E7C86" titulo="Recuperar informe desde Word" onClick={onImportar}
+    recuperar: <Tarea id="recuperar" onClick={onImportar}
       estado="Vuelve a crear un informe borrado a partir de su Word" ayuda />,
-    admin: esAdmin ? <Tarea icono={ShieldCheck} color="#14181C" titulo="Panel de administración" onClick={() => onNavigate('admin')}
+    admin: esAdmin ? <Tarea id="admin" onClick={() => onNavigate('admin')}
       estado={pendientesAprobacion > 0 ? `${pendientesAprobacion} cuenta${pendientesAprobacion === 1 ? '' : 's'} por aprobar` : 'Indicadores, actividades, generadores y usuarios'}
       tono={pendientesAprobacion > 0 ? 'aviso' : undefined} /> : null,
   };
@@ -229,11 +240,9 @@ export default function Dashboard({
   const [busquedaOpc, setBusquedaOpc] = useState('');
   const buscando = busquedaOpc.trim() !== '';
   const normalizarOpc = (t: string) => t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
-  const tituloDeTarea = (el: ReactNode): string => (isValidElement(el) ? String((el.props as { titulo?: string }).titulo ?? '') : '');
   const coincide = (id: IdTarea) => {
-    const el = tareas[id];
-    if (!el) return false;
-    return !buscando || normalizarOpc(tituloDeTarea(el)).includes(normalizarOpc(busquedaOpc.trim()));
+    if (!tareas[id]) return false;
+    return !buscando || normalizarOpc(INFO_TAREA[id].titulo).includes(normalizarOpc(busquedaOpc.trim()));
   };
   const GRUPOS_OPCIONES: { clave: string; titulo: string; icono: ReactNode; ids: IdTarea[] }[] = [
     { clave: 'terreno', titulo: 'Registros en terreno', icono: <ClipboardCheck size={15} aria-hidden="true" />, ids: ['checklist', 'gg', 'tablaMantenimiento', 'impresion', 'mapa'] },
@@ -287,12 +296,39 @@ export default function Dashboard({
     </section>
   );
 
+  // Opciones que se pueden anclar (las de "Todas las opciones" que la persona puede usar) y las que se ven.
+  const disponibles = GRUPOS_OPCIONES.flatMap(g => g.ids).filter(id => tareas[id]);
+  const accesosRol = accesosDelRol(diseno.accesos, id => Boolean(tareas[id]));
+  const accesosVisibles = elegidos ? elegidos.filter(id => tareas[id]).slice(0, MAX_ACCESOS_RAPIDOS) : accesosRol;
+  const guardarAccesos = (ids: IdTarea[] | null) => {
+    const anteriores = elegidos;
+    setEditorAccesos(false);
+    void guardarAccesosRapidos(session.user.id, division, ids);
+    registrarDeshacer(ids ? 'Accesos rápidos guardados' : 'Volviste a los accesos rápidos de tu rol',
+      () => { void guardarAccesosRapidos(session.user.id, division, anteriores); });
+  };
+
   const accesos = (
     <section className="dash-accesos" aria-labelledby="dash-accesos-titulo">
-      <h2 id="dash-accesos-titulo" className="dash-grupo__titulo">Accesos rápidos</h2>
-      <div className="dash-grupo__lista">
-        {diseno.accesos.filter(id => tareas[id]).map(id => <Fragment key={id}>{tareas[id]}</Fragment>)}
+      <div className="dash-accesos__cabecera">
+        <h2 id="dash-accesos-titulo" className="dash-grupo__titulo">Accesos rápidos</h2>
+        <button type="button" className="dash-accesos__editar" onClick={() => setEditorAccesos(true)} aria-haspopup="dialog"
+          aria-label="Editar accesos rápidos" title="Elegir qué opciones anclar (hasta 5)">
+          <Pencil size={13} aria-hidden="true" /> Editar
+        </button>
       </div>
+      {accesosVisibles.length > 0 ? (
+        <div className="dash-grupo__lista">
+          {accesosVisibles.map(id => <Fragment key={id}>{tareas[id]}</Fragment>)}
+        </div>
+      ) : (
+        <button type="button" className="dash-accesos__vacio" onClick={() => setEditorAccesos(true)}>
+          <Pin size={16} aria-hidden="true" /> Ancla hasta {MAX_ACCESOS_RAPIDOS} opciones para tenerlas a mano
+        </button>
+      )}
+      {accesosSinSubir && !enLinea && (
+        <p className="dash-accesos__nota"><CloudOff size={13} aria-hidden="true" /> Sin señal: se guardan en tu cuenta al volver la conexión.</p>
+      )}
     </section>
   );
 
@@ -721,6 +757,18 @@ export default function Dashboard({
             </div>
           </div>
         </div>
+      )}
+
+      {editorAccesos && (
+        <EditorAccesosRapidos
+          disponibles={disponibles}
+          actuales={accesosVisibles}
+          delRol={accesosRol}
+          propios={elegidos !== null}
+          nombreRol={ETIQUETA_ROL[rol]}
+          onCerrar={() => setEditorAccesos(false)}
+          onGuardar={guardarAccesos}
+        />
       )}
 
       <div className="fixed bottom-1 left-1/2 -translate-x-1/2 text-[#F4F6F8] text-[10px] italic cursor-text whitespace-nowrap z-10 select-text">
