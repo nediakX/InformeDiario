@@ -7,7 +7,7 @@ import decoracionDiciembre from "../../assets/25dec.png";
 
 import { N_CONTRATO, LINEA_SERVICIO } from '../../datos/catalogos';
 
-import { type BorradorEntry, savedAtSemilla } from '../../datos/borradoresDiario';
+import { type BorradorEntry, esSemillaSinEditar, savedAtSemilla } from '../../datos/borradoresDiario';
 
 import { VERTIV_CARROS_FLAT, VERTIV_ITEMS } from '../../datos/plantillaWord';
 import { idBorradorAutomatico } from '../../datos/turnos';
@@ -364,6 +364,26 @@ export const vertivVacio = (division: Division) => ({
   carros: CONFIG_DIVISION[division].vertiv ? VERTIV_CARROS_FLAT.map(() => null) : [],
   items: CONFIG_DIVISION[division].vertiv ? VERTIV_ITEMS.map(() => null) : [],
 });
+
+/**
+ * Lo que hereda un informe nuevo de un turno: el personal y el supervisor del último informe guardado del
+ * mismo turno (misma letra A/B y mismo Día/Noche) anterior a esa fecha. Así lo que se deja un día sigue en los
+ * días siguientes, en todos los equipos y por cualquier camino (Panel, Nuevo informe, checklist de camioneta).
+ * Si no hay un informe anterior, queda vacío y se usa la lista guardada en el equipo.
+ */
+export function heredadoDelTurno(
+  borradores: BorradorEntry[], fecha: string, letra: 'A' | 'B', turno: 'dia' | 'noche',
+): { personal?: PersonalItem[]; creador?: { nombre: string; cargo: string } } {
+  const anteriores = borradores
+    .filter(b => !esSemillaSinEditar(b) && b.turno === turno && b.letraTurno === letra && b.fecha < fecha && !b.sinTurno)
+    .sort((a, b) => b.fecha.localeCompare(a.fecha) || String(b.savedAt).localeCompare(String(a.savedAt)));
+  const conPersonal = anteriores.find(b => b.personal.some(p => p.nombre.trim()));
+  const conCreador = anteriores.find(b => b.creadoNombre.trim());
+  return {
+    personal: conPersonal?.personal.map(p => ({ nombre: p.nombre, cargo: p.cargo })),
+    creador: conCreador ? { nombre: conCreador.creadoNombre, cargo: conCreador.creadoCargo } : undefined,
+  };
+}
 
 // Borrador "virtual" de un día del turno: existe solo en pantalla (no en Supabase) hasta que el informe
 // tenga al menos una foto. Al abrirlo, el Informe Diario arma las evidencias a partir de las actividades.

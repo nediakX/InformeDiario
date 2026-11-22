@@ -9,7 +9,7 @@ import { letraDeFecha } from '../../datos/turnos';
 import { uploadPhotoIfNeeded } from '../../lib/storage';
 import { EVENTO_SINCRONIZADO } from '../../lib/sincronizacion';
 import { hojasDocxComoImagenes } from '../../lib/vistaDocx';
-import { actividadesSinEvidencia, crearBorradorAutomatico, EVIDENCIAS_EXCLUIDAS_DIA, formatFechaEvidencia } from '../diario/constantes';
+import { actividadesSinEvidencia, crearBorradorAutomatico, EVIDENCIAS_EXCLUIDAS_DIA, formatFechaEvidencia, heredadoDelTurno } from '../diario/constantes';
 import { claveDelRegistro, ponerHojasEnBloque } from '../diario/mezclaFotos';
 import { clavePatente } from './catalogo';
 
@@ -68,7 +68,10 @@ export async function enviarChecklistAlDiario({ blob, patente, fecha, division, 
   const letra = letraDeFecha(fecha);
   const lista = await fetchBorradores(division);
   const existente = lista.find(b => b.fecha === fecha && b.turno === 'dia' && b.letraTurno === letra && !esSemillaSinEditar(b));
-  const base = existente ?? crearBorradorAutomatico(fecha, letra, 'dia', division);
+  // Si el informe de ese día aún no existe, nace con el personal y el supervisor del último informe del turno
+  // (no con la lista guardada en el teléfono que envía el checklist).
+  const { personal, creador } = heredadoDelTurno(lista, fecha, letra, 'dia');
+  const base = existente ?? crearBorradorAutomatico(fecha, letra, 'dia', division, personal, creador);
 
   let bloques = base.evidenceBlocks.length ? [...base.evidenceBlocks] : bloquesDia(base);
   const actIndex = base.actividades.indexOf(ACTIVIDAD_CHECKLIST);

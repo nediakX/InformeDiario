@@ -28,7 +28,7 @@ import { registrarDeshacer, reinsertar } from '../../lib/deshacer';
 import { mapaFotosSubidas, aplicarFotosSubidas } from '../../lib/storage';
 
 import type { Dispatch, SetStateAction, RefObject } from 'react';
-import { BLUE, type BorradorLocal, DECORACIONES_MENSUALES, DEFAULT_ACTIVIDADES_DIA, DEFAULT_ACTIVIDADES_NOCHE, DEFAULT_EVIDENCIAS_NOCHE, EVIDENCIAS_CON_TAMANO_FOTOGRAFICO_SOLICITADO, EVIDENCIAS_EXCLUIDAS_DIA, type EvidenceBlock, INDICADORES_BULLETS, indicadoresIntro, actividadesNoche, MESES, OBS_FINAL_BULLETS, ORANGE, PREFIJO_MANTENCION_CARRO, type PersonalItem, type ScannerTarget, formatFechaEvidencia, getActividadesGuardadas, getCreadorPorDefecto, getDefaultPersonal, getPersonalGuardado, lsKeyActividades, lsKeyBorradorLocal, lsKeyPersonal, urlToBase64, vertivVacio, actividadesSinEvidencia, esActividadPredeterminada } from './constantes';
+import { BLUE, type BorradorLocal, DECORACIONES_MENSUALES, DEFAULT_ACTIVIDADES_DIA, DEFAULT_ACTIVIDADES_NOCHE, DEFAULT_EVIDENCIAS_NOCHE, EVIDENCIAS_CON_TAMANO_FOTOGRAFICO_SOLICITADO, EVIDENCIAS_EXCLUIDAS_DIA, type EvidenceBlock, INDICADORES_BULLETS, indicadoresIntro, actividadesNoche, MESES, OBS_FINAL_BULLETS, ORANGE, PREFIJO_MANTENCION_CARRO, type PersonalItem, type ScannerTarget, formatFechaEvidencia, getActividadesGuardadas, getCreadorPorDefecto, getDefaultPersonal, getPersonalGuardado, heredadoDelTurno, lsKeyActividades, lsKeyBorradorLocal, lsKeyPersonal, urlToBase64, vertivVacio, actividadesSinEvidencia, esActividadPredeterminada } from './constantes';
 import { cargarSinEvidencia, desmarcarSinEvidencia, marcarSinEvidencia, suscribirSinEvidencia } from '../../datos/sinEvidencia';
 import { CONFIG_DIVISION, type Division } from '../../datos/divisiones';
 import { useDragReorder } from './useDragReorder';
@@ -262,7 +262,9 @@ export function useInformeDiario({ view, setBorradores, borradoresRef, division,
     const fechaTurno = hoyLocalISO();
     const turnoInicial: 'dia' | 'noche' = turnoElegido ?? turno;
     const letraHoy = letraDeFecha(fechaTurno);
-    const creador = getCreadorPorDefecto(letraHoy, division);
+    // Personal y supervisor: los del último informe de ese turno (como los días del Panel); si no hay, lo de este equipo.
+    const heredado = heredadoDelTurno(borradores, fechaTurno, letraHoy, turnoInicial);
+    const creador = heredado.creador ?? getCreadorPorDefecto(letraHoy, division);
     setTurno(turnoInicial);
     setFecha(fechaTurno);
     setFaena(config.faena);
@@ -275,7 +277,7 @@ export function useInformeDiario({ view, setBorradores, borradoresRef, division,
     setRevisadoText(config.diario.revisadoText);
     setAutorizadoNombre(config.diario.autorizado.nombre);
     setAutorizadoCargo(config.diario.autorizado.cargo);
-    setPersonal(getPersonalGuardado(letraHoy, division));
+    setPersonal(heredado.personal ?? getPersonalGuardado(letraHoy, division));
     setActividades(getActividadesGuardadas(turnoInicial, division));
     setObservaciones([]);
     setEvidenceBlocks([]);
