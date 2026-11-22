@@ -21,7 +21,7 @@
   display: flex;
   gap: 4px;
   overflow-x: auto;
-  border-bottom: 1px solid #dce1e6;
+  border-bottom: 1px solid var(--borde-claro, #dce1e6);
   scrollbar-width: thin;
 }
 
@@ -83,7 +83,7 @@
 .segmented {
   display: inline-flex;
   padding: 3px;
-  border: 1px solid #dce1e6;
+  border: 1px solid var(--borde-claro, #dce1e6);
   border-radius: 8px;
   background: var(--panel);
 }
@@ -456,7 +456,7 @@
   align-items: center;
   gap: 4px;
   padding: 5px 10px;
-  border: 1px solid #dce1e6;
+  border: 1px solid var(--borde-claro, #dce1e6);
   border-radius: 6px;
   background: var(--panel);
   color: var(--brand-text);
@@ -519,7 +519,7 @@
 .filtro-select,
 .filtro-busqueda {
   height: 34px;
-  border: 1px solid #dce1e6;
+  border: 1px solid var(--borde-claro, #dce1e6);
   border-radius: 8px;
   background: var(--panel);
   font-size: 13px;
@@ -559,7 +559,7 @@
 /* Selector de división de cada cuenta (pestaña Usuarios) */
 .select-division {
   padding: 4px 8px;
-  border: 1px solid #dce1e6;
+  border: 1px solid var(--borde-claro, #dce1e6);
   border-radius: 6px;
   background: var(--panel);
   color: var(--brand-text);

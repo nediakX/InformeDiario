@@ -27,3 +27,8 @@
   flex: none;
 }
 .recordatorio-perfil__cerrar:hover { background: #d5e7f8; }
+
+/* Modo oscuro */
+html[data-tema-oscuro] .recordatorio-perfil { background: #1a2a3d; border-color: #2b4a66; color: #a7daf2; }
+html[data-tema-oscuro] .recordatorio-perfil__cerrar { color: #a7daf2; }
+html[data-tema-oscuro] .recordatorio-perfil__cerrar:hover { background: #24364a; }

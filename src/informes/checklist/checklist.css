@@ -1,7 +1,7 @@
 /* Checklist de Camioneta */
 .checklist-semana {
   display: inline-flex; align-items: center; gap: 4px;
-  background: var(--panel); border: 1px solid #dce1e6; border-radius: 999px; padding: 3px; font-size: 12px; color: var(--brand-text);
+  background: var(--panel); border: 1px solid var(--borde-claro, #dce1e6); border-radius: 999px; padding: 3px; font-size: 12px; color: var(--brand-text);
 }
 .checklist-semana > button { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 999px; }
 .checklist-semana > button:hover { background: var(--bg-e3edf3, #e3edf3); }
@@ -9,7 +9,7 @@
 .checklist-semana__hoy { font-size: 11px; font-weight: 700; text-decoration: underline; }
 
 .checklist-chip {
-  padding: 7px 12px; border-radius: 999px; border: 1px solid #dce1e6; background: var(--panel);
+  padding: 7px 12px; border-radius: 999px; border: 1px solid var(--borde-claro, #dce1e6); background: var(--panel);
   font-size: 13px; font-weight: 700; color: var(--brand-text); letter-spacing: 0.02em;
 }
 .checklist-chip--activa { background: #0e4660; border-color: #0e4660; color: #fff; }
@@ -17,7 +17,7 @@
 .checklist-dias { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 6px; }
 .checklist-dia {
   position: relative; display: flex; flex-direction: column; align-items: center; gap: 1px;
-  padding: 8px 2px 7px; border-radius: 10px; border: 1px solid #dce1e6; background: var(--panel); color: var(--brand-text);
+  padding: 8px 2px 7px; border-radius: 10px; border: 1px solid var(--borde-claro, #dce1e6); background: var(--panel); color: var(--brand-text);
   border-bottom-width: 4px;
 }
 .checklist-dia__inicial { font-weight: 800; font-size: 15px; }
@@ -37,7 +37,7 @@
 
 .checklist-accion {
   display: inline-flex; align-items: center; gap: 5px; padding: 6px 10px; border-radius: 6px;
-  border: 1px solid #dce1e6; background: var(--panel); color: var(--brand-text); font-size: 12px; font-weight: 700;
+  border: 1px solid var(--borde-claro, #dce1e6); background: var(--panel); color: var(--brand-text); font-size: 12px; font-weight: 700;
 }
 .checklist-accion:hover:not(:disabled) { background: var(--bg-e3edf3, #e3edf3); }
 .checklist-accion:disabled { opacity: 0.45; cursor: not-allowed; }
@@ -51,13 +51,13 @@
 .checklist-items { list-style: none; margin: 0; padding: 0; }
 .checklist-items li {
   display: flex; align-items: center; justify-content: space-between; gap: 10px;
-  padding: 7px 2px; border-bottom: 1px solid #eef1f4; font-size: 14px;
+  padding: 7px 2px; border-bottom: 1px solid var(--borde-claro-suave, #eef1f4); font-size: 14px;
 }
 .checklist-items li.checklist-item--x span { color: var(--tx-b3261e, #b3261e); font-weight: 600; }
 .checklist-botones { display: inline-flex; gap: 6px; flex: none; }
 .checklist-botones button {
   display: grid; place-items: center; min-width: 40px; height: 36px; padding: 0 8px; border-radius: 8px;
-  border: 1px solid #dce1e6; background: var(--panel); color: #9aa5ad; font-weight: 800; font-size: 13px;
+  border: 1px solid var(--borde-claro, #dce1e6); background: var(--panel); color: #9aa5ad; font-weight: 800; font-size: 13px;
 }
 .checklist-botones button.ok[aria-pressed="true"] { background: #1e8e3e; border-color: #1e8e3e; color: #fff; }
 .checklist-botones button.x[aria-pressed="true"] { background: #b3261e; border-color: #b3261e; color: #fff; }

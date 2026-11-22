@@ -548,6 +548,9 @@ html[data-tema-oscuro] {
   --text-soft: #aab6bc;
   --brand-text: #8cc4de;
   --panel-2: #1f2d36;
+  /* Bordes que en el tema claro son gris muy claro (#dce1e6 / #eef1f4): ver checklist.css y admin.css. */
+  --borde-claro: #3b474e;
+  --borde-claro-suave: #2a3438;
 }
 html[data-tema-oscuro] body { color: #e6ebee; background-image: none; }
 html[data-tema-oscuro] [class*="text-[#0E4660]"] { color: #8cc4de !important; }
@@ -621,55 +624,59 @@ html[data-tema-oscuro] {
   --tx-b3261e: #e9847e;
 }
 
-/* Fondos y textos con clases de Tailwind en modo oscuro */
-html[data-tema-oscuro] .bg-\[\#c9d3da\] { background-color: #232d33 !important; }
-html[data-tema-oscuro] .bg-\[\#e8f1fb\] { background-color: #1a2a3d !important; }
-html[data-tema-oscuro] .bg-\[\#f4f6f8\] { background-color: #222b35 !important; }
-html[data-tema-oscuro] .bg-\[\#f6f8fa\] { background-color: #1f2b38 !important; }
-html[data-tema-oscuro] .bg-\[\#fff3cd\] { background-color: #3d341a !important; }
-html[data-tema-oscuro] .bg-\[\#fff9e8\] { background-color: #3d341a !important; }
+/* Fondos y textos con clases de Tailwind en modo oscuro. Se comparan sin distinguir mayúsculas
+   (bg-[#E8F1FB] y bg-[#e8f1fb] son el mismo color, pero como clase CSS no coinciden). */
+html[data-tema-oscuro] [class~="bg-[#c9d3da]" i] { background-color: #46535b !important; }
+/* Interruptores (Mi perfil, preferencias): la perilla blanca queda clara sobre el fondo del interruptor. */
+html[data-tema-oscuro] [class~="bg-[#c9d3da]" i] > .rounded-full.bg-white,
+html[data-tema-oscuro] [class~="bg-[#0e4660]" i] > .rounded-full.bg-white { background-color: #e6ebee !important; }
+html[data-tema-oscuro] [class~="bg-[#e8f1fb]" i] { background-color: #1a2a3d !important; }
+html[data-tema-oscuro] [class~="bg-[#f4f6f8]" i] { background-color: #222b35 !important; }
+html[data-tema-oscuro] [class~="bg-[#f6f8fa]" i] { background-color: #1f2b38 !important; }
+html[data-tema-oscuro] [class~="bg-[#fff3cd]" i] { background-color: #3d341a !important; }
+html[data-tema-oscuro] [class~="bg-[#fff9e8]" i] { background-color: #3d341a !important; }
 /* Reportabilidad de GG: tarjeta de "No realizada" (ámbar) y barra de Promedio por carro. */
-html[data-tema-oscuro] .bg-\[\#fff8e6\] { background-color: #3d341a !important; }
-html[data-tema-oscuro] .border-\[\#e8c36a\] { border-color: #a07d2a !important; }
-html[data-tema-oscuro] .bg-\[\#e6ebef\] { background-color: #2a3438 !important; }
-html[data-tema-oscuro] .bg-\[\#dbe7ee\] { background-color: #1c2f3b !important; }
-html[data-tema-oscuro] .bg-\[\#e3edf3\] { background-color: #1a303d !important; }
-html[data-tema-oscuro] .bg-\[\#e6f4ea\] { background-color: #1a3c24 !important; }
-html[data-tema-oscuro] .bg-\[\#e6f6e6\] { background-color: #1a3d1a !important; }
-html[data-tema-oscuro] .bg-\[\#eef1f2\] { background-color: #262e31 !important; }
-html[data-tema-oscuro] .bg-\[\#eef5fb\] { background-color: #1a2d3d !important; }
-html[data-tema-oscuro] .bg-\[\#f0f6fb\] { background-color: #1a2d3d !important; }
-html[data-tema-oscuro] .bg-\[\#f3fbf3\] { background-color: #1a3d1a !important; }
-html[data-tema-oscuro] .bg-\[\#f4f8fb\] { background-color: #1a2e3d !important; }
-html[data-tema-oscuro] .bg-\[\#f6f7f8\] { background-color: #262b31 !important; }
-html[data-tema-oscuro] .bg-\[\#f7fafc\] { background-color: #1a2f3d !important; }
-html[data-tema-oscuro] .bg-\[\#fafbfc\] { background-color: #212b36 !important; }
-html[data-tema-oscuro] .bg-\[\#fbe9e9\] { background-color: #3d1a1a !important; }
-html[data-tema-oscuro] .bg-\[\#fde8e8\] { background-color: #3d1a1a !important; }
-html[data-tema-oscuro] .bg-\[\#fdf1f1\] { background-color: #3d1a1a !important; }
-html[data-tema-oscuro] .bg-\[\#fff3cd\] { background-color: #3d341a !important; }
-html[data-tema-oscuro] .bg-\[\#fff8f1\] { background-color: #3d2b1a !important; }
-html[data-tema-oscuro] .text-\[\#006300\] { color: #acf3ac !important; }
+html[data-tema-oscuro] [class~="bg-[#fff8e6]" i] { background-color: #3d341a !important; }
+html[data-tema-oscuro] [class~="border-[#e8c36a]" i] { border-color: #a07d2a !important; }
+html[data-tema-oscuro] [class~="bg-[#e6ebef]" i] { background-color: #2a3438 !important; }
+html[data-tema-oscuro] [class~="bg-[#dbe7ee]" i] { background-color: #1c2f3b !important; }
+html[data-tema-oscuro] [class~="bg-[#e3edf3]" i] { background-color: #1a303d !important; }
+html[data-tema-oscuro] [class~="bg-[#e6f4ea]" i] { background-color: #1a3c24 !important; }
+html[data-tema-oscuro] [class~="bg-[#e6f6e6]" i] { background-color: #1a3d1a !important; }
+html[data-tema-oscuro] [class~="bg-[#eef1f2]" i] { background-color: #262e31 !important; }
+html[data-tema-oscuro] [class~="bg-[#eef5fb]" i] { background-color: #1a2d3d !important; }
+html[data-tema-oscuro] [class~="bg-[#f0f6fb]" i] { background-color: #1a2d3d !important; }
+html[data-tema-oscuro] [class~="bg-[#f3fbf3]" i] { background-color: #1a3d1a !important; }
+html[data-tema-oscuro] [class~="bg-[#f4f8fb]" i] { background-color: #1a2e3d !important; }
+html[data-tema-oscuro] [class~="bg-[#f6f7f8]" i] { background-color: #262b31 !important; }
+html[data-tema-oscuro] [class~="bg-[#f7fafc]" i] { background-color: #1a2f3d !important; }
+html[data-tema-oscuro] [class~="bg-[#fafbfc]" i] { background-color: #212b36 !important; }
+html[data-tema-oscuro] [class~="bg-[#fbe9e9]" i] { background-color: #3d1a1a !important; }
+html[data-tema-oscuro] [class~="bg-[#fde8e8]" i] { background-color: #3d1a1a !important; }
+html[data-tema-oscuro] [class~="bg-[#fdf1f1]" i] { background-color: #3d1a1a !important; }
+html[data-tema-oscuro] [class~="bg-[#fff3cd]" i] { background-color: #3d341a !important; }
+html[data-tema-oscuro] [class~="bg-[#fff8f1]" i] { background-color: #3d2b1a !important; }
+html[data-tema-oscuro] [class~="text-[#006300]" i] { color: #acf3ac !important; }
 html[data-tema-oscuro] .text-\[\#0e4660\] { color: #a7daf2 !important; }
-html[data-tema-oscuro] .text-\[\#0ca30c\] { color: #8aee8a !important; }
-html[data-tema-oscuro] .text-\[\#1e6b34\] { color: #a6e6b8 !important; }
-html[data-tema-oscuro] .text-\[\#36505e\] { color: #b3c8d3 !important; }
-html[data-tema-oscuro] .text-\[\#55636b\] { color: #b0bac0 !important; }
-html[data-tema-oscuro] .text-\[\#6b6b6b\] { color: #b3b3b3 !important; }
-html[data-tema-oscuro] .text-\[\#7a5b00\] { color: #f2dda1 !important; }
-html[data-tema-oscuro] .text-\[\#856404\] { color: #f1db9b !important; }
-html[data-tema-oscuro] .text-\[\#8a1c1c\] { color: #e99494 !important; }
-html[data-tema-oscuro] .text-\[\#9a5b00\] { color: #f0ca93 !important; }
-html[data-tema-oscuro] .text-\[\#a32626\] { color: #e38888 !important; }
-html[data-tema-oscuro] .hover\:bg-\[\#e8f1fb\]:hover { background-color: #1a2a3d !important; }
-html[data-tema-oscuro] .hover\:bg-\[\#d5e7f8\]:hover { background-color: #1a2c3d !important; }
-html[data-tema-oscuro] .hover\:bg-\[\#e3edf3\]:hover { background-color: #1a303d !important; }
-html[data-tema-oscuro] .hover\:bg-\[\#e3eff9\]:hover { background-color: #1a2d3d !important; }
-html[data-tema-oscuro] .hover\:bg-\[\#eef5fb\]:hover { background-color: #1a2d3d !important; }
-html[data-tema-oscuro] .hover\:bg-\[\#f0f6fb\]:hover { background-color: #1a2d3d !important; }
-html[data-tema-oscuro] .hover\:bg-\[\#fbe9e9\]:hover { background-color: #3d1a1a !important; }
-html[data-tema-oscuro] .hover\:bg-\[\#ffe8a1\]:hover { background-color: #3d341a !important; }
-html[data-tema-oscuro] .hover\:text-\[\#0e4660\]:hover { color: #a7daf2 !important; }
+html[data-tema-oscuro] [class~="text-[#0ca30c]" i] { color: #8aee8a !important; }
+html[data-tema-oscuro] [class~="text-[#1e6b34]" i] { color: #a6e6b8 !important; }
+html[data-tema-oscuro] [class~="text-[#36505e]" i] { color: #b3c8d3 !important; }
+html[data-tema-oscuro] [class~="text-[#55636b]" i] { color: #b0bac0 !important; }
+html[data-tema-oscuro] [class~="text-[#6b6b6b]" i] { color: #b3b3b3 !important; }
+html[data-tema-oscuro] [class~="text-[#7a5b00]" i] { color: #f2dda1 !important; }
+html[data-tema-oscuro] [class~="text-[#856404]" i] { color: #f1db9b !important; }
+html[data-tema-oscuro] [class~="text-[#8a1c1c]" i] { color: #e99494 !important; }
+html[data-tema-oscuro] [class~="text-[#9a5b00]" i] { color: #f0ca93 !important; }
+html[data-tema-oscuro] [class~="text-[#a32626]" i] { color: #e38888 !important; }
+html[data-tema-oscuro] [class~="hover:bg-[#e8f1fb]" i]:hover { background-color: #1a2a3d !important; }
+html[data-tema-oscuro] [class~="hover:bg-[#d5e7f8]" i]:hover { background-color: #1a2c3d !important; }
+html[data-tema-oscuro] [class~="hover:bg-[#e3edf3]" i]:hover { background-color: #1a303d !important; }
+html[data-tema-oscuro] [class~="hover:bg-[#e3eff9]" i]:hover { background-color: #1a2d3d !important; }
+html[data-tema-oscuro] [class~="hover:bg-[#eef5fb]" i]:hover { background-color: #1a2d3d !important; }
+html[data-tema-oscuro] [class~="hover:bg-[#f0f6fb]" i]:hover { background-color: #1a2d3d !important; }
+html[data-tema-oscuro] [class~="hover:bg-[#fbe9e9]" i]:hover { background-color: #3d1a1a !important; }
+html[data-tema-oscuro] [class~="hover:bg-[#ffe8a1]" i]:hover { background-color: #3d341a !important; }
+html[data-tema-oscuro] [class~="hover:text-[#0e4660]" i]:hover { color: #a7daf2 !important; }
 html[data-tema-oscuro] .bg-amber-50 { background-color: #3a3218 !important; }
 html[data-tema-oscuro] .bg-gray-100 { background-color: #252e32 !important; }
 html[data-tema-oscuro] .bg-gray-200 { background-color: #2c363b !important; }
@@ -691,6 +698,42 @@ html[data-tema-oscuro] .hover\:bg-red-100:hover { background-color: #4a2323 !imp
 html[data-tema-oscuro] .hover\:bg-red-50:hover { background-color: #3a1f1f !important; }
 html[data-tema-oscuro] .hover\:text-green-800:hover { color: #a6e4b8 !important; }
 html[data-tema-oscuro] .hover\:text-red-700:hover { color: #ffa39b !important; }
+
+/* Bordes claros de las clases de Tailwind: en modo oscuro, los tonos de línea del tema
+   (antes quedaban contornos blancos alrededor de tarjetas, botones y casillas de fotos). */
+html[data-tema-oscuro] [class~="border-[#dce1e6]" i],
+html[data-tema-oscuro] [class~="border-[#c9d3da]" i],
+html[data-tema-oscuro] [class~="border-[#cfdbe3]" i] { border-color: #3b474e !important; }
+html[data-tema-oscuro] [class~="border-[#eef1f2]" i],
+html[data-tema-oscuro] [class~="border-[#eef1f3]" i],
+html[data-tema-oscuro] [class~="border-[#eef1f4]" i],
+html[data-tema-oscuro] [class~="border-[#e6ebef]" i],
+html[data-tema-oscuro] [class~="divide-[#eef1f4]" i] > :not(:last-child) { border-color: #2a3438 !important; }
+html[data-tema-oscuro] [class~="border-[#cfe1f5]" i],
+html[data-tema-oscuro] [class~="border-[#d5e7f8]" i] { border-color: #2b4a66 !important; }
+html[data-tema-oscuro] [class~="border-[#ffeeba]" i] { border-color: #6b5a26 !important; }
+html[data-tema-oscuro] [class~="border-[#f1c0c0]" i] { border-color: #6e3434 !important; }
+html[data-tema-oscuro] [class~="border-[#f1c69d]" i] { border-color: #6e4a2a !important; }
+html[data-tema-oscuro] [class~="border-[#b9dfb9]" i] { border-color: #2f5f37 !important; }
+html[data-tema-oscuro] [class~="hover:border-[#0e4660]" i]:hover { border-color: #8cc4de !important; }
+/* Bordes de la paleta de Tailwind: líneas entre filas (personal, actividades), casillas de fotos y avisos. */
+html[data-tema-oscuro] .border-gray-100 { border-color: #2a3438 !important; }
+html[data-tema-oscuro] .border-gray-300 { border-color: #4f5d66 !important; }
+html[data-tema-oscuro] .border-amber-200 { border-color: #6b5a26 !important; }
+html[data-tema-oscuro] .border-red-200 { border-color: #6e3434 !important; }
+html[data-tema-oscuro] .photo-slot:hover { border-color: #8cc4de !important; }
+/* Franja de conexión ("Subiendo…", "Sin conexión", "Todo sincronizado"). */
+html[data-tema-oscuro] .indicador-conexion--sync { border-color: #2b4a66; }
+html[data-tema-oscuro] .indicador-conexion--error { border-color: #6b5a26; }
+html[data-tema-oscuro] .indicador-conexion--ok { border-color: #2f5f37; }
+/* Casillas de foto vacías ("Sin foto", "Arrastra o pega"): el dibujo es un SVG gris claro dentro de la
+   imagen; de noche se oscurece (solo esos dibujos: las fotos son JPG/PNG o enlaces). */
+html[data-tema-oscuro] img[src^="data:image/svg+xml,%3Csvg xmlns="] { filter: invert(0.94) brightness(1.6); }
+/* Campo con el cursor: borde celeste (el azul de marca casi no se ve sobre fondo oscuro). */
+html[data-tema-oscuro] input[type="text"]:focus,
+html[data-tema-oscuro] input[type="date"]:focus,
+html[data-tema-oscuro] select:focus,
+html[data-tema-oscuro] textarea:focus { border-color: #8cc4de !important; }
 
 /* Buscador de informes centrado en la barra superior */
 /* Escritorio: buscador centrado en la barra. */
