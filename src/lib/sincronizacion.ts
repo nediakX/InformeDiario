@@ -9,7 +9,7 @@
 // la cola). Si dos personas editan el mismo informe sin señal, al sincronizar queda el último en subir.
 import { useSyncExternalStore } from 'react';
 import { leerLocal, guardarLocal, borrarLocal } from './almacenLocal';
-import { esErrorDeRed, hayConexion, suscribirConexion } from './conexion';
+import { esErrorDeRed, esErrorTransitorio, hayConexion, suscribirConexion } from './conexion';
 
 export type TablaSync = 'borradores' | 'borradores_otros' | 'sin_evidencia';
 
@@ -146,7 +146,9 @@ export async function guardarConCola<T>(tabla: TablaSync, id: string, entry: T, 
       await quitarDeCola(clave, version);
       return guardado;
     } catch (error) {
-      if (esErrorDeRed(error)) return entry; // queda en la cola y se reintenta solo
+      // Sin señal, o un error de la nube que se arregla solo (servidor caído un rato, sesión vencida): queda en
+      // la cola del equipo y se reintenta solo. Antes se descartaba y el cambio se perdía si se salía del informe.
+      if (esErrorDeRed(error) || esErrorTransitorio(error)) return entry;
       await quitarDeCola(clave, version);
       throw error;
     }
@@ -166,7 +168,7 @@ export async function eliminarConCola(tabla: TablaSync, id: string, eliminarEnNu
       await quitarDeCola(clave);
       return;
     } catch (error) {
-      if (!esErrorDeRed(error)) throw error;
+      if (!esErrorDeRed(error) && !esErrorTransitorio(error)) throw error;
     }
   }
   await ponerEnCola({ tabla, tipo: 'eliminar', id });

@@ -38,6 +38,15 @@ export const turnoEnCurso = (ahora: Date = new Date()): { fecha: string; turno: 
   return { fecha: sumarDias(hoy, -1), turno: 'noche' };
 };
 
+/**
+ * Fecha del informe de "hoy" para un turno: la de hoy, salvo el Turno Noche entre las 00:00 y las 08:00,
+ * que sigue siendo la noche que empezó ayer (a las 3 de la mañana el informe de noche es el de ayer).
+ */
+export const fechaDelTurno = (turno: 'dia' | 'noche', ahora: Date = new Date()): string => {
+  const hoy = `${ahora.getFullYear()}-${String(ahora.getMonth() + 1).padStart(2, "0")}-${String(ahora.getDate()).padStart(2, "0")}`;
+  return turno === 'noche' && ahora.getHours() < 8 ? sumarDias(hoy, -1) : hoy;
+};
+
 const crearSemana = (letra: 'A' | 'B', inicio: string): SemanaTurno => ({
   letra,
   inicio,

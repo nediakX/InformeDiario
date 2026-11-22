@@ -96,7 +96,13 @@ documentos fotografiados. Publicado en Vercel.
   suben solos al volver la conexión (cola en IndexedDB, `src/lib/sincronizacion.ts`). Las listas muestran la
   última copia descargada más lo guardado en el dispositivo. El Word se genera igual sin conexión.
 - Arriba aparece una franja: "Sin conexión · N cambios guardados en este equipo", "Subiendo…" y "Todo sincronizado".
+- Si la nube responde con un error pasajero (servidor caído un rato, sesión vencida), el cambio también queda
+  en la cola y se reintenta, aunque se salga del informe.
 - Si dos personas editan el mismo informe sin señal, al sincronizar queda el último cambio que se sube.
+- Con señal, si dos equipos tienen abierto el mismo Informe Diario, cada uno recibe lo que cambia el otro: lo que
+  uno cambió y el otro no tocó se toma; en personal, actividades y observaciones se suman los cambios de los dos;
+  las fotos de ambos se mantienen. Si los dos cambian el mismo texto, queda el de quien guardó último.
+  (`src/informes/diario/mezclaTextos.ts`). Un equipo que no cambió nada no vuelve a guardar el informe.
 - Necesitan internet: registrarse, aprobar cuentas, Panel de administración y "En línea".
 - Solo funciona en el sitio compilado (`npm run build` / Vercel), no en `npm run dev`.
 

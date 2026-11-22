@@ -104,6 +104,19 @@ export function mezclarBloques<T extends EvidenceBlockLike>(propios: T[], otros:
   return soloUnRegistroChecklist(mezclados);
 }
 
+/** true si las casillas tienen las mismas fotos, en el mismo orden. */
+export const mismasCasillas = (a: Foto[], b: Foto[]) => a.length === b.length && a.every((f, i) => f === b[i]);
+
+/** true si los bloques son los mismos, campo por campo (para que volver a armarlos no provoque otro guardado). */
+export function mismosBloques<T extends EvidenceBlockLike>(a: T[], b: T[]): boolean {
+  return a.length === b.length && a.every((x, i) => {
+    const y = b[i];
+    if (x === y) return true;
+    const claves = Object.keys(x) as (keyof T)[];
+    return claves.length === Object.keys(y).length && claves.every(k => x[k] === y[k]);
+  });
+}
+
 /** true si las dos versiones tienen las mismas fotos (para no guardar ni redibujar de más). */
 export const mismasFotos = (a: EvidenceBlockLike[], b: EvidenceBlockLike[]) =>
   JSON.stringify(a.map(x => x.photos)) === JSON.stringify(b.map(x => x.photos));

@@ -4,6 +4,7 @@ import { supabase, BORRADORES_TABLE } from '../lib/supabase';
 import type { Division } from './divisiones';
 import { borrarCarpetaFotos, uploadPhotoIfNeeded } from '../lib/storage';
 import { EVENTO_SINCRONIZADO, eliminarConCola, guardarConCola, listaConCambiosLocales, registrarEjecutor } from '../lib/sincronizacion';
+import { conEstado } from '../lib/conexion';
 
 export interface PersonalItemLike {
   nombre: string;
@@ -190,8 +191,8 @@ async function upsertBorradorNube(entry: BorradorEntry): Promise<BorradorEntry> 
 
   const withUploadedPhotos: BorradorEntry = { ...entry, evidenceBlocks, vertivCarroPhotos, vertivItemPhotos };
 
-  const { error } = await supabase.from(BORRADORES_TABLE).upsert(entryToRow(withUploadedPhotos));
-  if (error) throw error;
+  const { error, status } = await supabase.from(BORRADORES_TABLE).upsert(entryToRow(withUploadedPhotos));
+  if (error) throw conEstado(error, status);
   return withUploadedPhotos;
 }
 
@@ -201,8 +202,8 @@ export function deleteBorrador(id: string): Promise<void> {
 }
 
 async function deleteBorradorNube(id: string): Promise<void> {
-  const { error } = await supabase.from(BORRADORES_TABLE).delete().eq("id", id);
-  if (error) throw error;
+  const { error, status } = await supabase.from(BORRADORES_TABLE).delete().eq("id", id);
+  if (error) throw conEstado(error, status);
   void borrarCarpetaFotos(`borradores/${id}`);
 }
 

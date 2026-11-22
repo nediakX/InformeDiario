@@ -260,6 +260,11 @@ export default function InformeDiario({ d, volverABorradores, goToNewInforme }: 
                   }}
                   className="w-full p-2 border border-[#DCE1E6] rounded-md text-sm"
                 >
+                  {/* Supervisor que no está en la lista (de un informe importado o antiguo): se muestra tal cual,
+                      en vez de que la lista muestre a otro mientras el Word lleva este. */}
+                  {creadoNombre && !creadoPorDiario(division).some(option => option.nombre === creadoNombre) && (
+                    <option value={creadoNombre}>{creadoNombre}</option>
+                  )}
                   {creadoPorDiario(division).map(option => (
                     <option key={option.nombre} value={option.nombre}>{option.nombre}</option>
                   ))}

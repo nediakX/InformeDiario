@@ -5,6 +5,7 @@
 // la lista de la nube más los cambios pendientes de este equipo.
 import { supabase, SIN_EVIDENCIA_TABLE } from '../lib/supabase';
 import { EVENTO_SINCRONIZADO, encolarCambio, listaConCambiosLocales, registrarEjecutor } from '../lib/sincronizacion';
+import { conEstado } from '../lib/conexion';
 import {
   actividadesSinEvidencia,
   desmarcarActividadSinEvidencia,
@@ -45,20 +46,20 @@ const avisarError = (error: unknown) => console.error('No se pudo guardar la mar
 registrarEjecutor('sin_evidencia', {
   guardar: async entry => {
     const { turno, division, actividad } = entry as FilaSinEvidencia;
-    const { error } = await supabase
+    const { error, status } = await supabase
       .from(SIN_EVIDENCIA_TABLE)
       .upsert({ turno, division, actividad }, { onConflict: 'turno,division,actividad', ignoreDuplicates: true });
-    if (error) throw error;
+    if (error) throw conEstado(error, status);
   },
   eliminar: async id => {
     const { turno, division, actividad } = desdeClave(id);
-    const { error } = await supabase
+    const { error, status } = await supabase
       .from(SIN_EVIDENCIA_TABLE)
       .delete()
       .eq('turno', turno)
       .eq('division', division)
       .eq('actividad', actividad);
-    if (error) throw error;
+    if (error) throw conEstado(error, status);
   },
 });
 

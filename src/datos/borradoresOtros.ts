@@ -3,6 +3,7 @@ import type { Division } from './divisiones';
 import { type EstadoBorrador } from './borradoresDiario';
 import { borrarCarpetaFotos, subirFotosEnObjeto } from '../lib/storage';
 import { EVENTO_SINCRONIZADO, eliminarConCola, guardarConCola, listaConCambiosLocales, registrarEjecutor } from '../lib/sincronizacion';
+import { conEstado } from '../lib/conexion';
 
 // ---------------------------------------------------------------------------------------
 // Borradores "genéricos" (Mantenimiento de Generador e Informe de Falla — Carro)
@@ -124,8 +125,8 @@ export function upsertBorradorOtro(entry: BorradorOtroEntry): Promise<BorradorOt
 async function upsertBorradorOtroNube(entry: BorradorOtroEntry): Promise<BorradorOtroEntry> {
   const datos = await subirFotosEnObjeto(entry.datos, `borradores-otros/${entry.id}`);
   const conFotosSubidas: BorradorOtroEntry = { ...entry, datos };
-  const { error } = await supabase.from(BORRADORES_OTROS_TABLE).upsert(otroEntryToRow(conFotosSubidas));
-  if (error) throw error;
+  const { error, status } = await supabase.from(BORRADORES_OTROS_TABLE).upsert(otroEntryToRow(conFotosSubidas));
+  if (error) throw conEstado(error, status);
   return conFotosSubidas;
 }
 
@@ -135,8 +136,8 @@ export function deleteBorradorOtro(id: string): Promise<void> {
 }
 
 async function deleteBorradorOtroNube(id: string): Promise<void> {
-  const { error } = await supabase.from(BORRADORES_OTROS_TABLE).delete().eq("id", id);
-  if (error) throw error;
+  const { error, status } = await supabase.from(BORRADORES_OTROS_TABLE).delete().eq("id", id);
+  if (error) throw conEstado(error, status);
   void borrarCarpetaFotos(`borradores-otros/${id}`);
   // El Informe de Cierre sube sus fotos a "cierre/<id>" (si la carpeta no existe, no pasa nada).
   void borrarCarpetaFotos(`cierre/${id}`);

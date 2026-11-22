@@ -10,7 +10,7 @@ import { N_CONTRATO, LINEA_SERVICIO } from '../../datos/catalogos';
 import { type BorradorEntry, esSemillaSinEditar, savedAtSemilla } from '../../datos/borradoresDiario';
 
 import { VERTIV_CARROS_FLAT, VERTIV_ITEMS } from '../../datos/plantillaWord';
-import { idBorradorAutomatico } from '../../datos/turnos';
+import { idBorradorAutomatico, uuidDeterministico } from '../../datos/turnos';
 import { CONFIG_DIVISION, type Division } from '../../datos/divisiones';
 
 // Tipos de datos
@@ -365,29 +365,71 @@ export const vertivVacio = (division: Division) => ({
   items: CONFIG_DIVISION[division].vertiv ? VERTIV_ITEMS.map(() => null) : [],
 });
 
+/** Lo que un informe nuevo toma del último informe de su turno (lo que falte sale de este equipo). */
+export interface HeredadoDelTurno {
+  personal?: PersonalItem[];
+  creador?: { nombre: string; cargo: string };
+  actividades?: string[];
+}
+
 /**
- * Lo que hereda un informe nuevo de un turno: el personal y el supervisor del último informe guardado del
- * mismo turno (misma letra A/B y mismo Día/Noche) anterior a esa fecha. Así lo que se deja un día sigue en los
- * días siguientes, en todos los equipos y por cualquier camino (Panel, Nuevo informe, checklist de camioneta).
- * Si no hay un informe anterior, queda vacío y se usa la lista guardada en el equipo.
+ * Lo que hereda un informe nuevo de un turno: el personal, el supervisor y las actividades del último informe
+ * guardado del mismo turno (misma letra A/B y mismo Día/Noche) anterior a esa fecha. Así lo que se deja un día
+ * sigue en los días siguientes, en todos los equipos y por cualquier camino (Panel, Nuevo informe, checklist de
+ * camioneta). Si no hay un informe anterior, queda vacío y se usa lo guardado en el equipo.
  */
 export function heredadoDelTurno(
   borradores: BorradorEntry[], fecha: string, letra: 'A' | 'B', turno: 'dia' | 'noche',
-): { personal?: PersonalItem[]; creador?: { nombre: string; cargo: string } } {
+): HeredadoDelTurno {
   const anteriores = borradores
     .filter(b => !esSemillaSinEditar(b) && b.turno === turno && b.letraTurno === letra && b.fecha < fecha && !b.sinTurno)
     .sort((a, b) => b.fecha.localeCompare(a.fecha) || String(b.savedAt).localeCompare(String(a.savedAt)));
   const conPersonal = anteriores.find(b => b.personal.some(p => p.nombre.trim()));
   const conCreador = anteriores.find(b => b.creadoNombre.trim());
+  // Las mantenciones por carro son solo de ese día (igual que en la plantilla del equipo).
+  const conActividades = anteriores.find(b => b.actividades.some(a => a.trim() && !a.startsWith(PREFIJO_MANTENCION_CARRO)));
+  const actividades = conActividades?.actividades.filter(a => !a.startsWith(PREFIJO_MANTENCION_CARRO));
   return {
     personal: conPersonal?.personal.map(p => ({ nombre: p.nombre, cargo: p.cargo })),
     creador: conCreador ? { nombre: conCreador.creadoNombre, cargo: conCreador.creadoCargo } : undefined,
+    actividades: actividades && (turno === 'dia' ? ensureActividadesDiaPermanentes(actividades) : actividades),
   };
+}
+
+/**
+ * La lista de personal guardada en este equipo (por turno A/B) sigue al último informe de ese turno: así la
+ * impresión rápida, la mantención preventiva y "Personal predeterminado" muestran el mismo personal en todos
+ * los equipos. Solo escribe si cambió.
+ */
+export function seguirPersonalDeLosInformes(borradores: BorradorEntry[], division: Division) {
+  for (const letra of ['A', 'B'] as const) {
+    const ultimo = borradores
+      .filter(b => !esSemillaSinEditar(b) && b.letraTurno === letra && !b.sinTurno && b.personal.some(p => p.nombre.trim()))
+      .sort((a, b) => b.fecha.localeCompare(a.fecha) || String(b.savedAt).localeCompare(String(a.savedAt)))[0];
+    if (!ultimo) continue;
+    try {
+      const clave = lsKeyPersonal(letra, division);
+      const lista = JSON.stringify(ultimo.personal.map(p => ({ nombre: p.nombre, cargo: p.cargo })));
+      if (localStorage.getItem(clave) !== lista) localStorage.setItem(clave, lista);
+    } catch { /* sin almacenamiento en el equipo */ }
+  }
+}
+
+/**
+ * Id del informe automático de ese día y turno. Si un informe guardado ya tiene ese id con otra fecha (se le
+ * cambió la fecha después de crearlo), se usa otro id fijo: así el día pendiente (o el checklist de ese día)
+ * no pisa al informe que se movió. Es el mismo en todos los equipos, para que no se dupliquen.
+ */
+export function idBorradorDelDia(guardados: BorradorEntry[], fecha: string, letra: string, turno: 'dia' | 'noche', division: Division = 'el_salvador'): string {
+  const ocupado = (id: string) => guardados.some(b => b.id === id && !esSemillaSinEditar(b) && (b.fecha !== fecha || b.turno !== turno || b.letraTurno !== letra));
+  let id = idBorradorAutomatico(fecha, letra, turno, division);
+  for (let n = 2; n < 10 && ocupado(id); n++) id = uuidDeterministico(`psinet-auto|${division}|${fecha}|${letra}|${turno}|${n}`);
+  return id;
 }
 
 // Borrador "virtual" de un día del turno: existe solo en pantalla (no en Supabase) hasta que el informe
 // tenga al menos una foto. Al abrirlo, el Informe Diario arma las evidencias a partir de las actividades.
-export const crearBorradorAutomatico = (fecha: string, letra: 'A' | 'B', turno: 'dia' | 'noche', division: Division = 'el_salvador', personalInicial?: PersonalItem[], creadorInicial?: { nombre: string; cargo: string }): BorradorEntry => {
+export const crearBorradorAutomatico = (fecha: string, letra: 'A' | 'B', turno: 'dia' | 'noche', division: Division = 'el_salvador', heredado: HeredadoDelTurno = {}): BorradorEntry => {
   const creador = getCreadorPorDefecto(letra, division);
   const config = CONFIG_DIVISION[division];
   const vertiv = vertivVacio(division);
@@ -401,14 +443,14 @@ export const crearBorradorAutomatico = (fecha: string, letra: 'A' | 'B', turno: 
     version: '1.1',
     servicio: LINEA_SERVICIO,
     // El supervisor se copia del último informe del mismo turno (igual que el personal).
-    creadoNombre: creadorInicial?.nombre || creador.nombre,
-    creadoCargo: creadorInicial?.cargo || creador.cargo,
+    creadoNombre: heredado.creador?.nombre || creador.nombre,
+    creadoCargo: heredado.creador?.cargo || creador.cargo,
     revisadoText: config.diario.revisadoText,
     autorizadoNombre: config.diario.autorizado.nombre,
     autorizadoCargo: config.diario.autorizado.cargo,
     // Por defecto, el personal del último informe realizado del mismo turno (así el turno sigue correlativo).
-    personal: personalInicial ?? getPersonalGuardado(letra, division),
-    actividades: getActividadesGuardadas(turno, division),
+    personal: heredado.personal ?? getPersonalGuardado(letra, division),
+    actividades: heredado.actividades ?? getActividadesGuardadas(turno, division),
     observaciones: [],
     evidenceBlocks: [],
     vertivCarroPhotos: vertiv.carros,

@@ -47,3 +47,20 @@ export function esErrorDeRed(error: unknown): boolean {
   }
   return e.originalError ? esErrorDeRed(e.originalError) : false;
 }
+
+/**
+ * Errores de la nube que se arreglan solos: el servidor no respondió bien un rato (500, 502, 503, 504), hay
+ * demasiadas peticiones (429) o la sesión venció y se renueva sola (401, JWT expired). Un cambio que falla así
+ * no se descarta: queda en la cola del equipo y se reintenta.
+ */
+export function esErrorTransitorio(error: unknown): boolean {
+  if (!error) return false;
+  const e = error as { status?: unknown; statusCode?: unknown; code?: unknown; message?: unknown; name?: unknown };
+  const status = Number(e.status ?? e.statusCode);
+  if (status === 401 || status === 408 || status === 429 || (status >= 500 && status < 600)) return true;
+  const texto = `${String(e.code ?? '')} ${String(e.name ?? '')} ${String(e.message ?? '')}`;
+  return /JWT expired|PGRST30[13]|\b57014\b|Bad Gateway|Service (Temporarily )?Unavailable|Gateway Time-?out|Internal Server Error|upstream|too many requests|rate limit/i.test(texto);
+}
+
+/** Error de Supabase con el código HTTP de la respuesta (para saber si fue un error pasajero del servidor). */
+export const conEstado = <E extends object>(error: E, status: number): E & { status: number } => Object.assign(error, { status });

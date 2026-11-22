@@ -22,9 +22,9 @@ import type { ResultadoImportacion } from '../importar';
 import type { DescripcionImportacion } from '../componentes/ImportadorWord';
 import { DIAS_CHECKLIST, duenoDelChecklist, fechasChecklist, idChecklistDeCuenta } from '../informes/checklist/catalogo';
 
-import { semanaDeFecha, letraDeFecha, turnosDeDivision } from '../datos/turnos';
+import { fechaDelTurno, semanaDeFecha, letraDeFecha, turnosDeDivision } from '../datos/turnos';
 
-import { crearBorradorAutomatico, heredadoDelTurno } from '../informes/diario/constantes';
+import { crearBorradorAutomatico, heredadoDelTurno, idBorradorDelDia, seguirPersonalDeLosInformes } from '../informes/diario/constantes';
 import { marcarSinTurno } from '../datos/finalizarInforme';
 import { useInformeDiario } from '../informes/diario/useInformeDiario';
 import InformeDiario from '../informes/diario/InformeDiario';
@@ -251,36 +251,43 @@ function AppContenido() {
 
   // Lista que ve el usuario: lo guardado en Supabase + los 7 días del turno que toca hoy (Día y Noche; Andina solo Día) que aún no tienen fotos.
   const hoy = hoyLocalISO();
+  // Entre las 00:00 y las 08:00 la noche en curso es la que empezó ayer (puede ser de la semana de turno anterior).
+  const nocheEnCurso = fechaDelTurno('noche');
+
+  // La lista de personal de este equipo sigue al último informe de cada turno (impresión, preventiva, etc.).
+  useEffect(() => { seguirPersonalDeLosInformes(borradores, division); }, [borradores, division]);
 
   const borradoresVisibles = useMemo(() => {
     const semana = semanaDeFecha(hoy);
     const guardados = borradores.filter(b => !esSemillaSinEditar(b));
     const existentes = new Set(guardados.map(b => `${b.fecha}|${b.letraTurno}|${b.turno}`));
     const virtuales: BorradorEntry[] = [];
-    // Personal y supervisor del último informe realizado de ese turno (antes de la fecha): el día siguiente sale igual.
-    semana.dias.forEach(fecha => {
-      turnosDeDivision(division).forEach(turno => {
-        if (!existentes.has(`${fecha}|${semana.letra}|${turno}`)) {
-          const { personal, creador } = heredadoDelTurno(guardados, fecha, semana.letra, turno);
-          virtuales.push(crearBorradorAutomatico(fecha, semana.letra, turno, division, personal, creador));
-        }
-      });
-    });
+    const agregarVirtual = (fecha: string, letra: 'A' | 'B', turno: 'dia' | 'noche') => {
+      if (existentes.has(`${fecha}|${letra}|${turno}`)) return;
+      // Personal, supervisor y actividades del último informe realizado de ese turno: el día siguiente sale igual.
+      // El id no puede ser el de un informe al que se le cambió la fecha (abrir el día pendiente lo pisaría).
+      const virtual = crearBorradorAutomatico(fecha, letra, turno, division, heredadoDelTurno(guardados, fecha, letra, turno));
+      virtuales.push({ ...virtual, id: idBorradorDelDia(guardados, fecha, letra, turno, division) });
+    };
+    semana.dias.forEach(fecha => turnosDeDivision(division).forEach(turno => agregarVirtual(fecha, semana.letra, turno)));
+    // Miércoles de madrugada: la última noche de la semana anterior sigue en curso.
+    if (turnosDeDivision(division).includes('noche') && nocheEnCurso < semana.inicio) agregarVirtual(nocheEnCurso, letraDeFecha(nocheEnCurso), 'noche');
     return [...guardados, ...virtuales];
-  }, [borradores, hoy, division]);
+  }, [borradores, hoy, nocheEnCurso, division]);
 
   // Informes de hoy (Día y Noche) del turno de trabajo (A o B) que corresponde; sirven para "Continuar" en el Panel.
-  // No se asume Día o Noche según la hora: cada persona elige con cuál trabajar.
+  // No se asume Día o Noche según la hora: cada persona elige con cuál trabajar. El de Noche, de madrugada, es el de
+  // la noche que empezó ayer.
   // Si hay varios del mismo turno, se prefiere el que aún no está finalizado (así uno nuevo reemplaza al finalizado en la tarjeta).
   const informesHoy = useMemo(() => {
-    const letraHoy = letraDeFecha(hoy);
     return turnosDeDivision(division)
       .map(t => {
-        const delTurno = borradoresVisibles.filter(b => b.fecha === hoy && b.letraTurno === letraHoy && b.turno === t);
+        const fechaT = t === 'noche' ? nocheEnCurso : hoy;
+        const delTurno = borradoresVisibles.filter(b => b.fecha === fechaT && b.letraTurno === letraDeFecha(fechaT) && b.turno === t);
         return delTurno.find(b => estadoBorrador(b) !== 'finalizado') ?? delTurno[0];
       })
       .filter((b): b is BorradorEntry => Boolean(b));
-  }, [borradoresVisibles, hoy, division]);
+  }, [borradoresVisibles, hoy, nocheEnCurso, division]);
 
   // Informes de esta semana de turno que ya les toca (hasta hoy, Día y Noche) y todavía no están finalizados (aviso del Panel).
   const informesPorCompletar = useMemo(() => {
@@ -294,9 +301,10 @@ function AppContenido() {
 
   // Turno noche de hoy que no se realizará: queda marcado con su motivo (sin fotos, sin pendiente).
   const marcarNocheNoRealizada = async (motivo: string) => {
-    const { personal, creador } = heredadoDelTurno(borradores, hoy, letraDeFecha(hoy), 'noche');
-    const entry = crearBorradorAutomatico(hoy, letraDeFecha(hoy), 'noche', division, personal, creador);
-    const saved = await upsertBorrador({ ...entry, savedAt: new Date().toISOString() });
+    const fecha = fechaDelTurno('noche');
+    const letra = letraDeFecha(fecha);
+    const entry = crearBorradorAutomatico(fecha, letra, 'noche', division, heredadoDelTurno(borradores, fecha, letra, 'noche'));
+    const saved = await upsertBorrador({ ...entry, id: idBorradorDelDia(borradores, fecha, letra, 'noche', division), savedAt: new Date().toISOString() });
     await marcarSinTurno(saved.id, true, motivo);
     setBorradores(prev => [...prev.filter(b => b.id !== saved.id), { ...saved, sinTurno: true, sinTurnoMotivo: motivo }]);
   };
@@ -313,8 +321,11 @@ function AppContenido() {
     for (const fecha of semanaActual.dias) {
       const actual = existentes.find(b => b.fecha === fecha);
       if (valor) {
-        const { personal, creador } = heredadoDelTurno(borradores, fecha, letraDeFecha(fecha), 'noche');
-        const base = actual ?? crearBorradorAutomatico(fecha, letraDeFecha(fecha), 'noche', division, personal, creador);
+        const letra = letraDeFecha(fecha);
+        const base = actual ?? {
+          ...crearBorradorAutomatico(fecha, letra, 'noche', division, heredadoDelTurno(borradores, fecha, letra, 'noche')),
+          id: idBorradorDelDia(borradores, fecha, letra, 'noche', division),
+        };
         const saved = await upsertBorrador({ ...base, savedAt: new Date().toISOString() });
         await marcarSinTurno(saved.id, true, motivo);
         cambios.push({ ...saved, sinTurno: true, sinTurnoMotivo: motivo });
@@ -480,7 +491,8 @@ function AppContenido() {
     switch (r.tipo) {
       case 'diario': {
         const existente = diarioExistente(r.entry);
-        const guardado = await upsertBorrador({ ...r.entry, id: existente?.id ?? r.entry.id, savedAt });
+        const id = existente?.id ?? idBorradorDelDia(borradores, r.entry.fecha, r.entry.letraTurno, r.entry.turno, division);
+        const guardado = await upsertBorrador({ ...r.entry, id, savedAt });
         setBorradores(prev => [...prev.filter(b => b.id !== guardado.id), guardado].sort((a, b) => a.fecha.localeCompare(b.fecha)));
         openBorradorEntry(guardado);
         showToast('Informe importado desde el Word.');

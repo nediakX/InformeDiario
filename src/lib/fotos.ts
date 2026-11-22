@@ -65,9 +65,11 @@ export async function comprimirImagen(file: Blob, ladoMaximo = FOTO_LADO_MAXIMO,
     const comprimida = await comprimirDataUrl(url, ladoMaximo, calidad);
     // Si no se pudo comprimir, comprimirDataUrl devuelve la objectURL, que deja de servir al revocarla.
     if (comprimida === url) return await leerComoDataUrl(file);
-    // Si la foto ya era liviana y el JPEG nuevo no pesa menos, se conserva la original tal cual.
+    // Si la foto ya era liviana y el JPEG nuevo no pesa menos, se conserva la original tal cual, pero solo si es
+    // JPG o PNG: WebP, GIF, AVIF o HEIC siempre pasan a JPG (el Word y algunos teléfonos no los muestran).
     const bytesComprimida = Math.floor((comprimida.length - comprimida.indexOf(",") - 1) * 3 / 4);
-    return bytesComprimida >= file.size ? await leerComoDataUrl(file) : comprimida;
+    const esJpgOPng = /^image\/(jpe?g|png)$/i.test(file.type);
+    return esJpgOPng && bytesComprimida >= file.size ? await leerComoDataUrl(file) : comprimida;
   } finally {
     URL.revokeObjectURL(url);
   }
