@@ -171,13 +171,16 @@ const ES_CPE = /\bcpe\b|motoniveladora|wheeldozer|antena/;
 const ES_BATERIA = /bateria/;
 const ES_MANTENCION = /mantenimiento|mantencion/;
 const ES_FALLA = /falla|atencion|fallas/;
-/** Difusiones (lámina 13; no son actividades de trabajo): flash, charlas, reuniones y capacitaciones. */
-const ES_DIFUSION = /flash|difusion|charla|reunion|capacitacion|induccion|sensibilizacion|entrenamiento|experto/;
+/**
+ * Difusiones (lámina 13; no son actividades de trabajo): flash, charlas, reuniones, capacitaciones, campañas y
+ * actividades de equipo o psicosociales (CEAL-SM SUSESO, "fortalecimiento del trabajo en equipo").
+ */
+const ES_DIFUSION = /flash|difusion|charla|reunion|capacitacion|induccion|sensibilizacion|entrenamiento|experto|campana|psicosocial|\bceal\b|suseso|trabajo en equipo|encuesta/;
 /**
  * Rutina y controles SSO: no van en las actividades de trabajo (lámina 5) ni en las difusiones. Son los registros
  * diarios (inicio de turno, checklist, fatiga, alcohol y drogas...) y lo que ya sale en el resumen o en los controles.
  */
-const ES_RUTINA = /inicio de turno|autoevaluacion|check ?list|l200|fatiga|somnolencia|alta visibilidad|\bropa\b|proteccion solar|hidratacion|tareas administrativas|actividades administrativas|planificacion|alcohol|drogas|reportabilidad|registro art|^art\b|verificacion de entorno|controles? sso/;
+const ES_RUTINA = /inicio de turno|autoevaluacion|check ?list|lista de verificacion|l200|fatiga|somnolencia|alta visibilidad|\bropa\b|proteccion solar|hidratacion|tareas administrativas|actividades administrativas|planificacion|alcohol|drogas|reportabilidad|registro art|^art\b|verificacion de entorno|controles? sso/;
 /** Mejoras que se agregan en las actividades diarias (lámina 15). */
 const ES_MEJORA = /\bmejora/;
 /** Repliegues de carros y difusiones principales (capacitaciones, reunión de tronadura): van en la lámina 11. */
@@ -201,17 +204,50 @@ const responsableDe = (actividad: string) =>
 /** Título de una actividad para las láminas: sin el "Registro de" inicial (ej: "Reunión inicio de turno."). */
 const sinRegistroDe = (texto: string) => texto.trim().replace(/^registro de\s+/i, '');
 
-/**
- * Actividades de un día (lámina 5): sin la rutina ni las difusiones, salvo las principales (capacitaciones,
- * entrenamientos, inducciones y tronadura), que sí se muestran como actividad del día.
- */
+/** Actividades de trabajo de un día (lámina 5): sin la rutina ni las difusiones. */
 const actividadesDeTrabajoDe = (entrada: BorradorEntry): string[] =>
   sinRepetidos(
     entrada.actividades.filter(a => {
       const clave = sinAcentos(a);
-      return clave !== '' && !ES_RUTINA.test(clave) && (!ES_DIFUSION.test(clave) || ES_PRINCIPAL_DIFUSION.test(clave));
+      return clave !== '' && !ES_RUTINA.test(clave) && !ES_DIFUSION.test(clave);
     }),
   ).map(sinRegistroDe);
+
+/** Difusiones anotadas entre las actividades de un día (de ahí salen las pocas que van en la lámina 5). */
+const difusionesEnActividadesDe = (entrada: BorradorEntry): string[] =>
+  sinRepetidos(
+    entrada.actividades.filter(a => {
+      const clave = sinAcentos(a);
+      return clave !== '' && !ES_RUTINA.test(clave) && ES_DIFUSION.test(clave);
+    }),
+  ).map(sinRegistroDe);
+
+/** Difusiones que se muestran en la lámina 5 en todo el fin de semana ("una que otra"): las demás van en la lámina 13. */
+const DIFUSIONES_EN_ACTIVIDADES = 2;
+
+/**
+ * Elige las pocas difusiones de la lámina 5. Un día sin otra actividad no queda vacío: lleva una (la principal, si
+ * tiene). Después se completan hasta DIFUSIONES_EN_ACTIVIDADES, primero las principales (tronadura, capacitaciones,
+ * inducciones) y luego en orden de día. En cada día quedan en el orden del informe.
+ */
+function elegirDifusiones(trabajo: string[][], candidatas: string[][]): string[][] {
+  const principal = (texto: string) => ES_PRINCIPAL_DIFUSION.test(sinAcentos(texto));
+  const clave = (dia: number, orden: number) => `${dia}|${orden}`;
+  const elegidas = new Set(
+    candidatas.flatMap((textos, dia) =>
+      trabajo[dia].length || !textos.length ? [] : [clave(dia, Math.max(0, textos.findIndex(principal)))],
+    ),
+  );
+  const resto = candidatas
+    .flatMap((textos, dia) => textos.map((texto, orden) => ({ texto, dia, orden })))
+    .filter(c => !elegidas.has(clave(c.dia, c.orden)))
+    .sort((a, b) => Number(principal(b.texto)) - Number(principal(a.texto)) || a.dia - b.dia || a.orden - b.orden);
+  for (const c of resto) {
+    if (elegidas.size >= DIFUSIONES_EN_ACTIVIDADES) break;
+    elegidas.add(clave(c.dia, c.orden));
+  }
+  return candidatas.map((textos, dia) => textos.filter((_, orden) => elegidas.has(clave(dia, orden))));
+}
 
 /** Dos títulos se repiten si uno contiene al otro por palabras completas ("CMM 1" no repite a "CMM 11"). */
 const relacionados = (a: string, b: string): boolean => {
@@ -499,14 +535,14 @@ export function construirPresentacionFds(
   const { fechas, inicio, fin, corte: corteDeLaSemana } = fdsDeSemana(semana);
   const corte = corteElegido ?? corteDeLaSemana;
   const diurnos = fechas.map(fecha => buscar(fecha, 'dia'));
-  const dias: DiaFds[] = fechas.map((fecha, k) => {
-    const dia = diurnos[k];
-    return {
-      fecha,
-      actividades: dia ? actividadesDeTrabajoDe(dia).map(a => ({ actividad: a.toUpperCase(), responsable: responsableDe(a) })) : [],
-      difusiones: difusionesDe(dia),
-    };
-  });
+  // Lámina 5: las actividades de trabajo de cada día y una que otra difusión.
+  const trabajo = diurnos.map(d => (d ? actividadesDeTrabajoDe(d) : []));
+  const difusionesElegidas = elegirDifusiones(trabajo, diurnos.map(d => (d ? difusionesEnActividadesDe(d) : [])));
+  const dias: DiaFds[] = fechas.map((fecha, k) => ({
+    fecha,
+    actividades: [...trabajo[k], ...difusionesElegidas[k]].map(a => ({ actividad: a.toUpperCase(), responsable: responsableDe(a) })),
+    difusiones: difusionesDe(diurnos[k]),
+  }));
 
   const noches = fechas.map(f => buscar(f, 'noche')).filter((e): e is BorradorEntry => Boolean(e));
   // Lo que se lee de los informes de la semana: actividades y evidencias del turno de día, como en las láminas por día.
