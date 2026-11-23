@@ -1,26 +1,54 @@
-.escaner { width: 100%; max-width: 560px; max-height: 100%; overflow: auto; background: var(--panel); border-radius: 14px; padding: 16px; display: grid; gap: 12px; }
+/* Diálogo del escáner: cabecera, mensaje, zona de la imagen y controles, uno debajo del otro. La zona de la imagen
+   (cámara, ajuste de esquinas o resultado) toma la forma de la imagen (--proporcion = ancho / alto, desde el
+   componente) y, si la pantalla es baja, se achica sin tapar nunca los botones. */
+.escaner { width: 100%; max-width: 560px; max-height: 100%; overflow: auto; background: var(--panel); border-radius: 14px; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+.escaner > :not(.escaner__zona) { flex-shrink: 0; }
 .escaner__cabecera { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .escaner__cabecera h2 { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 1.05rem; font-weight: 700; color: var(--brand-text); }
 .escaner__cerrar { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 8px; color: var(--text-soft); }
 .escaner__cerrar:hover { background: var(--bg-eef1f2, #eef1f2); }
 .escaner__mensaje { display: flex; align-items: center; gap: 6px; margin: 0; font-size: 0.82rem; color: var(--text-soft); min-height: 1.2em; }
 
-.escaner__visor { position: relative; display: grid; place-items: center; background: #14181c; border-radius: 10px; overflow: hidden; min-height: 220px; }
-.escaner__visor video { width: 100%; max-height: 58vh; object-fit: contain; display: block; }
-.escaner__guia { position: absolute; inset: 7%; border: 2px dashed rgba(245, 179, 0, 0.75); border-radius: 6px; pointer-events: none; }
-.escaner__visor--ajuste { padding: 8px; }
-.escaner__marco { position: relative; touch-action: none; user-select: none; }
+/* Zona de la imagen: alto natural = ancho del diálogo / proporción; se achica si no cabe (nunca bajo 150 px). Es un
+   contenedor de tamaño: lo de adentro se ajusta con unidades cqw/cqh, así siempre cabe completo. */
+.escaner__zona {
+  --ancho-zona: min(528px, 100vw - 56px);
+  --relleno-zona: 0px;
+  flex: 0 1 auto;
+  height: calc((var(--ancho-zona) - 2 * var(--relleno-zona)) / var(--proporcion, 1.3333) + 2 * var(--relleno-zona));
+  min-height: 150px;
+  padding: var(--relleno-zona);
+  container-type: size;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+}
+.escaner__zona--ajuste { --relleno-zona: 10px; background: var(--bg-eef1f2, #eef1f2); }
+.escaner__zona--resultado { --relleno-zona: 10px; background: var(--bg-dfe4e7, #dfe4e7); }
+.escaner__zona--resultado img { display: block; max-width: 100cqw; max-height: 100cqh; object-fit: contain; box-shadow: 0 2px 10px rgba(0, 0, 0, 0.18); background: var(--panel); }
+.escaner__zona--resultado svg { color: var(--brand-text); }
+
+/* Cámara sin bandas negras: el visor tiene la misma proporción del video y cabe entero en la zona. */
+.escaner__camara { position: relative; width: min(100cqw, 100cqh * var(--proporcion, 1.3333)); aspect-ratio: var(--proporcion, 1.3333); border-radius: 10px; overflow: hidden; background: var(--bg-eef1f2, #eef1f2); }
+.escaner__camara video { display: block; width: 100%; height: 100%; object-fit: cover; }
+.escaner__camara svg { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.escaner__guia-svg { fill: none; stroke: rgba(245, 179, 0, 0.8); stroke-width: 2px; stroke-dasharray: 8 6; vector-effect: non-scaling-stroke; }
+.escaner__vivo { fill: rgba(245, 179, 0, 0.16); stroke: #f5b300; stroke-width: 3px; vector-effect: non-scaling-stroke; stroke-linejoin: round; transition: fill 0.2s ease, stroke 0.2s ease; }
+.escaner__vivo--listo { fill: rgba(30, 142, 62, 0.2); stroke: #1e8e3e; }
+.escaner__progreso { position: absolute; left: 12px; right: 12px; bottom: 10px; height: 4px; border-radius: 2px; background: rgba(255, 255, 255, 0.45); overflow: hidden; }
+.escaner__progreso > span { display: block; height: 100%; background: #1e8e3e; transform-origin: left center; transition: transform 0.25s linear; }
+
+/* Ajuste de esquinas: la foto completa dentro de la zona, con las 4 esquinas para arrastrar. */
+.escaner__marco { position: relative; width: min(100cqw, 100cqh * var(--proporcion, 1.3333)); aspect-ratio: var(--proporcion, 1.3333); touch-action: none; user-select: none; }
 .escaner__marco img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: fill; }
 .escaner__marco svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
 .escaner__poligono { fill: rgba(245, 179, 0, 0.14); stroke: #f5b300; vector-effect: non-scaling-stroke; stroke-width: 2.5px; }
 .escaner__punto { fill: #fff; stroke: #f5b300; stroke-width: 3px; vector-effect: non-scaling-stroke; cursor: grab; }
 .escaner__punto--activo { fill: #f5b300; cursor: grabbing; }
-.escaner__visor--resultado { background: var(--bg-dfe4e7, #dfe4e7); padding: 10px; }
-.escaner__visor--resultado img { max-width: 100%; max-height: 58vh; object-fit: contain; box-shadow: 0 2px 10px rgba(0, 0, 0, 0.18); background: var(--panel); }
-.escaner__visor--resultado svg { color: var(--brand-text); }
 
 .escaner__vacio { display: grid; justify-items: center; gap: 8px; padding: 26px 16px; text-align: center; background: var(--bg-eef1f2, #eef1f2); border-radius: 10px; color: var(--text-soft); font-size: 0.85rem; }
 
+.escaner__controles { display: flex; flex-direction: column; gap: 12px; }
 .escaner__filtros { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 .escaner__filtros button[role="radio"] { padding: 6px 14px; border-radius: 999px; border: 1px solid #cbd3d7; background: var(--panel); font-size: 0.82rem; font-weight: 700; color: var(--brand-text); }
 .escaner__filtros button[aria-checked="true"] { background: #0e4660; border-color: #0e4660; color: #fff; }
@@ -34,16 +62,30 @@
 .escaner__btn--secundario { background: var(--panel); color: var(--brand-text); border: 1px solid #cbd3d7; }
 .escaner button:focus-visible, .escaner label:focus-within { outline: 3px solid #f5b300; outline-offset: 2px; }
 
-/* Cámara sin bandas negras: el visor toma la misma proporción del video. */
-.escaner__camara { position: relative; margin: 0 auto; width: 100%; border-radius: 10px; overflow: hidden; background: var(--bg-eef1f2, #eef1f2); min-height: 160px; }
-.escaner__camara video { display: block; width: 100%; height: 100%; object-fit: cover; }
-.escaner__camara svg { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
-.escaner__guia-svg { fill: none; stroke: rgba(245, 179, 0, 0.8); stroke-width: 2px; stroke-dasharray: 8 6; vector-effect: non-scaling-stroke; }
-.escaner__vivo { fill: rgba(245, 179, 0, 0.16); stroke: #f5b300; stroke-width: 3px; vector-effect: non-scaling-stroke; stroke-linejoin: round; transition: fill 0.2s ease, stroke 0.2s ease; }
-.escaner__vivo--listo { fill: rgba(30, 142, 62, 0.2); stroke: #1e8e3e; }
-.escaner__progreso { position: absolute; left: 12px; right: 12px; bottom: 10px; height: 4px; border-radius: 2px; background: rgba(255, 255, 255, 0.45); overflow: hidden; }
-.escaner__progreso > span { display: block; height: 100%; background: #1e8e3e; transform-origin: left center; transition: transform 0.25s linear; }
 .escaner__auto { display: inline-flex; align-items: center; justify-content: center; gap: 6px; margin: 0 auto; padding: 6px 12px; border-radius: 999px; border: 1px solid #cbd3d7; background: var(--panel); color: var(--text-soft); font-size: 0.78rem; font-weight: 700; cursor: pointer; }
 .escaner__auto--on { background: var(--bg-e6f4ea, #e6f4ea); border-color: #b9dfb9; color: var(--tx-1e6b34, #1e6b34); }
-/* Ajuste de esquinas: fondo claro en vez de negro alrededor de la foto. */
-.escaner__visor--ajuste { background: var(--bg-eef1f2, #eef1f2); }
+
+/* Teléfono en horizontal (pantalla baja): la imagen a la izquierda, a todo el alto, y el título, el mensaje y los
+   botones en una columna a la derecha. */
+@media (orientation: landscape) and (max-height: 560px) {
+  .escaner-fondo { padding: 8px; }
+  .escaner {
+    max-width: 980px;
+    height: 100%;
+    padding: 12px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) clamp(200px, 34%, 300px);
+    grid-template-rows: auto auto minmax(0, 1fr);
+    grid-template-areas: "zona cabecera" "zona mensaje" "zona controles";
+    gap: 8px 16px;
+  }
+  .escaner__cabecera { grid-area: cabecera; }
+  .escaner__mensaje { grid-area: mensaje; align-items: flex-start; }
+  .escaner__zona, .escaner__vacio { grid-area: zona; }
+  .escaner__zona { height: auto; min-height: 0; }
+  .escaner__vacio { align-self: center; }
+  .escaner__controles { grid-area: controles; min-height: 0; overflow: auto; gap: 8px; }
+  .escaner__controles > :first-child { margin-top: auto; }
+  .escaner__acciones { flex-direction: column; }
+  .escaner__btn { flex: none; }
+}

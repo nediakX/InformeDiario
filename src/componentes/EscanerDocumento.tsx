@@ -2,7 +2,7 @@
 // documento enderezado y con aspecto de escaneo (Color / Blanco y negro / Original) → se inserta.
 // Con "Captura automática" la foto se toma sola cuando la hoja queda quieta y bien encuadrada.
 // Si no se encuentra la hoja, se pasa a ajustar las 4 esquinas a mano.
-import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
+import { useEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react';
 import { Camera, ImageUp, Loader2, RotateCw, Crop, Check, X, ScanLine, Zap } from 'lucide-react';
 import {
   aJpeg, aplicarFiltro, cargarImagen, detectarHoja, enderezar, esquinasPorDefecto,
@@ -11,6 +11,14 @@ import {
 import './escaner.css';
 
 type Etapa = 'camara' | 'ajustar' | 'resultado';
+type Tamano = { w: number; h: number };
+
+/**
+ * Zona de la imagen (cámara, ajuste o resultado): toma la forma de la imagen y, si la pantalla es baja (por ejemplo,
+ * el teléfono en horizontal), se achica sin tapar los botones. La proporción va en una variable CSS (escaner.css).
+ */
+const estiloZona = (t: Tamano | null): CSSProperties =>
+  ({ '--proporcion': (t && t.w > 0 && t.h > 0 ? t.w / t.h : 4 / 3).toFixed(4) }) as CSSProperties;
 
 const FILTROS: { id: FiltroEscaneo; nombre: string }[] = [
   { id: 'color', nombre: 'Color' },
@@ -29,7 +37,7 @@ export default function EscanerDocumento({ onUsar, onCancelar }: {
   const [sinCamara, setSinCamara] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
-  const [videoTam, setVideoTam] = useState<{ w: number; h: number } | null>(null);
+  const [videoTam, setVideoTam] = useState<Tamano | null>(null);
 
   // Detección en vivo: contorno de la hoja sobre la cámara y captura automática cuando está quieta.
   const [enVivo, setEnVivo] = useState<Esquinas | null>(null);
@@ -49,6 +57,7 @@ export default function EscanerDocumento({ onUsar, onCancelar }: {
 
   // Documento enderezado y resultado con filtro.
   const enderezadoRef = useRef<HTMLCanvasElement | null>(null);
+  const [tamResultado, setTamResultado] = useState<Tamano | null>(null);
   const [filtro, setFiltro] = useState<FiltroEscaneo>('color'); // a color por defecto (blanco y negro queda como opción)
   const [resultado, setResultado] = useState<string | null>(null);
 
@@ -90,8 +99,17 @@ export default function EscanerDocumento({ onUsar, onCancelar }: {
       const video = videoRef.current;
       if (video && video.videoWidth && !capturandoRef.current) {
         try {
+          const ancho = video.videoWidth;
+          const alto = video.videoHeight;
           const q = await detectarHoja(video, 360);
           if (!vivo) return;
+          // Si el video cambió de forma mientras se buscaba la hoja (se giró el teléfono), el contorno ya no sirve.
+          if (video.videoWidth !== ancho || video.videoHeight !== alto) {
+            anterior = null;
+            quietos = 0;
+            temporizador = setTimeout(() => { void vuelta(); }, 250);
+            return;
+          }
           setEnVivo(q);
           if (q && anterior) {
             const diag = Math.hypot(video.videoWidth, video.videoHeight);
@@ -129,10 +147,12 @@ export default function EscanerDocumento({ onUsar, onCancelar }: {
     setOcupado(true);
     try {
       const final = await aplicarFiltro(lienzo, f);
+      setTamResultado({ w: final.width, h: final.height });
       setResultado(aJpeg(final));
       if (final !== lienzo) liberarLienzo(final);
     } catch (error) {
       console.error('No se pudo aplicar el filtro de escaneo:', error);
+      setTamResultado({ w: lienzo.width, h: lienzo.height });
       setResultado(aJpeg(lienzo));
     } finally {
       setOcupado(false);
@@ -203,6 +223,17 @@ export default function EscanerDocumento({ onUsar, onCancelar }: {
 
   useEffect(() => { capturarRef.current = capturar; });
 
+  // Tamaño del video: al abrir la cámara y cada vez que cambia (al girar el teléfono el video pasa de vertical a
+  // horizontal); sin esto el visor quedaba con la forma anterior y el contorno de la hoja quedaba corrido.
+  const medirVideo = (v: HTMLVideoElement) => {
+    const w = v.videoWidth;
+    const h = v.videoHeight;
+    if (!w || !h || (videoTam && videoTam.w === w && videoTam.h === h)) return;
+    setVideoTam({ w, h });
+    setEnVivo(null);
+    setEstable(0);
+  };
+
   const elegirImagen = async (archivo: File) => {
     const url = URL.createObjectURL(archivo);
     try {
@@ -255,8 +286,8 @@ export default function EscanerDocumento({ onUsar, onCancelar }: {
   const radio = Math.max(tamano.w, tamano.h) * 0.022;
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/90 p-3 sm:p-4 flex items-center justify-center" role="dialog" aria-modal="true" aria-labelledby="escaner-titulo">
-      <div className="modal-anim escaner">
+    <div className="escaner-fondo fixed inset-0 z-50 bg-black/90 p-3 sm:p-4 flex items-center justify-center" role="dialog" aria-modal="true" aria-labelledby="escaner-titulo">
+      <div className={`modal-anim escaner escaner--${etapa}`}>
         <div className="escaner__cabecera">
           <h2 id="escaner-titulo"><ScanLine size={18} aria-hidden="true" /> Escanear documento</h2>
           <button type="button" onClick={onCancelar} className="escaner__cerrar" aria-label="Cerrar escáner"><X size={20} /></button>
@@ -273,48 +304,50 @@ export default function EscanerDocumento({ onUsar, onCancelar }: {
                 <p>No se pudo abrir la cámara en este navegador. Elige una foto del documento desde la galería o la cámara del teléfono.</p>
               </div>
             ) : (
-              <div className="escaner__camara"
-                style={videoTam ? { aspectRatio: `${videoTam.w} / ${videoTam.h}`, width: `min(100%, calc(60vh * ${(videoTam.w / videoTam.h).toFixed(4)}))` } : undefined}>
-                <video ref={videoRef} autoPlay muted playsInline
-                  onLoadedMetadata={e => { const v = e.currentTarget; if (v.videoWidth) setVideoTam({ w: v.videoWidth, h: v.videoHeight }); }} />
-                {videoTam && (
-                  <svg viewBox={`0 0 ${videoTam.w} ${videoTam.h}`} preserveAspectRatio="none" aria-hidden="true">
-                    {enVivo
-                      ? <polygon points={enVivo.map(p => `${p.x},${p.y}`).join(' ')} className={`escaner__vivo ${estable >= 1 ? 'escaner__vivo--listo' : ''}`} />
-                      : <rect x={videoTam.w * 0.07} y={videoTam.h * 0.07} width={videoTam.w * 0.86} height={videoTam.h * 0.86} rx={12} className="escaner__guia-svg" />}
-                  </svg>
-                )}
-                {enVivo && auto && (
-                  <span className="escaner__progreso" aria-hidden="true"><span style={{ transform: `scaleX(${estable})` }} /></span>
-                )}
+              <div className="escaner__zona" style={estiloZona(videoTam)}>
+                <div className="escaner__camara">
+                  <video ref={videoRef} autoPlay muted playsInline
+                    onLoadedMetadata={e => medirVideo(e.currentTarget)} onResize={e => medirVideo(e.currentTarget)} />
+                  {videoTam && (
+                    <svg viewBox={`0 0 ${videoTam.w} ${videoTam.h}`} preserveAspectRatio="none" aria-hidden="true">
+                      {enVivo
+                        ? <polygon points={enVivo.map(p => `${p.x},${p.y}`).join(' ')} className={`escaner__vivo ${estable >= 1 ? 'escaner__vivo--listo' : ''}`} />
+                        : <rect x={videoTam.w * 0.07} y={videoTam.h * 0.07} width={videoTam.w * 0.86} height={videoTam.h * 0.86} rx={12} className="escaner__guia-svg" />}
+                    </svg>
+                  )}
+                  {enVivo && auto && (
+                    <span className="escaner__progreso" aria-hidden="true"><span style={{ transform: `scaleX(${estable})` }} /></span>
+                  )}
+                </div>
               </div>
             )}
-            <div className="escaner__acciones">
-              <label className="escaner__btn escaner__btn--secundario">
-                <ImageUp size={16} aria-hidden="true" /> Elegir imagen
-                <input type="file" accept="image/*" className="sr-only" onChange={e => { const f = e.target.files?.[0]; if (f) void elegirImagen(f); e.target.value = ''; }} />
-              </label>
+            <div className="escaner__controles">
+              <div className="escaner__acciones">
+                <label className="escaner__btn escaner__btn--secundario">
+                  <ImageUp size={16} aria-hidden="true" /> Elegir imagen
+                  <input type="file" accept="image/*" className="sr-only" onChange={e => { const f = e.target.files?.[0]; if (f) void elegirImagen(f); e.target.value = ''; }} />
+                </label>
+                {!sinCamara && (
+                  <button type="button" onClick={() => { capturandoRef.current = true; capturar(enVivo); }} className="escaner__btn escaner__btn--principal">
+                    <Camera size={16} aria-hidden="true" /> Capturar
+                  </button>
+                )}
+              </div>
               {!sinCamara && (
-                <button type="button" onClick={() => { capturandoRef.current = true; capturar(enVivo); }} className="escaner__btn escaner__btn--principal">
-                  <Camera size={16} aria-hidden="true" /> Capturar
+                <button type="button" role="switch" aria-checked={auto} onClick={alternarAuto} className={`escaner__auto ${auto ? 'escaner__auto--on' : ''}`}>
+                  <Zap size={14} aria-hidden="true" /> Captura automática {auto ? 'activada' : 'desactivada'}
                 </button>
               )}
             </div>
-            {!sinCamara && (
-              <button type="button" role="switch" aria-checked={auto} onClick={alternarAuto} className={`escaner__auto ${auto ? 'escaner__auto--on' : ''}`}>
-                <Zap size={14} aria-hidden="true" /> Captura automática {auto ? 'activada' : 'desactivada'}
-              </button>
-            )}
           </>
         )}
 
         {etapa === 'ajustar' && capturaUrl && (
           <>
-            <div className="escaner__visor escaner__visor--ajuste">
+            <div className="escaner__zona escaner__zona--ajuste" style={estiloZona(tamano)}>
               <div
                 ref={marcoRef}
                 className="escaner__marco"
-                style={{ aspectRatio: `${tamano.w} / ${tamano.h}`, width: `min(100%, calc(58vh * ${(tamano.w / tamano.h).toFixed(4)}))` }}
                 onPointerMove={moverEsquina}
                 onPointerUp={() => setArrastrando(null)}
                 onPointerCancel={() => setArrastrando(null)}
@@ -337,33 +370,37 @@ export default function EscanerDocumento({ onUsar, onCancelar }: {
                 )}
               </div>
             </div>
-            <div className="escaner__acciones">
-              <button type="button" onClick={volverACapturar} className="escaner__btn escaner__btn--secundario">Tomar otra</button>
-              <button type="button" onClick={() => void recortar(esquinas, capturaRef.current)} disabled={ocupado || !esquinas} className="escaner__btn escaner__btn--principal">
-                <Crop size={16} aria-hidden="true" /> Recortar documento
-              </button>
+            <div className="escaner__controles">
+              <div className="escaner__acciones">
+                <button type="button" onClick={volverACapturar} className="escaner__btn escaner__btn--secundario">Tomar otra</button>
+                <button type="button" onClick={() => void recortar(esquinas, capturaRef.current)} disabled={ocupado || !esquinas} className="escaner__btn escaner__btn--principal">
+                  <Crop size={16} aria-hidden="true" /> Recortar documento
+                </button>
+              </div>
             </div>
           </>
         )}
 
         {etapa === 'resultado' && (
           <>
-            <div className="escaner__visor escaner__visor--resultado">
+            <div className="escaner__zona escaner__zona--resultado" style={estiloZona(tamResultado ?? tamano)}>
               {resultado ? <img src={resultado} alt="Documento escaneado" /> : <Loader2 size={28} className="animate-spin" aria-hidden="true" />}
             </div>
-            <div className="escaner__filtros" role="radiogroup" aria-label="Aspecto del documento">
-              {FILTROS.map(f => (
-                <button key={f.id} type="button" role="radio" aria-checked={filtro === f.id} disabled={ocupado} onClick={() => cambiarFiltro(f.id)}>
-                  {f.nombre}
+            <div className="escaner__controles">
+              <div className="escaner__filtros" role="radiogroup" aria-label="Aspecto del documento">
+                {FILTROS.map(f => (
+                  <button key={f.id} type="button" role="radio" aria-checked={filtro === f.id} disabled={ocupado} onClick={() => cambiarFiltro(f.id)}>
+                    {f.nombre}
+                  </button>
+                ))}
+                <button type="button" onClick={girar} disabled={ocupado} className="escaner__girar" aria-label="Girar 90 grados"><RotateCw size={16} /></button>
+              </div>
+              <div className="escaner__acciones">
+                <button type="button" onClick={() => { setEtapa('ajustar'); setMensaje('Ajusta las esquinas y vuelve a recortar.'); }} className="escaner__btn escaner__btn--secundario">Ajustar bordes</button>
+                <button type="button" onClick={() => resultado && onUsar(resultado)} disabled={ocupado || !resultado} className="escaner__btn escaner__btn--principal">
+                  <Check size={16} aria-hidden="true" /> Usar documento
                 </button>
-              ))}
-              <button type="button" onClick={girar} disabled={ocupado} className="escaner__girar" aria-label="Girar 90 grados"><RotateCw size={16} /></button>
-            </div>
-            <div className="escaner__acciones">
-              <button type="button" onClick={() => { setEtapa('ajustar'); setMensaje('Ajusta las esquinas y vuelve a recortar.'); }} className="escaner__btn escaner__btn--secundario">Ajustar bordes</button>
-              <button type="button" onClick={() => resultado && onUsar(resultado)} disabled={ocupado || !resultado} className="escaner__btn escaner__btn--principal">
-                <Check size={16} aria-hidden="true" /> Usar documento
-              </button>
+              </div>
             </div>
           </>
         )}
