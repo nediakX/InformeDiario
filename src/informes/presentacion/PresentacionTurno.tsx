@@ -1,7 +1,7 @@
 import CuentaCabecera from '../../componentes/CuentaCabecera';
 import { useEffect, useMemo, useState } from 'react';
 import { saveAs } from 'file-saver';
-import { ArrowLeft, ChevronLeft, ChevronRight, CircleCheckBig, Circle, Loader2, Presentation } from 'lucide-react';
+import { ArrowLeft, ChevronLeft, ChevronRight, CircleCheckBig, Circle, Loader2, Presentation, RefreshCw } from 'lucide-react';
 import logoPsinet from '../../assets/logo_psinet.png';
 import logoEdificio from '../../assets/LogoEdificio.png';
 import { fetchBorradores, subscribeBorradores, type BorradorEntry } from '../../datos/borradoresDiario';
@@ -14,8 +14,11 @@ import { useSesion } from '../../auth/sesion';
 import { construirPresentacion, nombreArchivoPresentacion } from './modelo';
 import { generarPresentacionTurno } from './pptx';
 import PresentacionFds from './PresentacionFds';
-import { leerReportesFds } from './datosFds';
-import { mantenimientosGeneradorDe, type DatosAutoFds } from './modeloFds';
+import { leerHorometros, leerReportesFds } from './datosFds';
+import { filasMantenimientoAl, mantenimientosGeneradorDe, sitiosConHorometro, type DatosAutoFds } from './modeloFds';
+import { listarMantenimientoGG, suscribirMantenimientoGG, type FilaMantenimientoGG } from '../../datos/mantenimientoGG';
+import type { Division } from '../../datos/divisiones';
+import { HORAS_ENTRE_MANTENIMIENTOS } from '../../datos/indicadoresMantenimientoGG';
 
 /** Turno completo (láminas del turno) o fin de semana (viernes a domingo). */
 export type Modo = 'completo' | 'fds';
@@ -26,6 +29,19 @@ interface LecturaFds {
   datos: Pick<DatosAutoFds, 'reportesFds' | 'horometros'> | null;
   error: string | null;
 }
+
+/** Horómetros hasta el último día del turno (lámina 21), con la clave de la división, la semana y la recarga. */
+interface LecturaHorasTurno {
+  clave: string;
+  /** null = no se pudieron leer (sin señal): quedan las horas escritas en la tabla. */
+  horometros: DatosAutoFds['horometros'] | null;
+}
+
+const numeroCL = new Intl.NumberFormat('es-CL');
+/** "2026-11-20" -> "20/11/26" */
+const fechaCorta = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(2, 4)}`;
+/** Suma días a una fecha ISO (en UTC, sin horario de verano). */
+const masDias = (iso: string, n: number) => new Date(Date.parse(`${iso}T00:00:00Z`) + n * 86400000).toISOString().slice(0, 10);
 
 interface PresentacionTurnoProps {
   onBack: () => void;
@@ -52,15 +68,24 @@ export default function PresentacionTurno({ onBack, modoInicial = 'completo', bo
   const [toast, setToast] = useState<{ text: string; isError?: boolean } | null>(null);
   // Reportes de GG de la semana (guardados en la app): cada día se incrusta como captura en la lámina de reportabilidad.
   const [reportesGG, setReportesGG] = useState<ReporteGG[]>([]);
+  // Tabla de mantenimiento GG de la app (con la división a la que corresponde): manda en las tablas de mantenimiento
+  // de las dos presentaciones, con el dato más nuevo hasta la fecha de corte.
+  const [lecturaTabla, setLecturaTabla] = useState<{ division: Division; filas: FilaMantenimientoGG[] } | null>(null);
+  const [lecturaHorasTurno, setLecturaHorasTurno] = useState<LecturaHorasTurno | null>(null);
+  const [recargaTurno, setRecargaTurno] = useState(0);
 
   const semana = useMemo(() => semanaDeFecha(fechaSemana), [fechaSemana]);
   const datos = useMemo(() => construirPresentacion(borradores, semana), [borradores, semana]);
   const fechasConGG = useMemo(() => new Set(reportesGG.map(r => r.fecha)), [reportesGG]);
   const textoObservaciones = observacionesEditadas[semana.inicio] ?? datos.observacionesNoche.join('\n');
+  // null = la tabla todavía no se lee (si no se puede leer, queda vacía y mandan los informes y los reportes).
+  const tablaMtto = lecturaTabla?.division === division ? lecturaTabla.filas : null;
+  // Sitios cuyos horómetros se leen (los de la presentación y los que agregue la tabla), como texto para no releer por nada.
+  const claveSitiosHoras = useMemo(() => sitiosConHorometro(tablaMtto ?? []).join('|'), [tablaMtto]);
   // La clave identifica la división, la semana y la última recarga: si la lectura guardada no es de esa clave, todavía no llegó.
-  const claveFds = `${division}|${semana.inicio}|${recargaFds}`;
+  const claveFds = `${division}|${semana.inicio}|${recargaFds}|${claveSitiosHoras}`;
   const lectura = lecturaFds?.clave === claveFds ? lecturaFds : null;
-  const cargandoFds = modo === 'fds' && lectura === null;
+  const cargandoFds = modo === 'fds' && (lectura === null || tablaMtto === null);
   const errorFds = lectura?.error ?? null;
   const mantenimientosFds = useMemo(() => mantenimientosGeneradorDe(borradoresMantenimiento), [borradoresMantenimiento]);
   const leidoFds = lectura?.datos ?? null;
@@ -68,12 +93,66 @@ export default function PresentacionTurno({ onBack, modoInicial = 'completo', bo
     reportesFds: leidoFds?.reportesFds ?? [],
     horometros: leidoFds?.horometros ?? {},
     mantenimientos: mantenimientosFds,
-  }), [leidoFds, mantenimientosFds]);
+    tablaMantenimiento: tablaMtto ?? [],
+  }), [leidoFds, mantenimientosFds, tablaMtto]);
+
+  // Lámina 21 del turno: el dato más nuevo hasta el último día del turno.
+  const claveHorasTurno = `${division}|${semana.fin}|${recargaTurno}|${claveSitiosHoras}`;
+  const horasTurno = lecturaHorasTurno?.clave === claveHorasTurno ? lecturaHorasTurno : null;
+  const cargandoMttoTurno = tablaMtto === null || horasTurno === null;
+  const filasMttoTurno = useMemo(() => filasMantenimientoAl(semana.fin, {
+    reportesFds: [],
+    horometros: horasTurno?.horometros ?? {},
+    mantenimientos: mantenimientosFds,
+    tablaMantenimiento: tablaMtto ?? [],
+  }), [semana.fin, horasTurno, mantenimientosFds, tablaMtto]);
+  // Como en la lámina: de más a menos horas restantes (sin el dato, al final).
+  const vistaMttoTurno = useMemo(() => filasMttoTurno
+    .map(f => {
+      const proximo = f.horasUltimo === null ? null : f.horasUltimo + HORAS_ENTRE_MANTENIMIENTOS;
+      return {
+        ...f,
+        proximo,
+        estimada: f.fechaUltimo ? masDias(f.fechaUltimo, f.dias) : null,
+        restante: proximo === null || f.horasRegistradas === null ? null : proximo - f.horasRegistradas,
+      };
+    })
+    .sort((a, b) => (a.restante === null || b.restante === null
+      ? Number(a.restante === null) - Number(b.restante === null)
+      : b.restante - a.restante)), [filasMttoTurno]);
+  const mttoPasados = vistaMttoTurno.filter(f => f.restante !== null && f.restante < 0).length;
 
   useEffect(() => {
     void fetchBorradores(division).then(setBorradores);
     return subscribeBorradores(division, setBorradores);
   }, [division]);
+
+  // Tabla de mantenimiento GG: se vuelve a leer cuando alguien la cambia (sin señal queda la copia de este equipo).
+  useEffect(() => {
+    let vigente = true;
+    const cargar = () => listarMantenimientoGG(division)
+      .then(({ filas }) => { if (vigente) setLecturaTabla({ division, filas }); })
+      .catch(error => {
+        console.error('No se pudo leer la Tabla de mantenimiento GG:', error);
+        if (vigente) setLecturaTabla(previa => (previa?.division === division ? previa : { division, filas: [] }));
+      });
+    void cargar();
+    const dejarDeEscuchar = suscribirMantenimientoGG(division, () => { void cargar(); });
+    return () => { vigente = false; dejarDeEscuchar(); };
+  }, [division]);
+
+  // Horómetros hasta el último día del turno, para la vista previa de la lámina 21 (al generar se vuelven a leer).
+  useEffect(() => {
+    if (modo !== 'completo') return;
+    let vigente = true;
+    leerHorometros(division, semana.fin, claveSitiosHoras.split('|'))
+      .then(horometros => { if (vigente) setLecturaHorasTurno({ clave: claveHorasTurno, horometros }); })
+      .catch(error => {
+        console.error('No se pudieron leer los horómetros de los reportes de GG:', error);
+        if (vigente) setLecturaHorasTurno({ clave: claveHorasTurno, horometros: null });
+      });
+    return () => { vigente = false; };
+  }, [modo, division, semana.fin, claveSitiosHoras, claveHorasTurno]);
 
   // Se vuelven a leer al cambiar la semana y cuando alguien guarda o corrige un reporte de GG.
   useEffect(() => {
@@ -96,7 +175,7 @@ export default function PresentacionTurno({ onBack, modoInicial = 'completo', bo
   useEffect(() => {
     if (modo !== 'fds') return;
     let vigente = true;
-    leerReportesFds(division, semana)
+    leerReportesFds(division, semana, claveSitiosHoras.split('|'))
       .then(datos => { if (vigente) setLecturaFds({ clave: claveFds, datos, error: null }); })
       .catch(error => {
         console.error(error);
@@ -105,7 +184,7 @@ export default function PresentacionTurno({ onBack, modoInicial = 'completo', bo
         }
       });
     return () => { vigente = false; };
-  }, [modo, division, semana, claveFds]);
+  }, [modo, division, semana, claveFds, claveSitiosHoras]);
 
   const hayInformes = datos.dias.some(d => d.tieneInforme);
   // Días con informe (o con Turno Noche) cuyo recuadro de reportabilidad GG queda sin foto.
@@ -119,7 +198,12 @@ export default function PresentacionTurno({ onBack, modoInicial = 'completo', bo
       const reportes = await listarReportesGG({ division, desde: semana.inicio, hasta: semana.fin }, 0, 1000);
       const capturas = await capturasGG(reportes, division, semana.dias);
       const dias = datos.dias.map(d => ({ ...d, fotoGG: capturas[d.fecha] ?? d.fotoGG }));
-      const { blob, avisos: nuevosAvisos } = await generarPresentacionTurno({ ...datos, dias, observacionesNoche: observaciones });
+      // Lámina 21: la tabla de mantenimiento y los horómetros, leídos de nuevo para que vaya el dato más nuevo.
+      // Sin señal quedan los que ya se leyeron (la tabla, con la copia de este equipo).
+      const tabla = await listarMantenimientoGG(division).then(t => t.filas).catch(() => tablaMtto ?? []);
+      const horometros = await leerHorometros(division, datos.fin, sitiosConHorometro(tabla)).catch(() => horasTurno?.horometros ?? {});
+      const mantenimientoGG = filasMantenimientoAl(datos.fin, { reportesFds: [], horometros, mantenimientos: mantenimientosFds, tablaMantenimiento: tabla });
+      const { blob, avisos: nuevosAvisos } = await generarPresentacionTurno({ ...datos, dias, observacionesNoche: observaciones, mantenimientoGG });
       saveAs(blob, nombreArchivoPresentacion(datos));
       setAvisos(nuevosAvisos);
       setToast({ text: nuevosAvisos.length ? 'Presentación generada, revisa los avisos.' : 'Presentación generada.' });
@@ -217,7 +301,7 @@ export default function PresentacionTurno({ onBack, modoInicial = 'completo', bo
               ))}
             </div>
             <p className="text-xs text-gray-500 mt-3">
-              Se generan: portada, resumen de Turno Día y Turno Noche, reportabilidad GG (captura de los reportes de cada día guardados en la app) y una lámina de difusiones por día.
+              Se generan: portada, resumen de Turno Día y Turno Noche, reportabilidad GG (captura de los reportes de cada día guardados en la app), una lámina de difusiones por día y el estado de mantenimiento de GG.
               Las actividades de rutina individual (checklist, fatiga, hidratación, protector solar, etc.) no aparecen en el resumen.
             </p>
           </section>
@@ -232,6 +316,77 @@ export default function PresentacionTurno({ onBack, modoInicial = 'completo', bo
               rows={5}
               className="w-full p-2 border border-[#DCE1E6] rounded-md text-sm"
             />
+          </section>
+
+          <section className="panel p-5 space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h3 className="font-display font-bold text-[#0E4660] text-base">Estado de mantenimiento de GG (lámina 21)</h3>
+              <button
+                type="button"
+                onClick={() => setRecargaTurno(n => n + 1)}
+                disabled={cargandoMttoTurno}
+                className="inline-flex items-center gap-1 text-xs font-bold text-[#0E4660] underline disabled:opacity-50"
+              >
+                <RefreshCw size={13} /> Actualizar
+              </button>
+            </div>
+            <p className="text-xs text-gray-500">
+              Sale de la Tabla de mantenimiento GG, de los informes de mantenimiento y de los reportes de GG: el dato más nuevo hasta el {formatFechaLarga(semana.fin)}.
+            </p>
+            {cargandoMttoTurno ? (
+              <p className="text-xs text-[#0E4660] flex items-center gap-2">
+                <Loader2 size={14} className="animate-spin" /> Leyendo la tabla de mantenimiento y los horómetros…
+              </p>
+            ) : (
+              <>
+                {horasTurno?.horometros === null && (
+                  <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-md p-2">
+                    No se pudieron leer los reportes de GG (sin señal): las horas registradas salen de la tabla. Al generar se intenta de nuevo.
+                  </p>
+                )}
+                <details className="text-sm">
+                  <summary className="cursor-pointer text-xs font-bold text-[#0E4660]">
+                    Ver los {vistaMttoTurno.length} generadores{mttoPasados ? ` · ${mttoPasados} con horas pasadas` : ''}
+                  </summary>
+                  <div className="mt-3 overflow-x-auto">
+                    <table className="w-full text-xs border-collapse">
+                      <thead>
+                        <tr className="text-left text-[#0E4660] border-b border-[#DCE1E6]">
+                          <th className="py-2 pr-3 font-bold">Generador</th>
+                          <th className="py-2 pr-3 font-bold text-right">Último mto.</th>
+                          {/* En el celular se omite (es el último + 250): así caben las horas restantes sin desplazar. */}
+                          <th className="hidden sm:table-cell py-2 pr-3 font-bold text-right">Próximo</th>
+                          <th className="py-2 pr-3 font-bold text-right">Horas al {fechaCorta(semana.fin)}</th>
+                          <th className="py-2 font-bold text-right">Restantes</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {vistaMttoTurno.map(f => (
+                          <tr key={f.sitio} className={`border-b border-[#eef1f4] align-top ${f.restante === null ? 'bg-amber-50' : ''}`}>
+                            <td className="py-1.5 pr-3">
+                              <span className="block font-mono">{f.sitio}</span>
+                              <span className="block text-gray-500">{f.nombre}</span>
+                            </td>
+                            <td className="py-1.5 pr-3 text-right tabular-nums">
+                              {f.horasUltimo === null ? '—' : numeroCL.format(f.horasUltimo)}
+                              <span className="block text-gray-500">{f.fechaUltimo ? fechaCorta(f.fechaUltimo) : '—'}</span>
+                            </td>
+                            <td className="hidden sm:table-cell py-1.5 pr-3 text-right tabular-nums">
+                              {f.proximo === null ? '—' : numeroCL.format(f.proximo)}
+                              <span className="block text-gray-500">{f.estimada ? fechaCorta(f.estimada) : '—'}</span>
+                            </td>
+                            <td className="py-1.5 pr-3 text-right tabular-nums">{f.horasRegistradas === null ? '—' : numeroCL.format(f.horasRegistradas)}</td>
+                            <td className={`py-1.5 text-right tabular-nums font-bold ${f.restante === null ? '' : f.restante < 0 ? 'text-red-700' : 'text-green-700'}`}>
+                              {f.restante === null ? '—' : numeroCL.format(f.restante)}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </details>
+              </>
+            )}
           </section>
 
           <section className="panel p-5">

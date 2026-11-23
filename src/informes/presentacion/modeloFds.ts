@@ -7,6 +7,7 @@ import type { BorradorOtroEntry } from '../../datos/borradoresOtros';
 import type { SemanaTurno } from '../../datos/turnos';
 import { nombreDiaSemana, sumarDias } from '../../datos/fechas';
 import { esPreventiva } from '../preventiva/modelo';
+import type { FilaMantenimientoGG } from '../../datos/mantenimientoGG';
 
 /** Una fila de la tabla de actividades (lámina 5). */
 export interface FilaActividadFds {
@@ -150,16 +151,18 @@ export interface MantenimientoFds {
 
 /** Lo que se lee de la base (no de los informes diarios). */
 export interface DatosAutoFds {
+  /** Tabla de mantenimiento GG de la app (una fila por generador): es la fuente principal de la tabla de mantenimiento. */
+  tablaMantenimiento: FilaMantenimientoGG[];
   /** Reportes de GG de los tres días del fin de semana (sitio y fecha). */
   reportesFds: { sitio: string; fecha: string }[];
-  /** Último horómetro reportado en GG por sitio (clave: sitio de GG), hasta la fecha de corte. */
-  horometros: Record<string, { horas: number; fecha: string }>;
+  /** Último horómetro reportado en GG por sitio (clave: sitio de GG), hasta la fecha de corte (hora HH:MM, si se sabe). */
+  horometros: Record<string, { horas: number; fecha: string; hora?: string | null }>;
   /** Informes de mantenimiento de generador (sin preventiva). */
   mantenimientos: MantenimientoFds[];
 }
 
 /** Sin datos de la base (todavía no se leyeron): los campos salen vacíos y se avisa. */
-export const SIN_DATOS_FDS: DatosAutoFds = { reportesFds: [], horometros: {}, mantenimientos: [] };
+export const SIN_DATOS_FDS: DatosAutoFds = { reportesFds: [], horometros: {}, mantenimientos: [], tablaMantenimiento: [] };
 
 const sinAcentos = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
 
@@ -352,10 +355,6 @@ const lineasDe = (texto: string) => texto.split('\n').map(l => l.trim()).filter(
 // Reportabilidad (carros que reportan según la base), horas y último mantenimiento (salen de la base)
 // ---------------------------------------------------------------------------------------
 
-/** Horas registradas de un sitio de GG: el último horómetro reportado hasta la fecha de corte (null = sin dato). */
-export const horasRegistradasDe = (auto: DatosAutoFds, gg: string | null): number | null =>
-  gg === null ? null : (auto.horometros[claveSitio(gg)]?.horas ?? null);
-
 /** Informes de mantenimiento de generador, de la lista de borradores (los preventivos no traen horómetro). */
 export function mantenimientosGeneradorDe(entradas: BorradorOtroEntry[]): MantenimientoFds[] {
   return entradas
@@ -379,6 +378,86 @@ export function ultimoMantenimientoDe(mantenimientos: MantenimientoFds[], carro:
     .filter(m => claveSitio(m.sitio) === clave && m.fecha <= corte)
     .sort((a, b) => b.fecha.localeCompare(a.fecha) || b.savedAt.localeCompare(a.savedAt))[0];
   return ultimo ? { horas: numeroFds(ultimo.horometro), fecha: ultimo.fecha } : { horas: null, fecha: null };
+}
+
+const dos = (n: number) => String(n).padStart(2, '0');
+
+/** Lectura del horómetro: horas, fecha local (AAAA-MM-DD) e instante (para comparar dos lecturas del mismo día). */
+interface Lectura { horas: number; fecha: string | null; instante: number }
+
+/**
+ * Horas escritas en la Tabla de mantenimiento GG, con el momento en que se escribieron. Sin ese momento (base sin
+ * actualizar) cualquier reporte es más nuevo: igual que en la pantalla de la tabla.
+ */
+function lecturaDeTabla(f: FilaMantenimientoGG | null): Lectura | null {
+  if (!f || f.horasRegistradas === null || !Number.isFinite(f.horasRegistradas)) return null;
+  const en = f.horasRegistradasEn ? new Date(f.horasRegistradasEn) : null;
+  if (!en || Number.isNaN(en.getTime())) return { horas: Math.round(f.horasRegistradas), fecha: null, instante: -Infinity };
+  return { horas: Math.round(f.horasRegistradas), fecha: `${en.getFullYear()}-${dos(en.getMonth() + 1)}-${dos(en.getDate())}`, instante: en.getTime() };
+}
+
+/** Último horómetro de los reportes de GG del sitio. */
+function lecturaDeReporte(auto: DatosAutoFds, gg: string | null): Lectura | null {
+  const r = gg ? auto.horometros[claveSitio(gg)] : undefined;
+  if (!r || !Number.isFinite(r.horas)) return null;
+  const instante = Date.parse(`${r.fecha}T${r.hora || '12:00'}:00`);
+  return { horas: Math.round(r.horas), fecha: r.fecha, instante: Number.isNaN(instante) ? Date.parse(`${r.fecha}T12:00:00`) : instante };
+}
+
+/**
+ * Filas de la tabla de mantenimiento de las presentaciones (lámina 21 del turno y lámina 9 del fin de semana), con
+ * el dato más nuevo hasta la fecha de corte:
+ *  - último mantenimiento: el más reciente entre la Tabla de mantenimiento GG de la app y los informes de
+ *    Mantenimiento de generador (con la misma fecha, el de la tabla);
+ *  - horas registradas: la lectura más reciente entre el último reporte de GG y lo escrito en la tabla (como en la
+ *    pantalla de la tabla);
+ *  - nombre y días del ciclo: los de la tabla.
+ * Lo que no esté en ninguno sale de la última planilla de referencia. Un generador que esté en la tabla y no en la
+ * lista de la presentación se agrega al final.
+ */
+export function filasMantenimientoAl(corte: string, auto: DatosAutoFds): FilaOmFds[] {
+  const usadas = new Set<string>();
+  const filaDe = (clave: string) => {
+    const encontrada = auto.tablaMantenimiento.find(f => claveSitio(f.sitio) === claveSitio(clave)) ?? null;
+    if (encontrada) usadas.add(encontrada.sitio);
+    return encontrada;
+  };
+  const armar = (sitio: string, nombre: string, dias: number, carro: string, gg: string | null, f: FilaMantenimientoGG | null): FilaOmFds => {
+    const predeterminada = OM_PREDETERMINADA[carro];
+    // Último mantenimiento.
+    const deTabla = f && f.ultimoHoras !== null && Number.isFinite(f.ultimoHoras) && f.ultimoFecha && f.ultimoFecha <= corte
+      ? { horas: Math.round(f.ultimoHoras), fecha: f.ultimoFecha }
+      : null;
+    const informe = ultimoMantenimientoDe(auto.mantenimientos, carro, corte);
+    const deInforme = informe.horas !== null && informe.fecha ? { horas: informe.horas, fecha: informe.fecha } : null;
+    const ultimo = deTabla && deInforme ? (deInforme.fecha > deTabla.fecha ? deInforme : deTabla) : deTabla ?? deInforme;
+    // Horas registradas (las lecturas posteriores al corte no cuentan).
+    const hastaCorte = (l: Lectura | null) => (l && (l.fecha === null || l.fecha <= corte) ? l : null);
+    const tabla = hastaCorte(lecturaDeTabla(f));
+    const reporte = hastaCorte(lecturaDeReporte(auto, gg));
+    const registradas = tabla && reporte ? (reporte.instante > tabla.instante ? reporte : tabla) : tabla ?? reporte;
+    return {
+      sitio,
+      nombre: f?.nombre.trim() || nombre,
+      horasUltimo: ultimo?.horas ?? predeterminada?.horasUltimo ?? null,
+      fechaUltimo: ultimo?.fecha ?? predeterminada?.fechaUltimo ?? null,
+      dias: f?.cicloDias ?? dias,
+      horasRegistradas: registradas?.horas ?? predeterminada?.horasRegistradas ?? null,
+    };
+  };
+  const filas = SITIOS_FDS.map(s => armar(s.sitio, s.nombre, s.dias, s.carro, s.gg, filaDe(s.gg ?? s.carro) ?? filaDe(s.carro)));
+  const nuevas = auto.tablaMantenimiento
+    .filter(f => !usadas.has(f.sitio))
+    .map(f => armar(`O&M_${f.sitio}`, f.nombre, f.cicloDias, f.sitio, f.sitio, f));
+  return [...filas, ...nuevas];
+}
+
+/** Sitios de GG cuyos horómetros hay que leer: los de la presentación y los que agregue la tabla de mantenimiento. */
+export function sitiosConHorometro(tabla: FilaMantenimientoGG[]): string[] {
+  const sitios = SITIOS_FDS.flatMap(s => (s.gg ? [s.gg] : []));
+  const claves = new Set(SITIOS_FDS.flatMap(s => [claveSitio(s.carro), ...(s.gg ? [claveSitio(s.gg)] : [])]));
+  for (const f of tabla) if (!claves.has(claveSitio(f.sitio))) sitios.push(f.sitio);
+  return sitios;
 }
 
 /** Une palabras en una lista con comas y "Y": "A, B Y C". */
@@ -452,19 +531,8 @@ export function construirPresentacionFds(entradas: BorradorEntry[], semana: Sema
     carrosReportando: carrosPorDia,
     reportabilidadGG: carrosPorDia.map(reportabilidadDe),
     fechaCorteOm: corte,
-    om: SITIOS_FDS.map(s => {
-      const ultimo = ultimoMantenimientoDe(auto.mantenimientos, s.carro, corte);
-      // La base manda; lo que no tiene se completa con la tabla de referencia.
-      const predeterminada = OM_PREDETERMINADA[s.carro];
-      return {
-        sitio: s.sitio,
-        nombre: s.nombre,
-        horasUltimo: ultimo.horas ?? predeterminada?.horasUltimo ?? null,
-        fechaUltimo: ultimo.fecha ?? predeterminada?.fechaUltimo ?? null,
-        dias: s.dias,
-        horasRegistradas: horasRegistradasDe(auto, s.gg) ?? predeterminada?.horasRegistradas ?? null,
-      };
-    }),
+    // La Tabla de mantenimiento GG de la app manda, con el dato más nuevo hasta la fecha de corte.
+    om: filasMantenimientoAl(corte, auto),
     // Lámina 11: lo más importante de la semana, en líneas cortas (las familias del resumen, y después los repliegues
     // y las capacitaciones o reuniones principales, una línea por actividad).
     cascadaActividades: [

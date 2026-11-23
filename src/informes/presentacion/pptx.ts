@@ -5,6 +5,8 @@ import JSZip from 'jszip';
 import plantillaUrl from '../../assets/plantillas/presentacion_turno.pptx?url';
 import { comprimirDataUrl } from '../../lib/fotos';
 import type { DatosPresentacion, DiaPresentacion } from './modelo';
+import type { FilaOmFds } from './modeloFds';
+import { HORAS_ENTRE_MANTENIMIENTOS } from '../../datos/indicadoresMantenimientoGG';
 import { esDifusion, mencionaSitio } from './criterios';
 
 export const NS_P = 'http://schemas.openxmlformats.org/presentationml/2006/main';
@@ -38,6 +40,8 @@ const MESES_ABREV = ['ENE', 'FEB', 'MAR', 'ABR', 'MAY', 'JUN', 'JUL', 'AGO', 'SE
 const fechaCortaMayuscula = (iso: string) => { const [y, m, d] = iso.split('-').map(Number); return `${String(d).padStart(2, '0')} ${MESES_ABREV[m - 1]} ${y}`; };
 /** "2026-10-27" -> "27-10-2026" */
 const dmyGuion = (iso: string) => dmy(iso).replace(/\//g, '-');
+/** Fecha de la tabla de mantenimiento de GG (lámina 21), en minúscula: "2026-08-30" -> "30-ago-26". */
+const fechaTablaGG = (iso: string) => { const [y, m, d] = iso.split('-').map(Number); return `${String(d).padStart(2, '0')}-${MESES_ABREV[m - 1].toLowerCase()}-${String(y).slice(2)}`; };
 /** Número de serie de Excel (días desde 1899-12-30), que es como guarda las fechas el gráfico. */
 const serieExcel = (iso: string) => { const [y, m, d] = iso.split('-').map(Number); return Math.round((Date.UTC(y, m - 1, d) - Date.UTC(1899, 11, 30)) / 86400000); };
 /** Suma días a una fecha ISO ("2026-10-21" + 6 -> "2026-10-27"). */
@@ -996,6 +1000,85 @@ function fijarEstadosMantenciones(lamina: Lamina, mantenciones: string[]) {
   }
 }
 
+const NS_A16 = 'http://schemas.microsoft.com/office/drawing/2014/main';
+/** Colores de las horas restantes en la lámina 21 (los de la plantilla): verde si quedan horas, rojo si ya pasaron. */
+const COLOR_RESTANTE = { quedan: '36F42C', pasadas: 'FF0000' };
+
+/**
+ * Lámina 21 (estado de mantenimiento de GG en carros): una fila por generador con el dato más nuevo hasta el corte.
+ * Como en la plantilla, van de más a menos horas restantes (próximo mantenimiento − horas registradas) y esa
+ * columna queda verde o roja. Cada celda conserva el formato de la plantilla.
+ */
+function llenarEstadoMantenimientoGG(lamina: Lamina, filas: FilaOmFds[], avisos: string[]) {
+  const arbol = arbolDeLamina(lamina);
+  const tabla = descendientes(arbol, NS_A, 'tbl')[0];
+  const filasTabla = tabla ? hijos(tabla, NS_A, 'tr') : [];
+  if (!tabla || filasTabla.length < 2 || !filas.length) return;
+  const [cabecera, ...cuerpo] = filasTabla;
+
+  const calculadas = filas.map(f => {
+    const proximo = f.horasUltimo === null ? null : f.horasUltimo + HORAS_ENTRE_MANTENIMIENTOS;
+    const restante = proximo === null || f.horasRegistradas === null ? null : proximo - f.horasRegistradas;
+    return { f, proximo, restante };
+  });
+  // De más a menos horas restantes; las filas sin el dato, al final (en su orden).
+  calculadas.sort((a, b) => (a.restante === null || b.restante === null
+    ? Number(a.restante === null) - Number(b.restante === null)
+    : b.restante - a.restante));
+
+  // Con más generadores que filas en la plantilla, las filas se achican para que la tabla no se salga de la lámina.
+  const marcoTabla = descendientes(arbol, NS_P, 'graphicFrame').find(g => descendientes(g, NS_A, 'tbl')[0] === tabla);
+  const xfrm = marcoTabla ? hijos(marcoTabla, NS_P, 'xfrm')[0] : undefined;
+  const extMarco = xfrm ? hijos(xfrm, NS_A, 'ext')[0] : undefined;
+  const altoCabecera = Number(cabecera.getAttribute('h')) || 0;
+  const altoMarco = Number(extMarco?.getAttribute('cy')) || 0;
+  const achicar = calculadas.length > cuerpo.length && altoMarco > altoCabecera;
+  const altoFila = achicar ? Math.floor((altoMarco - altoCabecera) / calculadas.length) : 0;
+  // Las filas que se agregan llevan su propio identificador (PowerPoint los quiere distintos).
+  let ultimoId = Math.max(0, ...filasTabla.flatMap(tr => descendientes(tr, NS_A16, 'rowId')).map(e => Number(e.getAttribute('val')) || 0));
+
+  const nuevas = calculadas.map(({ f, proximo, restante }, i) => {
+    const tr = cuerpo[i % cuerpo.length].cloneNode(true) as Element;
+    const celdas = hijos(tr, NS_A, 'tc');
+    const valores = [
+      f.sitio,
+      f.nombre,
+      f.horasUltimo === null ? '' : String(f.horasUltimo),
+      f.fechaUltimo ? fechaTablaGG(f.fechaUltimo) : '',
+      proximo === null ? '' : String(proximo),
+      f.fechaUltimo ? fechaTablaGG(sumarDias(f.fechaUltimo, f.dias)) : '',
+      f.horasRegistradas === null ? '' : String(f.horasRegistradas),
+      restante === null ? '' : String(restante),
+    ];
+    valores.forEach((texto, c) => {
+      const [p, ...sobrantes] = celdas[c] ? descendientes(celdas[c], NS_A, 'p') : [];
+      if (!p) return;
+      for (const extra of sobrantes) extra.parentNode?.removeChild(extra);
+      fijarTexto(p, texto);
+      if (achicar) for (const rPr of descendientes(p, NS_A, 'rPr')) rPr.setAttribute('sz', String(Math.max(900, (Number(rPr.getAttribute('sz')) || 1200) - 200)));
+    });
+    const ultima = celdas[valores.length - 1];
+    if (ultima && restante !== null) {
+      for (const rPr of descendientes(ultima, NS_A, 'rPr')) colorDeTexto(rPr, restante >= 0 ? COLOR_RESTANTE.quedan : COLOR_RESTANTE.pasadas);
+    }
+    if (achicar) tr.setAttribute('h', String(Math.min(Number(tr.getAttribute('h')) || altoFila, altoFila)));
+    if (i >= cuerpo.length) {
+      for (const id of descendientes(tr, NS_A16, 'rowId')) id.setAttribute('val', String((ultimoId = (ultimoId + 1) % 4294967296)));
+    }
+    return tr;
+  });
+  for (const tr of cuerpo) tabla.removeChild(tr);
+  for (const tr of nuevas) tabla.appendChild(tr);
+  if (achicar && extMarco) {
+    extMarco.setAttribute('cy', String(altoCabecera + nuevas.reduce((suma, tr) => suma + (Number(tr.getAttribute('h')) || 0), 0)));
+  }
+
+  const incompletos = filas.filter(f => f.horasUltimo === null || f.fechaUltimo === null || f.horasRegistradas === null).map(f => f.sitio);
+  if (incompletos.length) {
+    avisos.push(`Lámina 21: falta el último mantenimiento o las horas registradas de ${incompletos.join(', ')}. Complétalo en la Tabla de mantenimiento GG.`);
+  }
+}
+
 async function fijarFechasDeCorte(ctx: Contexto, datos: DatosPresentacion) {
   const fin = datos.fin;
   const textosDe = (lamina: Lamina) => descendientes(arbolDeLamina(lamina), NS_P, 'sp');
@@ -1099,6 +1182,7 @@ export async function generarPresentacionTurno(datos: DatosPresentacion): Promis
   }
 
   await fijarFechasDeCorte(ctx, datos);
+  if (datos.mantenimientoGG?.length) llenarEstadoMantenimientoGG(await abrirLamina(ctx, 21), datos.mantenimientoGG, avisos);
 
   for (const lamina of ctx.laminas.values()) {
     zip.file(`ppt/slides/slide${lamina.numero}.xml`, escribir(lamina.doc), { createFolders: false });

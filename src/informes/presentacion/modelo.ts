@@ -2,6 +2,7 @@
 import { esSemillaSinEditar, type BorradorEntry, type EvidenceBlockLike } from '../../datos/borradoresDiario';
 import type { SemanaTurno } from '../../datos/turnos';
 import { conPorDefecto, consolidarActividades, esMantencion, repiteActividad, sinAcentos } from './criterios';
+import type { FilaOmFds } from './modeloFds';
 
 export interface DifusionDia {
   /** Título de la actividad tal como sale en la lámina (ej: "ART: Conducción vehículo liviano."). */
@@ -36,6 +37,11 @@ export interface DatosPresentacion {
   observacionesNoche: string[];
   /** Actividades de mantención de los Informes Diarios del periodo, tal como se escribieron. Marcan REALIZADO en la lámina 8. */
   mantenciones: string[];
+  /**
+   * Lámina 21 (estado de mantenimiento de GG): una fila por generador con el dato más nuevo hasta el último día del
+   * turno (Tabla de mantenimiento GG, informes de mantenimiento y reportes de GG). Sin filas queda la tabla de la plantilla.
+   */
+  mantenimientoGG?: FilaOmFds[];
 }
 
 // Registros individuales de rutina: no entran al resumen del turno.

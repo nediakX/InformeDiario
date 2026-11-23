@@ -196,7 +196,7 @@ export default function PresentacionFds({ semana, borradores, auto, cargando, er
 
         {cargando && (
           <p className="text-xs text-[#0E4660] flex items-center gap-2">
-            <Loader2 size={14} className="animate-spin" /> Leyendo los reportes de GG y los mantenimientos de la base…
+            <Loader2 size={14} className="animate-spin" /> Leyendo los reportes de GG y la tabla de mantenimiento…
           </p>
         )}
         {errorDatos && (
@@ -360,6 +360,9 @@ export default function PresentacionFds({ semana, borradores, auto, cargando, er
           <h3 className={TITULO_BLOQUE}>Mantenimiento preventivo</h3>
           <span className="text-xs text-gray-600">{sitiosCompletos} de {datos.om.length} sitios completos</span>
         </div>
+        <p className="text-xs text-gray-500">
+          Sale de la Tabla de mantenimiento GG, de los informes de mantenimiento y de los reportes de GG: el dato más nuevo hasta el {formatFechaLarga(fdsDeSemana(semana).corte)}.
+        </p>
         <div className="overflow-x-auto">
           <table className="w-full text-sm border-collapse">
             <thead>
