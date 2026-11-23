@@ -486,11 +486,18 @@ function conclusionDelDia(dia: DiaFds): string {
 // ---------------------------------------------------------------------------------------
 
 /** Borrador completo de la presentación de fin de semana a partir de los informes de la semana de turno. */
-export function construirPresentacionFds(entradas: BorradorEntry[], semana: SemanaTurno, auto: DatosAutoFds = SIN_DATOS_FDS): DatosFds {
+export function construirPresentacionFds(
+  entradas: BorradorEntry[],
+  semana: SemanaTurno,
+  auto: DatosAutoFds = SIN_DATOS_FDS,
+  /** Fecha de corte elegida en el formulario (por defecto, el lunes después del domingo). */
+  corteElegido?: string,
+): DatosFds {
   const validas = entradas.filter(e => !esSemillaSinEditar(e));
   const buscar = (fecha: string, turno: 'dia' | 'noche') => validas.find(e => e.fecha === fecha && e.turno === turno) ?? null;
 
-  const { fechas, inicio, fin, corte } = fdsDeSemana(semana);
+  const { fechas, inicio, fin, corte: corteDeLaSemana } = fdsDeSemana(semana);
+  const corte = corteElegido ?? corteDeLaSemana;
   const diurnos = fechas.map(fecha => buscar(fecha, 'dia'));
   const dias: DiaFds[] = fechas.map((fecha, k) => {
     const dia = diurnos[k];

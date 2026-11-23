@@ -23,13 +23,14 @@ export async function leerHorometros(division: Division, corte: string, sitios: 
   return horometros;
 }
 
-/** Reportes de GG del fin de semana y último horómetro de cada sitio de GG hasta la fecha de corte. */
+/** Reportes de GG del fin de semana y último horómetro de cada sitio de GG hasta la fecha de corte (por defecto, el lunes). */
 export async function leerReportesFds(
   division: Division,
   semana: SemanaTurno,
   sitios: string[] = sitiosDeLaPresentacion(),
+  corte: string = fdsDeSemana(semana).corte,
 ): Promise<Pick<DatosAutoFds, 'reportesFds' | 'horometros'>> {
-  const { inicio, fin, corte } = fdsDeSemana(semana);
+  const { inicio, fin } = fdsDeSemana(semana);
   const [reportes, horometros] = await Promise.all([
     todosLosReportesGG({ division, desde: inicio, hasta: fin }),
     leerHorometros(division, corte, sitios),

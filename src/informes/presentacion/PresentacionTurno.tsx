@@ -15,7 +15,7 @@ import { construirPresentacion, nombreArchivoPresentacion } from './modelo';
 import { generarPresentacionTurno } from './pptx';
 import PresentacionFds from './PresentacionFds';
 import { leerHorometros, leerReportesFds } from './datosFds';
-import { filasMantenimientoAl, mantenimientosGeneradorDe, sitiosConHorometro, type DatosAutoFds } from './modeloFds';
+import { fdsDeSemana, filasMantenimientoAl, mantenimientosGeneradorDe, sitiosConHorometro, type DatosAutoFds } from './modeloFds';
 import { listarMantenimientoGG, suscribirMantenimientoGG, type FilaMantenimientoGG } from '../../datos/mantenimientoGG';
 import type { Division } from '../../datos/divisiones';
 import { HORAS_ENTRE_MANTENIMIENTOS } from '../../datos/indicadoresMantenimientoGG';
@@ -73,6 +73,8 @@ export default function PresentacionTurno({ onBack, modoInicial = 'completo', bo
   const [lecturaTabla, setLecturaTabla] = useState<{ division: Division; filas: FilaMantenimientoGG[] } | null>(null);
   const [lecturaHorasTurno, setLecturaHorasTurno] = useState<LecturaHorasTurno | null>(null);
   const [recargaTurno, setRecargaTurno] = useState(0);
+  // Fecha de corte del fin de semana elegida en el formulario, por semana (las horas se leen hasta esa fecha).
+  const [cortesFds, setCortesFds] = useState<Record<string, string>>({});
 
   const semana = useMemo(() => semanaDeFecha(fechaSemana), [fechaSemana]);
   const datos = useMemo(() => construirPresentacion(borradores, semana), [borradores, semana]);
@@ -82,8 +84,9 @@ export default function PresentacionTurno({ onBack, modoInicial = 'completo', bo
   const tablaMtto = lecturaTabla?.division === division ? lecturaTabla.filas : null;
   // Sitios cuyos horómetros se leen (los de la presentación y los que agregue la tabla), como texto para no releer por nada.
   const claveSitiosHoras = useMemo(() => sitiosConHorometro(tablaMtto ?? []).join('|'), [tablaMtto]);
-  // La clave identifica la división, la semana y la última recarga: si la lectura guardada no es de esa clave, todavía no llegó.
-  const claveFds = `${division}|${semana.inicio}|${recargaFds}|${claveSitiosHoras}`;
+  const corteFds = cortesFds[semana.inicio] || fdsDeSemana(semana).corte;
+  // La clave identifica la división, la semana, el corte y la última recarga: si la lectura guardada no es de esa clave, todavía no llegó.
+  const claveFds = `${division}|${semana.inicio}|${corteFds}|${recargaFds}|${claveSitiosHoras}`;
   const lectura = lecturaFds?.clave === claveFds ? lecturaFds : null;
   const cargandoFds = modo === 'fds' && (lectura === null || tablaMtto === null);
   const errorFds = lectura?.error ?? null;
@@ -175,7 +178,7 @@ export default function PresentacionTurno({ onBack, modoInicial = 'completo', bo
   useEffect(() => {
     if (modo !== 'fds') return;
     let vigente = true;
-    leerReportesFds(division, semana, claveSitiosHoras.split('|'))
+    leerReportesFds(division, semana, claveSitiosHoras.split('|'), corteFds)
       .then(datos => { if (vigente) setLecturaFds({ clave: claveFds, datos, error: null }); })
       .catch(error => {
         console.error(error);
@@ -184,7 +187,7 @@ export default function PresentacionTurno({ onBack, modoInicial = 'completo', bo
         }
       });
     return () => { vigente = false; };
-  }, [modo, division, semana, claveFds, claveSitiosHoras]);
+  }, [modo, division, semana, claveFds, claveSitiosHoras, corteFds]);
 
   const hayInformes = datos.dias.some(d => d.tieneInforme);
   // Días con informe (o con Turno Noche) cuyo recuadro de reportabilidad GG queda sin foto.
@@ -427,6 +430,7 @@ export default function PresentacionTurno({ onBack, modoInicial = 'completo', bo
             cargando={cargandoFds}
             errorDatos={errorFds}
             onActualizar={() => setRecargaFds(n => n + 1)}
+            onCambiarCorte={corte => setCortesFds(previos => ({ ...previos, [semana.inicio]: corte }))}
           />
         </div>
       </main>

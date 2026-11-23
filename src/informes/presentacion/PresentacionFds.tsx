@@ -7,7 +7,7 @@ import { useSesion } from '../../auth/sesion';
 import { getDefaultPersonal, getPersonalGuardado, type PersonalItem } from '../diario/constantes';
 import type { SemanaTurno } from '../../datos/turnos';
 import {
-  avisosFds, carrosReportandoDe, construirPresentacionFds, datosFdsDesde, fdsDeSemana, nombreArchivoPresentacionFds, rotuloDiaFds,
+  avisosFds, carrosReportandoDe, construirPresentacionFds, datosFdsDesde, fdsDeSemana, nombreArchivoPresentacionFds, parseFechaFds, rotuloDiaFds,
   SITIOS_FDS, textosFdsDesde, type DatosAutoFds,
 } from './modeloFds';
 import { generarPresentacionFds } from './pptxFds';
@@ -22,6 +22,8 @@ interface PresentacionFdsProps {
   /** Si no se pudieron leer los datos de la base (se muestra con un botón para reintentar). */
   errorDatos: string | null;
   onActualizar: () => void;
+  /** La fecha de corte cambió en el formulario (AAAA-MM-DD; vacía = la de la semana): las horas se vuelven a leer hasta esa fecha. */
+  onCambiarCorte: (corte: string) => void;
 }
 
 /** Textos del formulario por clave (ver textosFdsDesde en modeloFds). */
@@ -71,12 +73,17 @@ function Campo({ id, titulo, valor, onChange, filas = 4, tabla = false }: {
 }
 
 /** Presentación de fin de semana (viernes a domingo de la semana de turno): casi todo sale solo; se corrige lo que haga falta. */
-export default function PresentacionFds({ semana, borradores, auto, cargando, errorDatos, onActualizar }: PresentacionFdsProps) {
+export default function PresentacionFds({ semana, borradores, auto, cargando, errorDatos, onActualizar, onCambiarCorte }: PresentacionFdsProps) {
   const { division } = useSesion();
-  const prefill = useMemo(() => textosFdsDesde(construirPresentacionFds(borradores, semana, auto)), [borradores, semana, auto]);
   // Lo que la persona cambió, por semana. Lo que no cambió sigue a los informes y a la base (si cambian, se actualiza).
   const [ediciones, setEdiciones] = useState<Record<string, Textos>>({});
   const edicion = ediciones[semana.inicio];
+  // Con otra fecha de corte, la tabla de mantenimiento se calcula a esa fecha.
+  const corteElegido = parseFechaFds(edicion?.fechaCorte ?? '') ?? undefined;
+  const prefill = useMemo(
+    () => textosFdsDesde(construirPresentacionFds(borradores, semana, auto, corteElegido)),
+    [borradores, semana, auto, corteElegido],
+  );
   const valor = (clave: string) => edicion?.[clave] ?? prefill[clave] ?? '';
   const cambiar = (clave: string, texto: string) =>
     setEdiciones(previas => ({ ...previas, [semana.inicio]: { ...previas[semana.inicio], [clave]: texto } }));
@@ -293,10 +300,10 @@ export default function PresentacionFds({ semana, borradores, auto, cargando, er
               id="fds-fecha-corte"
               type="date"
               value={valor('fechaCorte')}
-              onChange={e => cambiar('fechaCorte', e.target.value)}
+              onChange={e => { cambiar('fechaCorte', e.target.value); onCambiarCorte(parseFechaFds(e.target.value) ?? ''); }}
               className="p-2 border border-[#DCE1E6] rounded-md text-sm"
             />
-            <p className="text-xs text-gray-500 mt-1">Por defecto, el lunes después del domingo.</p>
+            <p className="text-xs text-gray-500 mt-1">Por defecto, el lunes después del domingo. La tabla de mantenimiento se calcula a esta fecha.</p>
           </div>
         </div>
       </section>
@@ -361,7 +368,7 @@ export default function PresentacionFds({ semana, borradores, auto, cargando, er
           <span className="text-xs text-gray-600">{sitiosCompletos} de {datos.om.length} sitios completos</span>
         </div>
         <p className="text-xs text-gray-500">
-          Sale de la Tabla de mantenimiento GG, de los informes de mantenimiento y de los reportes de GG: el dato más nuevo hasta el {formatFechaLarga(fdsDeSemana(semana).corte)}.
+          Sale de la Tabla de mantenimiento GG, de los informes de mantenimiento y de los reportes de GG: el dato más nuevo hasta el {formatFechaLarga(corteElegido ?? fdsDeSemana(semana).corte)}.
         </p>
         <div className="overflow-x-auto">
           <table className="w-full text-sm border-collapse">
