@@ -1,15 +1,14 @@
 // Archivo de documentos: los documentos en papel (ART, registros, charlas, checklists, permisos…) que se
 // escanearon o fotografiaron en los informes de una división, para buscarlos y bajarlos en PDF con su nombre.
+// Solo documentos: las fotos del trabajo (equipos, antenas, filtros, bloqueos, vistas del sitio…) no entran.
 //
-// Las fotos no guardan si salieron del escáner: es documento la casilla que la app ya trata como
-// documentación (la misma regla que destaca el botón "Escanear" en cada informe) y las hojas del Checklist de
-// camioneta. Las demás fotos de los informes también se pueden ver, aparte.
+// Las fotos no guardan si salieron del escáner: es documento la casilla cuyo nombre es el de un documento
+// (ver esDocumentoEnPapel), las casillas de Documentación de la mantención preventiva y las hojas del Checklist
+// de camioneta.
 //
 // Un documento son las fotos de una misma casilla o bloque del informe (cada foto es una página del PDF).
 import type { BorradorEntry } from './borradoresDiario';
 import type { BorradorOtroEntry } from './borradoresOtros';
-import { VERTIV_CARROS_FLAT, VERTIV_ITEMS } from './plantillaWord';
-import { pareceDocumento } from '../lib/documentosEscaneables';
 import { esPreventiva } from '../informes/preventiva/modelo';
 
 export type OrigenDocumento = 'diario' | 'mantenimiento' | 'preventiva' | 'falla' | 'cierre';
@@ -44,9 +43,27 @@ export interface DocumentoArchivo {
   /** Informe del que sale, en corto: "Turno Día A", "LTE_CMF_11", "Carro LTE 05"… */
   informe: string;
   informeId: string;
-  /** false = foto que no es un documento (se muestra solo si se piden todas las fotos). */
-  esDocumento: boolean;
 }
+
+// Palabras de un documento en papel. Se buscan solo en el nombre de la casilla o del bloque: la sección y la
+// descripción hablan del trabajo ("Inspección visual de torre y antenas", "según procedimiento LOTO") y no dicen
+// si la foto es de un documento.
+const PALABRAS_DOCUMENTO = [
+  'art', 'ast', 'pts', 'permisos?', 'charlas?', 'check ?lists?', 'formularios?', 'actas?', 'autorizaci[oó]n(?:es)?',
+  'certificados?', 'encuestas?', 'autoevaluaci[oó]n', 'declaraci[oó]n', 'bit[aá]coras?', 'licencias?', 'planillas?',
+  'documentos?', 'documentaci[oó]n', 'orden(?:es)? de trabajo', 'ot', 'instructivos?', 'pautas?', 'hojas? de', 'libros? de',
+  'listas? de (?:verificaci[oó]n|asistencia)', 'verificaci[oó]n de [^.]*?entorno', 'fatiga', 'alta visibilidad',
+  'inspecci[oó]n de radios', 'alcohol', 'difusi[oó]n', 'capacitaci[oó]n', 'inducci[oó]n',
+  // "Registro ART", "Registro de Reunión…" sí; "Registro fotográfico" y "Registro de mantenimiento de GG" son fotos.
+  'registros?(?!\\s+(?:fotogr|de\\s+(?:mantenimiento|mantenci)))',
+].join('|');
+const ES_DOCUMENTO = new RegExp(`\\b(?:${PALABRAS_DOCUMENTO})\\b`, 'i');
+const EMPIEZA_COMO_DOCUMENTO = new RegExp(`^\\s*(?:${PALABRAS_DOCUMENTO})\\b`, 'i');
+
+/** ¿El nombre es el de un documento en papel? ("Registro ART", "Charla 5 Minutos", "Check list de…"). */
+export const esDocumentoEnPapel = (nombre: string) => ES_DOCUMENTO.test(nombre.normalize('NFC'));
+/** Para casillas sin nombre: la descripción empieza como un documento ("ART de actividad realizada."). */
+const empiezaComoDocumento = (descripcion: string) => EMPIEZA_COMO_DOCUMENTO.test(descripcion.normalize('NFC'));
 
 const texto = (v: unknown): string => (typeof v === 'string' ? v.replace(/\s+/g, ' ').trim() : '');
 const primeraLinea = (v: unknown): string => texto(typeof v === 'string' ? v.split(/\r?\n/)[0] : '');
@@ -61,7 +78,7 @@ export function limpiarNombre(t: string): string {
   return limpio ? limpio.charAt(0).toUpperCase() + limpio.slice(1) : '';
 }
 
-/** Junta las fotos por documento (mismo nombre y sección), en el orden en que aparecen. */
+/** Junta las fotos por documento (mismo nombre y sección), en el orden en que aparecen. Las que no son documentos no entran. */
 class Recolector {
   private grupos = new Map<string, DocumentoArchivo>();
   private base: Pick<DocumentoArchivo, 'fecha' | 'origen' | 'informe' | 'informeId'>;
@@ -69,18 +86,17 @@ class Recolector {
 
   agregar(nombre: string, fotos: string[], esDocumento: boolean, seccion = '', clave = '') {
     const paginas = fotos.filter(esFoto);
-    if (!paginas.length) return;
-    const nombreLimpio = limpiarNombre(nombre) || 'Foto';
+    if (!esDocumento || !paginas.length) return;
+    const nombreLimpio = limpiarNombre(nombre) || 'Documento';
     const llave = `${clave}|${seccion}|${nombreLimpio}`;
     const existente = this.grupos.get(llave);
     if (existente) {
       existente.paginas = sinRepetir([...existente.paginas, ...paginas]);
-      existente.esDocumento ||= esDocumento;
       return;
     }
     this.grupos.set(llave, {
       ...this.base, id: `${this.base.origen}:${this.base.informeId}:${this.grupos.size}`,
-      nombre: nombreLimpio, seccion: limpiarNombre(seccion), paginas: sinRepetir(paginas), esDocumento,
+      nombre: nombreLimpio, seccion: limpiarNombre(seccion), paginas: sinRepetir(paginas),
     });
   }
 
@@ -100,10 +116,9 @@ function deDiario(b: BorradorEntry): DocumentoArchivo[] {
     }
     const otrasDelChecklist = fotos.filter(f => !delChecklist.has(f) && f.includes('/checklist/'));
     r.agregar('Checklist de camioneta', otrasDelChecklist, true, '', 'checklist');
-    r.agregar(bloque.title ?? '', fotos.filter(f => !delChecklist.has(f) && !f.includes('/checklist/')), pareceDocumento(bloque.title));
+    const titulo = bloque.title ?? '';
+    r.agregar(titulo, fotos.filter(f => !delChecklist.has(f) && !f.includes('/checklist/')), esDocumentoEnPapel(titulo));
   }
-  (b.vertivCarroPhotos ?? []).forEach((f, i) => r.agregar(`Vertiv ${VERTIV_CARROS_FLAT[i] ?? `carro ${i + 1}`}`, [f as string], false));
-  (b.vertivItemPhotos ?? []).forEach((f, i) => r.agregar(`Vertiv · ${VERTIV_ITEMS[i] ?? `ítem ${i + 1}`}`, [f as string], false));
   return r.lista();
 }
 
@@ -117,7 +132,8 @@ function deMantenimiento(e: BorradorOtroEntry): DocumentoArchivo[] {
   for (const item of comoLista(d.fotos)) {
     const leyenda = texto(item.caption);
     const seccion = texto(item.section);
-    r.agregar(leyenda || seccion, [item.photo as string], pareceDocumento(leyenda, seccion, texto(item.description)), seccion);
+    const esDoc = leyenda ? esDocumentoEnPapel(leyenda) : empiezaComoDocumento(texto(item.description));
+    r.agregar(leyenda || seccion, [item.photo as string], esDoc, seccion);
   }
   return r.lista();
 }
@@ -132,7 +148,9 @@ function dePreventiva(e: BorradorOtroEntry): DocumentoArchivo[] {
     for (const f of comoLista(s.fotos)) {
       const titulo = texto(f.titulo);
       const descripcion = texto(f.descripcion);
-      const esDoc = f.formato === 'doc' || pareceDocumento(descripcion, titulo, tituloSeccion);
+      // Las casillas de la sección Documentación (formato documento) y las que se nombraron como documento.
+      const esDoc = f.formato === 'doc' || s.clave === 'documentacion'
+        || (titulo ? esDocumentoEnPapel(titulo) : empiezaComoDocumento(descripcion));
       r.agregar(titulo || descripcion || tituloSeccion, [f.photo as string], esDoc, tituloSeccion, texto(s.id));
     }
   }
@@ -146,9 +164,8 @@ function deFalla(e: BorradorOtroEntry): DocumentoArchivo[] {
     const leyenda = primeraLinea(g.caption);
     const nota = primeraLinea(g.nota);
     for (const slot of comoLista(g.fotos)) {
-      const propia = texto(slot.caption);
-      r.agregar(propia || leyenda || nota || 'Registro fotográfico', [slot.photo as string],
-        pareceDocumento(texto(g.nota), texto(g.caption), propia), '', texto(g.id));
+      const nombre = texto(slot.caption) || leyenda || nota;
+      r.agregar(nombre, [slot.photo as string], esDocumentoEnPapel(nombre), '', texto(g.id));
     }
   }
   return r.lista();
@@ -159,19 +176,14 @@ function deCierre(e: BorradorOtroEntry): DocumentoArchivo[] {
   const r = new Recolector({ fecha: e.fecha, origen: 'cierre', informe: 'Semana', informeId: e.id });
   for (const s of comoLista(d.seccionesImagenes)) {
     const titulo = texto(s.title);
-    r.agregar(titulo, (Array.isArray(s.photos) ? s.photos : []) as string[], pareceDocumento(titulo), '', texto(s.id));
-  }
-  for (const c of comoLista(d.camionetas)) {
-    const placa = texto(c.placa);
-    r.agregar(`Camioneta ${placa} (antes)`, [c.antes as string], false);
-    r.agregar(`Camioneta ${placa} (después)`, [c.despues as string], false);
+    r.agregar(titulo, (Array.isArray(s.photos) ? s.photos : []) as string[], esDocumentoEnPapel(titulo), '', texto(s.id));
   }
   return r.lista();
 }
 
 const ORDEN_ORIGEN: Record<OrigenDocumento, number> = { diario: 0, mantenimiento: 1, preventiva: 2, falla: 3, cierre: 4 };
 
-/** Todos los documentos (y las demás fotos) de los informes, del más nuevo al más antiguo. */
+/** Todos los documentos de los informes, del más nuevo al más antiguo. */
 export function documentosDeInformes(fuentes: {
   diarios: BorradorEntry[]; mantenimientos: BorradorOtroEntry[]; fallas: BorradorOtroEntry[]; cierres?: BorradorOtroEntry[];
 }): DocumentoArchivo[] {

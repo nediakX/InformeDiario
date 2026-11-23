@@ -51,7 +51,6 @@ export default function ArchivoDocumentos({ onBack, diarios, mantenimientos, fal
   const [origen, setOrigen] = useState<OrigenDocumento | 'todos'>('todos');
   const [desde, setDesde] = useState('');
   const [hasta, setHasta] = useState('');
-  const [todasLasFotos, setTodasLasFotos] = useState(false);
   const [limite, setLimite] = useState(POR_PAGINA);
   const [abierto, setAbierto] = useState<DocumentoArchivo | null>(null);
   const [descargandoId, setDescargandoId] = useState<string | null>(null);
@@ -66,10 +65,9 @@ export default function ArchivoDocumentos({ onBack, diarios, mantenimientos, fal
   );
   // Con todos los filtros menos el tipo de informe (así cada tipo muestra cuántos tiene).
   const sinFiltroDeOrigen = useMemo(() => todos.filter(d =>
-    (todasLasFotos || d.esDocumento)
-    && (!desde || d.fecha >= desde)
+    (!desde || d.fecha >= desde)
     && (!hasta || d.fecha <= hasta)
-    && coincideBusqueda(d, busqueda)), [todos, todasLasFotos, desde, hasta, busqueda]);
+    && coincideBusqueda(d, busqueda)), [todos, desde, hasta, busqueda]);
   const visibles = useMemo(
     () => (origen === 'todos' ? sinFiltroDeOrigen : sinFiltroDeOrigen.filter(d => d.origen === origen)),
     [sinFiltroDeOrigen, origen],
@@ -79,7 +77,6 @@ export default function ArchivoDocumentos({ onBack, diarios, mantenimientos, fal
     for (const d of sinFiltroDeOrigen) n[d.origen] += 1;
     return n;
   }, [sinFiltroDeOrigen]);
-  const totalDocumentos = useMemo(() => todos.filter(d => d.esDocumento).length, [todos]);
   const informes = useMemo(() => new Set(visibles.map(d => `${d.origen}:${d.informeId}`)).size, [visibles]);
   const grupos = useMemo(() => {
     const lista: { fecha: string; docs: DocumentoArchivo[] }[] = [];
@@ -90,11 +87,11 @@ export default function ArchivoDocumentos({ onBack, diarios, mantenimientos, fal
     }
     return lista;
   }, [visibles, limite]);
-  const hayFiltros = busqueda.trim() !== '' || origen !== 'todos' || desde !== '' || hasta !== '' || todasLasFotos;
+  const hayFiltros = busqueda.trim() !== '' || origen !== 'todos' || desde !== '' || hasta !== '';
 
   // Al cambiar un filtro se vuelve a la primera página de resultados.
   const filtrar = (cambio: () => void) => { cambio(); setLimite(POR_PAGINA); };
-  const limpiarFiltros = () => filtrar(() => { setBusqueda(''); setOrigen('todos'); setDesde(''); setHasta(''); setTodasLasFotos(false); });
+  const limpiarFiltros = () => filtrar(() => { setBusqueda(''); setOrigen('todos'); setDesde(''); setHasta(''); });
 
   useEffect(() => {
     if (!abierto) return;
@@ -226,13 +223,11 @@ export default function ArchivoDocumentos({ onBack, diarios, mantenimientos, fal
             ))}
           </div>
 
-          <div className="arch-pie-filtros">
-            <label className="arch-check">
-              <input type="checkbox" checked={todasLasFotos} onChange={e => filtrar(() => setTodasLasFotos(e.target.checked))} />
-              Mostrar también las fotos que no son documentos
-            </label>
-            {hayFiltros && <button type="button" className="arch-enlace" onClick={limpiarFiltros}>Limpiar filtros</button>}
-          </div>
+          {hayFiltros && (
+            <div className="arch-pie-filtros">
+              <button type="button" className="arch-enlace" onClick={limpiarFiltros}>Limpiar filtros</button>
+            </div>
+          )}
         </section>
 
         {!enLinea && (
@@ -247,7 +242,7 @@ export default function ArchivoDocumentos({ onBack, diarios, mantenimientos, fal
 
         {visibles.length > 0 && (
           <p className="arch-resumen">
-            {plural(visibles.length, todasLasFotos ? 'documento o foto' : 'documento', todasLasFotos ? 'documentos y fotos' : 'documentos')} de {plural(informes, 'informe', 'informes')}
+            {plural(visibles.length, 'documento', 'documentos')} de {plural(informes, 'informe', 'informes')}
           </p>
         )}
 
@@ -258,7 +253,7 @@ export default function ArchivoDocumentos({ onBack, diarios, mantenimientos, fal
               {grupo.docs.map(doc => {
                 const portada = doc.paginas[0];
                 return (
-                  <li key={doc.id} className={`arch-doc${doc.esDocumento ? '' : ' arch-doc--foto'}`}>
+                  <li key={doc.id} className="arch-doc">
                     <button type="button" className="arch-doc__vista" onClick={() => setAbierto(doc)} aria-label={`Ver ${doc.nombre}`}>
                       {sinVista.has(portada) ? (
                         <span className="arch-doc__sin-vista"><FileText size={26} aria-hidden="true" /> Sin vista previa</span>
@@ -294,7 +289,7 @@ export default function ArchivoDocumentos({ onBack, diarios, mantenimientos, fal
         {visibles.length === 0 && (
           <div className="panel arch-vacio">
             <FileText size={30} aria-hidden="true" />
-            {totalDocumentos === 0 && !todasLasFotos ? (
+            {todos.length === 0 ? (
               <p>Aún no hay documentos escaneados en los informes de la {config.nombre}. Aparecen aquí apenas se agregan en un informe (ART, registros, charlas, checklists…).</p>
             ) : (
               <>

@@ -54,8 +54,6 @@
 .arch-chip[aria-pressed="true"] > span { background: rgba(255, 255, 255, 0.2); color: #fff; }
 
 .arch-pie-filtros { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
-.arch-check { display: inline-flex; align-items: center; gap: 8px; font-size: 0.85rem; color: var(--text-soft); cursor: pointer; }
-.arch-check input { width: 18px; height: 18px; accent-color: var(--brand-blue); }
 .arch-enlace { border: 0; background: none; padding: 4px 2px; color: var(--brand-text); font-size: 0.84rem; font-weight: 700; text-decoration: underline; cursor: pointer; }
 
 .arch-aviso {
@@ -88,7 +86,6 @@
   background: var(--panel-2); cursor: zoom-in; overflow: hidden;
 }
 .arch-doc__vista img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: top center; }
-.arch-doc--foto .arch-doc__vista img { object-position: center; }
 .arch-doc__paginas {
   position: absolute; right: 6px; bottom: 6px; padding: 2px 8px; border-radius: 999px; background: rgba(20, 24, 28, 0.78);
   color: #fff; font-size: 0.7rem; font-weight: 800;
