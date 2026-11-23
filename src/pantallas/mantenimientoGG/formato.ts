@@ -1,5 +1,6 @@
 // Formatos y tipos de la tabla de mantenimiento GG (lo que comparten las tres pestañas).
-import type { SitioGG } from '../../datos/analisisGG';
+import { TEMP_ATENCION, TEMP_CRITICA, esNoRealizada, type SitioGG } from '../../datos/analisisGG';
+import type { ReporteGG } from '../../datos/reportesGG';
 import type { CambiosMantenimientoGG, FilaMantenimientoGG } from '../../datos/mantenimientoGG';
 import type { IndicadoresCorrea, IndicadoresMantenimiento, LecturaHoras, Vencimiento } from '../../datos/indicadoresMantenimientoGG';
 import { formatDiaMes, formatFechaCorta, hoyLocalISO } from '../../datos/fechas';
@@ -29,6 +30,20 @@ export interface AccionesEquipo {
 
 /** Valores del refrigerante como se muestran (en la base van como en el formulario de Google). */
 export const NOMBRE_REFRIGERANTE: Record<string, string> = { Minimo: 'Mínimo', Medio: 'Medio', Alta: 'Alta' };
+
+/** Refrigerante como se muestra ("Minimo" → "Mínimo"); "—" si no hay dato. */
+export const nombreRefrigerante = (r: string | null | undefined) => NOMBRE_REFRIGERANTE[r ?? ''] ?? r ?? '—';
+
+/** Colores de los datos de un reporte de GG (rojo: crítico; ámbar: atención). */
+export const claseCombustible = (c: string | null) => (c === '1/4' ? 'mgg-valor--vencido' : '');
+export const claseRefrigerante = (r: string | null) => (r === 'Minimo' ? 'mgg-valor--proximo' : '');
+export const claseAceite = (a: string | null) => (a === 'Bajo' ? 'mgg-valor--vencido' : a === 'Sobre Relleno' ? 'mgg-valor--proximo' : '');
+export const claseTemperatura = (t: number | null) => (t === null ? '' : t >= TEMP_CRITICA ? 'mgg-valor--vencido' : t >= TEMP_ATENCION ? 'mgg-valor--proximo' : '');
+export const fmtTemp = (t: number | null) => (t === null ? '—' : `${fmtHoras(t)} °C`);
+
+/** Último reporte de GG con mediciones (los "no realizada" no traen combustible ni niveles). */
+export const ultimoReporteConDatos = (s: SitioGG | null): ReporteGG | null =>
+  s ? [...s.serie].reverse().find(r => !esNoRealizada(r)) ?? null : null;
 
 /** Clase de color para un valor según su estado (rojo vencido, ámbar próximo). */
 export const claseValor = (e: Vencimiento) => (e === 'vencido' || e === 'proximo' ? `mgg-valor--${e}` : '');

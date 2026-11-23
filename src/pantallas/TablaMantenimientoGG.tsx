@@ -43,6 +43,11 @@ const PESTANAS: { id: Pestana; titulo: string; corto: string }[] = [
   { id: 'reportes', titulo: 'Reportabilidad', corto: 'Reportes' },
 ];
 const CLAVE_PESTANA = 'psinet_mtto_gg_pestana';
+/** "Ver el último reporte de GG" en la pestaña Mantenimiento (se recuerda en este equipo). */
+const CLAVE_CON_REPORTES = 'psinet_mtto_gg_con_reportes';
+const leerConReportes = (): boolean => {
+  try { return localStorage.getItem(CLAVE_CON_REPORTES) === '1'; } catch { return false; }
+};
 const leerPestana = (): Pestana => {
   try {
     const p = localStorage.getItem(CLAVE_PESTANA);
@@ -81,6 +86,11 @@ export default function TablaMantenimientoGG({ onBack }: { onBack: () => void })
   const [error, setError] = useState('');
   const [version, setVersion] = useState(0);
   const [pestana, setPestana] = useState<Pestana>(leerPestana);
+  const [conReportes, setConReportes] = useState<boolean>(leerConReportes);
+  const cambiarConReportes = (valor: boolean) => {
+    setConReportes(valor);
+    try { localStorage.setItem(CLAVE_CON_REPORTES, valor ? '1' : '0'); } catch { /* sin almacenamiento */ }
+  };
   const [filtro, setFiltro] = useState<Vencimiento | null>(null);
   const [guardados, setGuardados] = useState<Record<string, EstadoGuardado>>({});
   const [registro, setRegistro] = useState<{ tipo: TipoRegistro; sitio: string } | null>(null);
@@ -360,19 +370,30 @@ export default function TablaMantenimientoGG({ onBack }: { onBack: () => void })
               </div>
 
               <div role="tabpanel" id={`mgg-panel-${pestana}`} aria-labelledby={`mgg-pestana-${pestana}`} className="mgg-contenido">
-                {(pestana !== 'reportes' || reportesListos) && (
-                  <div className="mgg-filtros" role="group" aria-label="Ver solo">
-                    {ORDEN_FILTROS.filter(v => conteo[v] > 0).map(v => (
-                      <button key={v} type="button" aria-pressed={filtroActivo === v} className={`mgg-filtro mgg-filtro--${v}`}
-                        onClick={() => setFiltro(f => (f === v ? null : v))}>
-                        <b>{conteo[v]}</b> {FILTROS[pestana][v][conteo[v] === 1 ? 0 : 1]}
-                      </button>
-                    ))}
-                    {filtroActivo && <button type="button" className="mgg-enlace" onClick={() => setFiltro(null)}>Ver todos</button>}
-                  </div>
-                )}
+                <div className="mgg-barra-filtros">
+                  {(pestana !== 'reportes' || reportesListos) && (
+                    <div className="mgg-filtros" role="group" aria-label="Ver solo">
+                      {ORDEN_FILTROS.filter(v => conteo[v] > 0).map(v => (
+                        <button key={v} type="button" aria-pressed={filtroActivo === v} className={`mgg-filtro mgg-filtro--${v}`}
+                          onClick={() => setFiltro(f => (f === v ? null : v))}>
+                          <b>{conteo[v]}</b> {FILTROS[pestana][v][conteo[v] === 1 ? 0 : 1]}
+                        </button>
+                      ))}
+                      {filtroActivo && <button type="button" className="mgg-enlace" onClick={() => setFiltro(null)}>Ver todos</button>}
+                    </div>
+                  )}
+                  {pestana === 'mantenimiento' && (
+                    <label className="mgg-opcion" title="Combustible, refrigerante, aceite, temperatura y partidas del último reporte de GG de cada generador">
+                      <input type="checkbox" checked={conReportes} onChange={ev => cambiarConReportes(ev.target.checked)} />
+                      Ver el último reporte de GG
+                    </label>
+                  )}
+                </div>
 
-                {pestana === 'mantenimiento' && <PestanaMantenimiento equipos={visibles} guardados={guardadosVisibles} acciones={acciones} faltaActualizarBD={tabla.faltaActualizarBD} />}
+                {pestana === 'mantenimiento' && (
+                  <PestanaMantenimiento equipos={visibles} guardados={guardadosVisibles} acciones={acciones} faltaActualizarBD={tabla.faltaActualizarBD}
+                    conReportes={conReportes} cargandoReportes={!analisis && !errorReportes} />
+                )}
                 {pestana === 'correa' && <PestanaCorrea equipos={visibles} guardados={guardadosVisibles} acciones={acciones} faltaActualizarBD={tabla.faltaActualizarBD} />}
                 {pestana === 'reportes' && <PestanaReportes equipos={visibles} cargando={!analisis && !errorReportes} error={errorReportes && !analisis} />}
               </div>

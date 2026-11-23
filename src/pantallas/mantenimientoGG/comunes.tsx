@@ -5,6 +5,16 @@ import type { Vencimiento } from '../../datos/indicadoresMantenimientoGG';
 import { hoyLocalISO } from '../../datos/fechas';
 import { ETIQUETA_ESTADO, fmtHoras, leerHoras, type EstadoGuardado } from './formato';
 
+/** Combustible en 4 segmentos (1/4 · 1/2 · 3/4 · Lleno). */
+export function Estanque({ nivel }: { nivel: string | null }) {
+  const llenos = nivel === 'Lleno' ? 4 : nivel === '3/4' ? 3 : nivel === '1/2' ? 2 : nivel === '1/4' ? 1 : 0;
+  return (
+    <span className="mgg-estanque" aria-hidden="true">
+      {[1, 2, 3, 4].map(i => <span key={i} className={i <= llenos ? (llenos === 1 ? 'bajo' : 'lleno') : ''} />)}
+    </span>
+  );
+}
+
 export function Estado({ estado, texto }: { estado: Vencimiento; texto?: string }) {
   return <span className={`mgg-estado mgg-estado--${estado}`}>{texto ?? ETIQUETA_ESTADO[estado]}</span>;
 }

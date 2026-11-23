@@ -2,12 +2,15 @@
 // combustible, niveles y temperatura), sus alertas y los últimos reportes, para el electromecánico.
 import { Fragment, useState } from 'react';
 import { ChevronDown, ExternalLink, History } from 'lucide-react';
-import { TEMP_ATENCION, TEMP_CRITICA, esNoRealizada, type EstadoGG, type SitioGG } from '../../datos/analisisGG';
+import { esNoRealizada, type EstadoGG, type SitioGG } from '../../datos/analisisGG';
 import type { ReporteGG } from '../../datos/reportesGG';
 import type { Vencimiento } from '../../datos/indicadoresMantenimientoGG';
 import { hoyLocalISO } from '../../datos/fechas';
-import { Dato, Estado, NombreEquipo } from './comunes';
-import { NOMBRE_REFRIGERANTE, cuandoLectura, fmtHoras, type EquipoCalculado } from './formato';
+import { Dato, Estado, Estanque, NombreEquipo } from './comunes';
+import {
+  NOMBRE_REFRIGERANTE, claseAceite, claseCombustible, claseRefrigerante, claseTemperatura, cuandoLectura, fmtHoras, fmtTemp,
+  type EquipoCalculado,
+} from './formato';
 
 interface Props {
   equipos: EquipoCalculado[];
@@ -26,23 +29,8 @@ const estadoGG = (s: SitioGG | null) => {
   return { color: COLOR[s.estado], texto: TEXTO[s.estado] };
 };
 
-const claseCombustible = (c: string | null) => (c === '1/4' ? 'mgg-valor--vencido' : '');
-const claseRefrigerante = (r: string | null) => (r === 'Minimo' ? 'mgg-valor--proximo' : '');
-const claseAceite = (a: string | null) => (a === 'Bajo' ? 'mgg-valor--vencido' : a === 'Sobre Relleno' ? 'mgg-valor--proximo' : '');
-const claseTemperatura = (t: number | null) => (t === null ? '' : t >= TEMP_CRITICA ? 'mgg-valor--vencido' : t >= TEMP_ATENCION ? 'mgg-valor--proximo' : '');
-const fmtTemp = (t: number | null) => (t === null ? '—' : `${fmtHoras(t)} °C`);
 const fmtUso = (r: number | null) => (r === null ? '—' : `${fmtHoras(Math.round(r * 10) / 10)} h/día`);
 const cuando = (r: ReporteGG) => cuandoLectura({ fecha: r.fecha, hora: r.hora });
-
-/** Combustible en 4 segmentos (1/4 · 1/2 · 3/4 · Lleno). */
-function Estanque({ nivel }: { nivel: string | null }) {
-  const llenos = nivel === 'Lleno' ? 4 : nivel === '3/4' ? 3 : nivel === '1/2' ? 2 : nivel === '1/4' ? 1 : 0;
-  return (
-    <span className="mgg-estanque" aria-hidden="true">
-      {[1, 2, 3, 4].map(i => <span key={i} className={i <= llenos ? (llenos === 1 ? 'bajo' : 'lleno') : ''} />)}
-    </span>
-  );
-}
 
 function Alertas({ s }: { s: SitioGG | null }) {
   if (!s || !s.alertas.length) return <span className="mgg-sub">Sin alertas</span>;

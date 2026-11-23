@@ -216,6 +216,29 @@ select.mgg-campo { padding-right: 4px; cursor: pointer; }
 .mgg-alerta--critico { background: var(--bg-fbe9e9, #fbe9e9); color: var(--tx-a32626, #a32626); }
 .mgg-alerta--atencion { background: var(--bg-fff3cd, #fff3cd); color: var(--tx-7a5b00, #7a5b00); }
 
+/* Opción "Ver el último reporte de GG" (pestaña Mantenimiento) */
+.mgg-barra-filtros { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 14px; }
+.mgg-opcion {
+  display: inline-flex; align-items: center; gap: 8px; min-height: 36px; padding: 4px 12px 4px 10px; border-radius: 999px;
+  border: 1px solid var(--line); background: var(--panel); color: var(--brand-text); font-size: 0.8rem; font-weight: 700; cursor: pointer;
+}
+.mgg-opcion input { width: 17px; height: 17px; accent-color: var(--brand-blue); cursor: pointer; }
+.mgg-opcion:has(input:checked) { background: var(--panel-2); border-color: var(--brand-blue); }
+.mgg-opcion:has(input:focus-visible) { outline: 2px solid var(--brand-blue); outline-offset: 2px; }
+/* Columnas del último reporte (a la derecha de la planilla, separadas por una línea) */
+.mgg-tabla .mgg-grupo-inicio { border-left: 2px solid var(--line) !important; }
+.mgg-c-reporte { min-width: 104px; }
+.mgg-c-sin-reporte { border-left: 2px solid var(--line); }
+.mgg-ficha__reporte {
+  grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 2px 12px; font-size: 0.76rem; color: var(--text-soft);
+  font-variant-numeric: tabular-nums;
+}
+.mgg-ficha__reporte b { color: var(--ink); font-weight: 800; }
+.mgg-ficha__reporte b.mgg-valor--vencido { color: var(--tx-b3261e, #b3261e); }
+.mgg-ficha__reporte b.mgg-valor--proximo { color: var(--tx-8a6100, #8a6100); }
+.mgg-ficha__seccion { display: grid; gap: 8px; padding-top: 10px; border-top: 1px dashed var(--line); }
+.mgg-ficha__seccion > h3 { margin: 0; font-size: 0.72rem; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; color: var(--brand-text); }
+
 .mgg-combustible { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
 .mgg-estanque { display: inline-flex; gap: 2px; flex: none; }
 .mgg-estanque > span { width: 7px; height: 12px; border-radius: 2px; border: 1px solid #b9c3c9; background: var(--panel); }
