@@ -254,7 +254,7 @@ export default function TablaMantenimientoGG({ onBack }: { onBack: () => void })
           porFecha(9),
           { columna: 13, reglas: [{ si: '{c}<=50', color: 'rojoTexto' }, { si: 'TRUE', color: 'verdeTexto' }] },
           { columna: 14, reglas: [
-            { si: `{c}>${LIMITES_DESDE_ULTIMO.naranjo}`, color: 'rojo' }, { si: `{c}>${LIMITES_DESDE_ULTIMO.verde}`, color: 'naranjo' },
+            { si: `{c}>=${LIMITES_DESDE_ULTIMO.rojoDesde}`, color: 'rojo' }, { si: `{c}>${LIMITES_DESDE_ULTIMO.verdeHasta}`, color: 'naranjo' },
             { si: 'TRUE', color: 'verde' },
           ] },
           porEstado(16),

@@ -105,10 +105,10 @@ export const diasEntre = (desde: string, hasta: string) => Math.round((isoToUtc(
 
 // Semáforo de las tablas de mantenimiento de las presentaciones y del Excel, como en la planilla Datos GG.
 export type Semaforo = 'verde' | 'naranjo' | 'rojo';
-/** Horas desde el último mantenimiento: hasta 180 h verde, de 181 a 240 h naranjo, sobre 240 h rojo. */
-export const LIMITES_DESDE_ULTIMO = { verde: 180, naranjo: 240 } as const;
+/** Horas desde el último mantenimiento: hasta 200 h verde, de 201 a 239 h naranjo y desde 240 h rojo. */
+export const LIMITES_DESDE_ULTIMO = { verdeHasta: 200, rojoDesde: 240 } as const;
 export const semaforoDesdeUltimo = (horas: number): Semaforo =>
-  horas > LIMITES_DESDE_ULTIMO.naranjo ? 'rojo' : horas > LIMITES_DESDE_ULTIMO.verde ? 'naranjo' : 'verde';
+  horas >= LIMITES_DESDE_ULTIMO.rojoDesde ? 'rojo' : horas > LIMITES_DESDE_ULTIMO.verdeHasta ? 'naranjo' : 'verde';
 /** Fecha estimada del próximo mantenimiento vista desde otra fecha: ya pasó rojo, faltan 15 días o menos naranjo. */
 export const semaforoFecha = (fecha: string, desde: string): Semaforo =>
   fecha < desde ? 'rojo' : diasEntre(desde, fecha) <= AVISO_DIAS ? 'naranjo' : 'verde';

@@ -18,7 +18,7 @@ import { leerHorometros, leerReportesFds } from './datosFds';
 import { fdsDeSemana, filasMantenimientoAl, mantenimientosGeneradorDe, sitiosConHorometro, type DatosAutoFds } from './modeloFds';
 import { listarMantenimientoGG, suscribirMantenimientoGG, type FilaMantenimientoGG } from '../../datos/mantenimientoGG';
 import type { Division } from '../../datos/divisiones';
-import { HORAS_ENTRE_MANTENIMIENTOS, semaforoDesdeUltimo, semaforoFecha, type Semaforo } from '../../datos/indicadoresMantenimientoGG';
+import { HORAS_ENTRE_MANTENIMIENTOS, LIMITES_DESDE_ULTIMO, semaforoDesdeUltimo, semaforoFecha, type Semaforo } from '../../datos/indicadoresMantenimientoGG';
 
 /** Turno completo (láminas del turno) o fin de semana (viernes a domingo). */
 export type Modo = 'completo' | 'fds';
@@ -348,7 +348,7 @@ export default function PresentacionTurno({ onBack, modoInicial = 'completo', bo
                 )}
                 <details className="text-sm">
                   <summary className="cursor-pointer text-xs font-bold text-[#0E4660]">
-                    Ver los {vistaMttoTurno.length} generadores{mttoEnRojo ? ` · ${mttoEnRojo} sobre 240 h desde el último mantenimiento` : ''}
+                    Ver los {vistaMttoTurno.length} generadores{mttoEnRojo ? ` · ${mttoEnRojo} con ${LIMITES_DESDE_ULTIMO.rojoDesde} h o más desde el último mantenimiento` : ''}
                   </summary>
                   <div className="mt-3 overflow-x-auto">
                     <table className="w-full text-xs border-collapse">

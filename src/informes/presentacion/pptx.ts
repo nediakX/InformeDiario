@@ -1007,8 +1007,9 @@ export const COLOR_SEMAFORO: Record<Semaforo, string> = { verde: '36F42C', naran
 /**
  * Lámina 21 (estado de mantenimiento de GG en carros): una fila por generador con el dato más nuevo hasta el corte.
  * La última columna son las horas desde el último mantenimiento (horas registradas − último), con su semáforo
- * (hasta 180 h verde, hasta 240 h naranjo, más rojo), y la fecha estimada queda roja si ya pasó o naranja si está
- * cerca. Van de menos a más horas desde el último mantenimiento. Cada celda conserva el formato de la plantilla.
+ * (hasta 200 h verde, de 201 a 239 h naranjo y desde 240 h rojo), y la fecha estimada queda roja si ya pasó o
+ * naranja si está cerca. Van de menos a más horas desde el último mantenimiento. Cada celda conserva el formato de
+ * la plantilla.
  */
 function llenarEstadoMantenimientoGG(lamina: Lamina, filas: FilaOmFds[], corte: string, avisos: string[]) {
   const arbol = arbolDeLamina(lamina);

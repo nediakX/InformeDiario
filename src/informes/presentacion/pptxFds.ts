@@ -481,8 +481,8 @@ const pintarCelda = (tc: Element | undefined, semaforo: Semaforo) => {
  * Lámina 9: tabla de mantenimiento con las columnas de las presentaciones de julio: Sitio, Nombre, Último mantenimiento
  * (horas y fecha), Próximo (horas), Fecha estimada, Horas registradas al corte y Horas desde el último mantenimiento.
  * La plantilla trae "Días de mantenimiento" en la sexta columna: los días se usan para la fecha estimada, que pasa a esa
- * columna, y la última queda para las horas desde el último mantenimiento, con su semáforo (hasta 180 h verde, hasta
- * 240 h naranjo, más rojo). La fecha estimada queda roja si ya pasó y naranja si faltan 15 días o menos.
+ * columna, y la última queda para las horas desde el último mantenimiento, con su semáforo (hasta 200 h verde, de 201
+ * a 239 h naranjo y desde 240 h rojo). La fecha estimada queda roja si ya pasó y naranja si faltan 15 días o menos.
  */
 function llenarOm(lamina: Lamina, datos: DatosFds) {
   const arbol = arbolDe(lamina);
