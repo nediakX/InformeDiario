@@ -18,7 +18,7 @@ import { leerHorometros, leerReportesFds } from './datosFds';
 import { fdsDeSemana, filasMantenimientoAl, mantenimientosGeneradorDe, sitiosConHorometro, type DatosAutoFds } from './modeloFds';
 import { listarMantenimientoGG, suscribirMantenimientoGG, type FilaMantenimientoGG } from '../../datos/mantenimientoGG';
 import type { Division } from '../../datos/divisiones';
-import { HORAS_ENTRE_MANTENIMIENTOS } from '../../datos/indicadoresMantenimientoGG';
+import { HORAS_ENTRE_MANTENIMIENTOS, semaforoDesdeUltimo, semaforoFecha, type Semaforo } from '../../datos/indicadoresMantenimientoGG';
 
 /** Turno completo (láminas del turno) o fin de semana (viernes a domingo). */
 export type Modo = 'completo' | 'fds';
@@ -38,6 +38,8 @@ interface LecturaHorasTurno {
 }
 
 const numeroCL = new Intl.NumberFormat('es-CL');
+/** Colores del semáforo de la tabla de mantenimiento (los de la lámina). */
+const CLASE_SEMAFORO: Record<Semaforo, string> = { verde: 'text-green-700', naranjo: 'text-amber-800', rojo: 'text-red-700' };
 /** "2026-11-20" -> "20/11/26" */
 const fechaCorta = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(2, 4)}`;
 /** Suma días a una fecha ISO (en UTC, sin horario de verano). */
@@ -109,21 +111,18 @@ export default function PresentacionTurno({ onBack, modoInicial = 'completo', bo
     mantenimientos: mantenimientosFds,
     tablaMantenimiento: tablaMtto ?? [],
   }), [semana.fin, horasTurno, mantenimientosFds, tablaMtto]);
-  // Como en la lámina: de más a menos horas restantes (sin el dato, al final).
+  // Como en la lámina: de menos a más horas desde el último mantenimiento (sin el dato, al final).
   const vistaMttoTurno = useMemo(() => filasMttoTurno
-    .map(f => {
-      const proximo = f.horasUltimo === null ? null : f.horasUltimo + HORAS_ENTRE_MANTENIMIENTOS;
-      return {
-        ...f,
-        proximo,
-        estimada: f.fechaUltimo ? masDias(f.fechaUltimo, f.dias) : null,
-        restante: proximo === null || f.horasRegistradas === null ? null : proximo - f.horasRegistradas,
-      };
-    })
-    .sort((a, b) => (a.restante === null || b.restante === null
-      ? Number(a.restante === null) - Number(b.restante === null)
-      : b.restante - a.restante)), [filasMttoTurno]);
-  const mttoPasados = vistaMttoTurno.filter(f => f.restante !== null && f.restante < 0).length;
+    .map(f => ({
+      ...f,
+      proximo: f.horasUltimo === null ? null : f.horasUltimo + HORAS_ENTRE_MANTENIMIENTOS,
+      estimada: f.fechaUltimo ? masDias(f.fechaUltimo, f.dias) : null,
+      desde: f.horasUltimo === null || f.horasRegistradas === null ? null : f.horasRegistradas - f.horasUltimo,
+    }))
+    .sort((a, b) => (a.desde === null || b.desde === null
+      ? Number(a.desde === null) - Number(b.desde === null)
+      : a.desde - b.desde)), [filasMttoTurno]);
+  const mttoEnRojo = vistaMttoTurno.filter(f => f.desde !== null && semaforoDesdeUltimo(f.desde) === 'rojo').length;
 
   useEffect(() => {
     void fetchBorradores(division).then(setBorradores);
@@ -349,7 +348,7 @@ export default function PresentacionTurno({ onBack, modoInicial = 'completo', bo
                 )}
                 <details className="text-sm">
                   <summary className="cursor-pointer text-xs font-bold text-[#0E4660]">
-                    Ver los {vistaMttoTurno.length} generadores{mttoPasados ? ` · ${mttoPasados} con horas pasadas` : ''}
+                    Ver los {vistaMttoTurno.length} generadores{mttoEnRojo ? ` · ${mttoEnRojo} sobre 240 h desde el último mantenimiento` : ''}
                   </summary>
                   <div className="mt-3 overflow-x-auto">
                     <table className="w-full text-xs border-collapse">
@@ -357,15 +356,15 @@ export default function PresentacionTurno({ onBack, modoInicial = 'completo', bo
                         <tr className="text-left text-[#0E4660] border-b border-[#DCE1E6]">
                           <th className="py-2 pr-3 font-bold">Generador</th>
                           <th className="py-2 pr-3 font-bold text-right">Último mto.</th>
-                          {/* En el celular se omite (es el último + 250): así caben las horas restantes sin desplazar. */}
+                          {/* En el celular se omite (es el último + 250): así caben las horas desde el último sin desplazar. */}
                           <th className="hidden sm:table-cell py-2 pr-3 font-bold text-right">Próximo</th>
                           <th className="py-2 pr-3 font-bold text-right">Horas al {fechaCorta(semana.fin)}</th>
-                          <th className="py-2 font-bold text-right">Restantes</th>
+                          <th className="py-2 font-bold text-right">Desde el último</th>
                         </tr>
                       </thead>
                       <tbody>
                         {vistaMttoTurno.map(f => (
-                          <tr key={f.sitio} className={`border-b border-[#eef1f4] align-top ${f.restante === null ? 'bg-amber-50' : ''}`}>
+                          <tr key={f.sitio} className={`border-b border-[#eef1f4] align-top ${f.desde === null ? 'bg-amber-50' : ''}`}>
                             <td className="py-1.5 pr-3">
                               <span className="block font-mono">{f.sitio}</span>
                               <span className="block text-gray-500">{f.nombre}</span>
@@ -376,11 +375,13 @@ export default function PresentacionTurno({ onBack, modoInicial = 'completo', bo
                             </td>
                             <td className="hidden sm:table-cell py-1.5 pr-3 text-right tabular-nums">
                               {f.proximo === null ? '—' : numeroCL.format(f.proximo)}
-                              <span className="block text-gray-500">{f.estimada ? fechaCorta(f.estimada) : '—'}</span>
+                              <span className={`block ${f.estimada && semaforoFecha(f.estimada, semana.fin) !== 'verde' ? `font-bold ${CLASE_SEMAFORO[semaforoFecha(f.estimada, semana.fin)]}` : 'text-gray-500'}`}>
+                                {f.estimada ? fechaCorta(f.estimada) : '—'}
+                              </span>
                             </td>
                             <td className="py-1.5 pr-3 text-right tabular-nums">{f.horasRegistradas === null ? '—' : numeroCL.format(f.horasRegistradas)}</td>
-                            <td className={`py-1.5 text-right tabular-nums font-bold ${f.restante === null ? '' : f.restante < 0 ? 'text-red-700' : 'text-green-700'}`}>
-                              {f.restante === null ? '—' : numeroCL.format(f.restante)}
+                            <td className={`py-1.5 text-right tabular-nums font-bold ${f.desde === null ? '' : CLASE_SEMAFORO[semaforoDesdeUltimo(f.desde)]}`}>
+                              {f.desde === null ? '—' : `${numeroCL.format(f.desde)} h`}
                             </td>
                           </tr>
                         ))}

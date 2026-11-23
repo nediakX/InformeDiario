@@ -11,6 +11,7 @@ import {
   SITIOS_FDS, textosFdsDesde, type DatosAutoFds,
 } from './modeloFds';
 import { generarPresentacionFds } from './pptxFds';
+import { semaforoDesdeUltimo, type Semaforo } from '../../datos/indicadoresMantenimientoGG';
 
 interface PresentacionFdsProps {
   semana: SemanaTurno;
@@ -33,6 +34,8 @@ const TITULO_CAMPO = 'block text-sm font-bold text-[#0E4660] mb-1';
 const TITULO_BLOQUE = 'font-display font-bold text-[#0E4660] text-base';
 const AREA = 'w-full p-2 border border-[#DCE1E6] rounded-md text-sm';
 const numero = new Intl.NumberFormat('es-CL');
+/** Colores del semáforo de las horas desde el último mantenimiento (los de la lámina). */
+const CLASE_SEMAFORO: Record<Semaforo, string> = { verde: 'text-green-700', naranjo: 'text-amber-800', rojo: 'text-red-700' };
 const dmy = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}`;
 
 /** Lista de personal de la presentación (JSON en el formulario); si no se puede leer, lista vacía. */
@@ -379,12 +382,14 @@ export default function PresentacionFds({ semana, borradores, auto, cargando, er
                 <th className="py-2 pr-3 font-bold text-right">Horas último</th>
                 <th className="py-2 pr-3 font-bold">Fecha último</th>
                 <th className="py-2 pr-3 font-bold text-right">Días</th>
-                <th className="py-2 font-bold text-right">Horas registradas</th>
+                <th className="py-2 pr-3 font-bold text-right">Horas registradas</th>
+                <th className="py-2 font-bold text-right">Desde el último</th>
               </tr>
             </thead>
             <tbody>
               {datos.om.map((f, i) => {
                 const incompleta = f.horasUltimo === null || f.fechaUltimo === null || f.horasRegistradas === null;
+                const desde = f.horasUltimo === null || f.horasRegistradas === null ? null : f.horasRegistradas - f.horasUltimo;
                 return (
                   <tr key={`${f.sitio}-${i}`} className={`border-b border-[#eef1f4] ${incompleta ? 'bg-amber-50' : ''}`}>
                     <td className="py-1.5 pr-3 font-mono text-xs">{f.sitio}</td>
@@ -392,7 +397,10 @@ export default function PresentacionFds({ semana, borradores, auto, cargando, er
                     <td className="py-1.5 pr-3 text-right tabular-nums">{f.horasUltimo === null ? '—' : numero.format(f.horasUltimo)}</td>
                     <td className="py-1.5 pr-3 tabular-nums">{f.fechaUltimo ? dmy(f.fechaUltimo) : '—'}</td>
                     <td className="py-1.5 pr-3 text-right">{f.dias}</td>
-                    <td className="py-1.5 text-right tabular-nums">{f.horasRegistradas === null ? '—' : numero.format(f.horasRegistradas)}</td>
+                    <td className="py-1.5 pr-3 text-right tabular-nums">{f.horasRegistradas === null ? '—' : numero.format(f.horasRegistradas)}</td>
+                    <td className={`py-1.5 text-right tabular-nums font-bold ${desde === null ? '' : CLASE_SEMAFORO[semaforoDesdeUltimo(desde)]}`}>
+                      {desde === null ? '—' : `${numero.format(desde)} h`}
+                    </td>
                   </tr>
                 );
               })}

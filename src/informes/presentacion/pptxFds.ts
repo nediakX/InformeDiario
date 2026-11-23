@@ -4,9 +4,10 @@
 import JSZip from 'jszip';
 import plantillaUrl from '../../assets/plantillas/presentacion_fds.pptx?url';
 import type { DatosFds } from './modeloFds';
+import { semaforoDesdeUltimo, semaforoFecha, type Semaforo } from '../../datos/indicadoresMantenimientoGG';
 import {
-  MESES_MAYUSCULA, MIME_PPTX, NS_A, NS_P, NS_R,
-  copiaDe, descendientes, escribir, fijarTexto, fijarUnico, hijos, leer, parrafosDe,
+  COLOR_SEMAFORO, MESES_MAYUSCULA, MIME_PPTX, NS_A, NS_P, NS_R,
+  colorDeTexto, copiaDe, descendientes, escribir, fijarTexto, fijarUnico, hijos, leer, parrafosDe,
   reemplazarParrafos, tamanoDePlantilla, tamanosPosibles, tieneVinetas, textoDe, textoSeguro, txBodyDe,
   type ResultadoPresentacion,
 } from './pptx';
@@ -457,6 +458,32 @@ const NS_SS = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main';
 
 const OM = { sumaHoras: 250, reduccionSiHayMasDe12: 200 };
 
+/** Formato del primer fragmento de una celda (para llevarlo a otra columna). */
+const formatoDeCelda = (tc: Element | undefined) => {
+  const rPr = tc ? descendientes(tc, NS_A, 'rPr')[0] : undefined;
+  return rPr ? rPr.cloneNode(true) as Element : null;
+};
+/** Pone a todos los fragmentos de una celda el formato dado. */
+function ponerFormato(tc: Element | undefined, formato: Element | null) {
+  if (!tc || !formato) return;
+  for (const r of descendientes(tc, NS_A, 'r')) {
+    const actual = hijos(r, NS_A, 'rPr')[0];
+    const nuevo = formato.cloneNode(true);
+    if (actual) r.replaceChild(nuevo, actual);
+    else r.insertBefore(nuevo, r.firstChild);
+  }
+}
+const pintarCelda = (tc: Element | undefined, semaforo: Semaforo) => {
+  if (tc) for (const rPr of descendientes(tc, NS_A, 'rPr')) colorDeTexto(rPr, COLOR_SEMAFORO[semaforo]);
+};
+
+/**
+ * Lámina 9: tabla de mantenimiento con las columnas de las presentaciones de julio: Sitio, Nombre, Último mantenimiento
+ * (horas y fecha), Próximo (horas), Fecha estimada, Horas registradas al corte y Horas desde el último mantenimiento.
+ * La plantilla trae "Días de mantenimiento" en la sexta columna: los días se usan para la fecha estimada, que pasa a esa
+ * columna, y la última queda para las horas desde el último mantenimiento, con su semáforo (hasta 180 h verde, hasta
+ * 240 h naranjo, más rojo). La fecha estimada queda roja si ya pasó y naranja si faltan 15 días o menos.
+ */
 function llenarOm(lamina: Lamina, datos: DatosFds) {
   const arbol = arbolDe(lamina);
   const tabla = descendientes(arbol, NS_A, 'tbl')[0];
@@ -465,40 +492,54 @@ function llenarOm(lamina: Lamina, datos: DatosFds) {
   const filas = hijos(tabla, NS_A, 'tr');
   const cabecera = filas[0];
   const cuerpo = filas.slice(1);
-  // Encabezado de horas registradas con la fecha de corte.
-  for (const celda of hijos(cabecera, NS_A, 'tc')) {
-    if (/^Horas Registradas/.test(textoDe(celda).trim())) textoCelda(celda, `Horas Registradas al ${dmSinGuion(datos.fechaCorteOm)}`);
-  }
+  const COLUMNA = { estimada: 5, registradas: 6, desde: 7 } as const;
+  const titulos = hijos(cabecera, NS_A, 'tc');
+  textoCelda(titulos[COLUMNA.estimada], 'Fecha Estimada Próximo Mantenimiento');
+  textoCelda(titulos[COLUMNA.registradas], `Horas Registradas al ${dmSinGuion(datos.fechaCorteOm)}`);
+  textoCelda(titulos[COLUMNA.desde], 'Horas desde Último Mantenimiento');
 
-  const cantidad = Math.max(1, datos.om.length);
+  // De menos a más horas desde el último mantenimiento (los colores quedan juntos); sin el dato, al final.
+  const ordenadas = (datos.om.length ? datos.om : [{ sitio: '', nombre: '', horasUltimo: null, fechaUltimo: null, dias: 180, horasRegistradas: null }])
+    .map(fila => ({
+      fila,
+      desde: fila.horasUltimo === null || fila.horasRegistradas === null ? null : fila.horasRegistradas - fila.horasUltimo,
+      estimada: fila.fechaUltimo ? sumarDiasIso(fila.fechaUltimo, fila.dias) : null,
+    }))
+    .sort((a, b) => (a.desde === null || b.desde === null ? Number(a.desde === null) - Number(b.desde === null) : a.desde - b.desde));
+
+  const cantidad = ordenadas.length;
   const reducir = cantidad > 12;
   const altoCabecera = Number(cabecera.getAttribute('h')) / EMU;
   const altoDisponible = medidasDe(marcoTabla).h / EMU - altoCabecera;
   const altoFila = Math.min(Number(cuerpo[0].getAttribute('h')) / EMU, altoDisponible / cantidad);
 
-  const nuevas = (datos.om.length ? datos.om : [{ sitio: '', nombre: '', horasUltimo: null, fechaUltimo: null, dias: 180, horasRegistradas: null }]).map((fila, i) => {
+  const nuevas = ordenadas.map(({ fila, desde, estimada }, i) => {
     const tr = cuerpo[i % cuerpo.length].cloneNode(true) as Element;
     const celdas = hijos(tr, NS_A, 'tc');
-    const proximo = fila.horasUltimo === null ? '' : String(fila.horasUltimo + OM.sumaHoras);
-    const estimada = fila.fechaUltimo ? fechaOm(sumarDiasIso(fila.fechaUltimo, fila.dias)) : '';
+    // Cada dato con el formato de su columna en la plantilla: la fecha estimada (verde, más chica) y las horas
+    // registradas como los demás números.
+    const formatoFecha = formatoDeCelda(celdas[COLUMNA.registradas]);
+    const formatoNumero = formatoDeCelda(celdas[4]);
     const valores = [
       fila.sitio,
       fila.nombre,
       fila.horasUltimo === null ? '' : String(fila.horasUltimo),
       fila.fechaUltimo ? fechaOm(fila.fechaUltimo) : '',
-      proximo,
-      String(fila.dias),
-      estimada,
+      fila.horasUltimo === null ? '' : String(fila.horasUltimo + OM.sumaHoras),
+      estimada ? fechaOm(estimada) : '',
       fila.horasRegistradas === null ? '' : String(fila.horasRegistradas),
+      desde === null ? '' : String(desde),
     ];
-    valores.forEach((texto, c) => {
-      const celda = celdas[c];
-      if (!celda) return;
-      textoCelda(celda, texto);
-      if (reducir) {
+    valores.forEach((texto, c) => { if (celdas[c]) textoCelda(celdas[c], texto); });
+    ponerFormato(celdas[COLUMNA.estimada], formatoFecha);
+    ponerFormato(celdas[COLUMNA.registradas], formatoNumero);
+    if (estimada) pintarCelda(celdas[COLUMNA.estimada], semaforoFecha(estimada, datos.fechaCorteOm));
+    if (desde !== null) pintarCelda(celdas[COLUMNA.desde], semaforoDesdeUltimo(desde));
+    if (reducir) {
+      for (const celda of celdas) {
         for (const p of descendientes(celda, NS_A, 'p')) fijarTamanoTodo(p, Math.max(800, (tamanoDePlantilla(p) ?? 1200) - OM.reduccionSiHayMasDe12));
       }
-    });
+    }
     tr.setAttribute('h', String(aEmu(altoFila)));
     return tr;
   });

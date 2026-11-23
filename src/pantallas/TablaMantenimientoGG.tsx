@@ -16,16 +16,16 @@ import { configDivision } from '../datos/divisiones';
 import { formatFechaLarga, hoyLocalISO, nombreDiaSemana, sumarDias } from '../datos/fechas';
 import { registrarDeshacer } from '../lib/deshacer';
 import { esErrorDeRed } from '../lib/conexion';
-import { crearLibroExcel, type HojaExcel } from '../lib/excel';
+import { crearLibroExcel, type ColoresColumna, type HojaExcel } from '../lib/excel';
 import {
   descartarPendienteMantenimientoGG, guardarCambiosMantenimientoGG, listarMantenimientoGG, sincronizarMantenimientoGG,
   suscribirMantenimientoGG, usePendientesMantenimientoGG, type CambiosMantenimientoGG, type FilaMantenimientoGG, type TablaMantenimientoCargada,
 } from '../datos/mantenimientoGG';
 import {
-  AVISO_DIAS, AVISO_HORAS_CORREA, AVISO_HORAS_MANTENIMIENTO, HORAS_ENTRE_CAMBIOS_CORREA, HORAS_ENTRE_MANTENIMIENTOS,
+  AVISO_DIAS, AVISO_HORAS_CORREA, AVISO_HORAS_MANTENIMIENTO, HORAS_ENTRE_CAMBIOS_CORREA, HORAS_ENTRE_MANTENIMIENTOS, LIMITES_DESDE_ULTIMO,
   contarEstados, horasActuales, indicadoresCorrea, indicadoresMantenimiento, ultimoConHorometro, type Vencimiento,
 } from '../datos/indicadoresMantenimientoGG';
-import type { EstadoGG } from '../datos/analisisGG';
+import { TEMP_ATENCION, TEMP_CRITICA, type EstadoGG } from '../datos/analisisGG';
 import PestanaMantenimiento from './mantenimientoGG/PestanaMantenimiento';
 import PestanaCorrea from './mantenimientoGG/PestanaCorrea';
 import PestanaReportes from './mantenimientoGG/PestanaReportes';
@@ -217,6 +217,14 @@ export default function TablaMantenimientoGG({ onBack }: { onBack: () => void })
   const descargarExcel = async () => {
     setDescargando(true);
     setAvisoExcel('');
+    // Colores como en la planilla Datos GG (formato condicional: se recalculan con la fecha del día en que se abre).
+    const porFecha = (columna: number): ColoresColumna => ({ columna, reglas: [
+      { si: '{c}<TODAY()', color: 'rojo' }, { si: `{c}<=TODAY()+${AVISO_DIAS}`, color: 'naranjo' }, { si: 'TRUE', color: 'verde' },
+    ] });
+    const porEstado = (columna: number): ColoresColumna => ({ columna, reglas: [
+      { si: `{c}="${ETIQUETA_ESTADO.vencido}"`, color: 'rojo' }, { si: `{c}="${ETIQUETA_ESTADO.proximo}"`, color: 'naranjo' },
+      { si: `{c}="${ETIQUETA_ESTADO.al_dia}"`, color: 'verde' },
+    ] });
     try {
       const mtto: HojaExcel = {
         nombre: 'Mantenimiento GG',
@@ -240,6 +248,17 @@ export default function TablaMantenimientoGG({ onBack }: { onBack: () => void })
             ETIQUETA_ESTADO[m.estado], m.fechaPorHoras,
           ];
         }),
+        colores: [
+          { columna: 4, reglas: [{ si: '{c}<=0', color: 'rojo' }, { si: '{c}<1', color: 'naranjo' }, { si: 'TRUE', color: 'verde' }] },
+          porFecha(8),
+          porFecha(9),
+          { columna: 13, reglas: [{ si: '{c}<=50', color: 'rojoTexto' }, { si: 'TRUE', color: 'verdeTexto' }] },
+          { columna: 14, reglas: [
+            { si: `{c}>${LIMITES_DESDE_ULTIMO.naranjo}`, color: 'rojo' }, { si: `{c}>${LIMITES_DESDE_ULTIMO.verde}`, color: 'naranjo' },
+            { si: 'TRUE', color: 'verde' },
+          ] },
+          porEstado(16),
+        ],
       };
       const correa: HojaExcel = {
         nombre: 'Cambio de correa',
@@ -254,6 +273,10 @@ export default function TablaMantenimientoGG({ onBack }: { onBack: () => void })
           e.fila.sitio, e.fila.nombre, e.fila.correaHoras, e.fila.correaFecha, e.correa.proximoHoras, e.actuales?.valor ?? null,
           e.correa.faltanHoras, e.correa.desdeUltimo, ETIQUETA_ESTADO[e.correa.estado],
         ]),
+        colores: [
+          { columna: 6, reglas: [{ si: '{c}<=0', color: 'rojo' }, { si: `{c}<=${AVISO_HORAS_CORREA}`, color: 'naranjo' }, { si: 'TRUE', color: 'verde' }] },
+          porEstado(8),
+        ],
       };
       const reportes: HojaExcel = {
         nombre: 'Último reporte GG',
@@ -276,6 +299,14 @@ export default function TablaMantenimientoGG({ onBack }: { onBack: () => void })
             (e.gg?.alertas ?? []).map(a => a.titulo).join(' · '), u?.observaciones,
           ];
         }),
+        // Los mismos colores de la pestaña Reportabilidad.
+        colores: [
+          { columna: 9, reglas: [{ si: '{c}="1/4"', color: 'rojo' }] },
+          { columna: 10, reglas: [{ si: '{c}="Minimo"', color: 'naranjo' }] },
+          { columna: 11, reglas: [{ si: '{c}="Bajo"', color: 'rojo' }, { si: '{c}="Sobre Relleno"', color: 'naranjo' }] },
+          { columna: 12, reglas: [{ si: `{c}>=${TEMP_CRITICA}`, color: 'rojo' }, { si: `{c}>=${TEMP_ATENCION}`, color: 'naranjo' }] },
+          { columna: 13, reglas: [{ si: '{c}="Crítico"', color: 'rojo' }, { si: '{c}="Atención"', color: 'naranjo' }, { si: '{c}="Normal"', color: 'verde' }] },
+        ],
       };
       saveAs(await crearLibroExcel([mtto, correa, reportes]), `Mantenimiento_GG_${hoy}.xlsx`);
     } catch (error) {

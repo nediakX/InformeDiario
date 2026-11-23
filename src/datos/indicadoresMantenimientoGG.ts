@@ -103,6 +103,16 @@ export function horasActuales(f: Pick<DatosEquipo, 'horasRegistradas' | 'horasRe
 /** Días de una fecha a otra (negativo si `hasta` es anterior). */
 export const diasEntre = (desde: string, hasta: string) => Math.round((isoToUtc(hasta) - isoToUtc(desde)) / DIA_MS);
 
+// Semáforo de las tablas de mantenimiento de las presentaciones y del Excel, como en la planilla Datos GG.
+export type Semaforo = 'verde' | 'naranjo' | 'rojo';
+/** Horas desde el último mantenimiento: hasta 180 h verde, de 181 a 240 h naranjo, sobre 240 h rojo. */
+export const LIMITES_DESDE_ULTIMO = { verde: 180, naranjo: 240 } as const;
+export const semaforoDesdeUltimo = (horas: number): Semaforo =>
+  horas > LIMITES_DESDE_ULTIMO.naranjo ? 'rojo' : horas > LIMITES_DESDE_ULTIMO.verde ? 'naranjo' : 'verde';
+/** Fecha estimada del próximo mantenimiento vista desde otra fecha: ya pasó rojo, faltan 15 días o menos naranjo. */
+export const semaforoFecha = (fecha: string, desde: string): Semaforo =>
+  fecha < desde ? 'rojo' : diasEntre(desde, fecha) <= AVISO_DIAS ? 'naranjo' : 'verde';
+
 const estadoPorHoras = (faltan: number | null, aviso: number): Vencimiento =>
   faltan === null ? 'sin_datos' : faltan <= 0 ? 'vencido' : faltan <= aviso ? 'proximo' : 'al_dia';
 

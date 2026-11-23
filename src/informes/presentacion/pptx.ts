@@ -6,7 +6,7 @@ import plantillaUrl from '../../assets/plantillas/presentacion_turno.pptx?url';
 import { comprimirDataUrl } from '../../lib/fotos';
 import type { DatosPresentacion, DiaPresentacion } from './modelo';
 import type { FilaOmFds } from './modeloFds';
-import { HORAS_ENTRE_MANTENIMIENTOS } from '../../datos/indicadoresMantenimientoGG';
+import { HORAS_ENTRE_MANTENIMIENTOS, semaforoDesdeUltimo, semaforoFecha, type Semaforo } from '../../datos/indicadoresMantenimientoGG';
 import { esDifusion, mencionaSitio } from './criterios';
 
 export const NS_P = 'http://schemas.openxmlformats.org/presentationml/2006/main';
@@ -971,7 +971,7 @@ function fijarFechasPlanificadas(lamina: Lamina, inicio: string) {
 }
 
 /** Color del texto de un formato (rPr): reemplaza el relleno de la letra por un color sólido. */
-function colorDeTexto(rPr: Element, hex: string) {
+export function colorDeTexto(rPr: Element, hex: string) {
   const relleno = hijos(rPr, NS_A, 'solidFill')[0];
   if (!relleno) return;
   for (const hijo of Array.from(relleno.children)) relleno.removeChild(hijo);
@@ -1001,15 +1001,16 @@ function fijarEstadosMantenciones(lamina: Lamina, mantenciones: string[]) {
 }
 
 const NS_A16 = 'http://schemas.microsoft.com/office/drawing/2014/main';
-/** Colores de las horas restantes en la lámina 21 (los de la plantilla): verde si quedan horas, rojo si ya pasaron. */
-const COLOR_RESTANTE = { quedan: '36F42C', pasadas: 'FF0000' };
+/** Colores del semáforo en las láminas (los de las presentaciones de julio): verde, naranjo y rojo. */
+export const COLOR_SEMAFORO: Record<Semaforo, string> = { verde: '36F42C', naranjo: 'FFC000', rojo: 'FF0000' };
 
 /**
  * Lámina 21 (estado de mantenimiento de GG en carros): una fila por generador con el dato más nuevo hasta el corte.
- * Como en la plantilla, van de más a menos horas restantes (próximo mantenimiento − horas registradas) y esa
- * columna queda verde o roja. Cada celda conserva el formato de la plantilla.
+ * La última columna son las horas desde el último mantenimiento (horas registradas − último), con su semáforo
+ * (hasta 180 h verde, hasta 240 h naranjo, más rojo), y la fecha estimada queda roja si ya pasó o naranja si está
+ * cerca. Van de menos a más horas desde el último mantenimiento. Cada celda conserva el formato de la plantilla.
  */
-function llenarEstadoMantenimientoGG(lamina: Lamina, filas: FilaOmFds[], avisos: string[]) {
+function llenarEstadoMantenimientoGG(lamina: Lamina, filas: FilaOmFds[], corte: string, avisos: string[]) {
   const arbol = arbolDeLamina(lamina);
   const tabla = descendientes(arbol, NS_A, 'tbl')[0];
   const filasTabla = tabla ? hijos(tabla, NS_A, 'tr') : [];
@@ -1018,13 +1019,14 @@ function llenarEstadoMantenimientoGG(lamina: Lamina, filas: FilaOmFds[], avisos:
 
   const calculadas = filas.map(f => {
     const proximo = f.horasUltimo === null ? null : f.horasUltimo + HORAS_ENTRE_MANTENIMIENTOS;
-    const restante = proximo === null || f.horasRegistradas === null ? null : proximo - f.horasRegistradas;
-    return { f, proximo, restante };
+    const desde = f.horasUltimo === null || f.horasRegistradas === null ? null : f.horasRegistradas - f.horasUltimo;
+    const estimada = f.fechaUltimo ? sumarDias(f.fechaUltimo, f.dias) : null;
+    return { f, proximo, desde, estimada };
   });
-  // De más a menos horas restantes; las filas sin el dato, al final (en su orden).
-  calculadas.sort((a, b) => (a.restante === null || b.restante === null
-    ? Number(a.restante === null) - Number(b.restante === null)
-    : b.restante - a.restante));
+  // De menos a más horas desde el último mantenimiento; las filas sin el dato, al final (en su orden).
+  calculadas.sort((a, b) => (a.desde === null || b.desde === null
+    ? Number(a.desde === null) - Number(b.desde === null)
+    : a.desde - b.desde));
 
   // Con más generadores que filas en la plantilla, las filas se achican para que la tabla no se salga de la lámina.
   const marcoTabla = descendientes(arbol, NS_P, 'graphicFrame').find(g => descendientes(g, NS_A, 'tbl')[0] === tabla);
@@ -1037,7 +1039,7 @@ function llenarEstadoMantenimientoGG(lamina: Lamina, filas: FilaOmFds[], avisos:
   // Las filas que se agregan llevan su propio identificador (PowerPoint los quiere distintos).
   let ultimoId = Math.max(0, ...filasTabla.flatMap(tr => descendientes(tr, NS_A16, 'rowId')).map(e => Number(e.getAttribute('val')) || 0));
 
-  const nuevas = calculadas.map(({ f, proximo, restante }, i) => {
+  const nuevas = calculadas.map(({ f, proximo, desde, estimada }, i) => {
     const tr = cuerpo[i % cuerpo.length].cloneNode(true) as Element;
     const celdas = hijos(tr, NS_A, 'tc');
     const valores = [
@@ -1046,9 +1048,9 @@ function llenarEstadoMantenimientoGG(lamina: Lamina, filas: FilaOmFds[], avisos:
       f.horasUltimo === null ? '' : String(f.horasUltimo),
       f.fechaUltimo ? fechaTablaGG(f.fechaUltimo) : '',
       proximo === null ? '' : String(proximo),
-      f.fechaUltimo ? fechaTablaGG(sumarDias(f.fechaUltimo, f.dias)) : '',
+      estimada ? fechaTablaGG(estimada) : '',
       f.horasRegistradas === null ? '' : String(f.horasRegistradas),
-      restante === null ? '' : String(restante),
+      desde === null ? '' : String(desde),
     ];
     valores.forEach((texto, c) => {
       const [p, ...sobrantes] = celdas[c] ? descendientes(celdas[c], NS_A, 'p') : [];
@@ -1057,10 +1059,11 @@ function llenarEstadoMantenimientoGG(lamina: Lamina, filas: FilaOmFds[], avisos:
       fijarTexto(p, texto);
       if (achicar) for (const rPr of descendientes(p, NS_A, 'rPr')) rPr.setAttribute('sz', String(Math.max(900, (Number(rPr.getAttribute('sz')) || 1200) - 200)));
     });
-    const ultima = celdas[valores.length - 1];
-    if (ultima && restante !== null) {
-      for (const rPr of descendientes(ultima, NS_A, 'rPr')) colorDeTexto(rPr, restante >= 0 ? COLOR_RESTANTE.quedan : COLOR_RESTANTE.pasadas);
-    }
+    const pintar = (celda: Element | undefined, semaforo: Semaforo) => {
+      if (celda) for (const rPr of descendientes(celda, NS_A, 'rPr')) colorDeTexto(rPr, COLOR_SEMAFORO[semaforo]);
+    };
+    if (estimada) pintar(celdas[5], semaforoFecha(estimada, corte));
+    if (desde !== null) pintar(celdas[valores.length - 1], semaforoDesdeUltimo(desde));
     if (achicar) tr.setAttribute('h', String(Math.min(Number(tr.getAttribute('h')) || altoFila, altoFila)));
     if (i >= cuerpo.length) {
       for (const id of descendientes(tr, NS_A16, 'rowId')) id.setAttribute('val', String((ultimoId = (ultimoId + 1) % 4294967296)));
@@ -1182,7 +1185,7 @@ export async function generarPresentacionTurno(datos: DatosPresentacion): Promis
   }
 
   await fijarFechasDeCorte(ctx, datos);
-  if (datos.mantenimientoGG?.length) llenarEstadoMantenimientoGG(await abrirLamina(ctx, 21), datos.mantenimientoGG, avisos);
+  if (datos.mantenimientoGG?.length) llenarEstadoMantenimientoGG(await abrirLamina(ctx, 21), datos.mantenimientoGG, datos.fin, avisos);
 
   for (const lamina of ctx.laminas.values()) {
     zip.file(`ppt/slides/slide${lamina.numero}.xml`, escribir(lamina.doc), { createFolders: false });
