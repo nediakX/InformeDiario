@@ -17,11 +17,12 @@
 //   /reportabilidad-gg         Reportabilidad de GG (formulario + tabla de grupos generadores)
 //   /tabla-mantenimiento       Tabla de mantenimiento de generadores (horas, editable)
 //   /medicion-baterias/:carro? Medición de baterías (sin carro = todos los carros)
+//   /archivo-documentos        Archivo de documentos escaneados (todos los informes de la división)
 //   /perfil                    Mi perfil (datos, contraseña y firma)
 //   /admin/:pestana?           Panel de administración (resumen | actividades | generadores | en-linea | usuarios | actividad | sistema)
 //   /login, /registro          Acceso (solo sin sesión)
 
-export type Vista = 'dashboard' | 'diario' | 'borradores' | 'cierre' | 'presentacion' | 'presentacion-fds' | 'mantenimiento' | 'preventiva' | 'falla-carro' | 'checklist' | 'impresion' | 'reportabilidad-gg' | 'tabla-mantenimiento' | 'baterias' | 'mapa' | 'admin' | 'perfil';
+export type Vista = 'dashboard' | 'diario' | 'borradores' | 'cierre' | 'presentacion' | 'presentacion-fds' | 'mantenimiento' | 'preventiva' | 'falla-carro' | 'checklist' | 'impresion' | 'reportabilidad-gg' | 'tabla-mantenimiento' | 'baterias' | 'archivo' | 'mapa' | 'admin' | 'perfil';
 export type TipoBorradores = 'diario' | 'mantenimiento' | 'falla';
 export type PestanaAdmin = 'resumen' | 'actividades' | 'generadores' | 'en-linea' | 'usuarios' | 'actividad' | 'sistema';
 
@@ -41,6 +42,7 @@ export const NOMBRE_PANTALLA: Record<Vista, string> = {
   'reportabilidad-gg': 'Reportabilidad de GG',
   'tabla-mantenimiento': 'Tabla de mantenimiento de generadores',
   baterias: 'Medición de baterías',
+  archivo: 'Archivo de documentos',
   mapa: 'Mapa de sitios',
   admin: 'Panel de administración',
   perfil: 'Mi perfil',
@@ -61,6 +63,7 @@ const BASE: Record<Vista, string> = {
   'reportabilidad-gg': '/reportabilidad-gg',
   'tabla-mantenimiento': '/tabla-mantenimiento',
   baterias: '/medicion-baterias',
+  archivo: '/archivo-documentos',
   mapa: '/mapa-sitios',
   admin: '/admin',
   perfil: '/perfil',
@@ -84,7 +87,7 @@ export function leerRuta(pathname: string): RutaLeida {
   if (resto.length) return { vista: null, param: null };
   const vista = (Object.keys(BASE) as Vista[]).find(v => v !== 'dashboard' && BASE[v] === `/${primera}`) ?? null;
   if (!vista) return { vista: null, param: null };
-  if (segunda && (vista === 'cierre' || vista === 'presentacion' || vista === 'presentacion-fds' || vista === 'impresion' || vista === 'reportabilidad-gg' || vista === 'checklist' || vista === 'perfil' || vista === 'mapa')) return { vista: null, param: null };
+  if (segunda && (vista === 'cierre' || vista === 'presentacion' || vista === 'presentacion-fds' || vista === 'impresion' || vista === 'reportabilidad-gg' || vista === 'checklist' || vista === 'perfil' || vista === 'mapa' || vista === 'archivo')) return { vista: null, param: null };
   return { vista, param: segunda };
 }
 

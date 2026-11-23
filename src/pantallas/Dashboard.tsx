@@ -58,7 +58,7 @@ function Tarea({ id, estado, tono, etiqueta, ayuda, onClick }: {
 }
 
 interface DashboardProps {
-  onNavigate: (view: 'borradores' | 'cierre' | 'presentacion' | 'presentacion-fds' |'checklist' | 'impresion' | 'reportabilidad-gg' | 'tabla-mantenimiento' | 'baterias' | 'mapa' | 'admin' | 'perfil') => void;
+  onNavigate: (view: 'borradores' | 'cierre' | 'presentacion' | 'presentacion-fds' |'checklist' | 'impresion' | 'reportabilidad-gg' | 'tabla-mantenimiento' | 'baterias' | 'archivo' | 'mapa' | 'admin' | 'perfil') => void;
   /** Informes de hoy (Día y Noche), guardados o todavía pendientes: la persona elige con cuál trabajar. */
   informesHoy?: BorradorEntry[];
   onAbrirInforme: (entry: BorradorEntry) => void;
@@ -233,6 +233,8 @@ export default function Dashboard({
         : `${carrosSinUbicacion(division).length} carros · ubicaciones pendientes`} /> : null,
     borradores: <Tarea id="borradores" onClick={() => onNavigate('borradores')}
       estado={`${borradorCount} informe${borradorCount === 1 ? '' : 's'} guardado${borradorCount === 1 ? '' : 's'}`} />,
+    archivoDocumentos: <Tarea id="archivoDocumentos" onClick={() => onNavigate('archivo')}
+      estado="ART, registros y checklists escaneados, en PDF" ayuda />,
     recuperar: <Tarea id="recuperar" onClick={onImportar}
       estado="Vuelve a crear un informe borrado a partir de su Word" ayuda />,
     admin: esAdmin ? <Tarea id="admin" onClick={() => onNavigate('admin')}
@@ -251,7 +253,7 @@ export default function Dashboard({
   const GRUPOS_OPCIONES: { clave: string; titulo: string; icono: ReactNode; ids: IdTarea[] }[] = [
     { clave: 'terreno', titulo: 'Registros en terreno', icono: <ClipboardCheck size={15} aria-hidden="true" />, ids: ['checklist', 'gg', 'tablaMantenimiento', 'baterias', 'impresion', 'mapa'] },
     { clave: 'informes', titulo: 'Otros informes', icono: <FileStack size={15} aria-hidden="true" />, ids: ['cierre', 'presentacion', 'presentacionFds', 'preventiva', 'falla', 'mantenimiento'] },
-    { clave: 'archivo', titulo: 'Archivo', icono: <FolderOpen size={15} aria-hidden="true" />, ids: ['borradores', 'recuperar', 'admin'] },
+    { clave: 'archivo', titulo: 'Archivo', icono: <FolderOpen size={15} aria-hidden="true" />, ids: ['borradores', 'archivoDocumentos', 'recuperar', 'admin'] },
   ];
   const gruposVisibles = GRUPOS_OPCIONES.map(g => ({ ...g, visibles: g.ids.filter(coincide) })).filter(g => g.visibles.length > 0);
 

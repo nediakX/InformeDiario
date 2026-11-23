@@ -16,6 +16,7 @@ import { usePresencia } from '../lib/presencia';
 import { type BorradorEntry, contarFotos, fetchBorradores, subscribeBorradores, deleteBorrador, deleteBorradores, esSemillaSinEditar, estadoBorrador, upsertBorrador } from '../datos/borradoresDiario';
 import { esPreventiva } from '../informes/preventiva/modelo';
 import { type BorradorOtroEntry, fetchBorradoresOtros, subscribeBorradoresOtros, deleteBorradorOtro, upsertBorradorOtro } from '../datos/borradoresOtros';
+import type { DocumentoArchivo } from '../datos/archivoDocumentos';
 import { formatFechaLarga, hoyLocalISO } from '../datos/fechas';
 import { configDivision } from '../datos/divisiones';
 import type { ResultadoImportacion } from '../importar';
@@ -42,6 +43,7 @@ const ImpresionRapida = lazy(() => import('../pantallas/ImpresionRapida'));
 const ReportabilidadGG = lazy(() => import('../pantallas/ReportabilidadGG'));
 const TablaMantenimientoGG = lazy(() => import('../pantallas/TablaMantenimientoGG'));
 const MedicionBaterias = lazy(() => import('../pantallas/MedicionBaterias'));
+const ArchivoDocumentos = lazy(() => import('../pantallas/ArchivoDocumentos'));
 const ChecklistCamioneta = lazy(() => import('../informes/checklist/ChecklistCamioneta'));
 const PanelAdmin = lazy(() => import('../admin/PanelAdmin'));
 const ImportadorWord = lazy(() => import('../componentes/ImportadorWord'));
@@ -666,6 +668,29 @@ function AppContenido() {
 
   if (view === 'mapa') {
     return <CargandoPantalla><MapaSitios onBack={() => setView('dashboard')} /></CargandoPantalla>;
+  }
+
+  if (view === 'archivo') {
+    // Desde un documento se abre el informe del que sale.
+    const abrirInformeDeDocumento = (doc: DocumentoArchivo) => {
+      if (doc.origen === 'diario') {
+        const entry = borradores.find(b => b.id === doc.informeId);
+        if (entry) openBorradorEntry(entry);
+        return;
+      }
+      if (doc.origen === 'cierre') { setView('cierre'); return; }
+      const lista = doc.origen === 'falla' ? borradoresFalla : borradoresMantenimiento;
+      const entry = lista.find(e => e.id === doc.informeId);
+      if (!entry) return;
+      if (doc.origen === 'falla') goToAbrirFalla(entry);
+      else goToAbrirMantenimiento(entry);
+    };
+    return (
+      <CargandoPantalla>
+        <ArchivoDocumentos onBack={() => setView('dashboard')} diarios={borradores} mantenimientos={borradoresMantenimiento}
+          fallas={borradoresFalla} onAbrirInforme={abrirInformeDeDocumento} />
+      </CargandoPantalla>
+    );
   }
 
   if (view === 'impresion') {

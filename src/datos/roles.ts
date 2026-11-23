@@ -66,7 +66,7 @@ export type BloqueInicio = 'contrato' | 'revisar' | 'turno' | 'turnoMini' | 'hoy
 export const IDS_TAREA = [
   'checklist', 'gg', 'tablaMantenimiento', 'baterias', 'impresion', 'mapa',
   'cierre', 'presentacion', 'presentacionFds', 'preventiva', 'falla', 'mantenimiento',
-  'borradores', 'recuperar', 'admin',
+  'borradores', 'archivoDocumentos', 'recuperar', 'admin',
 ] as const;
 export type IdTarea = (typeof IDS_TAREA)[number];
 export const esIdTarea = (v: unknown): v is IdTarea => typeof v === 'string' && (IDS_TAREA as readonly string[]).includes(v);
