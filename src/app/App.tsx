@@ -475,6 +475,7 @@ function AppContenido() {
           aviso: 'Reemplazará el cierre en curso de la división (las actividades de cada día se toman de los Informes Diarios).',
         };
       case 'mantenimiento':
+      case 'preventiva':
       case 'falla':
         return { detalles: [r.titulo, formatFechaLarga(r.fecha)] };
       case 'checklist': {
@@ -501,9 +502,12 @@ function AppContenido() {
         return;
       }
       case 'mantenimiento':
+      case 'preventiva':
       case 'falla': {
-        const guardado = await upsertBorradorOtro({ id: crypto.randomUUID(), tipo: r.tipo, division, titulo: r.titulo, fecha: r.fecha, savedAt, datos: r.datos });
-        if (r.tipo === 'mantenimiento') {
+        // La mantención preventiva se guarda en la lista de Mantenimiento (como la crea su formulario).
+        const tipo = r.tipo === 'falla' ? 'falla' : 'mantenimiento';
+        const guardado = await upsertBorradorOtro({ id: crypto.randomUUID(), tipo, division, titulo: r.titulo, fecha: r.fecha, savedAt, datos: r.datos });
+        if (tipo === 'mantenimiento') {
           setBorradoresMantenimiento(prev => [guardado, ...prev.filter(b => b.id !== guardado.id)]);
           goToAbrirMantenimiento(guardado);
         } else {

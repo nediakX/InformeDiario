@@ -10,13 +10,14 @@ import type { DatosCierreImportados } from './cierre';
 export type ResultadoImportacion =
   | { tipo: 'diario'; entry: BorradorEntry }
   | { tipo: 'cierre'; datos: DatosCierreImportados }
-  | { tipo: 'mantenimiento' | 'falla'; titulo: string; fecha: string; datos: Record<string, unknown> }
+  | { tipo: 'mantenimiento' | 'preventiva' | 'falla'; titulo: string; fecha: string; datos: Record<string, unknown> }
   | { tipo: 'checklist'; datos: DatosChecklist };
 
 export const NOMBRE_TIPO: Record<ResultadoImportacion['tipo'], string> = {
   diario: 'Informe Diario',
   cierre: 'Informe de Cierre',
   mantenimiento: 'Mantenimiento de Generador',
+  preventiva: 'Mantención preventiva de sitio',
   falla: 'Informe de Falla — Carro',
   checklist: 'Checklist de Camioneta',
 };
@@ -30,12 +31,14 @@ export async function importarWord(archivo: File, divisionActual: Division, pued
 
   const tipo: ResultadoImportacion['tipo'] | null =
     texto.includes('datos camioneta') && texto.includes('documentos del vehiculo') ? 'checklist'
+      // Antes que el diario y el mantenimiento: la preventiva también dice "Reporte diario" y "mantenimiento".
+      : texto.includes('personal ejecutante del mantenimiento preventivo') || texto.includes('mantencion preventiva o&m') ? 'preventiva'
       : texto.includes('informe de cierre') ? 'cierre'
         : texto.includes('reporte de falla') ? 'falla'
           : texto.includes('informe de mantenimiento') ? 'mantenimiento'
             : texto.includes('reporte diario') ? 'diario'
               : null;
-  if (!tipo) throw new ErrorImportacion('Este Word no parece ser un informe generado por la app (Diario, Cierre, Mantenimiento, Falla o Checklist).');
+  if (!tipo) throw new ErrorImportacion('Este Word no parece ser un informe generado por la app (Diario, Cierre, Mantenimiento, Mantención preventiva, Falla o Checklist).');
 
   // El informe se importa en la división a la que pertenece.
   const division = detectarDivision(doc.textoCompleto, divisionActual);
@@ -59,6 +62,10 @@ export async function importarWord(archivo: File, divisionActual: Division, pued
       case 'mantenimiento': {
         const { importarMantenimiento } = await import('./mantenimiento');
         return { tipo, ...(await importarMantenimiento(doc)) };
+      }
+      case 'preventiva': {
+        const { importarPreventiva } = await import('./preventiva');
+        return { tipo, ...(await importarPreventiva(doc, division)) };
       }
       case 'falla': {
         const { importarFalla } = await import('./falla');

@@ -83,7 +83,7 @@ export default function ImportadorWord({ division, esAdmin, describir, guardar, 
               Si un informe se borró, puedes recuperarlo desde el Word que descargaste de la app: se vuelve a crear
               el borrador con sus textos, personal, actividades y fotos, listo para seguir editándolo.
             </p>
-            <p className="text-xs text-gray-500">Sirve para Informe Diario, Cierre, Mantenimiento de Generador, Falla de Carro y Checklist de Camioneta.</p>
+            <p className="text-xs text-gray-500">Sirve para Informe Diario, Cierre, Mantenimiento de Generador, Mantención preventiva, Falla de Carro y Checklist de Camioneta.</p>
             <button type="button" onClick={() => inputRef.current?.click()} className="w-full bg-[#0E4660] text-white rounded-md px-4 py-3 font-bold hover:bg-[#0a3549] flex items-center justify-center gap-2">
               <FileUp size={18} aria-hidden="true" /> Elegir archivo Word (.docx)
             </button>
