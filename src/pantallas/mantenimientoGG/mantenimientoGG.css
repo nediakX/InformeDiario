@@ -33,7 +33,6 @@
 .mgg-pestana:hover { color: var(--brand-text); background: var(--panel-2); }
 .mgg-pestana[aria-selected="true"] { color: var(--brand-text); border-bottom-color: var(--amber); }
 .mgg-pestana:focus-visible { outline: 2px solid var(--brand-blue); outline-offset: -2px; }
-.mgg-pestana__corto { display: none; }
 .mgg-pestana__cuenta {
   display: inline-grid; place-items: center; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 999px;
   font-size: 0.72rem; font-weight: 800; font-variant-numeric: tabular-nums;
@@ -41,10 +40,10 @@
 .mgg-pestana__cuenta--vencido { background: #b3261e; color: #fff; }
 .mgg-pestana__cuenta--proximo { background: #f0c03d; color: #3b2f00; }
 @media (max-width: 520px) {
-  .mgg-pestanas { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0; overflow: visible; }
-  .mgg-pestana { position: relative; justify-content: center; gap: 4px; padding: 10px 2px 9px; font-size: 0.8rem; min-width: 0; }
-  .mgg-pestana__largo { display: none; }
-  .mgg-pestana__corto { display: inline; overflow: hidden; text-overflow: ellipsis; }
+  /* Celular: las cuatro pestañas en dos filas, con su nombre completo. */
+  .mgg-pestanas { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0; overflow: visible; }
+  .mgg-pestana { position: relative; justify-content: center; gap: 4px; padding: 10px 4px 9px; font-size: 0.8rem; min-width: 0; }
+  .mgg-pestana__titulo { overflow: hidden; text-overflow: ellipsis; }
   .mgg-pestana__cuenta { min-width: 17px; height: 17px; padding: 0 4px; font-size: 0.64rem; }
 }
 @media (max-width: 360px) {
@@ -216,19 +215,18 @@ select.mgg-campo { padding-right: 4px; cursor: pointer; }
 .mgg-alerta--critico { background: var(--bg-fbe9e9, #fbe9e9); color: var(--tx-a32626, #a32626); }
 .mgg-alerta--atencion { background: var(--bg-fff3cd, #fff3cd); color: var(--tx-7a5b00, #7a5b00); }
 
-/* Opción "Ver el último reporte de GG" (pestaña Mantenimiento) */
+/* Barra de la pestaña: filtros por estado y, en el Reporte de GG, el día */
 .mgg-barra-filtros { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 14px; }
-.mgg-opcion {
-  display: inline-flex; align-items: center; gap: 8px; min-height: 36px; padding: 4px 12px 4px 10px; border-radius: 999px;
-  border: 1px solid var(--line); background: var(--panel); color: var(--brand-text); font-size: 0.8rem; font-weight: 700; cursor: pointer;
+.mgg-dia { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; }
+.mgg-dia__fecha { width: auto; min-width: 148px; }
+.mgg-dia__resumen { margin: 0; font-size: 0.8rem; color: var(--text-soft); }
+.mgg-dia__resumen b { color: var(--ink); font-weight: 800; }
+@media (max-width: 520px) {
+  .mgg-dia { width: 100%; }
+  .mgg-dia__fecha { flex: 1; height: 40px; }
+  .mgg-dia .mgg-icono-boton { width: 40px; height: 40px; }
 }
-.mgg-opcion input { width: 17px; height: 17px; accent-color: var(--brand-blue); cursor: pointer; }
-.mgg-opcion:has(input:checked) { background: var(--panel-2); border-color: var(--brand-blue); }
-.mgg-opcion:has(input:focus-visible) { outline: 2px solid var(--brand-blue); outline-offset: 2px; }
-/* Columnas del último reporte (a la derecha de la planilla, separadas por una línea) */
-.mgg-tabla .mgg-grupo-inicio { border-left: 2px solid var(--line) !important; }
-.mgg-c-reporte { min-width: 104px; }
-.mgg-c-sin-reporte { border-left: 2px solid var(--line); }
+.mgg-tabla--reporte .mgg-c-obs { min-width: 160px; max-width: 320px; font-size: 0.76rem; color: var(--text-soft); }
 .mgg-ficha__reporte {
   grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 2px 12px; font-size: 0.76rem; color: var(--text-soft);
   font-variant-numeric: tabular-nums;
@@ -236,8 +234,6 @@ select.mgg-campo { padding-right: 4px; cursor: pointer; }
 .mgg-ficha__reporte b { color: var(--ink); font-weight: 800; }
 .mgg-ficha__reporte b.mgg-valor--vencido { color: var(--tx-b3261e, #b3261e); }
 .mgg-ficha__reporte b.mgg-valor--proximo { color: var(--tx-8a6100, #8a6100); }
-.mgg-ficha__seccion { display: grid; gap: 8px; padding-top: 10px; border-top: 1px dashed var(--line); }
-.mgg-ficha__seccion > h3 { margin: 0; font-size: 0.72rem; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; color: var(--brand-text); }
 
 .mgg-combustible { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
 .mgg-estanque { display: inline-flex; gap: 2px; flex: none; }

@@ -1,14 +1,12 @@
 // Pestaña "Mantenimiento": la planilla del Excel con todos sus indicadores, editable celda por celda.
-// En pantallas angostas cada equipo es una ficha que se abre con un toque. Con "Ver el último reporte de GG"
-// se agregan los datos de la Reportabilidad de cada generador (combustible, refrigerante, aceite, temperatura y partidas).
+// En pantallas angostas cada equipo es una ficha que se abre con un toque.
 import { useState } from 'react';
 import { ChevronDown, Pencil, Wrench } from 'lucide-react';
 import { OPCIONES_REFRIGERANTE } from '../../datos/reportesGG';
 import { CICLOS_DIAS, HORAS_ENTRE_MANTENIMIENTOS, OPCIONES_STATUS, type IndicadoresMantenimiento } from '../../datos/indicadoresMantenimientoGG';
-import { BarraUso, CampoFecha, CampoHoras, Dato, Estado, Estanque, IconoGuardado, NombreEquipo } from './comunes';
+import { BarraUso, CampoFecha, CampoHoras, Dato, Estado, IconoGuardado, NombreEquipo } from './comunes';
 import {
-  NOMBRE_REFRIGERANTE, claseAceite, claseCombustible, claseRefrigerante, claseTemperatura, claseValor, cuandoLectura, detalleLectura,
-  fmtDia, fmtFecha, fmtHoras, fmtHorasConSigno, fmtTemp, nombreRefrigerante, textoDias, textoLectura, textoLecturaCorta, ultimoReporteConDatos,
+  NOMBRE_REFRIGERANTE, claseValor, detalleLectura, fmtDia, fmtFecha, fmtHoras, fmtHorasConSigno, textoDias, textoLectura, textoLecturaCorta,
   type AccionesEquipo, type EquipoCalculado, type EstadoGuardado,
 } from './formato';
 
@@ -18,31 +16,6 @@ interface Props {
   acciones: AccionesEquipo;
   /** Base sin el SQL nuevo: el status no se puede guardar. */
   faltaActualizarBD: boolean;
-  /** Agrega los datos del último reporte de GG de cada generador. */
-  conReportes: boolean;
-  /** Los reportes de GG todavía no llegan. */
-  cargandoReportes: boolean;
-}
-
-/** Columnas del último reporte de GG (cuando se pide verlo). */
-const COLUMNAS_REPORTE = 6;
-
-/** Celdas con el último reporte de GG del generador que trae mediciones. */
-function CeldasReporte({ e, cargando }: { e: EquipoCalculado; cargando: boolean }) {
-  const r = ultimoReporteConDatos(e.gg);
-  if (!r) {
-    return <td colSpan={COLUMNAS_REPORTE} className="mgg-c-sin-reporte"><span className="mgg-sub">{cargando ? 'Cargando los reportes de GG…' : 'Sin reportes en los últimos 30 días'}</span></td>;
-  }
-  return (
-    <>
-      <td className="mgg-c-reporte mgg-grupo-inicio"><span className="mgg-nowrap">{cuandoLectura(r)}</span>{r.reporta && <span className="mgg-sub">{r.reporta}</span>}</td>
-      <td><span className="mgg-combustible"><Estanque nivel={r.combustible} /><span className={claseCombustible(r.combustible)}>{r.combustible ?? '—'}</span></span></td>
-      <td className={claseRefrigerante(r.nivelRefrigerante)}>{nombreRefrigerante(r.nivelRefrigerante)}</td>
-      <td className={claseAceite(r.nivelAceite)}>{r.nivelAceite ?? '—'}</td>
-      <td className={`mgg-num ${claseTemperatura(r.temperatura)}`}>{fmtTemp(r.temperatura)}</td>
-      <td className="mgg-num">{r.nroPartidas ?? '—'}</td>
-    </>
-  );
 }
 
 /** Por qué está vencido o próximo (o, si está al día, cuándo llega por horas). */
@@ -111,11 +84,7 @@ const campoHorasActuales = (e: EquipoCalculado, acciones: AccionesEquipo) => (
     onGuardar={v => acciones.guardar(e.fila.sitio, { horasRegistradas: v, horasRegistradasEn: new Date().toISOString() })} />
 );
 
-interface PropsEquipo {
-  e: EquipoCalculado; guardado?: EstadoGuardado; acciones: AccionesEquipo; faltaActualizarBD: boolean; conReportes: boolean; cargandoReportes: boolean;
-}
-
-function FilaPlanilla({ e, guardado, acciones, faltaActualizarBD, conReportes, cargandoReportes }: PropsEquipo) {
+function FilaPlanilla({ e, guardado, acciones, faltaActualizarBD }: { e: EquipoCalculado; guardado?: EstadoGuardado; acciones: AccionesEquipo; faltaActualizarBD: boolean }) {
   const { fila: f, mtto: m } = e;
   const nombre = f.nombre || f.sitio;
   return (
@@ -153,16 +122,14 @@ function FilaPlanilla({ e, guardado, acciones, faltaActualizarBD, conReportes, c
           <Wrench size={16} aria-hidden="true" />
         </button>
       </td>
-      {conReportes && <CeldasReporte e={e} cargando={cargandoReportes} />}
     </tr>
   );
 }
 
-function Ficha({ e, guardado, acciones, faltaActualizarBD, conReportes, cargandoReportes }: PropsEquipo) {
+function Ficha({ e, guardado, acciones, faltaActualizarBD }: { e: EquipoCalculado; guardado?: EstadoGuardado; acciones: AccionesEquipo; faltaActualizarBD: boolean }) {
   const [editar, setEditar] = useState(false);
   const { fila: f, mtto: m, actuales } = e;
   const excedido = m.faltanHoras !== null && m.faltanHoras < 0;
-  const r = conReportes ? ultimoReporteConDatos(e.gg) : null;
   return (
     <li className={`mgg-ficha mgg-fila--${m.estado}`}>
       <details>
@@ -174,18 +141,6 @@ function Ficha({ e, guardado, acciones, faltaActualizarBD, conReportes, cargando
             <span>Fecha <b className={claseValor(m.estadoFecha)}>{fmtFecha(m.fechaEstimada)}</b></span>
           </span>
           <BarraUso usadas={m.desdeUltimo} total={HORAS_ENTRE_MANTENIMIENTOS} estado={m.estadoHoras} etiqueta={textoUso(m)} />
-          {conReportes && (
-            <span className="mgg-ficha__reporte">
-              {r ? (
-                <>
-                  <span className="mgg-combustible">Comb. <Estanque nivel={r.combustible} /><b className={claseCombustible(r.combustible)}>{r.combustible ?? '—'}</b></span>
-                  <span>Refrig. <b className={claseRefrigerante(r.nivelRefrigerante)}>{nombreRefrigerante(r.nivelRefrigerante)}</b></span>
-                  <span>Aceite <b className={claseAceite(r.nivelAceite)}>{r.nivelAceite ?? '—'}</b></span>
-                  <span>Temp. <b className={claseTemperatura(r.temperatura)}>{fmtTemp(r.temperatura)}</b></span>
-                </>
-              ) : <span>{cargandoReportes ? 'Cargando los reportes de GG…' : 'Sin reportes de GG en los últimos 30 días'}</span>}
-            </span>
-          )}
         </summary>
         <div className="mgg-ficha__cuerpo">
           <dl className="mgg-datos">
@@ -198,21 +153,6 @@ function Ficha({ e, guardado, acciones, faltaActualizarBD, conReportes, cargando
             <Dato etiqueta="Status" valor={`${f.statusPct} %`} />
             <Dato etiqueta="Refrigerante" valor={NOMBRE_REFRIGERANTE[f.refrigerante ?? ''] ?? '—'} />
           </dl>
-          {conReportes && r && (
-            <div className="mgg-ficha__seccion">
-              <h3>Último reporte de GG</h3>
-              <dl className="mgg-datos">
-                <Dato etiqueta="Reporte" valor={cuandoLectura(r) || '—'} sub={[r.reporta, r.turno].filter(Boolean).join(' · ') || undefined} />
-                <Dato etiqueta="Combustible" valor={<span className="mgg-combustible"><Estanque nivel={r.combustible} />{r.combustible ?? '—'}</span>} clase={claseCombustible(r.combustible)} />
-                <Dato etiqueta="Refrigerante" valor={nombreRefrigerante(r.nivelRefrigerante)} clase={claseRefrigerante(r.nivelRefrigerante)} />
-                <Dato etiqueta="Aceite" valor={r.nivelAceite ?? '—'} clase={claseAceite(r.nivelAceite)} />
-                <Dato etiqueta="Temperatura" valor={fmtTemp(r.temperatura)} clase={claseTemperatura(r.temperatura)} />
-                <Dato etiqueta="Partidas" valor={r.nroPartidas ?? '—'} />
-                <Dato etiqueta="Horómetro" valor={r.horometro === null ? '—' : `${fmtHoras(r.horometro)} h`} />
-                {r.observaciones && <Dato etiqueta="Observación" valor={r.observaciones} />}
-              </dl>
-            </div>
-          )}
           <div className="mgg-ficha__acciones">
             <button type="button" className="mgg-boton mgg-boton--principal" onClick={() => acciones.registrar('mantenimiento', f.sitio)}>
               <Wrench size={15} aria-hidden="true" /> Registrar mantenimiento
@@ -238,11 +178,10 @@ function Ficha({ e, guardado, acciones, faltaActualizarBD, conReportes, cargando
   );
 }
 
-export default function PestanaMantenimiento({ equipos, guardados, acciones, faltaActualizarBD, conReportes, cargandoReportes }: Props) {
-  const extra = { faltaActualizarBD, conReportes, cargandoReportes };
+export default function PestanaMantenimiento({ equipos, guardados, acciones, faltaActualizarBD }: Props) {
   return (
     <>
-      <div className={`mgg-planilla mgg-planilla--ancha${conReportes ? ' mgg-planilla--con-reportes' : ''}`}>
+      <div className="mgg-planilla mgg-planilla--ancha">
         <div className="mgg-tabla-envoltura">
           <table className="mgg-tabla mgg-tabla--mtto">
             <thead>
@@ -254,7 +193,6 @@ export default function PestanaMantenimiento({ equipos, guardados, acciones, fal
                 <th rowSpan={2} scope="col">Refrigerante</th>
                 <th rowSpan={2} scope="col">Estado</th>
                 <th rowSpan={2} scope="col"><span className="sr-only">Registrar</span></th>
-                {conReportes && <th colSpan={COLUMNAS_REPORTE} scope="colgroup" className="mgg-grupo-inicio">Último reporte de GG</th>}
               </tr>
               <tr>
                 <th scope="col" className="mgg-num">Horas</th>
@@ -267,26 +205,16 @@ export default function PestanaMantenimiento({ equipos, guardados, acciones, fal
                 <th scope="col" title="Días de mantenimiento">Cada</th>
                 <th scope="col" title="Fecha estimada del próximo mantenimiento = fecha del último + días">Próximo</th>
                 <th scope="col" title="Fecha de mantenimiento por año = fecha del último + 365 días">Anual</th>
-                {conReportes && (
-                  <>
-                    <th scope="col" className="mgg-grupo-inicio" title="Último reporte de GG con mediciones (los «no realizada» no las traen)">Fecha</th>
-                    <th scope="col">Combustible</th>
-                    <th scope="col">Refrigerante</th>
-                    <th scope="col">Aceite</th>
-                    <th scope="col" className="mgg-num">Temp.</th>
-                    <th scope="col" className="mgg-num">Partidas</th>
-                  </>
-                )}
               </tr>
             </thead>
             <tbody>
-              {equipos.map(e => <FilaPlanilla key={e.fila.sitio} e={e} guardado={guardados[e.fila.sitio]} acciones={acciones} {...extra} />)}
+              {equipos.map(e => <FilaPlanilla key={e.fila.sitio} e={e} guardado={guardados[e.fila.sitio]} acciones={acciones} faltaActualizarBD={faltaActualizarBD} />)}
             </tbody>
           </table>
         </div>
       </div>
       <ul className="mgg-fichas mgg-fichas--ancha" aria-label="Equipos">
-        {equipos.map(e => <Ficha key={e.fila.sitio} e={e} guardado={guardados[e.fila.sitio]} acciones={acciones} {...extra} />)}
+        {equipos.map(e => <Ficha key={e.fila.sitio} e={e} guardado={guardados[e.fila.sitio]} acciones={acciones} faltaActualizarBD={faltaActualizarBD} />)}
       </ul>
     </>
   );

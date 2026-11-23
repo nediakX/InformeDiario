@@ -3,16 +3,17 @@
 //    fecha por año, status), editables celda por celda.
 //  - Cambio de correa: horas y fecha del último cambio y cuándo toca el próximo (cada 1.500 h).
 //  - Reportabilidad: el último reporte de GG de cada generador, sus alertas y los últimos reportes.
+//  - Reporte de GG: el reporte de GG de un día (combustible, refrigerante, aceite, temperatura, horómetro, partidas).
 // Las horas actuales salen solas del último reporte de GG (o de lo que se escriba aquí, si es más nuevo).
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
-import { ArrowLeft, CloudOff, DatabaseZap, Download, Loader2, TriangleAlert } from 'lucide-react';
+import { ArrowLeft, ChevronLeft, ChevronRight, CloudOff, DatabaseZap, Download, Loader2, TriangleAlert } from 'lucide-react';
 import { saveAs } from 'file-saver';
 import CuentaCabecera from '../componentes/CuentaCabecera';
 import logoPsinet from '../assets/logo_psinet.png';
 import logoEdificio from '../assets/LogoEdificio.png';
 import { useSesion } from '../auth/sesion';
 import { configDivision } from '../datos/divisiones';
-import { hoyLocalISO } from '../datos/fechas';
+import { formatFechaLarga, hoyLocalISO, nombreDiaSemana, sumarDias } from '../datos/fechas';
 import { registrarDeshacer } from '../lib/deshacer';
 import { esErrorDeRed } from '../lib/conexion';
 import { crearLibroExcel, type HojaExcel } from '../lib/excel';
@@ -28,37 +29,36 @@ import type { EstadoGG } from '../datos/analisisGG';
 import PestanaMantenimiento from './mantenimientoGG/PestanaMantenimiento';
 import PestanaCorrea from './mantenimientoGG/PestanaCorrea';
 import PestanaReportes from './mantenimientoGG/PestanaReportes';
+import PestanaReporteGG from './mantenimientoGG/PestanaReporteGG';
 import DialogoRegistro from './mantenimientoGG/DialogoRegistro';
 import { useAnalisisGG } from './mantenimientoGG/useAnalisisGG';
 import {
-  ETIQUETA_ESTADO, NOMBRE_REFRIGERANTE, cuandoLectura, fmtFecha, fmtHoras,
+  ETIQUETA_ESTADO, NOMBRE_REFRIGERANTE, cuandoLectura, estadoNiveles, fmtFecha, fmtHoras, reporteDelDia,
   type EquipoCalculado, type EstadoGuardado, type TipoRegistro,
 } from './mantenimientoGG/formato';
 import './mantenimientoGG/mantenimientoGG.css';
 
-type Pestana = 'mantenimiento' | 'correa' | 'reportes';
-const PESTANAS: { id: Pestana; titulo: string; corto: string }[] = [
-  { id: 'mantenimiento', titulo: 'Mantenimiento', corto: 'Mantención' },
-  { id: 'correa', titulo: 'Cambio de correa', corto: 'Correa' },
-  { id: 'reportes', titulo: 'Reportabilidad', corto: 'Reportes' },
+type Pestana = 'mantenimiento' | 'correa' | 'reportes' | 'reporte';
+const PESTANAS: { id: Pestana; titulo: string }[] = [
+  { id: 'mantenimiento', titulo: 'Mantenimiento' },
+  { id: 'correa', titulo: 'Cambio de correa' },
+  { id: 'reportes', titulo: 'Reportabilidad' },
+  { id: 'reporte', titulo: 'Reporte de GG' },
 ];
 const CLAVE_PESTANA = 'psinet_mtto_gg_pestana';
-/** "Ver el último reporte de GG" en la pestaña Mantenimiento (se recuerda en este equipo). */
-const CLAVE_CON_REPORTES = 'psinet_mtto_gg_con_reportes';
-const leerConReportes = (): boolean => {
-  try { return localStorage.getItem(CLAVE_CON_REPORTES) === '1'; } catch { return false; }
-};
 const leerPestana = (): Pestana => {
   try {
     const p = localStorage.getItem(CLAVE_PESTANA);
-    return p === 'correa' || p === 'reportes' ? p : 'mantenimiento';
+    return p === 'correa' || p === 'reportes' || p === 'reporte' ? p : 'mantenimiento';
   } catch { return 'mantenimiento'; }
 };
+/** Días hacia atrás que se pueden ver en el Reporte de GG (los que trae la Reportabilidad). */
+const DIAS_REPORTES = 30;
 
 /** Estado de la Reportabilidad en los mismos colores que los vencimientos. */
 const COLOR_GG: Record<EstadoGG, Vencimiento> = { critico: 'vencido', atencion: 'proximo', ok: 'al_dia', sin_datos: 'sin_datos' };
 const estadoReportes = (e: EquipoCalculado): Vencimiento => (e.gg ? COLOR_GG[e.gg.estado] : 'sin_datos');
-const ESTADO_DE: Record<Pestana, (e: EquipoCalculado) => Vencimiento> = {
+const ESTADO_DE: Record<Exclude<Pestana, 'reporte'>, (e: EquipoCalculado) => Vencimiento> = {
   mantenimiento: e => e.mtto.estado,
   correa: e => e.correa.estado,
   reportes: estadoReportes,
@@ -68,6 +68,7 @@ const FILTROS: Record<Pestana, Record<Vencimiento, [string, string]>> = {
   mantenimiento: { vencido: ['vencido', 'vencidos'], proximo: ['próximo', 'próximos'], al_dia: ['al día', 'al día'], sin_datos: ['sin datos', 'sin datos'] },
   correa: { vencido: ['vencido', 'vencidos'], proximo: ['próximo', 'próximos'], al_dia: ['al día', 'al día'], sin_datos: ['sin datos', 'sin datos'] },
   reportes: { vencido: ['crítico', 'críticos'], proximo: ['en atención', 'en atención'], al_dia: ['normal', 'normales'], sin_datos: ['sin reportes', 'sin reportes'] },
+  reporte: { vencido: ['nivel crítico', 'niveles críticos'], proximo: ['por revisar', 'por revisar'], al_dia: ['normal', 'normales'], sin_datos: ['sin reporte', 'sin reporte'] },
 };
 const ORDEN_FILTROS: Vencimiento[] = ['vencido', 'proximo', 'al_dia', 'sin_datos'];
 
@@ -86,11 +87,8 @@ export default function TablaMantenimientoGG({ onBack }: { onBack: () => void })
   const [error, setError] = useState('');
   const [version, setVersion] = useState(0);
   const [pestana, setPestana] = useState<Pestana>(leerPestana);
-  const [conReportes, setConReportes] = useState<boolean>(leerConReportes);
-  const cambiarConReportes = (valor: boolean) => {
-    setConReportes(valor);
-    try { localStorage.setItem(CLAVE_CON_REPORTES, valor ? '1' : '0'); } catch { /* sin almacenamiento */ }
-  };
+  // Día del Reporte de GG (null = el más reciente con reportes).
+  const [fechaReporte, setFechaReporte] = useState<string | null>(null);
   const [filtro, setFiltro] = useState<Vencimiento | null>(null);
   const [guardados, setGuardados] = useState<Record<string, EstadoGuardado>>({});
   const [registro, setRegistro] = useState<{ tipo: TipoRegistro; sitio: string } | null>(null);
@@ -158,15 +156,29 @@ export default function TablaMantenimientoGG({ onBack }: { onBack: () => void })
     return { fila, gg, actuales, ritmo, mtto: indicadoresMantenimiento(fila, actuales, hoy, ritmo), correa: indicadoresCorrea(fila, actuales, hoy, ritmo) };
   }), [tabla, analisis, hoy]);
 
+  // Reporte de GG: días con reportes (los últimos 30) y el día que se está viendo.
+  const fechasConReporte = useMemo(() => {
+    const fechas = new Set<string>();
+    for (const s of analisis?.porSitio.values() ?? []) for (const r of s.serie) fechas.add(r.fecha);
+    return [...fechas].sort();
+  }, [analisis]);
+  const fechaDelReporte = fechaReporte ?? fechasConReporte[fechasConReporte.length - 1] ?? hoy;
+  const diaAnterior = [...fechasConReporte].reverse().find(f => f < fechaDelReporte) ?? null;
+  const diaSiguiente = fechasConReporte.find(f => f > fechaDelReporte) ?? null;
+  const reportaronEseDia = equipos.filter(e => reporteDelDia(e.gg, fechaDelReporte)).length;
+
+  const estadoEn = useCallback((p: Pestana, e: EquipoCalculado): Vencimiento =>
+    (p === 'reporte' ? estadoNiveles(reporteDelDia(e.gg, fechaDelReporte)) : ESTADO_DE[p](e)), [fechaDelReporte]);
   const conteos = useMemo(() => ({
-    mantenimiento: contarEstados(equipos.map(ESTADO_DE.mantenimiento)),
-    correa: contarEstados(equipos.map(ESTADO_DE.correa)),
-    reportes: contarEstados(equipos.map(ESTADO_DE.reportes)),
-  }), [equipos]);
+    mantenimiento: contarEstados(equipos.map(e => estadoEn('mantenimiento', e))),
+    correa: contarEstados(equipos.map(e => estadoEn('correa', e))),
+    reportes: contarEstados(equipos.map(e => estadoEn('reportes', e))),
+    reporte: contarEstados(equipos.map(e => estadoEn('reporte', e))),
+  }), [equipos, estadoEn]);
   const conteo = conteos[pestana];
   // Si después de un cambio ya no queda ninguno en el estado elegido, se vuelve a ver todos.
   const filtroActivo = filtro && conteo[filtro] > 0 ? filtro : null;
-  const visibles = filtroActivo ? equipos.filter(e => ESTADO_DE[pestana](e) === filtroActivo) : equipos;
+  const visibles = filtroActivo ? equipos.filter(e => estadoEn(pestana, e) === filtroActivo) : equipos;
   const reportesListos = !!analisis;
   // "Sin señal" deja de mostrarse en el equipo apenas su cambio sube.
   const guardadosVisibles = useMemo(() => {
@@ -352,12 +364,12 @@ export default function TablaMantenimientoGG({ onBack }: { onBack: () => void })
               <div className="mgg-pestanas" role="tablist" aria-label="Tablas" onKeyDown={alTeclearPestanas}>
                 {PESTANAS.map(p => {
                   const c = conteos[p.id];
-                  const listo = p.id !== 'reportes' || reportesListos;
+                  const listo = (p.id !== 'reportes' && p.id !== 'reporte') || reportesListos;
                   const marca = !listo ? null : c.vencido ? { n: c.vencido, tipo: 'vencido' } : c.proximo ? { n: c.proximo, tipo: 'proximo' } : null;
                   return (
                     <button key={p.id} type="button" role="tab" id={`mgg-pestana-${p.id}`} aria-controls={`mgg-panel-${p.id}`}
                       aria-selected={pestana === p.id} tabIndex={pestana === p.id ? 0 : -1} className="mgg-pestana" onClick={() => cambiarPestana(p.id)}>
-                      <span className="mgg-pestana__largo">{p.titulo}</span><span className="mgg-pestana__corto">{p.corto}</span>
+                      <span className="mgg-pestana__titulo">{p.titulo}</span>
                       {marca && (
                         <span className={`mgg-pestana__cuenta mgg-pestana__cuenta--${marca.tipo}`}
                           title={`${marca.n} ${FILTROS[p.id][marca.tipo as Vencimiento][marca.n === 1 ? 0 : 1]}`}>
@@ -371,7 +383,7 @@ export default function TablaMantenimientoGG({ onBack }: { onBack: () => void })
 
               <div role="tabpanel" id={`mgg-panel-${pestana}`} aria-labelledby={`mgg-pestana-${pestana}`} className="mgg-contenido">
                 <div className="mgg-barra-filtros">
-                  {(pestana !== 'reportes' || reportesListos) && (
+                  {((pestana !== 'reportes' && pestana !== 'reporte') || reportesListos) && (
                     <div className="mgg-filtros" role="group" aria-label="Ver solo">
                       {ORDEN_FILTROS.filter(v => conteo[v] > 0).map(v => (
                         <button key={v} type="button" aria-pressed={filtroActivo === v} className={`mgg-filtro mgg-filtro--${v}`}
@@ -382,20 +394,28 @@ export default function TablaMantenimientoGG({ onBack }: { onBack: () => void })
                       {filtroActivo && <button type="button" className="mgg-enlace" onClick={() => setFiltro(null)}>Ver todos</button>}
                     </div>
                   )}
-                  {pestana === 'mantenimiento' && (
-                    <label className="mgg-opcion" title="Combustible, refrigerante, aceite, temperatura y partidas del último reporte de GG de cada generador">
-                      <input type="checkbox" checked={conReportes} onChange={ev => cambiarConReportes(ev.target.checked)} />
-                      Ver el último reporte de GG
-                    </label>
+                  {pestana === 'reporte' && reportesListos && (
+                    <div className="mgg-dia" role="group" aria-label="Día del reporte">
+                      <button type="button" className="mgg-icono-boton" onClick={() => diaAnterior && setFechaReporte(diaAnterior)} disabled={!diaAnterior}
+                        aria-label="Día anterior con reportes" title="Día anterior con reportes"><ChevronLeft size={16} aria-hidden="true" /></button>
+                      <input type="date" className="mgg-campo mgg-dia__fecha" value={fechaDelReporte} min={sumarDias(hoy, -(DIAS_REPORTES - 1))} max={hoy}
+                        aria-label="Día del reporte" onChange={ev => { if (ev.target.value) { setFechaReporte(ev.target.value); setFiltro(null); } }} />
+                      <button type="button" className="mgg-icono-boton" onClick={() => diaSiguiente && setFechaReporte(diaSiguiente)} disabled={!diaSiguiente}
+                        aria-label="Día siguiente con reportes" title="Día siguiente con reportes"><ChevronRight size={16} aria-hidden="true" /></button>
+                    </div>
                   )}
                 </div>
-
-                {pestana === 'mantenimiento' && (
-                  <PestanaMantenimiento equipos={visibles} guardados={guardadosVisibles} acciones={acciones} faltaActualizarBD={tabla.faltaActualizarBD}
-                    conReportes={conReportes} cargandoReportes={!analisis && !errorReportes} />
+                {pestana === 'reporte' && reportesListos && (
+                  <p className="mgg-dia__resumen" aria-live="polite">
+                    Reporte del <b>{nombreDiaSemana(fechaDelReporte).toLowerCase()} {formatFechaLarga(fechaDelReporte)}</b>
+                    {' · '}{reportaronEseDia} de {equipos.length} generadores reportaron
+                  </p>
                 )}
+
+                {pestana === 'mantenimiento' && <PestanaMantenimiento equipos={visibles} guardados={guardadosVisibles} acciones={acciones} faltaActualizarBD={tabla.faltaActualizarBD} />}
                 {pestana === 'correa' && <PestanaCorrea equipos={visibles} guardados={guardadosVisibles} acciones={acciones} faltaActualizarBD={tabla.faltaActualizarBD} />}
                 {pestana === 'reportes' && <PestanaReportes equipos={visibles} cargando={!analisis && !errorReportes} error={errorReportes && !analisis} />}
+                {pestana === 'reporte' && <PestanaReporteGG equipos={visibles} fecha={fechaDelReporte} cargando={!analisis && !errorReportes} error={errorReportes && !analisis} />}
               </div>
 
               <details className="mgg-calculo">
@@ -407,6 +427,7 @@ export default function TablaMantenimientoGG({ onBack }: { onBack: () => void })
                   <li><b>Vencido</b> si faltan 0 horas o menos, o si ya pasó la fecha. <b>Próximo</b> si faltan {AVISO_HORAS_MANTENIMIENTO} h o menos, o {AVISO_DIAS} días o menos. Manda lo que ocurra primero.</li>
                   <li><b>Correa:</b> próximo cambio = horas del último cambio + {fmtHoras(HORAS_ENTRE_CAMBIOS_CORREA)}. Próximo cuando faltan {AVISO_HORAS_CORREA} h o menos.</li>
                   <li><b>≈ fecha por horas:</b> cuándo se llegaría a las horas al ritmo de uso de los reportes de los últimos 30 días (aprox.).</li>
+                  <li><b>Reporte de GG:</b> lo que se reportó ese día en la Reportabilidad de GG (el último reporte del día de cada generador). <b>Crítico:</b> combustible en 1/4, aceite bajo o temperatura de 95 °C o más. <b>Revisar:</b> refrigerante mínimo, aceite sobre relleno, temperatura de 90 °C o más, o revisión no realizada.</li>
                 </ul>
               </details>
             </>

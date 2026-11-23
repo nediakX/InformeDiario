@@ -1,4 +1,4 @@
-// Formatos y tipos de la tabla de mantenimiento GG (lo que comparten las tres pestañas).
+// Formatos y tipos de la tabla de mantenimiento GG (lo que comparten las pestañas).
 import { TEMP_ATENCION, TEMP_CRITICA, esNoRealizada, type SitioGG } from '../../datos/analisisGG';
 import type { ReporteGG } from '../../datos/reportesGG';
 import type { CambiosMantenimientoGG, FilaMantenimientoGG } from '../../datos/mantenimientoGG';
@@ -41,9 +41,25 @@ export const claseAceite = (a: string | null) => (a === 'Bajo' ? 'mgg-valor--ven
 export const claseTemperatura = (t: number | null) => (t === null ? '' : t >= TEMP_CRITICA ? 'mgg-valor--vencido' : t >= TEMP_ATENCION ? 'mgg-valor--proximo' : '');
 export const fmtTemp = (t: number | null) => (t === null ? '—' : `${fmtHoras(t)} °C`);
 
-/** Último reporte de GG con mediciones (los "no realizada" no traen combustible ni niveles). */
-export const ultimoReporteConDatos = (s: SitioGG | null): ReporteGG | null =>
-  s ? [...s.serie].reverse().find(r => !esNoRealizada(r)) ?? null : null;
+/**
+ * Reporte de GG de un día del generador: el último de ese día (uno con mediciones antes que un «no realizada»).
+ * null si ese día no reportó.
+ */
+export function reporteDelDia(s: SitioGG | null, fecha: string): ReporteGG | null {
+  const delDia = (s?.serie ?? []).filter(r => r.fecha === fecha);
+  return [...delDia].reverse().find(r => !esNoRealizada(r)) ?? delDia[delDia.length - 1] ?? null;
+}
+
+/** Estado de los niveles de un reporte: crítico (rojo), por revisar (ámbar), normal o sin reporte. */
+export function estadoNiveles(r: ReporteGG | null): Vencimiento {
+  if (!r) return 'sin_datos';
+  if (esNoRealizada(r)) return 'proximo';
+  const clases = [claseCombustible(r.combustible), claseRefrigerante(r.nivelRefrigerante), claseAceite(r.nivelAceite), claseTemperatura(r.temperatura)];
+  return clases.includes('mgg-valor--vencido') ? 'vencido' : clases.includes('mgg-valor--proximo') ? 'proximo' : 'al_dia';
+}
+
+/** Cómo se llama cada estado en la pestaña Reporte de GG. */
+export const TEXTO_NIVELES: Record<Vencimiento, string> = { vencido: 'Crítico', proximo: 'Revisar', al_dia: 'Normal', sin_datos: 'Sin reporte' };
 
 /** Clase de color para un valor según su estado (rojo vencido, ámbar próximo). */
 export const claseValor = (e: Vencimiento) => (e === 'vencido' || e === 'proximo' ? `mgg-valor--${e}` : '');
