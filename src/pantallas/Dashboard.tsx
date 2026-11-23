@@ -208,9 +208,9 @@ export default function Dashboard({
     gg: <Tarea id="gg" onClick={() => onNavigate('reportabilidad-gg')}
       estado="Combustible, horómetro, niveles y temperatura" ayuda />,
     tablaMantenimiento: division === 'el_salvador' ? <Tarea id="tablaMantenimiento" onClick={() => onNavigate('tabla-mantenimiento')}
-      estado="Mantenimientos, cambio de correa y último reporte de cada GG" /> : null,
+      estado="Mantenimientos, cambio de correa y último reporte de cada GG" etiqueta="En desarrollo" /> : null,
     baterias: division === 'el_salvador' ? <Tarea id="baterias" onClick={() => onNavigate('baterias')}
-      estado="Resistencia interna y voltaje de los bancos de cada carro" /> : null,
+      estado="Resistencia interna y voltaje de los bancos de cada carro" etiqueta="En desarrollo" /> : null,
     impresion: <Tarea id="impresion" onClick={() => onNavigate('impresion')}
       estado={diaDelTurno === 1 ? 'Imprime el kit de formularios de esta semana' : diaDelTurno >= DIAS_POR_TURNO - 1 ? 'Prepara el kit de la próxima semana' : 'Formularios de faena listos para imprimir'}
       tono={diaDelTurno === 1 || diaDelTurno >= DIAS_POR_TURNO - 1 ? 'aviso' : undefined} />,
@@ -221,11 +221,9 @@ export default function Dashboard({
     presentacionFds: division === 'el_salvador' ? <Tarea id="presentacionFds" onClick={() => onNavigate('presentacion-fds')}
       estado="Viernes a domingo: láminas del fin de semana" /> : null,
     falla: <Tarea id="falla" onClick={() => setModalFallaOpen(true)}
-      estado={borradoresFallaEnCurso.length ? `${borradoresFallaEnCurso.length} borrador${borradoresFallaEnCurso.length === 1 ? '' : 'es'}` : 'Sin borradores'}
-      etiqueta="En desarrollo" />,
+      estado={borradoresFallaEnCurso.length ? `${borradoresFallaEnCurso.length} borrador${borradoresFallaEnCurso.length === 1 ? '' : 'es'}` : 'Sin borradores'} />,
     mantenimiento: <Tarea id="mantenimiento" onClick={() => setModalMant('generador')}
-      estado={borradoresGenerador.length ? `${borradoresGenerador.length} borrador${borradoresGenerador.length === 1 ? '' : 'es'}` : 'Sin borradores'}
-      etiqueta="En desarrollo" />,
+      estado={borradoresGenerador.length ? `${borradoresGenerador.length} borrador${borradoresGenerador.length === 1 ? '' : 'es'}` : 'Sin borradores'} />,
     preventiva: <Tarea id="preventiva"
       onClick={() => (borradoresPreventiva.length ? setModalMant('preventiva') : onNuevaPreventiva())}
       estado={borradoresPreventiva.length ? `${borradoresPreventiva.length} borrador${borradoresPreventiva.length === 1 ? '' : 'es'}` : 'Paneles, baterías, GG, torre y consolas'} />,
