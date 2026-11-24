@@ -1121,7 +1121,7 @@ create table if not exists public.mantenimiento_gg (
   ultimo_horas numeric,
   ultimo_fecha date,
   horas_registradas numeric,
-  ciclo_dias integer not null default 180 check (ciclo_dias in (180, 210)),
+  ciclo_dias integer not null default 180 check (ciclo_dias between 1 and 3650),
   refrigerante text,
   status_pct smallint not null default 100 check (status_pct between 0 and 100),
   horas_registradas_en timestamptz,
@@ -1171,6 +1171,10 @@ alter table public.mantenimiento_gg
   add column if not exists horas_registradas_en timestamptz,
   add column if not exists correa_horas numeric,
   add column if not exists correa_fecha date;
+
+-- Días entre mantenimientos (noviembre 2026): además de 180 y 210, la cantidad que se escriba en la tabla (1 a 3650).
+alter table public.mantenimiento_gg drop constraint if exists mantenimiento_gg_ciclo_dias_check;
+alter table public.mantenimiento_gg add constraint mantenimiento_gg_ciclo_dias_check check (ciclo_dias between 1 and 3650);
 
 -- Las horas registradas que ya había quedan con la fecha de su último cambio.
 update public.mantenimiento_gg set horas_registradas_en = updated_at

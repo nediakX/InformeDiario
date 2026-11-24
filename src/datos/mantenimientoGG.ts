@@ -66,6 +66,12 @@ function aColumnas(cambios: CambiosMantenimientoGG): Record<string, unknown> {
   return datos;
 }
 
+/** La base todavía no acepta días distintos de 180 y 210 (falta correr el SQL de los días). */
+function diasNoPermitidos(error: unknown): boolean {
+  const e = error as { code?: string; message?: string } | null;
+  return !!e && e.code === '23514' && /ciclo_dias/i.test(e.message ?? '');
+}
+
 /** La base todavía no tiene una columna nueva (falta correr el SQL). */
 function faltaColumna(error: unknown): boolean {
   const e = error as { code?: string; message?: string } | null;
@@ -189,10 +195,19 @@ const actualizar = (division: Division, sitio: string, datos: Record<string, unk
   .eq('sitio', sitio)
   .select('sitio');
 
-/** Sube los cambios de un equipo. 'falta_bd': no se pudo guardar el status o la correa (base sin actualizar). */
-async function subir(division: Division, sitio: string, cambios: CambiosMantenimientoGG): Promise<'guardado' | 'falta_bd'> {
+/**
+ * Sube los cambios de un equipo. 'falta_bd': no se pudo guardar el status o la correa (base sin actualizar);
+ * 'falta_bd_dias': no se pudieron guardar días distintos de 180 y 210 (base sin actualizar; lo demás sí se guarda).
+ */
+async function subir(division: Division, sitio: string, cambios: CambiosMantenimientoGG): Promise<'guardado' | 'falta_bd' | 'falta_bd_dias'> {
   const datos = aColumnas(cambios);
   let { data, error } = await actualizar(division, sitio, datos);
+  if (error && diasNoPermitidos(error)) {
+    // Se guarda lo demás que venía en el cambio (si había algo) y se avisa que los días no.
+    const sinDias = Object.fromEntries(Object.entries(cambios).filter(([c]) => c !== 'cicloDias')) as CambiosMantenimientoGG;
+    if (Object.keys(sinDias).length && await subir(division, sitio, sinDias) === 'falta_bd') return 'falta_bd';
+    return 'falta_bd_dias';
+  }
   let faltaBD = false;
   if (error && faltaColumna(error)) {
     // Base sin el SQL nuevo: se guarda lo que sí existe y se avisa lo que no.
@@ -206,7 +221,7 @@ async function subir(division: Division, sitio: string, cambios: CambiosMantenim
   return faltaBD ? 'falta_bd' : 'guardado';
 }
 
-export type ResultadoGuardado = 'guardado' | 'pendiente' | 'falta_bd';
+export type ResultadoGuardado = 'guardado' | 'pendiente' | 'falta_bd' | 'falta_bd_dias';
 
 /**
  * Guarda los campos que cambiaron de un equipo (solo esos, para no pisar lo que otra persona cambió en
@@ -239,7 +254,13 @@ export async function sincronizarMantenimientoGG(): Promise<number> {
   try {
     for (const p of cola) {
       try {
-        await subir(p.division, p.sitio, p.cambios);
+        if (await subir(p.division, p.sitio, p.cambios) === 'falta_bd_dias') {
+          // Lo demás ya subió: en la cola quedan solo los días, avisando por qué la nube no los acepta.
+          const motivo = 'para guardar días distintos de 180 y 210 falta actualizar la base de datos';
+          guardarPendientes(pendientesMantenimientoGG().map(x => (x.division === p.division && x.sitio === p.sitio && x.en === p.en
+            ? { ...x, cambios: { cicloDias: p.cambios.cicloDias }, rechazo: motivo } : x)));
+          continue;
+        }
       } catch (error) {
         if (esErrorDeRed(error)) break; // sin señal: se intenta más tarde
         console.error('No se pudo subir un cambio de la tabla de mantenimiento GG:', error);

@@ -2,7 +2,7 @@
 import { TEMP_ATENCION, TEMP_CRITICA, esNoRealizada, type SitioGG } from '../../datos/analisisGG';
 import type { ReporteGG } from '../../datos/reportesGG';
 import type { CambiosMantenimientoGG, FilaMantenimientoGG } from '../../datos/mantenimientoGG';
-import type { IndicadoresCorrea, IndicadoresMantenimiento, LecturaHoras, Vencimiento } from '../../datos/indicadoresMantenimientoGG';
+import { DIAS_MAXIMO, DIAS_MINIMO, type IndicadoresCorrea, type IndicadoresMantenimiento, type LecturaHoras, type Vencimiento } from '../../datos/indicadoresMantenimientoGG';
 import { formatDiaMes, formatFechaCorta, hoyLocalISO } from '../../datos/fechas';
 
 /** Un equipo con todo lo calculado (lo que muestran las tres pestañas). */
@@ -16,7 +16,7 @@ export interface EquipoCalculado {
   correa: IndicadoresCorrea;
 }
 
-export type EstadoGuardado = 'guardando' | 'guardado' | 'pendiente' | 'falta_bd' | 'error';
+export type EstadoGuardado = 'guardando' | 'guardado' | 'pendiente' | 'falta_bd' | 'falta_bd_dias' | 'error';
 
 export type TipoRegistro = 'mantenimiento' | 'correa';
 
@@ -120,6 +120,14 @@ export function leerHoras(texto: string): number | null {
   const sinMiles = /^\d{1,3}(\.\d{3})+(,\d+)?$/.test(t) ? t.replace(/\./g, '') : t;
   const n = Number(sinMiles.replace(',', '.'));
   return Number.isFinite(n) && n >= 0 ? Math.round(n * 10) / 10 : NaN;
+}
+
+/** Días entre mantenimientos escritos a mano ("150", "150 d", "150 días"): un entero de 1 a 3650, o null. */
+export function leerDias(texto: string): number | null {
+  const t = texto.trim().toLowerCase().replace(/\s*(d|d[ií]as?)\.?$/, '').trim();
+  if (!/^\d{1,4}$/.test(t)) return null;
+  const n = Number(t);
+  return n >= DIAS_MINIMO && n <= DIAS_MAXIMO ? n : null;
 }
 
 export const ETIQUETA_ESTADO: Record<Vencimiento, string> = { vencido: 'Vencido', proximo: 'Próximo', al_dia: 'Al día', sin_datos: 'Sin datos' };

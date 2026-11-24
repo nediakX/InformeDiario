@@ -1,9 +1,9 @@
 // Piezas comunes de la tabla de mantenimiento GG: estados, barra de uso y campos que se guardan solos.
 import { useState, type KeyboardEvent, type ReactNode } from 'react';
-import { Check, CircleAlert, CloudOff, DatabaseZap, Loader2 } from 'lucide-react';
-import type { Vencimiento } from '../../datos/indicadoresMantenimientoGG';
+import { Check, ChevronDown, CircleAlert, CloudOff, DatabaseZap, Loader2 } from 'lucide-react';
+import { CICLOS_DIAS, DIAS_MAXIMO, DIAS_MINIMO, type Vencimiento } from '../../datos/indicadoresMantenimientoGG';
 import { hoyLocalISO } from '../../datos/fechas';
-import { ETIQUETA_ESTADO, fmtHoras, leerHoras, type EstadoGuardado } from './formato';
+import { ETIQUETA_ESTADO, fmtHoras, leerDias, leerHoras, type EstadoGuardado } from './formato';
 
 /** Combustible en 4 segmentos (1/4 · 1/2 · 3/4 · Lleno). */
 export function Estanque({ nivel }: { nivel: string | null }) {
@@ -55,6 +55,7 @@ const GUARDADO: Record<EstadoGuardado, { icono: ReactNode; texto: string; clase:
   guardado: { icono: <Check size={13} aria-hidden="true" />, texto: 'Guardado', clase: 'mgg-guardado--ok' },
   pendiente: { icono: <CloudOff size={13} aria-hidden="true" />, texto: 'Sin señal: queda en este equipo y se sube solo', clase: 'mgg-guardado--pendiente' },
   falta_bd: { icono: <DatabaseZap size={13} aria-hidden="true" />, texto: 'No se guardó: falta actualizar la base de datos', clase: 'mgg-guardado--error' },
+  falta_bd_dias: { icono: <DatabaseZap size={13} aria-hidden="true" />, texto: `No se guardaron los días: para usar otros además de ${CICLOS_DIAS.join(' y ')} falta actualizar la base de datos`, clase: 'mgg-guardado--error' },
   error: { icono: <CircleAlert size={13} aria-hidden="true" />, texto: 'No se guardó', clase: 'mgg-guardado--error' },
 };
 
@@ -97,6 +98,46 @@ export function CampoHoras({ valor, onGuardar, etiqueta, className = '', id }: {
       onChange={e => setTexto(e.target.value)}
       onBlur={confirmar}
       onKeyDown={e => alTeclear(e, () => setTexto(null))} />
+  );
+}
+
+/**
+ * Días entre mantenimientos: se escribe cualquier cantidad (se guarda al salir del campo o con Enter; Esc deshace)
+ * o se elige 180 / 210 en la flecha de la derecha.
+ */
+export function CampoDias({ valor, onGuardar, etiqueta, corto }: {
+  valor: number; onGuardar: (v: number) => void; etiqueta: string; corto?: boolean;
+}) {
+  const [texto, setTexto] = useState<string | null>(null);
+  const invalido = texto !== null && leerDias(texto) === null;
+  const confirmar = () => {
+    if (texto === null) return;
+    const n = leerDias(texto);
+    setTexto(null);
+    if (n === null || n === valor) return; // no es una cantidad válida: vuelve al valor guardado
+    onGuardar(n);
+  };
+  const deLista = (CICLOS_DIAS as readonly number[]).includes(valor);
+  return (
+    <span className={`mgg-dias${invalido ? ' mgg-dias--error' : ''}`}>
+      <input type="text" inputMode="numeric" autoComplete="off" spellCheck={false}
+        aria-label={etiqueta} aria-invalid={invalido || undefined}
+        title={invalido ? `Escribe una cantidad de días entre ${DIAS_MINIMO} y ${fmtHoras(DIAS_MAXIMO)}` : `Escribe los días o elige ${CICLOS_DIAS.join(' o ')} en la flecha`}
+        className="mgg-dias__texto"
+        value={texto ?? String(valor)}
+        onChange={e => setTexto(e.target.value)}
+        onBlur={confirmar}
+        onKeyDown={e => alTeclear(e, () => setTexto(null))} />
+      <span className="mgg-dias__unidad" aria-hidden="true">{corto ? 'd' : 'días'}</span>
+      <span className="mgg-dias__boton">
+        <select className="mgg-dias__lista" aria-label={`${etiqueta}: elegir de la lista`} value={deLista ? valor : ''}
+          onChange={e => { setTexto(null); const n = Number(e.target.value); if (n && n !== valor) onGuardar(n); }}>
+          {!deLista && <option value="" disabled>{valor} días</option>}
+          {CICLOS_DIAS.map(d => <option key={d} value={d}>{d} días</option>)}
+        </select>
+        <ChevronDown size={14} className="mgg-dias__flecha" aria-hidden="true" />
+      </span>
+    </span>
   );
 }
 

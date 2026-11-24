@@ -129,6 +129,7 @@ export default function TablaMantenimientoGG({ onBack }: { onBack: () => void })
       .then(r => {
         setGuardados(g => ({ ...g, [sitio]: r }));
         if (r === 'falta_bd') setTabla(t => t && { ...t, faltaActualizarBD: true });
+        if (r === 'falta_bd_dias') recargarAlTerminar.current = true; // vuelve a mostrar los días que quedaron guardados
       })
       .catch(error => {
         console.error('No se pudo guardar la tabla de mantenimiento GG:', error);
@@ -356,7 +357,7 @@ export default function TablaMantenimientoGG({ onBack }: { onBack: () => void })
           <div className="mgg-encabezado">
             <h1 id="mgg-titulo" className="font-display">Tabla de mantenimiento de generadores</h1>
             <p>
-              Mantenimiento cada {HORAS_ENTRE_MANTENIMIENTOS} h o cada 180/210 días, lo que ocurra primero · correa cada {fmtHoras(HORAS_ENTRE_CAMBIOS_CORREA)} h.
+              Mantenimiento cada {HORAS_ENTRE_MANTENIMIENTOS} h o según los días de cada equipo (180, 210 u otros), lo que ocurra primero · correa cada {fmtHoras(HORAS_ENTRE_CAMBIOS_CORREA)} h.
               {' '}Las horas actuales salen solas del último reporte de GG.
             </p>
           </div>
@@ -454,7 +455,7 @@ export default function TablaMantenimientoGG({ onBack }: { onBack: () => void })
                 <ul>
                   <li><b>Horas actuales:</b> la lectura más reciente del horómetro, sea del último reporte de GG o la que se escriba en la tabla.</li>
                   <li><b>Próximo mantenimiento</b> = horas del último + {HORAS_ENTRE_MANTENIMIENTOS}. <b>Faltan</b> = próximo − horas actuales (negativo: horas pasadas). <b>Desde el último</b> = horas actuales − horas del último.</li>
-                  <li><b>Próximo por fecha</b> = fecha del último + 180 o 210 días. <b>Anual</b> = fecha del último + 365 días.</li>
+                  <li><b>Próximo por fecha</b> = fecha del último + los días del equipo (columna <b>Cada</b>: 180, 210 o los que se escriban). <b>Anual</b> = fecha del último + 365 días.</li>
                   <li><b>Vencido</b> si faltan 0 horas o menos, o si ya pasó la fecha. <b>Próximo</b> si faltan {AVISO_HORAS_MANTENIMIENTO} h o menos, o {AVISO_DIAS} días o menos. Manda lo que ocurra primero.</li>
                   <li><b>Correa:</b> próximo cambio = horas del último cambio + {fmtHoras(HORAS_ENTRE_CAMBIOS_CORREA)}. Próximo cuando faltan {AVISO_HORAS_CORREA} h o menos.</li>
                   <li><b>≈ fecha por horas:</b> cuándo se llegaría a las horas al ritmo de uso de los reportes de los últimos 30 días (aprox.).</li>

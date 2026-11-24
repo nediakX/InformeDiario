@@ -3,8 +3,8 @@
 import { useState } from 'react';
 import { ChevronDown, Pencil, Wrench } from 'lucide-react';
 import { OPCIONES_REFRIGERANTE } from '../../datos/reportesGG';
-import { CICLOS_DIAS, HORAS_ENTRE_MANTENIMIENTOS, OPCIONES_STATUS, type IndicadoresMantenimiento } from '../../datos/indicadoresMantenimientoGG';
-import { BarraUso, CampoFecha, CampoHoras, Dato, Estado, IconoGuardado, NombreEquipo } from './comunes';
+import { HORAS_ENTRE_MANTENIMIENTOS, OPCIONES_STATUS, type IndicadoresMantenimiento } from '../../datos/indicadoresMantenimientoGG';
+import { BarraUso, CampoDias, CampoFecha, CampoHoras, Dato, Estado, IconoGuardado, NombreEquipo } from './comunes';
 import {
   NOMBRE_REFRIGERANTE, claseValor, detalleLectura, fmtDia, fmtFecha, fmtHoras, fmtHorasConSigno, textoDias, textoLectura, textoLecturaCorta,
   type AccionesEquipo, type EquipoCalculado, type EstadoGuardado,
@@ -49,13 +49,12 @@ function SelectStatus({ e, acciones, deshabilitado }: { e: EquipoCalculado; acci
   );
 }
 
-function SelectCiclo({ e, acciones, corto }: { e: EquipoCalculado; acciones: AccionesEquipo; corto?: boolean }) {
+/** Días entre mantenimientos: se escriben o se eligen de la lista (180 / 210). */
+function CampoCiclo({ e, acciones, corto }: { e: EquipoCalculado; acciones: AccionesEquipo; corto?: boolean }) {
   const f = e.fila;
   return (
-    <select className="mgg-campo" value={f.cicloDias} aria-label={`${f.nombre || f.sitio}: días entre mantenimientos`}
-      onChange={ev => acciones.guardar(f.sitio, { cicloDias: Number(ev.target.value) })}>
-      {CICLOS_DIAS.map(d => <option key={d} value={d}>{d} {corto ? 'd' : 'días'}</option>)}
-    </select>
+    <CampoDias valor={f.cicloDias} corto={corto} etiqueta={`${f.nombre || f.sitio}: días entre mantenimientos`}
+      onGuardar={v => acciones.guardar(f.sitio, { cicloDias: v })} />
   );
 }
 
@@ -103,7 +102,7 @@ function FilaPlanilla({ e, guardado, acciones, faltaActualizarBD }: { e: EquipoC
       </td>
       <td className="mgg-num">{fmtHoras(m.proximoHoras)}</td>
       <td className="mgg-num"><span className={`mgg-fuerte ${claseValor(m.estadoHoras)}`}>{fmtHorasConSigno(m.faltanHoras)}</span></td>
-      <td className="mgg-c-ciclo"><SelectCiclo e={e} acciones={acciones} corto /></td>
+      <td className="mgg-c-ciclo"><CampoCiclo e={e} acciones={acciones} corto /></td>
       <td className="mgg-c-fechacalc">
         <span className={claseValor(m.estadoFecha)}>{fmtFecha(m.fechaEstimada)}</span>
         <span className="mgg-sub">{textoDias(m.diasParaFecha)}</span>
@@ -167,7 +166,7 @@ function Ficha({ e, guardado, acciones, faltaActualizarBD }: { e: EquipoCalculad
               <label><span>Fecha del último</span>{campoFecha(e, acciones)}</label>
               <label><span>Horas actuales</span>{campoHorasActuales(e, acciones)}</label>
               <label><span>Status</span><SelectStatus e={e} acciones={acciones} deshabilitado={faltaActualizarBD} /></label>
-              <label><span>Cada</span><SelectCiclo e={e} acciones={acciones} /></label>
+              <label><span>Cada</span><CampoCiclo e={e} acciones={acciones} /></label>
               <label><span>Refrigerante</span><SelectRefrigerante e={e} acciones={acciones} /></label>
             </div>
           )}

@@ -122,6 +122,28 @@ select.mgg-campo { padding-right: 4px; cursor: pointer; }
 .mgg-campo--num { text-align: right; }
 .mgg-campo--error, .mgg-campo[aria-invalid="true"] { border-color: #b3261e; box-shadow: 0 0 0 2px rgba(179, 38, 30, 0.15); }
 .mgg-campo--grande { height: 44px; font-size: 1rem; padding: 6px 10px; }
+/* Días entre mantenimientos: se escriben en el campo o se eligen en la flecha (lista 180 / 210). */
+.mgg-dias {
+  position: relative; display: flex; align-items: stretch; width: 100%; min-width: 0; height: 34px; overflow: hidden;
+  border: 1px solid var(--line); border-radius: 6px; background: var(--panel);
+  font-size: 0.82rem; font-variant-numeric: tabular-nums; transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.mgg-dias:hover { border-color: #8fa1ab; }
+.mgg-dias:focus-within { border-color: var(--brand-blue); box-shadow: 0 0 0 3px rgba(14, 70, 96, 0.18); }
+.mgg-dias--error, .mgg-dias--error:focus-within { border-color: #b3261e; box-shadow: 0 0 0 2px rgba(179, 38, 30, 0.15); }
+.mgg-dias__texto {
+  flex: 1 1 auto; width: 100%; min-width: 0; padding: 4px 3px 4px 7px; border: 0; outline: none; background: transparent;
+  color: inherit; font: inherit; text-align: right; cursor: text;
+}
+.mgg-dias__unidad { flex: none; align-self: center; padding-right: 6px; color: var(--text-soft); }
+.mgg-dias__boton {
+  position: relative; flex: none; display: grid; place-items: center; width: 26px; border-left: 1px solid var(--line);
+  color: var(--text-soft); transition: background-color 0.15s ease, color 0.15s ease;
+}
+.mgg-dias__boton:hover, .mgg-dias__boton:focus-within { background: var(--panel-2); color: var(--brand-text); }
+/* La lista nativa (se abre igual en computador y celular) queda invisible sobre la flecha. */
+.mgg-dias__lista { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; font-size: 16px; }
+.mgg-dias__flecha { pointer-events: none; }
 .mgg-fuente { display: block; margin-top: 3px; font-size: 0.66rem; color: var(--text-soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: right; }
 
 .mgg-icono-boton {
@@ -186,7 +208,7 @@ select.mgg-campo { padding-right: 4px; cursor: pointer; }
 .mgg-c-horas { width: 88px; min-width: 82px; }
 .mgg-c-fecha { width: 130px; min-width: 126px; }
 .mgg-c-status { width: 76px; min-width: 72px; }
-.mgg-c-ciclo { width: 78px; min-width: 74px; }
+.mgg-c-ciclo { width: 90px; min-width: 86px; }
 .mgg-c-refri { width: 92px; min-width: 86px; }
 .mgg-c-fechacalc { white-space: nowrap; font-variant-numeric: tabular-nums; }
 .mgg-c-estado { min-width: 84px; }
@@ -197,7 +219,7 @@ select.mgg-campo { padding-right: 4px; cursor: pointer; }
 .mgg-tabla .mgg-c-horas .mgg-campo { min-width: 72px; }
 .mgg-tabla .mgg-c-fecha .mgg-campo { min-width: 124px; }
 .mgg-tabla .mgg-c-status .mgg-campo { min-width: 74px; }
-.mgg-tabla .mgg-c-ciclo .mgg-campo { min-width: 70px; }
+.mgg-tabla .mgg-c-ciclo .mgg-dias { min-width: 82px; }
 .mgg-tabla .mgg-c-refri .mgg-campo { min-width: 78px; }
 
 /* Historial de reportes (fila que se abre debajo del generador) */
@@ -289,7 +311,8 @@ html[data-tema-oscuro] .mgg-estanque > span.lleno { background: #8cc4de; border-
 }
 .mgg-editar label { display: grid; gap: 4px; min-width: 0; }
 .mgg-editar label > span { font-size: 0.7rem; font-weight: 700; color: var(--text-soft); }
-.mgg-editar .mgg-campo { height: 42px; font-size: 0.92rem; }
+.mgg-editar .mgg-campo, .mgg-editar .mgg-dias { height: 42px; font-size: 0.92rem; }
+.mgg-editar .mgg-dias__boton { width: 40px; }
 
 .mgg-lista-alertas { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
 .mgg-alerta-linea { padding: 7px 10px; border-radius: 7px; font-size: 0.78rem; border-left: 3px solid; }
@@ -363,5 +386,5 @@ html[data-tema-oscuro] .mgg-estanque > span.lleno { background: #8cc4de; border-
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .mgg-pestana, .mgg-filtro, .mgg-campo, .mgg-boton, .mgg-icono-boton, .mgg-ficha__flecha { transition: none; }
+  .mgg-pestana, .mgg-filtro, .mgg-campo, .mgg-dias, .mgg-dias__boton, .mgg-boton, .mgg-icono-boton, .mgg-ficha__flecha { transition: none; }
 }

@@ -5,7 +5,7 @@
 //   Próximo Mantenimiento (hrs) = Último + 250            proximoHoras
 //   Horas restante para el próximo MTTO = Próximo − Reg.  faltanHoras (negativo = horas pasadas: "status")
 //   Horas desde Último Mantenimiento = Reg. − Último      desdeUltimo (sobre 250 = vencido)
-//   Fecha Estimada Próximo Mantenimiento = Fecha + días   fechaEstimada (180 o 210 días)
+//   Fecha Estimada Próximo Mantenimiento = Fecha + días   fechaEstimada (180, 210 u otros días del equipo)
 //   Fecha Mantenimiento Por Año = Fecha + 365             fechaAnual
 //   Próximo cambio de correa (horas) = Último + 1500      proximoHoras (de la correa)
 //
@@ -28,8 +28,11 @@ export const AVISO_DIAS = 15;
 /** Bajo este uso (h/día) no se estima la fecha por horas: el equipo casi no funciona. */
 const RITMO_MINIMO = 0.5;
 
-/** Opciones de "Días de mantenimiento" de la planilla. */
+/** Opciones de "Días de mantenimiento" de la planilla (en la tabla también se puede escribir otra cantidad). */
 export const CICLOS_DIAS = [180, 210] as const;
+/** Días que se pueden escribir (los mismos límites que la base de datos). */
+export const DIAS_MINIMO = 1;
+export const DIAS_MAXIMO = 3650;
 /** STATUS MMTTO: cuánto se completó del último mantenimiento (la planilla usa 100 %). */
 export const OPCIONES_STATUS = [100, 90, 80, 70, 60, 50, 40, 30, 20, 10, 0] as const;
 
