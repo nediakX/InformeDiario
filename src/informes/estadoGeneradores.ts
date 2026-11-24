@@ -1,19 +1,24 @@
 // Estado de los generadores (reportabilidad de GG) a una fecha: una imagen con el último reporte de cada generador y
-// su estado (como en el panel principal), que va en la última hoja del Informe Diario y del Informe de Cierre.
+// su estado (como en el panel principal). Es la imagen del bloque "Registro de mantenimiento de GG." del Informe
+// Diario (cuando no se carga una foto) y de la "Reportabilidad GG" del Informe de Cierre.
 // Solo para las divisiones con reportabilidad de GG (Andina no la hace).
-import type { ISectionOptions } from 'docx';
 import type { Division } from '../datos/divisiones';
 import { SITIOS_GG, pendientesValidosGG, reportesDelDiaGuardados, todosLosReportesGG, type ReporteGG } from '../datos/reportesGG';
 import { TEMP_ATENCION, TEMP_CRITICA, analizarGeneradores, type EstadoGG, type SitioGG } from '../datos/analisisGG';
 import { esNoRealizada } from '../datos/reglasGG';
 import { dataUrlToUint8Array } from '../lib/imagenes';
 
-/** La división hace reportabilidad de GG (Andina no: su Word no lleva esta hoja). */
+/** La división hace reportabilidad de GG (Andina no: su Word no lleva esta imagen). */
 export const tieneReportabilidadGG = (division: Division) => division !== 'andina';
+
+/** Bloque de evidencia "Registro de mantenimiento de GG. (fecha)" del Informe Diario. */
+export const esRegistroGG = (titulo: string) => titulo.trim().toLowerCase().startsWith('registro de mantenimiento de gg.');
 
 export interface ImagenEstadoGG {
   /** PNG de la tabla. */
   bytes: Uint8Array;
+  /** El mismo PNG como dataURL (para mostrarlo en la pantalla). */
+  dataUrl: string;
   /** Tamaño de la tabla a escala 1 (px); la imagen se genera al doble para que se vea nítida. */
   ancho: number;
   alto: number;
@@ -25,13 +30,14 @@ export interface ImagenEstadoGG {
 
 /** Días hacia atrás que se leen (el análisis avisa desde los 2 días sin reporte). */
 const DIAS_ATRAS = 30;
-/** Con señal débil no se espera más que esto (es solo una hoja del Word): se usa lo guardado en el equipo. */
+/** Con señal débil no se espera más que esto (es solo una imagen del Word): se usa lo guardado en el equipo. */
 const ESPERA_MAXIMA_MS = 15_000;
 const conEsperaMaxima = <T>(promesa: Promise<T>) => new Promise<T>((resolve, reject) => {
   const timer = setTimeout(() => reject(new DOMException('Tiempo de espera agotado (timeout)', 'TimeoutError')), ESPERA_MAXIMA_MS);
   promesa.then(v => { clearTimeout(timer); resolve(v); }, e => { clearTimeout(timer); reject(e); });
 });
-const ANCHO = 1152;
+/** Ancho de la tabla (px): pensado para el ancho de una hoja vertical (~610 px), con letra que se lea impresa. */
+const ANCHO = 920;
 
 const sumarDias = (iso: string, n: number) => { const [y, m, d] = iso.split('-').map(Number); return new Date(Date.UTC(y, m - 1, d + n)).toISOString().slice(0, 10); };
 const dmy = (iso: string) => { const [y, m, d] = iso.split('-'); return `${d}/${m}/${y}`; };
@@ -49,7 +55,7 @@ const ESTADOS: Record<EstadoGG, { nombre: string; fondo: string; texto: string }
 const ROJO = '#A32626';
 const AMBAR = '#8A5A00';
 
-// Copia en este equipo de lo último leído de la nube (la fecha más reciente): sin señal, la hoja se arma con ella.
+// Copia en este equipo de lo último leído de la nube (la fecha más reciente): sin señal, la imagen se arma con ella.
 interface Copia { hasta: string; reportes: ReporteGG[] }
 const claveCopia = (division: Division) => `psinet_estado_gg_${division}`;
 function leerCopia(division: Division): Copia | null {
@@ -98,23 +104,23 @@ function fila(s: SitioGG, fecha: string, par: boolean, sinConexion: boolean): st
   const estado = ESTADOS[s.estado];
   const medido = !!r && !esNoRealizada(r);
   const td = (contenido: string, estilo = '') =>
-    `<td style="padding:6px 8px;border-bottom:1px solid #DCE1E6;vertical-align:middle;${estilo}">${contenido}</td>`;
+    `<td style="padding:6px 6px;border-bottom:1px solid #DCE1E6;vertical-align:middle;${estilo}">${contenido}</td>`;
   const valor = (texto: string, color: string | null) => (color ? `<b style="color:${color}">${escapar(texto)}</b>` : escapar(texto));
-  const cuando = r
-    ? `<div style="white-space:nowrap">${ddmm(r.fecha)}${r.hora ? ` ${escapar(r.hora.slice(0, 5))}` : ''}</div><div style="font-size:12px;line-height:1.25;color:#55636B;margin-top:1px">${escapar(r.reporta)}</div>`
-    : '—';
+  // Generador y, debajo, cuándo y quién hizo su último reporte.
+  const cuando = r ? `${ddmm(r.fecha)}${r.hora ? ` ${escapar(r.hora.slice(0, 5))}` : ''} · ${escapar(r.reporta)}` : 'Sin reportes';
+  const generador = `<div style="font-weight:700;color:#0E4660;white-space:nowrap">${escapar(s.sitio)}</div>`
+    + `<div style="font-size:13px;line-height:1.25;color:#55636B;margin-top:2px">${cuando}</div>`;
   // El porqué del estado (sin repetir lo que ya dice la etiqueta: "Sin reportes").
   const motivos = s.alertas.filter(a => a.titulo !== 'Sin reportes').map(a => escapar(a.titulo));
   // Reportabilidad no realizada de días anteriores (la del mismo día ya viene como aviso).
   if (r && !medido && !s.alertas.some(a => a.titulo === 'Reportabilidad no realizada')) motivos.unshift('Reportabilidad no realizada');
   // La observación solo explica el estado si es del reporte de ese día.
   const observacion = r && r.fecha === fecha && r.observaciones?.trim() ? `<i style="color:#55636B">${escapar(r.observaciones.trim())}</i>` : '';
-  const chip = `<span style="display:inline-block;padding:2px 9px;margin-right:6px;border-radius:999px;background:${estado.fondo};color:${estado.texto};font-weight:700;font-size:13px;white-space:nowrap">${nombreEstado(s.estado, sinConexion)}</span>`;
+  const chip = `<span style="display:inline-block;padding:2px 9px;margin-right:6px;border-radius:999px;background:${estado.fondo};color:${estado.texto};font-weight:700;font-size:14px;white-space:nowrap">${nombreEstado(s.estado, sinConexion)}</span>`;
   // El estado y el porqué en la misma línea; la observación del día, debajo.
-  const estadoCelda = `<div style="font-size:13px;line-height:1.4">${chip}${motivos.join(' · ')}</div>${observacion ? `<div style="font-size:13px;line-height:1.3;margin-top:2px">${observacion}</div>` : ''}`;
+  const estadoCelda = `<div style="font-size:14px;line-height:1.4">${chip}${motivos.join(' · ')}</div>${observacion ? `<div style="font-size:13px;line-height:1.3;margin-top:2px">${observacion}</div>` : ''}`;
   return `<tr style="background:${par ? '#F4F7FA' : '#FFFFFF'}">`
-    + td(escapar(s.sitio), 'font-weight:700;color:#0E4660;white-space:nowrap')
-    + td(cuando)
+    + td(generador)
     + td(medido ? valor(r.combustible ?? '—', r.combustible === '1/4' ? ROJO : null) : '—')
     + td(medido ? valor(r.nivelRefrigerante ?? '—', r.nivelRefrigerante === 'Minimo' ? AMBAR : null) : '—')
     + td(medido ? valor(r.nivelAceite ?? '—', r.nivelAceite === 'Bajo' ? ROJO : r.nivelAceite === 'Sobre Relleno' ? AMBAR : null) : '—')
@@ -128,23 +134,23 @@ function htmlEstado(porSitio: SitioGG[], fecha: string, sinConexion: boolean): s
   const cuenta = (e: EstadoGG) => porSitio.filter(s => s.estado === e).length;
   const resumen = (['ok', 'atencion', 'critico', 'sin_datos'] as EstadoGG[])
     .filter(e => e !== 'sin_datos' || cuenta(e) > 0)
-    .map(e => `<span style="padding:4px 12px;border-radius:999px;background:${ESTADOS[e].fondo};color:${ESTADOS[e].texto};font-weight:700;font-size:15px;white-space:nowrap">${resumenDe(e, cuenta(e), sinConexion)}</span>`)
+    .map(e => `<span style="padding:4px 11px;border-radius:999px;background:${ESTADOS[e].fondo};color:${ESTADOS[e].texto};font-weight:700;font-size:15px;white-space:nowrap">${resumenDe(e, cuenta(e), sinConexion)}</span>`)
     .join('');
   const origen = sinConexion ? ' · sin señal: con lo guardado en este equipo' : '';
-  const cabecera = ['Generador', 'Último reporte', 'Combustible', 'Refrigerante', 'Aceite', 'Temp.', 'Horómetro', 'Estado']
-    .map(t => `<th style="text-align:left;padding:8px 8px;background:#0E4660;color:#FFFFFF;font-size:14px;font-weight:700;white-space:nowrap">${t}</th>`)
+  const cabecera = ['Generador · último reporte', 'Comb.', 'Refrig.', 'Aceite', 'Temp.', 'Horóm.', 'Estado']
+    .map(t => `<th style="text-align:left;padding:7px 6px;background:#0E4660;color:#FFFFFF;font-size:14px;font-weight:700;white-space:nowrap">${t}</th>`)
     .join('');
   return `
     <div style="width:${ANCHO}px;box-sizing:border-box;background:#FFFFFF;padding:4px 2px 6px;font-family:Arial,Helvetica,sans-serif;color:#222222">
-      <div style="display:flex;justify-content:space-between;align-items:center;gap:24px;border-bottom:3px solid #0E4660;padding-bottom:10px;margin-bottom:10px">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:16px;border-bottom:3px solid #0E4660;padding-bottom:9px;margin-bottom:8px">
         <div>
-          <div style="font-size:21px;font-weight:700;color:#0E4660">Estado al ${dmy(fecha)}</div>
-          <div style="font-size:14px;color:#55636B;margin-top:3px">Último reporte de cada generador (Reportabilidad de GG)${origen}</div>
+          <div style="font-size:21px;font-weight:700;color:#0E4660">Estado de los generadores al ${dmy(fecha)}</div>
+          <div style="font-size:14px;color:#55636B;margin-top:3px">Último reporte de cada uno (Reportabilidad de GG)${origen}</div>
         </div>
-        <div style="display:flex;flex-wrap:wrap;justify-content:flex-end;gap:8px">${resumen}</div>
+        <div style="display:flex;flex-wrap:wrap;justify-content:flex-end;gap:6px;max-width:400px">${resumen}</div>
       </div>
-      <table style="width:100%;border-collapse:collapse;table-layout:fixed;font-size:15px">
-        <colgroup><col style="width:168px"><col style="width:140px"><col style="width:100px"><col style="width:106px"><col style="width:104px"><col style="width:72px"><col style="width:96px"><col></colgroup>
+      <table style="width:100%;border-collapse:collapse;table-layout:fixed;font-size:16px">
+        <colgroup><col style="width:206px"><col style="width:66px"><col style="width:78px"><col style="width:100px"><col style="width:72px"><col style="width:90px"><col></colgroup>
         <thead><tr>${cabecera}</tr></thead>
         <tbody>${porSitio.map((s, i) => fila(s, fecha, i % 2 === 1, sinConexion)).join('')}</tbody>
       </table>
@@ -170,41 +176,17 @@ export async function imagenEstadoGeneradores(division: Division, fecha: string)
     const tabla = contenedor.firstElementChild as HTMLElement;
     const alto = Math.ceil(tabla.getBoundingClientRect().height);
     const dataUrl = await toPng(tabla, { pixelRatio: 2, backgroundColor: '#ffffff', width: ANCHO, height: alto });
-    return { bytes: dataUrlToUint8Array(dataUrl), ancho: ANCHO, alto, fecha, sinConexion };
+    return { bytes: dataUrlToUint8Array(dataUrl), dataUrl, ancho: ANCHO, alto, fecha, sinConexion };
   } finally {
     contenedor.remove();
   }
 }
 
 /**
- * Última hoja del Word con el estado de los generadores: horizontal (como el cuadro Vertiv), para que la tabla se lea
- * bien a lo ancho, con el título en el mismo estilo de los demás títulos del informe.
+ * Tamaño de la imagen en una hoja vertical del Word (px): todo el ancho útil de la celda (610 px, la hoja de 9.360
+ * twips menos los márgenes de la celda) sin pasarse del alto, y sin deformarla.
  */
-export async function seccionEstadoGeneradores(imagen: ImagenEstadoGG, colorTitulo: string): Promise<ISectionOptions> {
-  const { AlignmentType, Header, HeadingLevel, ImageRun, PageOrientation, Paragraph, TextRun } = await import('docx');
-  const MARGEN = 1134; // 2 cm
-  // Espacio útil de la hoja en px (1 px = 15 twips), menos el título.
-  const anchoUtil = (15840 - 2 * MARGEN) / 15;
-  const altoUtil = (12240 - 2 * MARGEN) / 15 - 60;
-  const escala = Math.min(anchoUtil / imagen.ancho, altoUtil / imagen.alto, 1);
-  return {
-    properties: {
-      page: {
-        size: { width: 12240, height: 15840, orientation: PageOrientation.LANDSCAPE },
-        margin: { top: MARGEN, right: MARGEN, bottom: MARGEN, left: MARGEN },
-      },
-    },
-    headers: { default: new Header({ children: [new Paragraph({ text: '' })] }) },
-    children: [
-      new Paragraph({
-        heading: HeadingLevel.HEADING_1,
-        spacing: { after: 160 },
-        children: [new TextRun({ text: 'Estado actual de los generadores', color: colorTitulo, size: 26, font: 'Arial', bold: true })],
-      }),
-      new Paragraph({
-        alignment: AlignmentType.CENTER,
-        children: [new ImageRun({ data: imagen.bytes, transformation: { width: Math.round(imagen.ancho * escala), height: Math.round(imagen.alto * escala) }, type: 'png' })],
-      }),
-    ],
-  };
+export function tamanoEnHoja(imagen: Pick<ImagenEstadoGG, 'ancho' | 'alto'>, anchoMax = 610, altoMax = 760) {
+  const escala = Math.min(anchoMax / imagen.ancho, altoMax / imagen.alto);
+  return { ancho: Math.round(imagen.ancho * escala), alto: Math.round(imagen.alto * escala) };
 }

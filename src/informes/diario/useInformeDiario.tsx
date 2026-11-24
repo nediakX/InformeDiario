@@ -33,7 +33,7 @@ import { BLUE, type BorradorLocal, DECORACIONES_MENSUALES, DEFAULT_ACTIVIDADES_D
 import { cargarSinEvidencia, desmarcarSinEvidencia, marcarSinEvidencia, suscribirSinEvidencia } from '../../datos/sinEvidencia';
 import { CONFIG_DIVISION, type Division } from '../../datos/divisiones';
 import { useDragReorder } from './useDragReorder';
-import { imagenEstadoGeneradores, seccionEstadoGeneradores, tieneReportabilidadGG } from '../estadoGeneradores';
+import { esRegistroGG, imagenEstadoGeneradores, tamanoEnHoja, tieneReportabilidadGG, type ImagenEstadoGG } from '../estadoGeneradores';
 import type { FotoAmpliada } from '../../componentes/fotosDelVisor';
 
 export interface OpcionesInformeDiario {
@@ -1545,8 +1545,49 @@ export function useInformeDiario({ view, setBorradores, borradoresRef, division,
         };
       })() : null;
 
+      // "Registro de mantenimiento de GG." sin foto cargada: lleva la imagen del estado de los generadores a la fecha
+      // del informe (divisiones con reportabilidad de GG), con el mismo formato de un bloque de una foto.
+      const bloqueRegistroGG = evidenceBlocks.find(b => !b.cuadroVertiv && esRegistroGG(b.title));
+      // (Si se le quitó la casilla de foto al bloque, no lleva imagen.)
+      const registroSinFoto = tieneReportabilidadGG(informe.division) && !!bloqueRegistroGG
+        && bloqueRegistroGG.photos.length > 0 && !bloqueRegistroGG.photos.some(Boolean);
+      const estadoGG = registroSinFoto
+        ? await imagenEstadoGeneradores(informe.division, fecha).catch(error => {
+          console.error('No se pudo armar el estado de los generadores:', error);
+          return null;
+        })
+        : null;
+      const bloqueEstadoGG = (titulo: string, imagen: ImagenEstadoGG) => {
+        const tam = tamanoEnHoja(imagen);
+        return [
+          new Paragraph({ text: "", pageBreakBefore: true }),
+          new Table({
+            width: { size: 9360, type: WidthType.DXA },
+            layout: TableLayoutType.FIXED,
+            columnWidths: [9360],
+            rows: [
+              new TableRow({
+                children: [new TableCell({
+                  width: { size: 9360, type: WidthType.DXA },
+                  borders: cellBorders(),
+                  margins: { top: 100, bottom: 100, left: 100, right: 100 },
+                  children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new ImageRun({ data: imagen.bytes, transformation: { width: tam.ancho, height: tam.alto }, type: 'png' })] })],
+                })],
+              }),
+              new TableRow({
+                children: [new TableCell({
+                  borders: cellBorders(),
+                  children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: titulo, bold: true, size: 20, font: "Arial" })] })],
+                })],
+              }),
+            ],
+          }),
+        ];
+      };
+
       const evidenceContent = (await Promise.all(evidenceBlocks.filter(b => !b.cuadroVertiv).map(async block => {
         const usablePhotos = block.photos.filter((p): p is string => Boolean(p));
+        if (usablePhotos.length === 0 && estadoGG && esRegistroGG(block.title)) return bloqueEstadoGG(block.title, estadoGG);
         if (usablePhotos.length === 0) return [];
 
         // Andina: cada imagen se dimensiona según su formato (vertical / horizontal), de a 2 por fila
@@ -1733,13 +1774,6 @@ export function useInformeDiario({ view, setBorradores, borradoresRef, division,
           })),
       });
 
-      // Última hoja: el estado de los generadores a la fecha del informe (divisiones con reportabilidad de GG).
-      const estadoGG = await imagenEstadoGeneradores(informe.division, fecha).catch(error => {
-        console.error('No se pudo armar el estado de los generadores:', error);
-        return null;
-      });
-      const seccionEstadoGG = estadoGG ? await seccionEstadoGeneradores(estadoGG, BLUE) : null;
-
       const doc = new Document({
         styles: { default: { document: { run: { font: "Arial", size: 21 } } } },
         sections: [
@@ -1768,7 +1802,6 @@ export function useInformeDiario({ view, setBorradores, borradoresRef, division,
             ],
           },
           ...(seccionCuadroVertiv ? [seccionCuadroVertiv] : []),
-          ...(seccionEstadoGG ? [seccionEstadoGG] : []),
         ],
       });
 
@@ -1779,9 +1812,9 @@ export function useInformeDiario({ view, setBorradores, borradoresRef, division,
       saveAs(blob, filename);
       void registrarActividad('word_generado', filename, informe.id);
 
-      const notaGG = !tieneReportabilidadGG(informe.division) ? ''
-        : !estadoGG ? ' (sin la hoja del estado de los generadores: no hay reportes de GG para mostrar).'
-          : estadoGG.sinConexion ? ' (estado de los generadores con lo guardado en este equipo: sin señal).' : '';
+      const notaGG = !registroSinFoto ? ''
+        : !estadoGG ? ' (el Registro de mantenimiento de GG va sin imagen: no hay reportes de GG para mostrar).'
+          : estadoGG.sinConexion ? ' (Registro de mantenimiento de GG con lo guardado en este equipo: sin señal).' : '';
       showToast(`Documento generado exitosamente: ${filename}${notaGG}`);
       return true;
     } catch (err) {

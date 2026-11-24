@@ -21,6 +21,8 @@ import { VERTIV_CARROS_FLAT, VERTIV_ITEMS, CUADRO_VERTIV_SITIOS, leyendaCuadroVe
 import { ACTIVIDAD_SUGERIDA_MANTENCION, getDefaultPersonal } from './constantes';
 import { creadoPorDiario } from '../../datos/divisiones';
 import type { InformeDiarioEstado } from './useInformeDiario';
+import { esRegistroGG, tieneReportabilidadGG } from '../estadoGeneradores';
+import { useImagenEstadoGG } from '../useImagenEstadoGG';
 
 /** Quitar una fila: con texto en pantallas anchas y como papelero en el celular (deja más espacio al campo). */
 function BotonQuitar({ onClick, etiqueta }: { onClick: () => void; etiqueta: string }) {
@@ -115,6 +117,13 @@ export default function InformeDiario({ d, volverABorradores, goToNewInforme }: 
     vertivCarroPhotos,
     vertivItemPhotos,
   } = d;
+
+  // "Registro de mantenimiento de GG." sin foto cargada: el Word lleva la imagen del estado de los generadores a la
+  // fecha del informe (aquí, su vista previa). Si se carga una foto, va la foto.
+  const bloqueRegistroGG = evidenceBlocks.find(b => esRegistroGG(b.title));
+  const registroGGAutomatico = tieneReportabilidadGG(division) && !!bloqueRegistroGG
+    && bloqueRegistroGG.photos.length > 0 && !bloqueRegistroGG.photos.some(Boolean);
+  const vistaEstadoGG = useImagenEstadoGG(division, fecha || null, registroGGAutomatico);
 
   // Turno noche que no se realizó: pide el motivo antes de marcarlo.
   const { sinTurno, sinTurnoMotivo, alternarSinTurno } = d;
@@ -616,10 +625,24 @@ export default function InformeDiario({ d, volverABorradores, goToNewInforme }: 
                   )}
                 </div>
 
+                {registroGGAutomatico && esRegistroGG(block.title) && (
+                  <p className="text-[11px] text-gray-500 mb-2" role="status">
+                    {vistaEstadoGG
+                      ? <>Sin foto cargada, el Word lleva esta <strong>imagen automática</strong> con el estado de los generadores al <span className="whitespace-nowrap">{vistaEstadoGG.fecha.split('-').reverse().join('-')}</span> (se arma de nuevo al generar el Word, con los últimos reportes). Si cargas una foto, va la foto.{vistaEstadoGG.sinConexion && ' Sin señal: por ahora es con lo guardado en este equipo.'}</>
+                      : vistaEstadoGG === undefined
+                        ? 'Armando la imagen automática con el estado de los generadores…'
+                        : 'No hay reportes de GG para armar la imagen automática: si quieres, carga una foto.'}
+                  </p>
+                )}
+
                 <div className="sm:overflow-x-auto pb-2">
                   {/* En el celular, dos casillas por fila (se ven completas); en pantallas grandes, en una fila. */}
                   <div className="grid grid-cols-2 gap-2 items-start sm:flex sm:flex-nowrap sm:gap-2.5 sm:items-center sm:min-w-max">
-                    {block.photos.map((src, pi) => (
+                    {block.photos.map((src, pi) => {
+                    // Registro de mantenimiento de GG sin foto: se ve la imagen automática (va al Word si no se carga otra).
+                    const automatica = !src && pi === 0 && registroGGAutomatico && esRegistroGG(block.title) ? vistaEstadoGG?.dataUrl ?? null : null;
+                    const visible = src || automatica;
+                    return (
                     <div
                       key={pi}
                       onClick={() => handleSelectEvidenceSlot(bi, pi)}
@@ -638,10 +661,10 @@ export default function InformeDiario({ d, volverABorradores, goToNewInforme }: 
                       >
                         <Trash2 size={12} />
                       </button>
-                      {src && (
+                      {visible && (
                         <button
                           type="button"
-                          onClick={e => { e.stopPropagation(); handleCopiarFoto(src); }}
+                          onClick={e => { e.stopPropagation(); handleCopiarFoto(visible); }}
                           className="absolute top-0.5 left-0.5 bg-black/55 hover:bg-black/70 text-white rounded-full w-5 h-5 flex items-center justify-center z-10"
                           aria-label="Copiar imagen al portapapeles"
                           title="Copiar imagen al portapapeles"
@@ -650,16 +673,23 @@ export default function InformeDiario({ d, volverABorradores, goToNewInforme }: 
                         </button>
                       )}
                       <img
-                        src={src || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='130' height='98'%3E%3Crect width='100%25' height='100%25' fill='%23eee'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%23aaa' font-size='10'%3EArrastra o pega%3C/text%3E%3C/svg%3E"}
-                        alt="Evidencia"
-                        onClick={e => { if (src) { e.stopPropagation(); setFotoAmpliada(fotoConBloque(block.photos, pi, block.title)); } }}
-                        className={`w-full aspect-[4/3] sm:w-[120px] sm:h-[90px] sm:aspect-auto max-w-full object-cover rounded mx-auto mb-1 bg-gray-100 ${src ? 'cursor-zoom-in' : ''}`}
+                        src={visible || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='130' height='98'%3E%3Crect width='100%25' height='100%25' fill='%23eee'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%23aaa' font-size='10'%3EArrastra o pega%3C/text%3E%3C/svg%3E"}
+                        alt={automatica ? 'Imagen automática: estado de los generadores' : 'Evidencia'}
+                        onClick={e => {
+                          if (src) { e.stopPropagation(); setFotoAmpliada(fotoConBloque(block.photos, pi, block.title)); }
+                          else if (automatica) { e.stopPropagation(); setFotoAmpliada({ src: automatica, titulo: block.title }); }
+                        }}
+                        className={`w-full aspect-[4/3] sm:w-[120px] sm:h-[90px] sm:aspect-auto max-w-full ${automatica ? 'object-cover object-top bg-white' : 'object-cover bg-gray-100'} rounded mx-auto mb-1 ${visible ? 'cursor-zoom-in' : ''}`}
                       />
+                      {automatica && (
+                        <span className="absolute left-1/2 -translate-x-1/2 top-1 rounded-full bg-[#0E4660] text-white text-[9px] font-bold px-1.5 py-px pointer-events-none">Automática</span>
+                      )}
                       <button type="button" onClick={() => openDocumentScanner({ type: 'evidence', blockIndex: bi, photoIndex: pi })} className="w-full bg-[#0E4660] text-white rounded px-1.5 py-1 mb-1 text-[10px] font-bold">Escanear documento</button>
                       <span className="block text-[10px] text-gray-500">Imagen, cámara o app de escaneo:</span>
                       <input type="file" accept="image/*" onChange={e => e.target.files?.[0] && assignFileToSlot(e.target.files[0], bi, pi)} className="text-[10px] w-full max-w-full sm:min-w-[168px]" />
                     </div>
-                    ))}
+                    );
+                    })}
                     <button type="button" onClick={() => handleAddPhotoSlot(bi)} className="btn-outline text-[#0E4660] px-2.5 py-1.5 rounded text-xs font-bold hover:bg-[#d5e7f8] self-center justify-self-start">
                       + Foto
                     </button>

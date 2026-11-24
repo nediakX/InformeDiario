@@ -26,7 +26,8 @@ import { ajustarImagenes, encajarSinDeformar, medirImagen } from '../lib/ajusteI
 import { registrarDeshacer, reinsertar, borrandose } from '../lib/deshacer';
 import { uploadPhotoIfNeeded } from '../lib/storage';
 import { esErrorDeRed } from '../lib/conexion';
-import { imagenEstadoGeneradores, seccionEstadoGeneradores, tieneReportabilidadGG } from './estadoGeneradores';
+import { imagenEstadoGeneradores, tamanoEnHoja, tieneReportabilidadGG } from './estadoGeneradores';
+import { useImagenEstadoGG } from './useImagenEstadoGG';
 
 interface InformeCierreProps {
   onBack: () => void;
@@ -406,6 +407,12 @@ export default function InformeCierre({ onBack }: InformeCierreProps) {
   // Evidencia fotográfica para Reportabilidad GG: la foto del "Registro de mantenimiento de GG."
   // del último día incluido. Si ese día no tiene foto, se usa la del día anterior más cercano que sí la tenga.
   const fotoReportabilidad = useMemo(() => buscarFotoReportabilidad(diasSeleccionados), [diasSeleccionados]);
+  // Si el último día no tiene foto (divisiones con reportabilidad de GG): la imagen del estado de los generadores al
+  // último día del cierre (o a hoy, si el cierre sigue en curso), la misma del Registro de mantenimiento del diario.
+  const hoyCierre = hoyLocalISO();
+  const fechaEstadoGG = rangoFechas ? (rangoFechas.fin < hoyCierre ? rangoFechas.fin : hoyCierre) : null;
+  const usarEstadoGG = tieneReportabilidadGG(division) && !!fechaEstadoGG && !fotoReportabilidad?.esUltimoDia;
+  const vistaEstadoGG = useImagenEstadoGG(division, fechaEstadoGG, usarEstadoGG);
 
   const turnoLabel = useMemo(() => {
     const noches = diasSeleccionados.filter(d => d.turno === 'noche').length;
@@ -821,14 +828,28 @@ export default function InformeCierre({ onBack }: InformeCierreProps) {
         ]),
       ] : [];
 
+      // Reportabilidad GG: la foto del último día; si no la tiene, la imagen del estado de los generadores (armada ahora,
+      // con los reportes de este momento); sin reportes de GG que mostrar, la foto del día anterior más cercano.
+      const estadoGG = usarEstadoGG && fechaEstadoGG
+        ? await imagenEstadoGeneradores(division, fechaEstadoGG).catch(error => {
+          console.error('No se pudo armar el estado de los generadores:', error);
+          return null;
+        })
+        : null;
       const reportabilidadImg: docx.Paragraph[] = [];
-      if (fotoReportabilidad) {
+      let fechaImagenGG: string | null = null;
+      if (estadoGG) {
+        const tam = tamanoEnHoja(estadoGG);
+        reportabilidadImg.push(new Paragraph({ alignment: AlignmentType.CENTER, children: [new ImageRun({ data: estadoGG.bytes, transformation: { width: tam.ancho, height: tam.alto }, type: 'png' })] }));
+        fechaImagenGG = estadoGG.fecha;
+      } else if (fotoReportabilidad) {
         const { bytes, type } = await resolveImageBytes(fotoReportabilidad.src);
         reportabilidadImg.push(new Paragraph({ alignment: AlignmentType.CENTER, children: [new ImageRun({ data: bytes, transformation: { width: 614, height: 246 }, type })] }));
+        fechaImagenGG = fotoReportabilidad.fecha;
       }
-      const fechaReportabilidad = fotoReportabilidad ? formatFechaLarga(fotoReportabilidad.fecha) : fechaEncabezado;
+      const fechaReportabilidad = fechaImagenGG ? formatFechaLarga(fechaImagenGG) : fechaEncabezado;
 
-      const seccionReportabilidad: (docx.Paragraph | docx.Table)[] = fotoReportabilidad ? [
+      const seccionReportabilidad: (docx.Paragraph | docx.Table)[] = reportabilidadImg.length ? [
         new Paragraph({ text: "", pageBreakBefore: true }),
         ...reportabilidadImg,
         new Paragraph({ text: "" }),
@@ -842,15 +863,6 @@ export default function InformeCierre({ onBack }: InformeCierreProps) {
         new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "Comentarios Adicionales.", color: BLUE, size: 24, font: "Arial", bold: true })] }),
         ...comentariosFiltrados.map(c => new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: c, bold: true, color: BLUE, font: "Arial" })] })),
       ] : [];
-
-      // Última hoja: el estado de los generadores al último día del cierre (o a hoy, si el cierre sigue en curso).
-      const hoy = hoyLocalISO();
-      const fechaEstadoGG = rangoFechas && rangoFechas.fin < hoy ? rangoFechas.fin : hoy;
-      const estadoGG = await imagenEstadoGeneradores(division, fechaEstadoGG).catch(error => {
-        console.error('No se pudo armar el estado de los generadores:', error);
-        return null;
-      });
-      const seccionEstadoGG = estadoGG ? await seccionEstadoGeneradores(estadoGG, BLUE) : null;
 
       const doc = new Document({
         styles: { default: { document: { run: { font: "Arial", size: 21 } } } },
@@ -870,7 +882,6 @@ export default function InformeCierre({ onBack }: InformeCierreProps) {
               ...seccionComentarios,
             ],
           },
-          ...(seccionEstadoGG ? [seccionEstadoGG] : []),
         ],
       });
 
@@ -880,9 +891,9 @@ export default function InformeCierre({ onBack }: InformeCierreProps) {
         : `Reporte de cierre -Turno ${letraTurno}.docx`;
       saveAs(blob, nombreArchivo);
       void registrarActividad('word_generado', nombreArchivo);
-      const notaGG = !tieneReportabilidadGG(division) ? ''
-        : !estadoGG ? ' (sin la hoja del estado de los generadores: no hay reportes de GG para mostrar).'
-          : estadoGG.sinConexion ? ' (estado de los generadores con lo guardado en este equipo: sin señal).' : '';
+      const notaGG = !usarEstadoGG ? ''
+        : estadoGG?.sinConexion ? ' (Reportabilidad GG con lo guardado en este equipo: sin señal).'
+          : !estadoGG && !fotoReportabilidad ? ' (sin Reportabilidad GG: no hay reportes de GG para mostrar).' : '';
       showToast(`Documento generado exitosamente: ${nombreArchivo}${notaGG}`);
     } catch (err) {
       console.error(err);
@@ -1147,7 +1158,37 @@ export default function InformeCierre({ onBack }: InformeCierreProps) {
           <p className="text-xs text-gray-500 mb-3">Solo lleva la evidencia fotográfica del último día.</p>
           <div className="mb-3 p-3 border border-dashed border-[#DCE1E6] rounded-lg bg-[#fafbfc]">
             <p className="text-xs font-bold text-[#6B6B6B] mb-2">Evidencia fotográfica (automática)</p>
-            {fotoReportabilidad ? (
+            {usarEstadoGG && vistaEstadoGG !== null ? (
+              // El último día no tiene foto: va la imagen del estado de los generadores (la del Registro de mantenimiento).
+              <div className="flex items-center gap-3">
+                {vistaEstadoGG ? (
+                  <div className="relative flex-shrink-0 group">
+                    <img
+                      src={vistaEstadoGG.dataUrl}
+                      alt="Estado de los generadores"
+                      onClick={() => setFotoAmpliada({ src: vistaEstadoGG.dataUrl })}
+                      className="w-[140px] h-[92px] object-cover object-top rounded border border-[#DCE1E6] bg-white cursor-zoom-in"
+                    />
+                    <button
+                      type="button"
+                      onClick={e => { e.stopPropagation(); handleCopiarFoto(vistaEstadoGG.dataUrl); }}
+                      className="absolute top-0.5 left-0.5 bg-black/55 group-hover:bg-black/70 text-white rounded-full w-5 h-5 flex items-center justify-center"
+                      aria-label="Copiar imagen al portapapeles"
+                      title="Copiar imagen al portapapeles"
+                    >
+                      <Copy size={12} />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="w-[140px] h-[92px] flex-shrink-0 rounded border border-[#DCE1E6] bg-gray-100 animate-pulse" aria-hidden="true" />
+                )}
+                <p className="text-xs text-gray-500" role="status">
+                  {vistaEstadoGG
+                    ? <>Estado de los generadores al {formatFechaLarga(vistaEstadoGG.fecha)}, con la reportabilidad de GG (la misma imagen del Registro de mantenimiento de GG del informe diario). Al generar el Word se arma de nuevo, con los últimos reportes.{vistaEstadoGG.sinConexion && ' Sin señal: por ahora es con lo guardado en este equipo.'}</>
+                    : 'Armando la imagen del estado de los generadores…'}
+                </p>
+              </div>
+            ) : fotoReportabilidad ? (
               <div className="flex items-center gap-3">
                 <div className="relative flex-shrink-0 group">
                   <img
