@@ -6,7 +6,7 @@ import { OPCIONES_REFRIGERANTE } from '../../datos/reportesGG';
 import { HORAS_ENTRE_MANTENIMIENTOS, OPCIONES_STATUS, type IndicadoresMantenimiento } from '../../datos/indicadoresMantenimientoGG';
 import { BarraUso, CampoDias, CampoFecha, CampoHoras, Dato, Estado, IconoGuardado, NombreEquipo } from './comunes';
 import {
-  NOMBRE_REFRIGERANTE, claseValor, detalleLectura, fmtDia, fmtFecha, fmtHoras, fmtHorasConSigno, textoDias, textoLectura, textoLecturaCorta,
+  NOMBRE_REFRIGERANTE, claseValor, detalleLectura, fmtDia, fmtFecha, fmtHoras, fmtHorasConSigno, motivoEstado as motivo, textoDias, textoLectura, textoLecturaCorta,
   type AccionesEquipo, type EquipoCalculado, type EstadoGuardado,
 } from './formato';
 
@@ -16,21 +16,6 @@ interface Props {
   acciones: AccionesEquipo;
   /** Base sin el SQL nuevo: el status no se puede guardar. */
   faltaActualizarBD: boolean;
-}
-
-/** Por qué está vencido o próximo (o, si está al día, cuándo llega por horas). */
-function motivo(m: IndicadoresMantenimiento): string {
-  if (m.estado === 'sin_datos') return 'Faltan datos';
-  const porHoras = m.estadoHoras === m.estado;
-  const porFecha = m.estadoFecha === m.estado;
-  if (m.estado === 'vencido') {
-    if (porHoras && porFecha) return 'Horas y fecha';
-    if (porHoras) return m.faltanHoras ? `Excedido ${fmtHoras(-m.faltanHoras)} h` : `Cumplió ${HORAS_ENTRE_MANTENIMIENTOS} h`;
-    return 'Por fecha';
-  }
-  if (m.estado === 'proximo') return porHoras ? `Faltan ${fmtHoras(m.faltanHoras)} h` : `Fecha ${textoDias(m.diasParaFecha)}`;
-  // Al día: cuándo se llegaría a las 250 h al ritmo de uso, si es antes que la fecha.
-  return m.fechaPorHoras && (!m.fechaEstimada || m.fechaPorHoras < m.fechaEstimada) ? `≈ ${fmtDia(m.fechaPorHoras)}` : '';
 }
 
 const textoUso = (m: IndicadoresMantenimiento) =>

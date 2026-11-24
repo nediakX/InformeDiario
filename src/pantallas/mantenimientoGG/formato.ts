@@ -2,7 +2,7 @@
 import { TEMP_ATENCION, TEMP_CRITICA, esNoRealizada, type SitioGG } from '../../datos/analisisGG';
 import type { ReporteGG } from '../../datos/reportesGG';
 import type { CambiosMantenimientoGG, FilaMantenimientoGG } from '../../datos/mantenimientoGG';
-import { DIAS_MAXIMO, DIAS_MINIMO, type IndicadoresCorrea, type IndicadoresMantenimiento, type LecturaHoras, type Vencimiento } from '../../datos/indicadoresMantenimientoGG';
+import { DIAS_MAXIMO, DIAS_MINIMO, HORAS_ENTRE_MANTENIMIENTOS, type IndicadoresCorrea, type IndicadoresMantenimiento, type LecturaHoras, type Vencimiento } from '../../datos/indicadoresMantenimientoGG';
 import { formatDiaMes, formatFechaCorta, hoyLocalISO } from '../../datos/fechas';
 
 /** Un equipo con todo lo calculado (lo que muestran las tres pestañas). */
@@ -81,6 +81,21 @@ export function textoDias(dias: number | null): string {
   if (dias === 1) return 'mañana';
   if (dias === -1) return 'ayer';
   return dias > 0 ? `en ${dias} días` : `hace ${-dias} días`;
+}
+
+/** Por qué está vencido o próximo (o, si está al día, cuándo llega por horas): la línea chica de la columna Estado. */
+export function motivoEstado(m: IndicadoresMantenimiento): string {
+  if (m.estado === 'sin_datos') return 'Faltan datos';
+  const porHoras = m.estadoHoras === m.estado;
+  const porFecha = m.estadoFecha === m.estado;
+  if (m.estado === 'vencido') {
+    if (porHoras && porFecha) return 'Horas y fecha';
+    if (porHoras) return m.faltanHoras ? `Excedido ${fmtHoras(-m.faltanHoras)} h` : `Cumplió ${HORAS_ENTRE_MANTENIMIENTOS} h`;
+    return 'Por fecha';
+  }
+  if (m.estado === 'proximo') return porHoras ? `Faltan ${fmtHoras(m.faltanHoras)} h` : `Fecha ${textoDias(m.diasParaFecha)}`;
+  // Al día: cuándo se llegaría a las 250 h al ritmo de uso, si es antes que la fecha.
+  return m.fechaPorHoras && (!m.fechaEstimada || m.fechaPorHoras < m.fechaEstimada) ? `≈ ${fmtDia(m.fechaPorHoras)}` : '';
 }
 
 /** Cuándo fue una lectura: "hoy 09:12", "18 nov 21:40" o "" si no se sabe. */

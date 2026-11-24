@@ -33,7 +33,8 @@ import { BLUE, type BorradorLocal, DECORACIONES_MENSUALES, DEFAULT_ACTIVIDADES_D
 import { cargarSinEvidencia, desmarcarSinEvidencia, marcarSinEvidencia, suscribirSinEvidencia } from '../../datos/sinEvidencia';
 import { CONFIG_DIVISION, type Division } from '../../datos/divisiones';
 import { useDragReorder } from './useDragReorder';
-import { esRegistroGG, imagenEstadoGeneradores, tamanoEnHoja, tieneReportabilidadGG, type ImagenEstadoGG } from '../estadoGeneradores';
+import { esRegistroGG, esReportabilidadGG, imagenEstadoGeneradores, tamanoEnHoja, tieneReportabilidadGG, type ImagenEstadoGG } from '../estadoGeneradores';
+import { imagenTablaMantenimiento, seccionTablaMantenimiento } from '../tablaMantenimientoImagen';
 import type { FotoAmpliada } from '../../componentes/fotosDelVisor';
 
 export interface OpcionesInformeDiario {
@@ -1545,18 +1546,26 @@ export function useInformeDiario({ view, setBorradores, borradoresRef, division,
         };
       })() : null;
 
-      // "Registro de mantenimiento de GG." sin foto cargada: lleva la imagen del estado de los generadores a la fecha
-      // del informe (divisiones con reportabilidad de GG), con el mismo formato de un bloque de una foto.
-      const bloqueRegistroGG = evidenceBlocks.find(b => !b.cuadroVertiv && esRegistroGG(b.title));
-      // (Si se le quitó la casilla de foto al bloque, no lleva imagen.)
-      const registroSinFoto = tieneReportabilidadGG(informe.division) && !!bloqueRegistroGG
-        && bloqueRegistroGG.photos.length > 0 && !bloqueRegistroGG.photos.some(Boolean);
-      const estadoGG = registroSinFoto
-        ? await imagenEstadoGeneradores(informe.division, fecha).catch(error => {
-          console.error('No se pudo armar el estado de los generadores:', error);
-          return null;
-        })
-        : null;
+      // Imágenes automáticas de GG (divisiones con reportabilidad de GG), en los bloques sin foto cargada (si se le quitó
+      // la casilla de foto al bloque, no lleva imagen):
+      // - "Reportabilidad de GG" (Día) / "REPORTABILIDAD GG." (Noche): el estado de los generadores a la fecha del informe,
+      //   con el formato de un bloque de una foto.
+      // - "Registro de mantenimiento de GG.": la tabla de mantenimiento, en una hoja horizontal al final del informe.
+      const conGG = tieneReportabilidadGG(informe.division);
+      const bloqueSinFoto = (b?: EvidenceBlock) => !!b && b.photos.length > 0 && !b.photos.some(Boolean);
+      const bloqueReportabilidadGG = conGG ? evidenceBlocks.find(b => !b.cuadroVertiv && esReportabilidadGG(b.title)) : undefined;
+      const bloqueRegistroGG = conGG ? evidenceBlocks.find(b => !b.cuadroVertiv && esRegistroGG(b.title)) : undefined;
+      const reportabilidadSinFoto = bloqueSinFoto(bloqueReportabilidadGG);
+      const registroSinFoto = bloqueSinFoto(bloqueRegistroGG);
+      const avisarError = (que: string) => (error: unknown) => {
+        console.error(`No se pudo armar ${que}:`, error);
+        return null;
+      };
+      const [estadoGG, tablaGG] = await Promise.all([
+        reportabilidadSinFoto ? imagenEstadoGeneradores(informe.division, fecha).catch(avisarError('el estado de los generadores')) : null,
+        registroSinFoto ? imagenTablaMantenimiento(informe.division, fecha).catch(avisarError('la tabla de mantenimiento de GG')) : null,
+      ]);
+      const seccionRegistroGG = tablaGG && bloqueRegistroGG ? await seccionTablaMantenimiento(tablaGG, bloqueRegistroGG.title) : null;
       const bloqueEstadoGG = (titulo: string, imagen: ImagenEstadoGG) => {
         const tam = tamanoEnHoja(imagen);
         return [
@@ -1587,7 +1596,8 @@ export function useInformeDiario({ view, setBorradores, borradoresRef, division,
 
       const evidenceContent = (await Promise.all(evidenceBlocks.filter(b => !b.cuadroVertiv).map(async block => {
         const usablePhotos = block.photos.filter((p): p is string => Boolean(p));
-        if (usablePhotos.length === 0 && estadoGG && esRegistroGG(block.title)) return bloqueEstadoGG(block.title, estadoGG);
+        if (usablePhotos.length === 0 && estadoGG && block === bloqueReportabilidadGG) return bloqueEstadoGG(block.title, estadoGG);
+        // (La tabla de mantenimiento del Registro va en su hoja horizontal, al final.)
         if (usablePhotos.length === 0) return [];
 
         // Andina: cada imagen se dimensiona según su formato (vertical / horizontal), de a 2 por fila
@@ -1802,6 +1812,7 @@ export function useInformeDiario({ view, setBorradores, borradoresRef, division,
             ],
           },
           ...(seccionCuadroVertiv ? [seccionCuadroVertiv] : []),
+          ...(seccionRegistroGG ? [seccionRegistroGG] : []),
         ],
       });
 
@@ -1812,9 +1823,12 @@ export function useInformeDiario({ view, setBorradores, borradoresRef, division,
       saveAs(blob, filename);
       void registrarActividad('word_generado', filename, informe.id);
 
-      const notaGG = !registroSinFoto ? ''
-        : !estadoGG ? ' (el Registro de mantenimiento de GG va sin imagen: no hay reportes de GG para mostrar).'
-          : estadoGG.sinConexion ? ' (Registro de mantenimiento de GG con lo guardado en este equipo: sin señal).' : '';
+      const faltan = [
+        reportabilidadSinFoto && !estadoGG ? 'Reportabilidad de GG (no hay reportes de GG para mostrar)' : '',
+        registroSinFoto && !tablaGG ? 'Registro de mantenimiento de GG (no se pudo leer la tabla de mantenimiento)' : '',
+      ].filter(Boolean);
+      const notaGG = faltan.length ? ` (sin imagen automática: ${faltan.join('; ')}).`
+        : estadoGG?.sinConexion || tablaGG?.sinConexion ? ' (imágenes de GG con lo guardado en este equipo: sin señal).' : '';
       showToast(`Documento generado exitosamente: ${filename}${notaGG}`);
       return true;
     } catch (err) {

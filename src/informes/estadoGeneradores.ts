@@ -1,6 +1,6 @@
 // Estado de los generadores (reportabilidad de GG) a una fecha: una imagen con el último reporte de cada generador y
-// su estado (como en el panel principal). Es la imagen del bloque "Registro de mantenimiento de GG." del Informe
-// Diario (cuando no se carga una foto) y de la "Reportabilidad GG" del Informe de Cierre.
+// su estado (como en el panel principal). Es la imagen del bloque "Reportabilidad de GG" del Informe Diario (cuando
+// no se carga una foto) y de la "Reportabilidad GG" del Informe de Cierre.
 // Solo para las divisiones con reportabilidad de GG (Andina no la hace).
 import type { Division } from '../datos/divisiones';
 import { SITIOS_GG, pendientesValidosGG, reportesDelDiaGuardados, todosLosReportesGG, type ReporteGG } from '../datos/reportesGG';
@@ -11,8 +11,15 @@ import { dataUrlToUint8Array } from '../lib/imagenes';
 /** La división hace reportabilidad de GG (Andina no: su Word no lleva esta imagen). */
 export const tieneReportabilidadGG = (division: Division) => division !== 'andina';
 
-/** Bloque de evidencia "Registro de mantenimiento de GG. (fecha)" del Informe Diario. */
+/** Bloque de evidencia "Registro de mantenimiento de GG. (fecha)" del Informe Diario: lleva la tabla de mantenimiento. */
 export const esRegistroGG = (titulo: string) => titulo.trim().toLowerCase().startsWith('registro de mantenimiento de gg.');
+
+/**
+ * Bloque de evidencia de la reportabilidad de GG del Informe Diario ("Reportabilidad de GG" en Día, "REPORTABILIDAD
+ * GG." en Noche): lleva la imagen del estado de los generadores. No es el del ART ("ART Reportabilidad de GG").
+ */
+export const esReportabilidadGG = (titulo: string) =>
+  /^reportabilidad( diaria)?( de)? gg$/.test(titulo.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase().replace(/\.+$/, '').replace(/\s+/g, ' '));
 
 export interface ImagenEstadoGG {
   /** PNG de la tabla. */
@@ -32,7 +39,7 @@ export interface ImagenEstadoGG {
 const DIAS_ATRAS = 30;
 /** Con señal débil no se espera más que esto (es solo una imagen del Word): se usa lo guardado en el equipo. */
 const ESPERA_MAXIMA_MS = 15_000;
-const conEsperaMaxima = <T>(promesa: Promise<T>) => new Promise<T>((resolve, reject) => {
+export const conEsperaMaxima = <T>(promesa: Promise<T>) => new Promise<T>((resolve, reject) => {
   const timer = setTimeout(() => reject(new DOMException('Tiempo de espera agotado (timeout)', 'TimeoutError')), ESPERA_MAXIMA_MS);
   promesa.then(v => { clearTimeout(timer); resolve(v); }, e => { clearTimeout(timer); reject(e); });
 });
@@ -74,7 +81,7 @@ function guardarCopia(division: Division, copia: Copia) {
 const unir = (...listas: ReporteGG[][]) => [...new Map(listas.flat().map(r => [r.id, r] as const)).values()];
 
 /** Reportes de los últimos días hasta la fecha: los de la nube y los guardados sin señal en este equipo. */
-async function reportesHasta(division: Division, fecha: string): Promise<{ reportes: ReporteGG[]; sinConexion: boolean }> {
+export async function reportesGGHasta(division: Division, fecha: string): Promise<{ reportes: ReporteGG[]; sinConexion: boolean }> {
   const desde = sumarDias(fecha, -DIAS_ATRAS);
   const enRango = (r: ReporteGG) => r.fecha >= desde && r.fecha <= fecha;
   const locales = pendientesValidosGG(division).filter(enRango);
@@ -163,20 +170,25 @@ function htmlEstado(porSitio: SitioGG[], fecha: string, sinConexion: boolean): s
  */
 export async function imagenEstadoGeneradores(division: Division, fecha: string): Promise<ImagenEstadoGG | null> {
   if (!tieneReportabilidadGG(division)) return null;
-  const { reportes, sinConexion } = await reportesHasta(division, fecha);
+  const { reportes, sinConexion } = await reportesGGHasta(division, fecha);
   if (!reportes.length) return null;
   const { porSitio } = analizarGeneradores(SITIOS_GG[division] ?? [], reportes, fecha);
+  return { ...(await pngDeHtml(htmlEstado(porSitio, fecha, sinConexion), ANCHO)), fecha, sinConexion };
+}
+
+/** Dibuja un trozo de HTML (fuera de la pantalla) y lo devuelve como PNG al doble de resolución, para que se vea nítido. */
+export async function pngDeHtml(html: string, ancho: number): Promise<Pick<ImagenEstadoGG, 'bytes' | 'dataUrl' | 'ancho' | 'alto'>> {
   const { toPng } = await import('html-to-image');
   const contenedor = document.createElement('div');
   contenedor.setAttribute('aria-hidden', 'true');
-  Object.assign(contenedor.style, { position: 'fixed', left: '-20000px', top: '0', width: `${ANCHO}px`, zIndex: '-1' });
-  contenedor.innerHTML = htmlEstado(porSitio, fecha, sinConexion);
+  Object.assign(contenedor.style, { position: 'fixed', left: '-20000px', top: '0', width: `${ancho}px`, zIndex: '-1' });
+  contenedor.innerHTML = html;
   document.body.appendChild(contenedor);
   try {
-    const tabla = contenedor.firstElementChild as HTMLElement;
-    const alto = Math.ceil(tabla.getBoundingClientRect().height);
-    const dataUrl = await toPng(tabla, { pixelRatio: 2, backgroundColor: '#ffffff', width: ANCHO, height: alto });
-    return { bytes: dataUrlToUint8Array(dataUrl), dataUrl, ancho: ANCHO, alto, fecha, sinConexion };
+    const raiz = contenedor.firstElementChild as HTMLElement;
+    const alto = Math.ceil(raiz.getBoundingClientRect().height);
+    const dataUrl = await toPng(raiz, { pixelRatio: 2, backgroundColor: '#ffffff', width: ancho, height: alto });
+    return { bytes: dataUrlToUint8Array(dataUrl), dataUrl, ancho, alto };
   } finally {
     contenedor.remove();
   }

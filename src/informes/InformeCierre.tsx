@@ -26,8 +26,10 @@ import { ajustarImagenes, encajarSinDeformar, medirImagen } from '../lib/ajusteI
 import { registrarDeshacer, reinsertar, borrandose } from '../lib/deshacer';
 import { uploadPhotoIfNeeded } from '../lib/storage';
 import { esErrorDeRed } from '../lib/conexion';
-import { imagenEstadoGeneradores, tamanoEnHoja, tieneReportabilidadGG } from './estadoGeneradores';
-import { useImagenEstadoGG } from './useImagenEstadoGG';
+import { esRegistroGG, esReportabilidadGG, imagenEstadoGeneradores, tamanoEnHoja, tieneReportabilidadGG } from './estadoGeneradores';
+import { imagenTablaMantenimiento, seccionTablaMantenimiento } from './tablaMantenimientoImagen';
+import { useImagenGG } from './useImagenEstadoGG';
+import { formatFechaEvidencia } from './diario/constantes';
 
 interface InformeCierreProps {
   onBack: () => void;
@@ -115,15 +117,16 @@ const normalizarDatosCierre = (raw: unknown, creadorPorDefecto: Firmante): Datos
   };
 };
 
-/** Foto del "Registro de mantenimiento de GG." del último día con foto (para Reportabilidad GG del cierre). */
+/**
+ * Foto de la reportabilidad de GG del último día con foto (para Reportabilidad GG del cierre): la del bloque
+ * "Reportabilidad de GG" y, si no tiene, la del "Registro de mantenimiento de GG." (donde se cargaba antes).
+ */
 function buscarFotoReportabilidad<D extends { fecha: string; evidenceBlocks: { title: string; photos: (string | null | undefined)[] }[] }>(dias: D[]) {
   for (let i = dias.length - 1; i >= 0; i--) {
     const dia = dias[i];
-    const block = dia.evidenceBlocks.find(b => {
-      const t = b.title.trim().toLowerCase();
-      return t.startsWith('registro de mantenimiento de gg.') || t === 'reportabilidad gg.';
-    });
-    const photo = block?.photos.find((p): p is string => Boolean(p));
+    const fotoDe = (es: (titulo: string) => boolean) =>
+      dia.evidenceBlocks.filter(b => es(b.title)).flatMap(b => b.photos).find((p): p is string => Boolean(p));
+    const photo = fotoDe(esReportabilidadGG) ?? fotoDe(esRegistroGG);
     if (photo) return { src: photo, fecha: dia.fecha, esUltimoDia: i === dias.length - 1 };
   }
   return null;
@@ -412,7 +415,10 @@ export default function InformeCierre({ onBack }: InformeCierreProps) {
   const hoyCierre = hoyLocalISO();
   const fechaEstadoGG = rangoFechas ? (rangoFechas.fin < hoyCierre ? rangoFechas.fin : hoyCierre) : null;
   const usarEstadoGG = tieneReportabilidadGG(division) && !!fechaEstadoGG && !fotoReportabilidad?.esUltimoDia;
-  const vistaEstadoGG = useImagenEstadoGG(division, fechaEstadoGG, usarEstadoGG);
+  const vistaEstadoGG = useImagenGG('estado', division, fechaEstadoGG, usarEstadoGG);
+  // Al final del Word: la tabla de mantenimiento de GG a esa misma fecha (en una hoja horizontal).
+  const conTablaGG = tieneReportabilidadGG(division) && !!fechaEstadoGG;
+  const vistaTablaGG = useImagenGG('tabla', division, fechaEstadoGG, conTablaGG);
 
   const turnoLabel = useMemo(() => {
     const noches = diasSeleccionados.filter(d => d.turno === 'noche').length;
@@ -864,6 +870,15 @@ export default function InformeCierre({ onBack }: InformeCierreProps) {
         ...comentariosFiltrados.map(c => new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: c, bold: true, color: BLUE, font: "Arial" })] })),
       ] : [];
 
+      // Al final: la tabla de mantenimiento de GG (hoja horizontal, como un bloque de evidencia).
+      const tablaGG = conTablaGG && fechaEstadoGG
+        ? await imagenTablaMantenimiento(division, fechaEstadoGG).catch(error => {
+          console.error('No se pudo armar la tabla de mantenimiento de GG:', error);
+          return null;
+        })
+        : null;
+      const seccionTablaGG = tablaGG ? await seccionTablaMantenimiento(tablaGG, `Registro de mantenimiento de GG. (${formatFechaEvidencia(tablaGG.fecha)})`) : null;
+
       const doc = new Document({
         styles: { default: { document: { run: { font: "Arial", size: 21 } } } },
         sections: [
@@ -882,6 +897,7 @@ export default function InformeCierre({ onBack }: InformeCierreProps) {
               ...seccionComentarios,
             ],
           },
+          ...(seccionTablaGG ? [seccionTablaGG] : []),
         ],
       });
 
@@ -891,9 +907,12 @@ export default function InformeCierre({ onBack }: InformeCierreProps) {
         : `Reporte de cierre -Turno ${letraTurno}.docx`;
       saveAs(blob, nombreArchivo);
       void registrarActividad('word_generado', nombreArchivo);
-      const notaGG = !usarEstadoGG ? ''
-        : estadoGG?.sinConexion ? ' (Reportabilidad GG con lo guardado en este equipo: sin señal).'
-          : !estadoGG && !fotoReportabilidad ? ' (sin Reportabilidad GG: no hay reportes de GG para mostrar).' : '';
+      const faltan = [
+        usarEstadoGG && !estadoGG && !fotoReportabilidad ? 'Reportabilidad GG (no hay reportes de GG para mostrar)' : '',
+        conTablaGG && !tablaGG ? 'tabla de mantenimiento de GG (no se pudo leer)' : '',
+      ].filter(Boolean);
+      const notaGG = faltan.length ? ` (sin ${faltan.join(' ni ')}).`
+        : estadoGG?.sinConexion || tablaGG?.sinConexion ? ' (imágenes de GG con lo guardado en este equipo: sin señal).' : '';
       showToast(`Documento generado exitosamente: ${nombreArchivo}${notaGG}`);
     } catch (err) {
       console.error(err);
@@ -1184,7 +1203,7 @@ export default function InformeCierre({ onBack }: InformeCierreProps) {
                 )}
                 <p className="text-xs text-gray-500" role="status">
                   {vistaEstadoGG
-                    ? <>Estado de los generadores al {formatFechaLarga(vistaEstadoGG.fecha)}, con la reportabilidad de GG (la misma imagen del Registro de mantenimiento de GG del informe diario). Al generar el Word se arma de nuevo, con los últimos reportes.{vistaEstadoGG.sinConexion && ' Sin señal: por ahora es con lo guardado en este equipo.'}</>
+                    ? <>Estado de los generadores al {formatFechaLarga(vistaEstadoGG.fecha)}, con la reportabilidad de GG (la misma imagen de la Reportabilidad de GG del informe diario). Al generar el Word se arma de nuevo, con los últimos reportes.{vistaEstadoGG.sinConexion && ' Sin señal: por ahora es con lo guardado en este equipo.'}</>
                     : 'Armando la imagen del estado de los generadores…'}
                 </p>
               </div>
@@ -1208,7 +1227,7 @@ export default function InformeCierre({ onBack }: InformeCierreProps) {
                   </button>
                 </div>
                 <p className="text-xs text-gray-500">
-                  Se toma del Registro de mantenimiento de GG del informe del {formatFechaLarga(fotoReportabilidad.fecha)}.
+                  Se toma de la foto de reportabilidad de GG del informe del {formatFechaLarga(fotoReportabilidad.fecha)}.
                   {!fotoReportabilidad.esUltimoDia && ' El último día seleccionado no tiene esa foto, por eso se usa la del día anterior más cercano.'}
                 </p>
               </div>
@@ -1218,6 +1237,39 @@ export default function InformeCierre({ onBack }: InformeCierreProps) {
               </p>
             )}
           </div>
+          {conTablaGG && vistaTablaGG !== null && (
+            <div className="mb-1 p-3 border border-dashed border-[#DCE1E6] rounded-lg bg-[#fafbfc]">
+              <p className="text-xs font-bold text-[#6B6B6B] mb-2">Tabla de mantenimiento de GG (automática, al final del Word)</p>
+              <div className="flex items-center gap-3">
+                {vistaTablaGG ? (
+                  <div className="relative flex-shrink-0 group">
+                    <img
+                      src={vistaTablaGG.dataUrl}
+                      alt="Tabla de mantenimiento de GG"
+                      onClick={() => setFotoAmpliada({ src: vistaTablaGG.dataUrl })}
+                      className="w-[140px] h-[92px] object-cover object-top rounded border border-[#DCE1E6] bg-white cursor-zoom-in"
+                    />
+                    <button
+                      type="button"
+                      onClick={e => { e.stopPropagation(); handleCopiarFoto(vistaTablaGG.dataUrl); }}
+                      className="absolute top-0.5 left-0.5 bg-black/55 group-hover:bg-black/70 text-white rounded-full w-5 h-5 flex items-center justify-center"
+                      aria-label="Copiar imagen al portapapeles"
+                      title="Copiar imagen al portapapeles"
+                    >
+                      <Copy size={12} />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="w-[140px] h-[92px] flex-shrink-0 rounded border border-[#DCE1E6] bg-gray-100 animate-pulse" aria-hidden="true" />
+                )}
+                <p className="text-xs text-gray-500" role="status">
+                  {vistaTablaGG
+                    ? <>Tabla de mantenimiento de GG al {formatFechaLarga(vistaTablaGG.fecha)}, en una hoja horizontal al final del Word. Al generarlo se arma de nuevo, con los últimos datos.{vistaTablaGG.sinConexion && ' Sin señal: por ahora es con lo guardado en este equipo.'}</>
+                    : 'Armando la imagen de la tabla de mantenimiento de GG…'}
+                </p>
+              </div>
+            </div>
+          )}
         </details>
 
         <div className="action-zone">
