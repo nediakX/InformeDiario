@@ -20,15 +20,17 @@ import { crearExcel } from '../lib/excel';
 import { horometroRetrocede } from '../datos/analisisGG';
 import {
   COMBUSTIBLE_PCT, OPCIONES_ACEITE, OPCIONES_COMBUSTIBLE, OPCIONES_REFRIGERANTE, OPCIONES_TURNO, SITIOS_GG,
-  EVENTO_GG, actualizarReporteGG, crearReporteGG, eliminarReporteGG, leerNumero, listarReportesGG, pendientesGG, restaurarReporteGG,
-  sincronizarPendientesGG, suscribirReportesGG, todosLosReportesGG, type FiltroGG, type ReporteGG, type ReporteGGPendiente,
+  EVENTO_GG, ReporteGGRepetido, actualizarReporteGG, crearReporteGG, descartarPendienteGG, eliminarReporteGG, guardarReportesDelDia,
+  leerNumero, listarReportesGG, pendientesGG, reportesDelDiaGuardados, restaurarReporteGG, sincronizarPendientesGG, suscribirReportesGG,
+  todosLosReportesGG, usarPendienteGGEnLugarDelExistente, type FiltroGG, type ReporteGG, type ReporteGGPendiente,
 } from '../datos/reportesGG';
-import { esNoRealizada } from '../datos/analisisGG';
+import { esNoRealizada, idsRepetidosGG, reporteQueBloquea } from '../datos/reglasGG';
 
 const POR_PAGINA = 100;
 const campo = 'w-full p-2.5 border border-[#DCE1E6] rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#0E4660]/25';
 const etiqueta = 'block text-xs font-bold text-[#55636B] mb-1';
-const horaActual = () => { const d = new Date(); return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; };
+const horaDe = (d: Date) => `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+const horaActual = () => horaDe(new Date());
 const ddmmaaaa = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}`;
 const fmtNum = (n: number | null) => (n === null ? '—' : n.toLocaleString('es-CL', { maximumFractionDigits: 1 }));
 
@@ -101,23 +103,37 @@ export default function ReportabilidadGG({ onBack }: { onBack: () => void }) {
   // --- Lo de hoy: qué sitios ya tienen reporte y cuáles faltan -----------------------------------
   const hoy = hoyLocalISO();
   const [deHoy, setDeHoy] = useState<ReporteGG[] | null>(null);
+  // Sin señal: hora en que se supo por última vez qué estaba reportado hoy (lo que se muestra es de esa hora).
+  const [hoySinSenalDesde, setHoySinSenalDesde] = useState<string | null>(null);
   const [pendientes, setPendientes] = useState(() => pendientesGG().filter(p => p.division === division));
-  // Los que la nube no aceptó (se muestran aparte) y los que solo esperan señal.
-  const rechazados = pendientes.filter(p => p.rechazo);
-  const enCola = pendientes.filter(p => !p.rechazo);
+  // Los que la nube no aceptó, los que salieron repetidos (el carro ya estaba reportado) y los que solo esperan señal.
+  const repetidos = pendientes.filter(p => p.repetido);
+  const rechazados = pendientes.filter(p => p.rechazo && !p.repetido);
+  const enCola = pendientes.filter(p => !p.rechazo && !p.repetido);
   const [reintentando, setReintentando] = useState(false);
   const reintentarSubida = async () => {
     setReintentando(true);
     try { await sincronizarPendientesGG(); } finally { setReintentando(false); }
   };
-  const cargarHoy = useCallback(async () => {
-    try { setDeHoy(await listarReportesGG({ division, desde: hoy, hasta: hoy }, 0, 300)); } catch { /* sin señal: se muestra lo guardado en el equipo */ setDeHoy(prev => prev ?? []); }
+  // Sin señal se sigue viendo lo que ya estaba reportado (guardado en el equipo la última vez que hubo señal), para
+  // no volver a reportar un carro que otra persona ya hizo.
+  const sinSenalHoy = useCallback(() => {
+    const guardado = reportesDelDiaGuardados(division, hoy);
+    setDeHoy(prev => prev ?? guardado?.reportes ?? []);
+    setHoySinSenalDesde(prev => prev ?? guardado?.guardado ?? new Date().toISOString());
   }, [division, hoy]);
+  const cargarHoy = useCallback(async () => {
+    try { setDeHoy(await listarReportesGG({ division, desde: hoy, hasta: hoy }, 0, 300)); setHoySinSenalDesde(null); } catch { sinSenalHoy(); }
+  }, [division, hoy, sinSenalHoy]);
   useEffect(() => {
     let vivo = true;
-    listarReportesGG({ division, desde: hoy, hasta: hoy }, 0, 300).then(r => { if (vivo) setDeHoy(r); }).catch(() => { if (vivo) setDeHoy([]); });
+    listarReportesGG({ division, desde: hoy, hasta: hoy }, 0, 300)
+      .then(r => { if (vivo) { setDeHoy(r); setHoySinSenalDesde(null); } })
+      .catch(() => { if (vivo) sinSenalHoy(); });
     return () => { vivo = false; };
-  }, [division, hoy]);
+  }, [division, hoy, sinSenalHoy]);
+  // Lo que llegó de la nube queda guardado en el equipo (para cuando no haya señal).
+  useEffect(() => { if (deHoy && hoySinSenalDesde === null) guardarReportesDelDia(division, hoy, deHoy); }, [deHoy, hoySinSenalDesde, division, hoy]);
   useEffect(() => {
     const alCambiar = () => { setPendientes(pendientesGG().filter(p => p.division === division)); void cargarHoy(); };
     window.addEventListener(EVENTO_GG, alCambiar);
@@ -125,7 +141,7 @@ export default function ReportabilidadGG({ onBack }: { onBack: () => void }) {
     return () => window.removeEventListener(EVENTO_GG, alCambiar);
   }, [division, cargarHoy]);
   const reportesHoy = useMemo(() => {
-    const todos = [...pendientes.filter(p => p.fecha === hoy), ...(deHoy ?? []).filter(r => !pendientes.some(p => p.id === r.id))];
+    const todos = [...pendientes.filter(p => p.fecha === hoy && !p.repetido), ...(deHoy ?? []).filter(r => !pendientes.some(p => p.id === r.id))];
     return todos.sort((a, b) => (b.hora ?? '').localeCompare(a.hora ?? ''));
   }, [deHoy, pendientes, hoy]);
   const ultimoHoyPorSitio = useMemo(() => {
@@ -152,6 +168,8 @@ export default function ReportabilidadGG({ onBack }: { onBack: () => void }) {
   const [descargando, setDescargando] = useState(false);
   const [errorLista, setErrorLista] = useState<string | null>(null);
   const filtroCompleto = useMemo<FiltroGG>(() => ({ division, ...filtro }), [division, filtro]);
+  // Reportes de la tabla que repiten la reportabilidad de un carro en un día (vale el primero que se hizo).
+  const repetidosLista = useMemo(() => idsRepetidosGG(lista ?? []), [lista]);
 
   const recargar = useCallback(async (cantidad = POR_PAGINA) => {
     try {
@@ -176,8 +194,16 @@ export default function ReportabilidadGG({ onBack }: { onBack: () => void }) {
     return () => { vivo = false; };
   }, [filtroCompleto]);
 
-  // Reportes de otras personas: la tabla se actualiza sola.
-  useEffect(() => suscribirReportesGG(division, () => { void recargar(Math.max(POR_PAGINA, lista?.length ?? 0)); }), [division, recargar, lista?.length]);
+  // Reportes de otras personas: la tabla y lo de hoy se actualizan solos (así se ve al tiro qué carro ya se reportó).
+  useEffect(() => suscribirReportesGG(division, () => { void recargar(Math.max(POR_PAGINA, lista?.length ?? 0)); void cargarHoy(); }), [division, recargar, lista?.length, cargarHoy]);
+
+  // Una reportabilidad por carro y día: si el carro elegido ya la tiene hoy, no se guarda otra (se avisa quién la hizo).
+  const yaReportado = !editando && form.sitio && form.fecha === hoy
+    ? reporteQueBloquea({ division, fecha: form.fecha, sitio: form.sitio, noRealizada: form.noRealizada }, reportesHoy)
+    : null;
+  const noRealizadaHoy = !editando && !yaReportado && form.sitio && form.fecha === hoy && !form.noRealizada
+    ? reportesHoy.find(r => r.sitio === form.sitio && esNoRealizada(r)) ?? null
+    : null;
 
   // Último reporte del sitio elegido: sirve de referencia (y para avisar si el horómetro baja).
   const [ultimoDelSitio, setUltimoDelSitio] = useState<ReporteGG | null>(null);
@@ -236,6 +262,7 @@ export default function ReportabilidadGG({ onBack }: { onBack: () => void }) {
   });
 
   const guardar = async () => {
+    if (yaReportado) { setAviso({ texto: `${form.sitio} ya tiene su reportabilidad de hoy.`, error: true }); return; }
     if (!validar()) { setAviso({ texto: 'Revisa los campos marcados.', error: true }); return; }
     setGuardando(true);
     try {
@@ -264,6 +291,13 @@ export default function ReportabilidadGG({ onBack }: { onBack: () => void }) {
       setAviso({ texto: sinSenal ? `Sin señal: el reporte de ${nuevo.sitio} quedó guardado en este equipo y se subirá solo.` : `Reporte de ${nuevo.sitio} guardado.${siguiente && nuevo.fecha === hoy ? ` Sigue: ${siguiente}.` : ''}` });
       irAlFormulario();
     } catch (error) {
+      if (error instanceof ReporteGGRepetido) {
+        // Otra persona lo reportó recién (o es de otro día que ya estaba): no se guarda otro; se muestra el que vale.
+        const e = error.existente;
+        setAviso({ texto: `${e.sitio} ya tenía su reportabilidad del ${ddmmaaaa(e.fecha)}${e.hora ? ` (${e.hora} · ${e.reporta})` : ` (${e.reporta})`}: no se guardó otra.`, error: true });
+        void cargarHoy();
+        return;
+      }
       console.error('No se pudo guardar el reporte de GG:', error);
       // Se muestra el mensaje de la base para saber la causa exacta (los datos siguen en el formulario).
       const detalle = (error as { message?: string } | null)?.message ?? String(error);
@@ -300,6 +334,22 @@ export default function ReportabilidadGG({ onBack }: { onBack: () => void }) {
     } catch (error) {
       console.error('No se pudo eliminar el reporte de GG:', error);
       setAviso({ texto: 'No se pudo eliminar el reporte.', error: true });
+    }
+  };
+
+  const [resolviendo, setResolviendo] = useState<string | null>(null);
+  const usarElMio = async (p: ReporteGGPendiente) => {
+    setResolviendo(p.id);
+    try {
+      await usarPendienteGGEnLugarDelExistente(p.id);
+      setAviso({ texto: `Reporte de ${p.sitio} reemplazado por el hecho sin señal.` });
+      void cargarHoy();
+      void recargar(Math.max(POR_PAGINA, lista?.length ?? 0));
+    } catch (error) {
+      console.error('No se pudo reemplazar el reporte de GG:', error);
+      setAviso({ texto: esErrorDeRed(error) ? 'Sin señal: inténtalo de nuevo cuando haya conexión.' : 'No se pudo reemplazar el reporte.', error: true });
+    } finally {
+      setResolviendo(null);
     }
   };
 
@@ -401,6 +451,40 @@ export default function ReportabilidadGG({ onBack }: { onBack: () => void }) {
                 className="btn-outline text-[#8a1c1c] px-3 py-1.5 rounded-md text-xs font-bold hover:bg-white disabled:opacity-60">
                 {reintentando ? 'Reintentando…' : 'Reintentar ahora'}
               </button>
+            </div>
+          )}
+          {hoySinSenalDesde && (
+            <p className="text-xs text-[#36505e] bg-[#eef5fb] rounded-md px-3 py-2 flex items-start gap-2" role="status">
+              <CloudOff size={14} className="shrink-0 mt-px" />
+              <span><strong>Sin señal:</strong> se muestra lo reportado hasta las {horaDe(new Date(hoySinSenalDesde))}. Si otra persona reportó un carro después, no se ve hasta que vuelva la señal.</span>
+            </p>
+          )}
+          {repetidos.length > 0 && (
+            <div className="text-xs text-[#7a4b00] bg-[#fff4e0] border border-[#f0d9a8] rounded-md px-3 py-2 space-y-2" role="alert">
+              <p className="font-bold flex items-start gap-2">
+                <AlertTriangle size={14} className="shrink-0 mt-px" />
+                {repetidos.length === 1 ? 'Un reporte hecho sin señal no se subió' : `${repetidos.length} reportes hechos sin señal no se subieron`}: ese carro ya tenía su reportabilidad del día (una por carro y día).
+              </p>
+              <ul className="space-y-2">
+                {repetidos.map(p => (
+                  <li key={p.id} className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-white/70 px-2.5 py-2">
+                    <span className="min-w-0">
+                      <strong className="text-[#0E4660]">{p.sitio}</strong> · {ddmmaaaa(p.fecha)}: ya {p.repetido!.noRealizada ? 'estaba anotado como no realizado por' : 'lo había reportado'} {p.repetido!.reporta}{p.repetido!.hora ? ` a las ${p.repetido!.hora}` : ''}. El tuyo{p.hora ? ` (${p.hora})` : ''} quedó solo en este equipo.
+                    </span>
+                    <span className="flex flex-wrap gap-1.5">
+                      <button type="button" onClick={() => descartarPendienteGG(p.id)} disabled={resolviendo === p.id}
+                        className="btn-outline text-[#0E4660] bg-white px-2.5 py-1 rounded-md text-xs font-bold hover:bg-[#d5e7f8] disabled:opacity-60">Descartar el mío</button>
+                      {esSupervisor && (
+                        <button type="button" onClick={() => void usarElMio(p)} disabled={resolviendo === p.id}
+                          className="bg-[#0E4660] text-white px-2.5 py-1 rounded-md text-xs font-bold hover:bg-[#0a3549] disabled:opacity-60 flex items-center gap-1">
+                          {resolviendo === p.id && <Loader2 size={12} className="animate-spin" />} Usar el mío en su lugar
+                        </button>
+                      )}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+              {!esSupervisor && <p>Si tu reporte tiene datos más nuevos, pídele a un supervisor que corrija el que quedó.</p>}
             </div>
           )}
           {enCola.length > 0 && (
@@ -534,6 +618,29 @@ export default function ReportabilidadGG({ onBack }: { onBack: () => void }) {
             </div>
           </div>
 
+          {yaReportado && (
+            <div className="text-sm text-[#7a4b00] bg-[#fff4e0] border border-[#f0d9a8] rounded-md px-3 py-2.5 space-y-2" role="alert">
+              <p className="flex items-start gap-2">
+                <AlertTriangle size={16} className="shrink-0 mt-0.5" />
+                <span>
+                  <strong>{form.sitio} ya tiene su reportabilidad de hoy</strong>: {esNoRealizada(yaReportado) ? 'anotada como no realizada por' : 'la hizo'} {yaReportado.reporta}{yaReportado.hora ? ` a las ${yaReportado.hora}` : ''}{'pendiente' in yaReportado ? ' (en este equipo, esperando señal)' : ''}. Se reporta una vez por carro y día.
+                </span>
+              </p>
+              {puedeEditar(yaReportado) ? (
+                <button type="button" onClick={() => editar(yaReportado)}
+                  className="btn-outline text-[#0E4660] bg-white px-3 py-1.5 rounded-md text-xs font-bold hover:bg-[#d5e7f8] flex items-center gap-1.5">
+                  <Pencil size={13} /> Corregir ese reporte
+                </button>
+              ) : (
+                <p className="text-xs">Si hay que cambiar algo, pídeselo a un supervisor.</p>
+              )}
+            </div>
+          )}
+          {noRealizadaHoy && (
+            <p className="text-xs text-[#36505e] bg-[#eef5fb] border border-[#d5e7f8] rounded-md px-3 py-2">
+              {form.sitio} está anotado hoy como no realizado ({noRealizadaHoy.hora ?? '—'} · {noRealizadaHoy.reporta}). Si ya se pudo revisar, guarda el reporte con las mediciones.
+            </p>
+          )}
           {ultimo && (
             <p className="text-xs text-[#36505e] bg-[#eef5fb] border border-[#d5e7f8] rounded-md px-3 py-2">
               Último reporte de <strong>{ultimo.sitio}</strong>: {ddmmaaaa(ultimo.fecha)}{ultimo.hora ? ` ${ultimo.hora}` : ''} · horómetro <strong>{fmtNum(ultimo.horometro)}</strong> · {fmtNum(ultimo.nroPartidas)} partidas · combustible {ultimo.combustible ?? '—'} · {ultimo.reporta}
@@ -583,7 +690,7 @@ export default function ReportabilidadGG({ onBack }: { onBack: () => void }) {
             {error('observaciones')}
           </label>
           <div className="flex sm:justify-end">
-            <button type="button" onClick={() => void guardar()} disabled={guardando}
+            <button type="button" onClick={() => void guardar()} disabled={guardando || !!yaReportado}
               className="w-full sm:w-auto justify-center bg-[#0E4660] text-white px-5 py-3 sm:py-2.5 rounded-md text-sm font-bold hover:bg-[#0a3549] disabled:opacity-50 flex items-center gap-2">
               {guardando ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />} {editando ? 'Guardar corrección' : 'Guardar reporte'}
             </button>
@@ -634,6 +741,12 @@ export default function ReportabilidadGG({ onBack }: { onBack: () => void }) {
             <p className="text-xs rounded-md px-3 py-2 bg-[#f6f7f8] text-gray-600">Si un reporte quedó con un error, avísale a un supervisor: solo los supervisores pueden corregir o eliminar reportes.</p>
           )}
 
+          {repetidosLista.size > 0 && (
+            <p className="text-xs rounded-md px-3 py-2 bg-[#fff4e0] text-[#7a4b00] border border-[#f0d9a8]">
+              <strong>{repetidosLista.size === 1 ? 'Hay 1 reporte repetido' : `Hay ${repetidosLista.size} reportes repetidos`}</strong> (el mismo carro más de una vez el mismo día).
+              {esSupervisor ? ' Elimínalo con el papelero para dejar uno por carro y día.' : ' Avísale a un supervisor para que lo elimine.'}
+            </p>
+          )}
           {errorLista && <p role="alert" className="text-sm rounded-md px-3 py-2 bg-[#fbe9e9] text-[#a32626]">{errorLista}</p>}
           {lista === null && !errorLista && <p className="text-sm text-gray-500 flex items-center gap-2"><Loader2 size={16} className="animate-spin" /> Cargando reportes…</p>}
           {lista && lista.length === 0 && <p className="text-sm text-gray-500">{soloHoy ? 'Todavía no hay reportes hoy.' : 'No hay reportes con este filtro.'}</p>}
@@ -652,7 +765,13 @@ export default function ReportabilidadGG({ onBack }: { onBack: () => void }) {
                     <tr key={r.id}>
                       <td className="whitespace-nowrap">{ddmmaaaa(r.fecha)}</td>
                       <td>{r.hora ?? '—'}</td>
-                      <td className="whitespace-nowrap font-bold text-[#0E4660]">{r.sitio}</td>
+                      <td className="whitespace-nowrap font-bold text-[#0E4660]">
+                        {r.sitio}
+                        {repetidosLista.has(r.id) && (
+                          <span className="ml-1.5 align-middle inline-block rounded-full bg-[#fff4e0] text-[#7a4b00] border border-[#f0d9a8] px-1.5 py-px text-[10px] font-bold"
+                            title="Ese carro ya tenía su reportabilidad ese día: este reporte sobra">Repetido</span>
+                        )}
+                      </td>
                       <td className="whitespace-nowrap">{r.turno.replace('TURNO ', '')}</td>
                       <td className="whitespace-nowrap">{r.reporta}</td>
                       <td>{r.combustible ?? '—'}</td>

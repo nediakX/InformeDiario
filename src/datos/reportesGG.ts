@@ -3,6 +3,7 @@
 import { supabase } from '../lib/supabase';
 import { esErrorDeRed } from '../lib/conexion';
 import type { Division } from './divisiones';
+import { esNoRealizada, reporteQueBloquea } from './reglasGG';
 
 export const TABLA_GG = 'reportes_gg';
 
@@ -71,6 +72,16 @@ const aReporte = (f: Fila): ReporteGG => ({
 
 export type NuevoReporteGG = Omit<ReporteGG, 'id' | 'marcaTemporal' | 'creadoPor'>;
 
+/** El carro ya tenía su reportabilidad de ese día (la hizo otra persona, o este equipo sin señal): no se guarda otra. */
+export class ReporteGGRepetido extends Error {
+  readonly existente: ReporteGG;
+  constructor(existente: ReporteGG) {
+    super(`${existente.sitio} ya tiene su reportabilidad del ${existente.fecha}.`);
+    this.name = 'ReporteGGRepetido';
+    this.existente = existente;
+  }
+}
+
 const aFila = (r: NuevoReporteGG) => ({
   division: r.division, fecha: r.fecha, hora: r.hora || null, sitio: r.sitio, turno: r.turno, reporta: r.reporta,
   combustible: r.combustible, horometro: r.horometro, nro_partidas: r.nroPartidas, nivel_refrigerante: r.nivelRefrigerante,
@@ -114,6 +125,11 @@ export interface ReporteGGPendiente extends ReporteGG {
   pendiente: true;
   /** Motivo con que la nube NO aceptó el reporte (no es falta de señal). Igual se sigue reintentando. */
   rechazo?: string;
+  /**
+   * Al volver la señal, el carro ya tenía su reportabilidad de ese día (la hizo otra persona): este no se sube para no
+   * duplicarla. Queda en el equipo hasta que se descarte o, un supervisor, lo use en lugar del que ya estaba.
+   */
+  repetido?: { id: string; hora: string | null; reporta: string; noRealizada: boolean };
 }
 
 const CLAVE_PENDIENTES = 'psinet_reportes_gg_pendientes';
@@ -126,22 +142,50 @@ function guardarPendientes(lista: ReporteGGPendiente[]) {
   try { localStorage.setItem(CLAVE_PENDIENTES, JSON.stringify(lista)); } catch { /* sin almacenamiento */ }
   window.dispatchEvent(new Event(EVENTO_GG));
 }
+/** Reportes de la división que siguen en el equipo y cuentan (sin los repetidos, que no se van a subir). */
+export const pendientesValidosGG = (division: Division) => pendientesGG().filter(p => p.division === division && !p.repetido);
+
+/** Reportes de un carro en un día, en la nube. */
+async function reportesDelCarroEnElDia(division: Division, fecha: string, sitio: string): Promise<ReporteGG[]> {
+  const { data, error } = await supabase.from(TABLA_GG).select('*').eq('division', division).eq('fecha', fecha).eq('sitio', sitio);
+  if (error) throw error;
+  return (data as Fila[]).map(aReporte);
+}
+
+// Lo que ya está reportado hoy, guardado en el equipo: sin señal se sigue viendo qué carros estaban hechos.
+const CLAVE_HOY = 'psinet_reportes_gg_hoy';
+export function guardarReportesDelDia(division: Division, fecha: string, reportes: ReporteGG[]) {
+  try { localStorage.setItem(`${CLAVE_HOY}_${division}`, JSON.stringify({ fecha, guardado: new Date().toISOString(), reportes })); } catch { /* sin almacenamiento */ }
+}
+export function reportesDelDiaGuardados(division: Division, fecha: string): { guardado: string; reportes: ReporteGG[] } | null {
+  try {
+    const dato = JSON.parse(localStorage.getItem(`${CLAVE_HOY}_${division}`) ?? 'null') as { fecha: string; guardado: string; reportes: ReporteGG[] } | null;
+    return dato && dato.fecha === fecha && Array.isArray(dato.reportes) ? { guardado: dato.guardado, reportes: dato.reportes } : null;
+  } catch { return null; }
+}
 
 const filaCompleta = (r: ReporteGG) => ({ ...aFila(r), id: r.id, marca_temporal: r.marcaTemporal });
 
 /**
  * Guarda un reporte nuevo. El id se crea en el equipo: si no hay señal (en terreno pasa seguido), el
  * reporte queda guardado aquí y se sube solo apenas vuelva la conexión, sin duplicarse.
+ * Si el carro ya tiene su reportabilidad de ese día, no se guarda otra (lanza ReporteGGRepetido).
  */
 export async function crearReporteGG(r: NuevoReporteGG, creadoPor: string | null): Promise<ReporteGG | ReporteGGPendiente> {
   const nuevo: ReporteGG = { ...r, id: crypto.randomUUID(), marcaTemporal: new Date().toISOString(), creadoPor };
+  const comoNuevo = { ...nuevo, noRealizada: esNoRealizada(nuevo) };
+  // Uno de este mismo equipo que todavía no sube (sin señal).
+  const enEquipo = reporteQueBloquea(comoNuevo, pendientesValidosGG(r.division));
+  if (enEquipo) throw new ReporteGGRepetido(enEquipo);
   try {
+    const enNube = reporteQueBloquea(comoNuevo, await reportesDelCarroEnElDia(r.division, r.fecha, r.sitio));
+    if (enNube) throw new ReporteGGRepetido(enNube);
     // Si el mismo reporte ya había subido (reintento), no se toca: corregir es solo para supervisores.
     const { error } = await supabase.from(TABLA_GG).upsert(filaCompleta(nuevo), { ignoreDuplicates: true });
     if (error) throw error;
     return nuevo;
   } catch (error) {
-    if (!esErrorDeRed(error)) throw error;
+    if (error instanceof ReporteGGRepetido || !esErrorDeRed(error)) throw error;
     const pendiente: ReporteGGPendiente = { ...nuevo, pendiente: true };
     guardarPendientes([...pendientesGG(), pendiente]);
     return pendiente;
@@ -169,11 +213,40 @@ function marcarRechazo(id: string, motivo: string | undefined) {
   guardarPendientes(lista.map(x => (x.id === id ? { ...x, rechazo: texto } : x)));
 }
 
+/** Anota en el equipo que el carro ya tenía su reportabilidad de ese día (este reporte no se sube). */
+function marcarRepetido(id: string, existente: ReporteGG) {
+  const repetido = { id: existente.id, hora: existente.hora, reporta: existente.reporta, noRealizada: esNoRealizada(existente) };
+  guardarPendientes(pendientesGG().map(x => (x.id === id ? { ...x, rechazo: undefined, repetido } : x)));
+}
+
+/** Reporte hecho sin señal que salió repetido: se descarta y queda el que ya estaba en la nube. */
+export function descartarPendienteGG(id: string) {
+  guardarPendientes(pendientesGG().filter(x => x.id !== id));
+}
+
+/**
+ * Supervisor: el reporte hecho sin señal reemplaza al que ya estaba ese día (se corrige ese reporte con estos datos,
+ * así sigue habiendo uno solo). Si el que estaba ya no existe, este se sube como reporte nuevo.
+ */
+export async function usarPendienteGGEnLugarDelExistente(id: string): Promise<void> {
+  const p = pendientesGG().find(x => x.id === id);
+  if (!p?.repetido) return;
+  const { pendiente: _p, rechazo: _r, repetido, ...datos } = p;
+  void _p; void _r;
+  const { data, error } = await supabase.from(TABLA_GG).update(aFila(datos)).eq('id', repetido.id).select('id');
+  if (error) throw error;
+  if (data && data.length) { descartarPendienteGG(id); return; }
+  // El que estaba se borró entretanto: este vuelve a la cola y se sube (si no hay otro ese día).
+  guardarPendientes(pendientesGG().map(x => (x.id === id ? { ...x, repetido: undefined } : x)));
+  await sincronizarPendientesGG();
+}
+
 let subiendo = false;
 /** Sube los reportes que quedaron guardados sin señal. Devuelve cuántos se subieron. */
 export async function sincronizarPendientesGG(): Promise<number> {
   if (subiendo) return 0;
-  const pendientes = pendientesGG();
+  // Los repetidos esperan que la persona decida (descartar o usar el suyo): no se suben solos.
+  const pendientes = pendientesGG().filter(p => !p.repetido);
   if (!pendientes.length) return 0;
   subiendo = true;
   let subidos = 0;
@@ -181,6 +254,18 @@ export async function sincronizarPendientesGG(): Promise<number> {
     for (const p of pendientes) {
       const { pendiente: _p, ...reporte } = p;
       void _p;
+      // Antes de subir: si mientras no había señal otra persona ya reportó ese carro ese día, este no se sube.
+      let existentes: ReporteGG[];
+      try {
+        existentes = await reportesDelCarroEnElDia(p.division, p.fecha, p.sitio);
+      } catch (error) {
+        if (esErrorDeRed(error)) break; // sin señal: se intenta más tarde
+        console.error('No se pudo revisar si el reporte de GG ya estaba:', error);
+        marcarRechazo(p.id, (error as { message?: string } | null)?.message);
+        continue;
+      }
+      const yaEstaba = reporteQueBloquea({ ...p, noRealizada: esNoRealizada(p) }, existentes);
+      if (yaEstaba) { marcarRepetido(p.id, yaEstaba); continue; }
       const { error } = await supabase.from(TABLA_GG).upsert(filaCompleta(reporte), { ignoreDuplicates: true });
       if (error) {
         if (esErrorDeRed(error)) break; // sin señal: se intenta más tarde
@@ -201,7 +286,7 @@ export async function sincronizarPendientesGG(): Promise<number> {
 
 if (typeof window !== 'undefined') {
   window.addEventListener('online', () => { void sincronizarPendientesGG(); });
-  window.setInterval(() => { if (pendientesGG().length) void sincronizarPendientesGG(); }, 30_000);
+  window.setInterval(() => { if (pendientesGG().some(p => !p.repetido)) void sincronizarPendientesGG(); }, 30_000);
 }
 
 /** Combustible como porcentaje (para los gráficos). */

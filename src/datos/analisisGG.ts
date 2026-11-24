@@ -13,6 +13,7 @@
 //    normalmente suma horas lleva 3 días sin moverse, se avisa (podría no estar operando).
 //  - Partidas: si bajan, o suben mucho más de lo normal en el sitio, se avisa.
 import type { ReporteGG } from './reportesGG';
+import { esNoRealizada } from './reglasGG';
 
 /** Variación del horómetro que se considera lectura/redondeo y no genera alerta (una décima). */
 export const TOLERANCIA_HOROMETRO = 0.1;
@@ -73,10 +74,8 @@ export const TEMP_CRITICA = 95;
 export const valorGG = (r: ReporteGG, dato: 'horometro' | 'temperatura' | 'combustible' | 'nroPartidas'): number | null =>
   dato === 'combustible' ? (r.combustible ? COMBUSTIBLE_PCT[r.combustible] ?? null : null) : r[dato];
 
-/** Reportabilidad "no realizada": el reporte no tiene ninguna medición (solo el motivo en observaciones). */
-export const esNoRealizada = (r: ReporteGG): boolean =>
-  r.combustible == null && r.horometro == null && r.nroPartidas == null
-  && r.nivelRefrigerante == null && r.nivelAceite == null && r.temperatura == null;
+/** Reportabilidad "no realizada" (sin ninguna medición): vive en reglasGG; se reexporta para quien ya la usa desde aquí. */
+export { esNoRealizada };
 
 export function analizarSitio(sitio: string, reportes: ReporteGG[], hoy: string): SitioGG {
   const serie = reportes.filter(r => r.sitio === sitio).sort((a, b) => instante(a) - instante(b));
