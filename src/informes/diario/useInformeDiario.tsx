@@ -33,6 +33,7 @@ import { BLUE, type BorradorLocal, DECORACIONES_MENSUALES, DEFAULT_ACTIVIDADES_D
 import { cargarSinEvidencia, desmarcarSinEvidencia, marcarSinEvidencia, suscribirSinEvidencia } from '../../datos/sinEvidencia';
 import { CONFIG_DIVISION, type Division } from '../../datos/divisiones';
 import { useDragReorder } from './useDragReorder';
+import { imagenEstadoGeneradores, seccionEstadoGeneradores, tieneReportabilidadGG } from '../estadoGeneradores';
 import type { FotoAmpliada } from '../../componentes/fotosDelVisor';
 
 export interface OpcionesInformeDiario {
@@ -1732,6 +1733,13 @@ export function useInformeDiario({ view, setBorradores, borradoresRef, division,
           })),
       });
 
+      // Última hoja: el estado de los generadores a la fecha del informe (divisiones con reportabilidad de GG).
+      const estadoGG = await imagenEstadoGeneradores(informe.division, fecha).catch(error => {
+        console.error('No se pudo armar el estado de los generadores:', error);
+        return null;
+      });
+      const seccionEstadoGG = estadoGG ? await seccionEstadoGeneradores(estadoGG, BLUE) : null;
+
       const doc = new Document({
         styles: { default: { document: { run: { font: "Arial", size: 21 } } } },
         sections: [
@@ -1760,6 +1768,7 @@ export function useInformeDiario({ view, setBorradores, borradoresRef, division,
             ],
           },
           ...(seccionCuadroVertiv ? [seccionCuadroVertiv] : []),
+          ...(seccionEstadoGG ? [seccionEstadoGG] : []),
         ],
       });
 
@@ -1770,7 +1779,10 @@ export function useInformeDiario({ view, setBorradores, borradoresRef, division,
       saveAs(blob, filename);
       void registrarActividad('word_generado', filename, informe.id);
 
-      showToast(`Documento generado exitosamente: ${filename}`);
+      const notaGG = !tieneReportabilidadGG(informe.division) ? ''
+        : !estadoGG ? ' (sin la hoja del estado de los generadores: no hay reportes de GG para mostrar).'
+          : estadoGG.sinConexion ? ' (estado de los generadores con lo guardado en este equipo: sin señal).' : '';
+      showToast(`Documento generado exitosamente: ${filename}${notaGG}`);
       return true;
     } catch (err) {
       console.error(err);

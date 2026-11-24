@@ -26,6 +26,7 @@ import { ajustarImagenes, encajarSinDeformar, medirImagen } from '../lib/ajusteI
 import { registrarDeshacer, reinsertar, borrandose } from '../lib/deshacer';
 import { uploadPhotoIfNeeded } from '../lib/storage';
 import { esErrorDeRed } from '../lib/conexion';
+import { imagenEstadoGeneradores, seccionEstadoGeneradores, tieneReportabilidadGG } from './estadoGeneradores';
 
 interface InformeCierreProps {
   onBack: () => void;
@@ -842,6 +843,15 @@ export default function InformeCierre({ onBack }: InformeCierreProps) {
         ...comentariosFiltrados.map(c => new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: c, bold: true, color: BLUE, font: "Arial" })] })),
       ] : [];
 
+      // Última hoja: el estado de los generadores al último día del cierre (o a hoy, si el cierre sigue en curso).
+      const hoy = hoyLocalISO();
+      const fechaEstadoGG = rangoFechas && rangoFechas.fin < hoy ? rangoFechas.fin : hoy;
+      const estadoGG = await imagenEstadoGeneradores(division, fechaEstadoGG).catch(error => {
+        console.error('No se pudo armar el estado de los generadores:', error);
+        return null;
+      });
+      const seccionEstadoGG = estadoGG ? await seccionEstadoGeneradores(estadoGG, BLUE) : null;
+
       const doc = new Document({
         styles: { default: { document: { run: { font: "Arial", size: 21 } } } },
         sections: [
@@ -860,6 +870,7 @@ export default function InformeCierre({ onBack }: InformeCierreProps) {
               ...seccionComentarios,
             ],
           },
+          ...(seccionEstadoGG ? [seccionEstadoGG] : []),
         ],
       });
 
@@ -869,7 +880,10 @@ export default function InformeCierre({ onBack }: InformeCierreProps) {
         : `Reporte de cierre -Turno ${letraTurno}.docx`;
       saveAs(blob, nombreArchivo);
       void registrarActividad('word_generado', nombreArchivo);
-      showToast(`Documento generado exitosamente: ${nombreArchivo}`);
+      const notaGG = !tieneReportabilidadGG(division) ? ''
+        : !estadoGG ? ' (sin la hoja del estado de los generadores: no hay reportes de GG para mostrar).'
+          : estadoGG.sinConexion ? ' (estado de los generadores con lo guardado en este equipo: sin señal).' : '';
+      showToast(`Documento generado exitosamente: ${nombreArchivo}${notaGG}`);
     } catch (err) {
       console.error(err);
       showToast("Error al generar el archivo de cierre.", true);
