@@ -42,6 +42,13 @@ export interface DatosPresentacion {
    * turno (Tabla de mantenimiento GG, informes de mantenimiento y reportes de GG). Sin filas queda la tabla de la plantilla.
    */
   mantenimientoGG?: FilaOmFds[];
+  /**
+   * Lámina 30 (fallas y atención de equipos CPE): equipos donde se instaló CPE en el periodo, como se ven en la lámina
+   * (ej: "CAEX 140"). Sin ninguno, la lámina queda con "SIN INSTALACIONES".
+   */
+  instalaciones: string[];
+  /** Textos que hablan de una instalación de CPE pero sin número de equipo (para avisar que falta completarlo). */
+  instalacionesSinEquipo: string[];
 }
 
 // Registros individuales de rutina: no entran al resumen del turno.
@@ -108,6 +115,65 @@ export const fotoGGDe = (entrada: BorradorEntry): string | null => {
   return null;
 };
 
+// ---- Instalaciones de CPE (lámina 30) -------------------------------------------------------------
+
+// Equipo minero donde se instala el CPE, y cómo se nombra en la lámina ("" = solo el número).
+const NOMBRE_EQUIPO: [RegExp, string][] = [
+  [/^caex$/, 'CAEX'], [/^camion(?:es)?$/, 'CAMIÓN'], [/^palas?$/, 'PALA'], [/^perforadoras?$/, 'PERFORADORA'],
+  [/^(?:excavadoras?|exc)$/, 'EXC'], [/^cargador(?:es)?$/, 'CARGADOR'], [/^bulldozers?$/, 'BULLDOZER'],
+  [/^motoniveladoras?$/, 'MOTONIVELADORA'], [/^tractor(?:es)?$/, 'TRACTOR'], [/^wheeldozers?$/, 'WHEELDOZER'], [/^aljibes?$/, 'ALJIBE'],
+];
+const TIPO_EQUIPO = 'caex|camion(?:es)?|palas?|perforadoras?|excavadoras?|exc|cargador(?:es)?|bulldozers?|motoniveladoras?|tractor(?:es)?|wheeldozers?|aljibes?';
+// "CAEX 140", "CAEX-140", "camión N° 140 y 142", "CPE 140", "equipo 140/142": la palabra y uno o más números de equipo.
+const EQUIPO_CON_NUMERO = new RegExp(`\\b(${TIPO_EQUIPO}|equipos?|cpe)(?![a-z])[\\s.#_-]*(?:(?:n|no|nro|numero)\\s*[°º.]?\\s*)?(\\d{2,5}(?:\\s*(?:,|\\/|&|\\by\\b|\\be\\b)\\s*\\d{2,5})*)`, 'g');
+// Instalación (no desinstalación) de CPE o en un equipo minero.
+const ES_INSTALACION = /\b(?:re)?instal(?:a|o|e)/;
+const ES_DE_CPE = new RegExp(`\\bcpe(?![a-z])|\\b(?:${TIPO_EQUIPO})(?![a-z])`);
+
+/**
+ * Equipos con instalación de CPE que aparecen en los textos (actividades, títulos y observaciones de los informes), sin
+ * repetir: ["CAEX 140", "CAEX 142"]. Las desinstalaciones y las instalaciones que no son de CPE (gabinetes, baterías,
+ * alimentación DC...) no cuentan.
+ */
+export function instalacionesCpeDe(textos: string[]): string[] {
+  const equipos: string[] = [];
+  const vistos = new Set<string>();
+  for (const texto of textos) {
+    const t = sinAcentos(texto);
+    if (!ES_INSTALACION.test(t) || !ES_DE_CPE.test(t)) continue;
+    for (const m of t.matchAll(EQUIPO_CON_NUMERO)) {
+      const nombre = NOMBRE_EQUIPO.find(([re]) => re.test(m[1]))?.[1] ?? '';
+      for (const numero of m[2].split(/\s*(?:,|\/|&|\by\b|\be\b)\s*/).filter(Boolean)) {
+        const clave = `${nombre}|${Number(numero)}`;
+        if (vistos.has(clave)) continue;
+        vistos.add(clave);
+        equipos.push(nombre ? `${nombre} ${numero}` : numero);
+      }
+    }
+  }
+  return equipos;
+}
+
+/** Textos que hablan de una instalación de CPE pero no dicen en qué equipo (ej: "Instalacion CPE", tal como en el listado). */
+export const instalacionesSinEquipoDe = (textos: string[]): string[] =>
+  [...new Set(textos.map(t => t.trim()).filter(t => {
+    const n = sinAcentos(t);
+    return ES_INSTALACION.test(n) && ES_DE_CPE.test(n) && !n.match(EQUIPO_CON_NUMERO);
+  }))];
+
+/** Título del recuadro de la lámina 30: "INSTALACIÓN" (un equipo) o "INSTALACIONES". */
+export const tituloInstalaciones = (equipos: string[]) => (equipos.length === 1 ? 'INSTALACIÓN' : 'INSTALACIONES');
+
+/** Equipos como van en la lámina, sin repetir el tipo seguido: ["CAEX 140", "CAEX 142"] -> "CAEX 140 Y 142". */
+export function textoInstalaciones(equipos: string[]): string {
+  const partes = equipos.map((e, i) => {
+    const [, tipo, numero] = e.trim().match(/^(.*\S)\s+(\d+)$/) ?? [];
+    const [, tipoAnterior] = i > 0 ? equipos[i - 1].trim().match(/^(.*\S)\s+(\d+)$/) ?? [] : [];
+    return tipo && tipoAnterior && tipo.toUpperCase() === tipoAnterior.toUpperCase() ? numero : e.trim().toUpperCase();
+  });
+  return partes.length > 1 ? `${partes.slice(0, -1).join(', ')} Y ${partes[partes.length - 1]}` : partes.join('');
+}
+
 /** Construye todo lo que necesita la presentación de la semana de turno. */
 export function construirPresentacion(entradas: BorradorEntry[], semana: SemanaTurno): DatosPresentacion {
   const validas = entradas.filter(e => !esSemillaSinEditar(e));
@@ -136,6 +202,7 @@ export function construirPresentacion(entradas: BorradorEntry[], semana: SemanaT
   );
   // Actividades declaradas en el periodo: una observación que las repite no sale.
   const declaradas = delPeriodo.flatMap(e => e.actividades.map(a => a.trim())).filter(Boolean);
+  const textosDelPeriodo = delPeriodo.flatMap(e => [...e.actividades, ...e.evidenceBlocks.map(b => b.title), ...e.observaciones]);
   // Turno Noche sin la rutina administrativa (la referencia no la trae).
   const actividadesNoche = noches.flatMap(n => n.actividades.map(a => a.trim())).filter(a => a && !RUTINA_NOCHE_LAMINA.test(sinAcentos(a)));
   return {
@@ -149,6 +216,9 @@ export function construirPresentacion(entradas: BorradorEntry[], semana: SemanaT
       sinRepetidos(noches.flatMap(n => n.observaciones.map(o => o.trim()))).filter(o => !repiteActividad(o, declaradas)),
     ),
     mantenciones,
+    // Lámina 30: instalaciones de CPE del periodo (Turno Día y Noche), en actividades, títulos de fotos y observaciones.
+    instalaciones: instalacionesCpeDe(textosDelPeriodo),
+    instalacionesSinEquipo: instalacionesCpeDe(textosDelPeriodo).length ? [] : instalacionesSinEquipoDe(textosDelPeriodo),
   };
 }
 

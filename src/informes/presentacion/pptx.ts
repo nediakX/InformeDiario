@@ -4,7 +4,7 @@
 import JSZip from 'jszip';
 import plantillaUrl from '../../assets/plantillas/presentacion_turno.pptx?url';
 import { comprimirDataUrl } from '../../lib/fotos';
-import type { DatosPresentacion, DiaPresentacion } from './modelo';
+import { textoInstalaciones, tituloInstalaciones, type DatosPresentacion, type DiaPresentacion } from './modelo';
 import type { FilaOmFds } from './modeloFds';
 import { HORAS_ENTRE_MANTENIMIENTOS, semaforoDesdeUltimo, semaforoFecha, type Semaforo } from '../../datos/indicadoresMantenimientoGG';
 import { esDifusion, mencionaSitio } from './criterios';
@@ -20,6 +20,8 @@ const LAMINA_RESUMEN_DIA = 3;
 const LAMINA_RESUMEN_NOCHE = 4;
 const LAMINAS_GG = [10, 11];
 const LAMINAS_DIFUSIONES = [13, 14, 15, 16, 17, 18, 19];
+/** Lámina de fallas y atención de equipos CPE, con el recuadro de instalaciones ("SIN INSTALACIONES" en la plantilla). */
+const LAMINA_INSTALACIONES = 30;
 export const MESES_MAYUSCULA = ['ENERO', 'FEBRERO', 'MARZO', 'ABRIL', 'MAYO', 'JUNIO', 'JULIO', 'AGOSTO', 'SEPTIEMBRE', 'OCTUBRE', 'NOVIEMBRE', 'DICIEMBRE'];
 const FOTO_LADO = 1920;
 const FOTO_CALIDAD = 0.9;
@@ -1156,6 +1158,30 @@ async function fijarFechasDeCorte(ctx: Contexto, datos: DatosPresentacion) {
   }
 }
 
+// ---- Instalaciones de CPE (lámina 30) ------------------------------------------------------
+
+/** Ancho aproximado (em) de un texto en mayúsculas y negrita, como el del recuadro de la plantilla. */
+const anchoEnEm = (texto: string) =>
+  [...texto].reduce((n, c) => n + (/\d/.test(c) ? 0.55 : /[A-ZÁÉÍÓÚÑ]/.test(c) ? 0.6 : c === ' ' ? 0.25 : 0.35), 0);
+
+/**
+ * Lámina 30: el recuadro "SIN INSTALACIONES" pasa a "INSTALACIONES" y, debajo, los equipos ("CAEX 140 Y 142"), con
+ * el formato de la plantilla. Si la lista no cabe en una línea, se achica la letra (hasta 16 pt).
+ */
+function llenarInstalaciones(lamina: Lamina, equipos: string[], avisos: string[]) {
+  const sp = descendientes(arbolDeLamina(lamina), NS_P, 'sp').find(s => /^\s*SIN INSTALACIONES\s*$/i.test(textoDe(s)));
+  const modelo = sp ? parrafosDe(txBodyDe(sp)).find(tieneTexto) : undefined;
+  if (!sp || !modelo) {
+    avisos.push(`Lámina ${LAMINA_INSTALACIONES}: no se encontró el recuadro "SIN INSTALACIONES" de la plantilla; anota a mano las instalaciones (${textoInstalaciones(equipos)}).`);
+    return;
+  }
+  const base = tamanoDePlantilla(modelo) ?? 2800;
+  const lista = textoInstalaciones(equipos);
+  const cabe = Math.floor((tamanoEnPt(sp).ancho - 14.4) / Math.max(1, anchoEnEm(lista))) * 100;
+  const sz = Math.max(1600, Math.min(base, cabe));
+  reemplazarParrafos(sp, [copiaDe(modelo, tituloInstalaciones(equipos)), copiaDe(modelo, lista, sz !== base ? sz : undefined)]);
+}
+
 // ---------------------------------------------------------------------------------------
 // API pública
 // ---------------------------------------------------------------------------------------
@@ -1187,6 +1213,7 @@ export async function generarPresentacionTurno(datos: DatosPresentacion): Promis
 
   await fijarFechasDeCorte(ctx, datos);
   if (datos.mantenimientoGG?.length) llenarEstadoMantenimientoGG(await abrirLamina(ctx, 21), datos.mantenimientoGG, datos.fin, avisos);
+  if (datos.instalaciones.length) llenarInstalaciones(await abrirLamina(ctx, LAMINA_INSTALACIONES), datos.instalaciones, avisos);
 
   for (const lamina of ctx.laminas.values()) {
     zip.file(`ppt/slides/slide${lamina.numero}.xml`, escribir(lamina.doc), { createFolders: false });

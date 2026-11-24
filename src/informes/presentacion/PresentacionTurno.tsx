@@ -11,7 +11,7 @@ import { semanaDeFecha } from '../../datos/turnos';
 import { listarReportesGG, suscribirReportesGG, type ReporteGG } from '../../datos/reportesGG';
 import { capturasGG } from './capturaGG';
 import { useSesion } from '../../auth/sesion';
-import { construirPresentacion, nombreArchivoPresentacion } from './modelo';
+import { construirPresentacion, nombreArchivoPresentacion, textoInstalaciones, tituloInstalaciones } from './modelo';
 import { generarPresentacionTurno } from './pptx';
 import PresentacionFds from './PresentacionFds';
 import { leerHorometros, leerReportesFds } from './datosFds';
@@ -64,6 +64,8 @@ export default function PresentacionTurno({ onBack, modoInicial = 'completo', bo
   const [recargaFds, setRecargaFds] = useState(0);
   // Observaciones de Turno Noche editadas por semana (si no se editan, salen las de los informes).
   const [observacionesEditadas, setObservacionesEditadas] = useState<Record<string, string>>({});
+  // Lámina 30: equipos con instalación de CPE, editables antes de generar (por semana).
+  const [instalacionesEditadas, setInstalacionesEditadas] = useState<Record<string, string>>({});
   const [generando, setGenerando] = useState(false);
   // Avisos de la última presentación generada (fotos que no caben, fotos que no se pudieron preparar...).
   const [avisos, setAvisos] = useState<string[]>([]);
@@ -82,6 +84,8 @@ export default function PresentacionTurno({ onBack, modoInicial = 'completo', bo
   const datos = useMemo(() => construirPresentacion(borradores, semana), [borradores, semana]);
   const fechasConGG = useMemo(() => new Set(reportesGG.map(r => r.fecha)), [reportesGG]);
   const textoObservaciones = observacionesEditadas[semana.inicio] ?? datos.observacionesNoche.join('\n');
+  const textoEquiposInstalados = instalacionesEditadas[semana.inicio] ?? datos.instalaciones.join(', ');
+  const equiposInstalados = textoEquiposInstalados.split(/[,;\n]/).map(s => s.trim()).filter(Boolean);
   // null = la tabla todavía no se lee (si no se puede leer, queda vacía y mandan los informes y los reportes).
   const tablaMtto = lecturaTabla?.division === division ? lecturaTabla.filas : null;
   // Sitios cuyos horómetros se leen (los de la presentación y los que agregue la tabla), como texto para no releer por nada.
@@ -205,7 +209,7 @@ export default function PresentacionTurno({ onBack, modoInicial = 'completo', bo
       const tabla = await listarMantenimientoGG(division).then(t => t.filas).catch(() => tablaMtto ?? []);
       const horometros = await leerHorometros(division, datos.fin, sitiosConHorometro(tabla)).catch(() => horasTurno?.horometros ?? {});
       const mantenimientoGG = filasMantenimientoAl(datos.fin, { reportesFds: [], horometros, mantenimientos: mantenimientosFds, tablaMantenimiento: tabla });
-      const { blob, avisos: nuevosAvisos } = await generarPresentacionTurno({ ...datos, dias, observacionesNoche: observaciones, mantenimientoGG });
+      const { blob, avisos: nuevosAvisos } = await generarPresentacionTurno({ ...datos, dias, observacionesNoche: observaciones, mantenimientoGG, instalaciones: equiposInstalados });
       saveAs(blob, nombreArchivoPresentacion(datos));
       setAvisos(nuevosAvisos);
       setToast({ text: nuevosAvisos.length ? 'Presentación generada, revisa los avisos.' : 'Presentación generada.' });
@@ -303,7 +307,7 @@ export default function PresentacionTurno({ onBack, modoInicial = 'completo', bo
               ))}
             </div>
             <p className="text-xs text-gray-500 mt-3">
-              Se generan: portada, resumen de Turno Día y Turno Noche, reportabilidad GG (captura de los reportes de cada día guardados en la app), una lámina de difusiones por día y el estado de mantenimiento de GG.
+              Se generan: portada, resumen de Turno Día y Turno Noche, reportabilidad GG (captura de los reportes de cada día guardados en la app), una lámina de difusiones por día, el estado de mantenimiento de GG y las instalaciones de CPE.
               Las actividades de rutina individual (checklist, fatiga, hidratación, protector solar, etc.) no aparecen en el resumen.
             </p>
           </section>
@@ -318,6 +322,26 @@ export default function PresentacionTurno({ onBack, modoInicial = 'completo', bo
               rows={5}
               className="w-full p-2 border border-[#DCE1E6] rounded-md text-sm"
             />
+          </section>
+
+          <section className="panel p-5">
+            <label htmlFor="instalaciones-cpe" className="block text-sm font-bold text-[#0E4660] mb-1">Instalaciones de CPE (lámina 30)</label>
+            <p className="text-xs text-gray-500 mb-2">Equipos donde se instaló CPE en el turno, separados por coma. Salen de los Informes Diarios; puedes corregirlos antes de generar.</p>
+            <input
+              id="instalaciones-cpe"
+              value={textoEquiposInstalados}
+              onChange={e => setInstalacionesEditadas(prev => ({ ...prev, [semana.inicio]: e.target.value }))}
+              placeholder="Ej: CAEX 140, CAEX 142"
+              className="w-full p-2 border border-[#DCE1E6] rounded-md text-sm"
+            />
+            <p className="text-xs text-gray-600 mt-2">
+              En la lámina: <strong>{equiposInstalados.length ? `${tituloInstalaciones(equiposInstalados)} ${textoInstalaciones(equiposInstalados)}` : 'SIN INSTALACIONES'}</strong>
+            </p>
+            {!equiposInstalados.length && datos.instalacionesSinEquipo.length > 0 && (
+              <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-md p-2 mt-2">
+                Los informes mencionan una instalación de CPE sin número de equipo («{datos.instalacionesSinEquipo[0]}»): escribe el equipo arriba para que salga en la lámina.
+              </p>
+            )}
           </section>
 
           <section className="panel p-5 space-y-3">
