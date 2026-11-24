@@ -462,6 +462,10 @@ function FormularioChecklist({ id, cuentaId, division, entrada, base, hoy, onGua
 
   const avance = avanceDia(datos, dia);
   const completo = avance.hechos === avance.total;
+  const delTurno = esDelTurno(dia, datos);
+  const envioDia = envio?.dia === dia ? envio : null;
+  const puedeEnviar = completo && delTurno && envio?.estado !== 'enviando' && envioDia?.estado !== 'conflicto';
+  const textoEnviar = envioDia?.estado === 'error' ? 'Reintentar el envío' : envioDia?.estado === 'ok' ? 'Volver a enviar' : 'Enviar al Informe Diario';
   const estadoGuardado = guardando || sucio
     ? 'Guardando…'
     : guardadoEn ? `Guardado · ${new Date(guardadoEn).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })}` : 'Se guarda solo';
@@ -559,32 +563,6 @@ function FormularioChecklist({ id, cuentaId, division, entrada, base, hoy, onGua
             <button type="button" onClick={limpiarDia} className="checklist-accion"><Eraser size={14} /> Limpiar</button>
           </div>
         </div>
-        {completo && !esDelTurno(dia, datos) && (
-          <p className="text-xs text-gray-500 mb-3">Este día es del turno {letraDeFecha(fechas[dia])}: no se envía al Informe Diario desde este checklist (solo los días del turno {datos.letra}).</p>
-        )}
-        {completo && esDelTurno(dia, datos) && (
-          <div className={`checklist-diario ${envio?.dia === dia && envio.estado === 'error' ? 'checklist-diario--error' : envio?.dia === dia && (envio.estado === 'conflicto' || envio.estado === 'conservado') ? 'checklist-diario--aviso' : ''}`} role="status">
-            {envio?.dia === dia && envio.estado === 'enviando' ? (
-              <span className="flex items-center gap-1.5"><Loader2 size={14} className="animate-spin" /> Guardando las 2 hojas en el Informe Diario del {ddmm(fechas[dia])}…</span>
-            ) : envio?.dia === dia && envio.estado === 'ok' ? (
-              <span className="flex items-center gap-1.5"><Check size={14} /> Hojas guardadas en el Informe Diario (Turno Día {ddmm(fechas[dia])}) · «Registro de Check List de Vehículo Liviano.»</span>
-            ) : envio?.dia === dia && (envio.estado === 'error' || envio.estado === 'conflicto' || envio.estado === 'conservado') ? (
-              <span>{envio.texto}</span>
-            ) : (
-              <span>Día completo. Sus 2 hojas van como imagen al Informe Diario del {ddmm(fechas[dia])} (Registro de Check List de Vehículo Liviano.).</span>
-            )}
-            {envio?.dia === dia && envio.estado === 'conflicto' ? (
-              <div className="flex flex-wrap gap-1.5">
-                <button type="button" onClick={() => void enviarAlDiario(dia, datos, true)} className="checklist-accion"><Send size={14} /> Sí, reemplazar</button>
-                <button type="button" onClick={() => setEnvio({ dia, estado: 'conservado', texto: `Se dejó el checklist que ya estaba en el Informe Diario del ${ddmm(fechas[dia])}.` })} className="checklist-accion">No, dejar el actual</button>
-              </div>
-            ) : (
-              <button type="button" disabled={envio?.estado === 'enviando'} onClick={() => setModalDia(dia)} className="checklist-accion">
-                <Send size={14} /> {envio?.dia === dia && envio.estado === 'error' ? 'Reintentar' : envio?.dia === dia && envio.estado === 'ok' ? 'Volver a enviar' : 'Enviar al Informe Diario'}
-              </button>
-            )}
-          </div>
-        )}
         <p className="text-xs text-gray-500 mb-4">Marca <strong>✓</strong> si está bien y <strong>X</strong> si está malo o falta. "Todo ✓" completa solo lo que esté vacío (no cambia las X).</p>
 
         <div className="space-y-5">
@@ -674,23 +652,59 @@ function FormularioChecklist({ id, cuentaId, division, entrada, base, hoy, onGua
         )}
       </section>
 
-      <div className="action-zone flex flex-col sm:flex-row gap-2">
-        <button
-          type="button"
-          onClick={() => void generarWord(true)}
-          disabled={generando !== null}
-          className="btn-outline sm:w-2/5 text-[#0E4660] bg-white py-3.5 px-6 font-bold text-base rounded-md hover:bg-[#d5e7f8] disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-        >
-          {generando === 'ver' ? (<><Loader2 size={18} className="animate-spin" /> Preparando…</>) : (<><Eye size={18} /> Ver antes de descargar</>)}
-        </button>
-        <button
-          type="button"
-          onClick={() => void generarWord(false)}
-          disabled={generando !== null}
-          className="btn-primary-field flex-1 text-white py-3.5 px-6 font-bold text-base rounded-md disabled:!bg-[#9fb3bd] disabled:cursor-not-allowed flex items-center justify-center gap-2"
-        >
-          {generando === 'descargar' ? (<><Loader2 size={18} className="animate-spin" /> Generando checklist…</>) : (<><FileDown size={18} /> Descargar checklist en Word</>)}
-        </button>
+      <div className="action-zone space-y-2">
+        {/* Envío del día elegido al Informe Diario: el estado va justo arriba de los botones. */}
+        <div role="status">
+          {!delTurno ? (
+            <p className="checklist-envio-nota">El {ETIQUETAS_DIA[dia]} {ddmm(fechas[dia])} es del turno {letraDeFecha(fechas[dia])}: no se envía al Informe Diario desde este checklist (solo los días del turno {datos.letra}).</p>
+          ) : !completo ? (
+            <p className="checklist-envio-nota">Para enviar el {ETIQUETAS_DIA[dia]} {ddmm(fechas[dia])} al Informe Diario, completa el día ({avance.hechos}/{avance.total}).</p>
+          ) : (
+            <div className={`checklist-diario ${envioDia?.estado === 'error' ? 'checklist-diario--error' : envioDia?.estado === 'conflicto' || envioDia?.estado === 'conservado' ? 'checklist-diario--aviso' : ''}`}>
+              {envioDia?.estado === 'enviando' ? (
+                <span className="flex items-center gap-1.5"><Loader2 size={14} className="animate-spin" /> Guardando las 2 hojas en el Informe Diario del {ddmm(fechas[dia])}…</span>
+              ) : envioDia?.estado === 'ok' ? (
+                <span className="flex items-center gap-1.5"><Check size={14} /> Hojas guardadas en el Informe Diario (Turno Día {ddmm(fechas[dia])}) · «Registro de Check List de Vehículo Liviano.»</span>
+              ) : envioDia?.texto ? (
+                <span>{envioDia.texto}</span>
+              ) : (
+                <span>Día completo ({ETIQUETAS_DIA[dia]} {ddmm(fechas[dia])}). Sus 2 hojas van como imagen al Informe Diario de esa fecha (Registro de Check List de Vehículo Liviano.).</span>
+              )}
+              {envioDia?.estado === 'conflicto' && (
+                <div className="flex flex-wrap gap-1.5">
+                  <button type="button" onClick={() => void enviarAlDiario(dia, datos, true)} className="checklist-accion"><Send size={14} /> Sí, reemplazar</button>
+                  <button type="button" onClick={() => setEnvio({ dia, estado: 'conservado', texto: `Se dejó el checklist que ya estaba en el Informe Diario del ${ddmm(fechas[dia])}.` })} className="checklist-accion">No, dejar el actual</button>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+        <div className="flex flex-col lg:flex-row gap-2">
+          <button
+            type="button"
+            onClick={() => void generarWord(true)}
+            disabled={generando !== null}
+            className="btn-outline lg:flex-auto text-[#0E4660] bg-white py-3.5 px-5 font-bold text-base rounded-md hover:bg-[#d5e7f8] disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+          >
+            {generando === 'ver' ? (<><Loader2 size={18} className="animate-spin" /> Preparando…</>) : (<><Eye size={18} /> Ver antes de descargar</>)}
+          </button>
+          <button
+            type="button"
+            onClick={() => setModalDia(dia)}
+            disabled={!puedeEnviar}
+            className="checklist-enviar lg:flex-auto py-3.5 px-5 font-bold text-base rounded-md flex items-center justify-center gap-2"
+          >
+            {envioDia?.estado === 'enviando' ? (<><Loader2 size={18} className="animate-spin" /> Enviando…</>) : (<><Send size={18} /> {textoEnviar}</>)}
+          </button>
+          <button
+            type="button"
+            onClick={() => void generarWord(false)}
+            disabled={generando !== null}
+            className="btn-primary-field lg:flex-auto text-white py-3.5 px-5 font-bold text-base rounded-md disabled:!bg-[#9fb3bd] disabled:cursor-not-allowed flex items-center justify-center gap-2"
+          >
+            {generando === 'descargar' ? (<><Loader2 size={18} className="animate-spin" /> Generando checklist…</>) : (<><FileDown size={18} /> Descargar checklist en Word</>)}
+          </button>
+        </div>
       </div>
 
       {vista && (

@@ -72,11 +72,16 @@
   .checklist-dias { grid-template-columns: repeat(4, minmax(0, 1fr)); row-gap: 12px; }
 }
 
-/* Aviso del envío de las hojas al Informe Diario */
+/* Envío de las hojas al Informe Diario: abajo, entre "Ver antes de descargar" y "Descargar checklist en Word". */
 .checklist-diario {
   display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .5rem;
-  margin-bottom: .9rem; padding: .55rem .75rem; border-radius: .5rem;
+  padding: .55rem .75rem; border-radius: .5rem;
   background: var(--bg-e6f6e6, #e6f6e6); color: var(--tx-0b5d1e, #0b5d1e); font-size: .78rem; font-weight: 600;
 }
 .checklist-diario--error { background: var(--bg-fbe9e9, #fbe9e9); color: var(--tx-a32626, #a32626); }
 .checklist-diario--aviso { background: var(--bg-fff4e0, #fff4e0); color: var(--tx-7a4b00, #7a4b00); }
+.checklist-envio-nota { margin: 0; font-size: .78rem; color: var(--text-soft, #5f6b73); }
+.checklist-enviar { background: #1e8e3e; color: #fff; border: 1px solid #1e8e3e; transition: background-color 0.15s ease, transform 0.1s ease; }
+.checklist-enviar:hover:not(:disabled) { background: #187233; border-color: #187233; }
+.checklist-enviar:active:not(:disabled) { transform: scale(0.99); }
+.checklist-enviar:disabled { background: var(--bg-eef1f2, #eef1f2); border-color: var(--borde-claro, #dce1e6); color: #8a969d; cursor: not-allowed; }
