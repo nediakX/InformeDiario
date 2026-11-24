@@ -22,6 +22,8 @@ import { ACTIVIDAD_SUGERIDA_MANTENCION, getDefaultPersonal } from './constantes'
 import { creadoPorDiario } from '../../datos/divisiones';
 import type { InformeDiarioEstado } from './useInformeDiario';
 import { esRegistroGG, tieneReportabilidadGG } from '../estadoGeneradores';
+import { esSemillaSinEditar } from '../../datos/borradoresDiario';
+import { formatFechaLarga, nombreDiaSemana } from '../../datos/fechas';
 import { useImagenEstadoGG } from '../useImagenEstadoGG';
 
 /** Quitar una fila: con texto en pantallas anchas y como papelero en el celular (deja más espacio al campo). */
@@ -124,6 +126,15 @@ export default function InformeDiario({ d, volverABorradores, goToNewInforme }: 
   const registroGGAutomatico = tieneReportabilidadGG(division) && !!bloqueRegistroGG
     && bloqueRegistroGG.photos.length > 0 && !bloqueRegistroGG.photos.some(Boolean);
   const vistaEstadoGG = useImagenEstadoGG(division, fecha || null, registroGGAutomatico);
+
+  // Fecha del turno: en un informe con fotos (o finalizado), cambiarla mueve el informe entero a otro día y el día
+  // original queda sin informe. Por eso no se cambia escribiendo en el campo: se confirma en una ventana.
+  const informeConTrabajo = d.estadoEnLista === 'finalizado' || Boolean(d.finalizadoEn)
+    || evidenceBlocks.some(b => b.photos.some(Boolean)) || vertivCarroPhotos.some(Boolean) || vertivItemPhotos.some(Boolean);
+  const [fechaNueva, setFechaNueva] = useState<string | null>(null);
+  const diaConFecha = (iso: string) => `${nombreDiaSemana(iso)} ${formatFechaLarga(iso)}`;
+  const otroInformeEnFechaNueva = fechaNueva !== null && fechaNueva !== fecha && d.borradores.some(b =>
+    b.id !== d.currentDraftId && b.fecha === fechaNueva && b.turno === turno && !esSemillaSinEditar(b));
 
   // Turno noche que no se realizó: pide el motivo antes de marcarlo.
   const { sinTurno, sinTurnoMotivo, alternarSinTurno } = d;
@@ -250,8 +261,17 @@ export default function InformeDiario({ d, volverABorradores, goToNewInforme }: 
                 )}
               </div>
               <div>
-                <label className="block text-xs text-[#6B6B6B] font-bold mb-1">Fecha del turno</label>
-                <input type="date" value={fecha} onChange={e => setFecha(e.target.value)} className="w-full p-2 border border-[#DCE1E6] rounded-md text-sm" />
+                <label htmlFor={informeConTrabajo ? undefined : 'fecha-turno'} className="block text-xs text-[#6B6B6B] font-bold mb-1">Fecha del turno</label>
+                {informeConTrabajo ? (
+                  <div className="flex items-center gap-2">
+                    <p className="flex-1 min-w-0 p-2 border border-[#DCE1E6] rounded-md text-sm bg-[#F4F6F8] first-letter:uppercase">{diaConFecha(fecha)}</p>
+                    <button type="button" onClick={() => setFechaNueva(fecha)} className="btn-outline text-[#0E4660] px-3 py-2 rounded-md text-xs font-bold hover:bg-[#d5e7f8] shrink-0">
+                      Cambiar fecha
+                    </button>
+                  </div>
+                ) : (
+                  <input id="fecha-turno" type="date" value={fecha} onChange={e => setFecha(e.target.value)} className="w-full p-2 border border-[#DCE1E6] rounded-md text-sm" />
+                )}
               </div>
             </div>
 
@@ -801,6 +821,40 @@ export default function InformeDiario({ d, volverABorradores, goToNewInforme }: 
                 className="bg-[#a32626] text-white px-3 py-1.5 rounded-md text-xs font-bold disabled:opacity-50"
               >
                 Marcar turno no realizado
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {fechaNueva !== null && (
+        <div className="fixed inset-0 z-50 bg-black/50 p-4 flex items-center justify-center" role="dialog" aria-modal="true" aria-labelledby="cambiar-fecha-titulo">
+          <div className="modal-anim w-full max-w-md bg-white rounded-xl p-6 shadow-xl space-y-4">
+            <h2 id="cambiar-fecha-titulo" className="text-lg font-bold text-[#0E4660]">Cambiar la fecha del informe</h2>
+            <p className="text-sm text-gray-600">
+              Este informe es del <strong>{diaConFecha(fecha)}</strong> (Turno {turno === 'noche' ? 'Noche' : 'Día'}). Si cambias la fecha, el
+              informe completo —personal, actividades y fotos— pasa al día que elijas y el {nombreDiaSemana(fecha)} {fecha.split('-').reverse().join('/')} queda sin informe.
+            </p>
+            <div>
+              <label htmlFor="fecha-nueva" className="block text-xs text-[#6B6B6B] font-bold mb-1">Nueva fecha</label>
+              <input id="fecha-nueva" type="date" value={fechaNueva} onChange={e => setFechaNueva(e.target.value)} className="w-full p-2 border border-[#DCE1E6] rounded-md text-sm" />
+            </div>
+            {otroInformeEnFechaNueva && (
+              <p className="text-xs text-[#856404] bg-[#FFF3CD] border border-[#FFEEBA] rounded-md px-2 py-1.5" role="alert">
+                Ya hay un informe del {diaConFecha(fechaNueva)} (Turno {turno === 'noche' ? 'Noche' : 'Día'}): ese día quedarían dos informes.
+              </p>
+            )}
+            <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2">
+              <button type="button" onClick={() => setFechaNueva(null)} className="border border-[#DCE1E6] text-[#333] rounded-md px-3 py-2 text-sm font-bold hover:bg-gray-50">
+                Cancelar
+              </button>
+              <button
+                type="button"
+                disabled={!fechaNueva || fechaNueva === fecha}
+                onClick={() => { if (fechaNueva) setFecha(fechaNueva); setFechaNueva(null); }}
+                className="bg-[#0E4660] text-white rounded-md px-3 py-2 text-sm font-bold hover:bg-[#0a3549] disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Mover el informe
               </button>
             </div>
           </div>

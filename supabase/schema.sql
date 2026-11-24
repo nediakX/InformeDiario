@@ -547,6 +547,35 @@ create trigger borradores_otros_auditar
 after insert or delete on public.borradores_otros
 for each row execute function public.auditar_borrador();
 
+-- Informe Diario que cambia de fecha o de turno (noviembre 2026): el informe "se mueve" a otro día y el día original
+-- queda sin informe, sin que nada se elimine. Queda en la bitácora quién lo movió y de qué día a cuál.
+create or replace function public.auditar_borrador_movido()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if new.fecha is distinct from old.fecha or new.turno is distinct from old.turno then
+    insert into public.actividad (usuario_id, tipo, detalle, referencia)
+    values (
+      auth.uid(),
+      'informe_movido',
+      'Informe Diario ' || to_char(old.fecha, 'DD-MM-YYYY') || ' · ' || case old.turno when 'dia' then 'Día' else 'Noche' end
+        || ' → ' || to_char(new.fecha, 'DD-MM-YYYY') || ' · ' || case new.turno when 'dia' then 'Día' else 'Noche' end
+        || case when new.division = 'andina' then ' · Andina' else '' end,
+      new.id::text
+    );
+  end if;
+  return null;
+end;
+$$;
+
+drop trigger if exists borradores_auditar_movido on public.borradores;
+create trigger borradores_auditar_movido
+after update on public.borradores
+for each row execute function public.auditar_borrador_movido();
+
 create or replace function public.auditar_perfil()
 returns trigger
 language plpgsql

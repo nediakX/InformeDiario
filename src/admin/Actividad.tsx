@@ -19,6 +19,7 @@ const TIPOS: Record<string, { etiqueta: string; grupo: 'sesion' | 'informes' | '
   cierre_sesion: { etiqueta: 'Cerró sesión', grupo: 'sesion' },
   informe_creado: { etiqueta: 'Creó un informe', grupo: 'informes' },
   informe_eliminado: { etiqueta: 'Eliminó un informe', grupo: 'informes' },
+  informe_movido: { etiqueta: 'Cambió la fecha de un informe', grupo: 'informes' },
   word_generado: { etiqueta: 'Generó un Word', grupo: 'informes' },
   impresion_generada: { etiqueta: 'Preparó impresión', grupo: 'informes' },
   cuenta_registrada: { etiqueta: 'Se registró', grupo: 'cuentas' },
