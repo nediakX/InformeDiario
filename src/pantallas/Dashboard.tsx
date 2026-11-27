@@ -545,7 +545,7 @@ export default function Dashboard({
             <SelectorDivision />
             {/* Vista: la del rol o el inicio completo, en un solo selector. El administrador además elige el rol en
                 una lista, para ver cómo ve el inicio cada rol. */}
-            <div role={esAdmin ? 'group' : 'radiogroup'} aria-label="Vista del inicio" className="dash-vista inline-flex items-center rounded-full border border-[#DCE1E6] bg-white p-0.5 text-xs font-bold">
+            <div role={esAdmin ? 'group' : 'radiogroup'} aria-label="Vista del inicio" className="dash-vista-sel inline-flex items-center rounded-full border border-[#DCE1E6] bg-white p-0.5 text-xs font-bold">
               <LayoutGrid size={14} className="mx-1.5 text-[#0E4660]" aria-hidden="true" />
               {esAdmin ? (
                 <>

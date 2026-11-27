@@ -384,8 +384,8 @@ html[data-tema-oscuro] .dash-previa__boton:hover { background: #4a4020; }
   /* División y vista caben en una sola fila: sin íconos y con menos relleno. Si el rol que elige el
      administrador tiene un nombre largo, la vista baja a otra fila en vez de salirse de la pantalla. */
   .dash-cuenta { flex-wrap: wrap; gap: 6px; }
-  .dash-cuenta > [role='radiogroup'] > svg, .dash-cuenta > .dash-vista > svg { display: none; }
-  .dash-cuenta > [role='radiogroup'] > button, .dash-cuenta > .dash-vista > button { padding-left: 10px; padding-right: 10px; }
+  .dash-cuenta > [role='radiogroup'] > svg, .dash-cuenta > .dash-vista-sel > svg { display: none; }
+  .dash-cuenta > [role='radiogroup'] > button, .dash-cuenta > .dash-vista-sel > button { padding-left: 10px; padding-right: 10px; }
   .dash-vista-rol select { padding-left: 10px; padding-right: 22px; }
   .dash-vista-rol > svg { right: 7px; }
   .dash-previa { padding: 8px 10px; font-size: 0.8rem; }
