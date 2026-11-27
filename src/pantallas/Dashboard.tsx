@@ -1,6 +1,6 @@
 import CuentaCabecera from '../componentes/CuentaCabecera';
 import { Fragment, Suspense, lazy, useEffect, useState, type CSSProperties, type ReactNode } from 'react';
-import { ChevronDown, ClipboardCheck, CloudOff, FileStack, FolderOpen, ChevronRight, Bell, FilePlus, Sun, Moon, Wrench, AlertTriangle, LayoutGrid, Pencil, Pin } from 'lucide-react';
+import { ChevronDown, ClipboardCheck, CloudOff, FileStack, FolderOpen, ChevronRight, Bell, FilePlus, Sun, Moon, Wrench, AlertTriangle, LayoutGrid, Pencil, Pin, Eye } from 'lucide-react';
 import { useSesion, nombreVisible } from '../auth/sesion';
 import { useConexion } from '../lib/conexion';
 import { registrarDeshacer } from '../lib/deshacer';
@@ -25,9 +25,11 @@ import { SITIOS_MAPA, carrosSinUbicacion } from '../datos/sitiosMapa';
 // La vista previa del mapa trae Leaflet: se carga aparte para no demorar el panel.
 const MiniMapaSitios = lazy(() => import('./MiniMapaSitios'));
 import { PorRevisar, ResumenContrato } from './BloquesRol';
-import { DISENO_INICIO, DISENO_INICIO_ANDINA, ETIQUETA_CORTA_ROL, ETIQUETA_ROL, MAX_ACCESOS_RAPIDOS, ORDEN_COMPLETO, rolDePersona, type BloqueInicio, type IdTarea } from '../datos/roles';
+import { DISENO_INICIO, DISENO_INICIO_ANDINA, ETIQUETA_CORTA_ROL, ETIQUETA_ROL, MAX_ACCESOS_RAPIDOS, ORDEN_COMPLETO, ROLES_INICIO, esRolInicio, rolDePersona, type BloqueInicio, type IdTarea, type Rol } from '../datos/roles';
 
 type TipoBorradorTab = 'diario' | 'mantenimiento' | 'falla';
+/** Rol con que el administrador está viendo el inicio (vista previa), mientras la pestaña siga abierta. */
+const CLAVE_VISTA_PREVIA = 'psinet_inicio_vista_rol';
 type EstadoPip = 'pendiente' | 'iniciado' | 'finalizado' | 'futuro' | 'no_realizado';
 
 const INICIAL_DIA = ['D', 'L', 'M', 'M', 'J', 'V', 'S'];
@@ -182,7 +184,7 @@ export default function Dashboard({
   const saludo = hora >= 5 && hora < 12 ? 'Buenos días' : hora >= 12 && hora < 20 ? 'Buenas tardes' : 'Buenas noches';
 
   // --- Rol: decide el orden del inicio (solo visual; permisos y datos no cambian) ---
-  const { rol } = rolDePersona(perfil, nombreVisible(perfil), division);
+  const { rol: rolPropio } = rolDePersona(perfil, nombreVisible(perfil), division);
   const [verTodo, setVerTodo] = useState<boolean>(() => {
     try { return localStorage.getItem('psinet_inicio_completo') === '1'; } catch { return false; }
   });
@@ -190,6 +192,25 @@ export default function Dashboard({
     try { localStorage.setItem('psinet_inicio_completo', v ? '0' : '1'); } catch { /* sin almacenamiento */ }
     return !v;
   });
+  // Vista previa (solo administradores): el inicio tal como lo ve otro rol, con los accesos rápidos del rol y sin
+  // lo que es solo de administradores. Solo cambia en esta pantalla; se recuerda mientras la pestaña siga abierta.
+  const [rolPrevia, setRolPrevia] = useState<Rol | null>(() => {
+    try { const v = sessionStorage.getItem(CLAVE_VISTA_PREVIA); return esRolInicio(v) ? v : null; } catch { return null; }
+  });
+  const enVistaPrevia = esAdmin && rolPrevia !== null && rolPrevia !== rolPropio;
+  const rol: Rol = enVistaPrevia && rolPrevia ? rolPrevia : rolPropio;
+  const verAdmin = esAdmin && !enVistaPrevia;
+  const guardarRolPrevia = (r: Rol | null) => {
+    try {
+      if (r) sessionStorage.setItem(CLAVE_VISTA_PREVIA, r); else sessionStorage.removeItem(CLAVE_VISTA_PREVIA);
+    } catch { /* sin almacenamiento */ }
+    setRolPrevia(r);
+  };
+  /** Rol elegido en la lista: muestra el inicio de ese rol (el propio termina la vista previa). */
+  const verComoRol = (r: Rol) => {
+    guardarRolPrevia(r === rolPropio ? null : r);
+    if (verTodo) alternarVista();
+  };
   // Andina tiene la misma distribución que El Salvador; cambian solo sus accesos rápidos (y trabaja solo el
   // Turno Día). Su monitor de generadores y su mapa usan sus propios carros.
   const esAndina = division === 'andina';
@@ -237,7 +258,7 @@ export default function Dashboard({
       estado="ART, registros y checklists escaneados, en PDF" ayuda />,
     recuperar: <Tarea id="recuperar" onClick={onImportar}
       estado="Vuelve a crear un informe borrado a partir de su Word" ayuda />,
-    admin: esAdmin ? <Tarea id="admin" onClick={() => onNavigate('admin')}
+    admin: verAdmin ? <Tarea id="admin" onClick={() => onNavigate('admin')}
       estado={pendientesAprobacion > 0 ? `${pendientesAprobacion} cuenta${pendientesAprobacion === 1 ? '' : 's'} por aprobar` : 'Indicadores, actividades, generadores y usuarios'}
       tono={pendientesAprobacion > 0 ? 'aviso' : undefined} /> : null,
   };
@@ -305,7 +326,8 @@ export default function Dashboard({
   // Opciones que se pueden anclar (las de "Todas las opciones" que la persona puede usar) y las que se ven.
   const disponibles = GRUPOS_OPCIONES.flatMap(g => g.ids).filter(id => tareas[id]);
   const accesosRol = accesosDelRol(diseno.accesos, id => Boolean(tareas[id]));
-  const accesosVisibles = elegidos ? elegidos.filter(id => tareas[id]).slice(0, MAX_ACCESOS_RAPIDOS) : accesosRol;
+  // En la vista previa van los accesos que trae el rol (los que elija cada persona son de su cuenta).
+  const accesosVisibles = elegidos && !enVistaPrevia ? elegidos.filter(id => tareas[id]).slice(0, MAX_ACCESOS_RAPIDOS) : accesosRol;
   const guardarAccesos = (ids: IdTarea[] | null) => {
     const anteriores = elegidos;
     setEditorAccesos(false);
@@ -318,12 +340,14 @@ export default function Dashboard({
     <section className="dash-accesos" aria-labelledby="dash-accesos-titulo">
       <div className="dash-accesos__cabecera">
         <h2 id="dash-accesos-titulo" className="dash-grupo__titulo">Accesos rápidos</h2>
-        <button type="button" className="dash-accesos__editar" onClick={() => setEditorAccesos(true)} aria-haspopup="dialog"
-          aria-label="Editar accesos rápidos" title="Elegir qué opciones anclar (hasta 5)">
-          <Pencil size={13} aria-hidden="true" /> Editar
-        </button>
+        {!enVistaPrevia && (
+          <button type="button" className="dash-accesos__editar" onClick={() => setEditorAccesos(true)} aria-haspopup="dialog"
+            aria-label="Editar accesos rápidos" title="Elegir qué opciones anclar (hasta 5)">
+            <Pencil size={13} aria-hidden="true" /> Editar
+          </button>
+        )}
       </div>
-      {accesosVisibles.length > 0 ? (
+      {accesosVisibles.length > 0 || enVistaPrevia ? (
         <div className="dash-grupo__lista">
           {accesosVisibles.map(id => <Fragment key={id}>{tareas[id]}</Fragment>)}
         </div>
@@ -332,14 +356,14 @@ export default function Dashboard({
           <Pin size={16} aria-hidden="true" /> Ancla hasta {MAX_ACCESOS_RAPIDOS} opciones para tenerlas a mano
         </button>
       )}
-      {accesosSinSubir && !enLinea && (
+      {accesosSinSubir && !enLinea && !enVistaPrevia && (
         <p className="dash-accesos__nota"><CloudOff size={13} aria-hidden="true" /> Sin señal: se guardan en tu cuenta al volver la conexión.</p>
       )}
     </section>
   );
 
   const bloques: Record<BloqueInicio, ReactNode> = {
-    contrato: <ResumenContrato division={division} onVerMas={esAdmin ? () => onNavigate('admin') : undefined} />,
+    contrato: <ResumenContrato division={division} onVerMas={verAdmin ? () => onNavigate('admin') : undefined} />,
     revisar: (
       <PorRevisar
         titulo={esGestion ? 'Por revisar' : 'Pendientes del turno'}
@@ -519,10 +543,35 @@ export default function Dashboard({
           </div>
           <div className="dash-cuenta">
             <SelectorDivision />
-            {/* Vista: la del rol o el inicio completo, en un solo selector */}
-            <div role="radiogroup" aria-label="Vista del inicio" className="inline-flex items-center rounded-full border border-[#DCE1E6] bg-white p-0.5 text-xs font-bold">
+            {/* Vista: la del rol o el inicio completo, en un solo selector. El administrador además elige el rol en
+                una lista, para ver cómo ve el inicio cada rol. */}
+            <div role={esAdmin ? 'group' : 'radiogroup'} aria-label="Vista del inicio" className="dash-vista inline-flex items-center rounded-full border border-[#DCE1E6] bg-white p-0.5 text-xs font-bold">
               <LayoutGrid size={14} className="mx-1.5 text-[#0E4660]" aria-hidden="true" />
-              {([[false, ETIQUETA_CORTA_ROL[rol]], [true, 'Todo']] as const).map(([todo, texto]) => (
+              {esAdmin ? (
+                <>
+                  <span className={`dash-vista-rol${verTodo ? '' : ' dash-vista-rol--activa'}`}>
+                    <select aria-label="Ver el inicio como" title="Ver el inicio como lo ve cada rol"
+                      value={verTodo ? '' : rol}
+                      onChange={e => { if (esRolInicio(e.target.value)) verComoRol(e.target.value); }}>
+                      {/* Con "Todo" elegido la lista muestra el rol sin marcarlo: así elegir cualquier rol (también el
+                          mismo) vuelve a la vista por rol. */}
+                      {verTodo && <option value="" disabled hidden>{ETIQUETA_CORTA_ROL[rol]}</option>}
+                      <optgroup label="Tu rol">
+                        <option value={rolPropio}>{ETIQUETA_CORTA_ROL[rolPropio]}</option>
+                      </optgroup>
+                      <optgroup label="Ver como">
+                        {ROLES_INICIO.filter(r => r !== rolPropio).map(r => <option key={r} value={r}>{ETIQUETA_CORTA_ROL[r]}</option>)}
+                      </optgroup>
+                    </select>
+                    <ChevronDown size={12} aria-hidden="true" />
+                  </span>
+                  <button type="button" aria-pressed={verTodo} title="Ver el inicio completo"
+                    onClick={() => { if (!verTodo) alternarVista(); }}
+                    className={`rounded-full px-3 py-1 transition-colors ${verTodo ? 'bg-[#0E4660] text-white' : 'text-[#0E4660] hover:bg-[#e3edf3]'}`}>
+                    Todo
+                  </button>
+                </>
+              ) : ([[false, ETIQUETA_CORTA_ROL[rol]], [true, 'Todo']] as const).map(([todo, texto]) => (
                 <button key={texto} type="button" role="radio" aria-checked={verTodo === todo}
                   title={todo ? 'Ver el inicio completo' : `Ver solo lo de ${ETIQUETA_ROL[rol].toLowerCase()}`}
                   onClick={() => { if (verTodo !== todo) alternarVista(); }}
@@ -533,6 +582,16 @@ export default function Dashboard({
             </div>
           </div>
         </div>
+
+        {enVistaPrevia && (
+          <div className="dash-previa" role="status">
+            <Eye size={18} aria-hidden="true" />
+            <span className="dash-previa__texto">
+              <strong>Vista previa como {ETIQUETA_ROL[rol]}:</strong> así ve el inicio ese rol, con sus accesos rápidos por defecto. Solo cambia en tu pantalla.
+            </span>
+            <button type="button" className="dash-previa__boton" onClick={() => guardarRolPrevia(null)}>Volver a mi vista</button>
+          </div>
+        )}
 
         {verTodo ? (
           <>

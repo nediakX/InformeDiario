@@ -41,6 +41,11 @@ export function rolDeCargo(cargo: string): Rol {
 export const ROLES: Rol[] = ['tecnico', 'electrico', 'electromecanico', 'supervisor', 'lider_tecnico', 'ingeniero_especialista', 'jefe', 'contrato'];
 export const esRol = (v: unknown): v is Rol => typeof v === 'string' && (ROLES as string[]).includes(v);
 
+/** Todos los roles con inicio propio, en el orden de la lista "Ver como" del administrador (incluye Experto SSO,
+ *  que sale del cargo y no se asigna a mano). */
+export const ROLES_INICIO: Rol[] = ['tecnico', 'electrico', 'electromecanico', 'experto_sso', 'supervisor', 'lider_tecnico', 'ingeniero_especialista', 'jefe', 'contrato'];
+export const esRolInicio = (v: unknown): v is Rol => typeof v === 'string' && (ROLES_INICIO as string[]).includes(v);
+
 /** Rol según el listado de trabajadores (sin contar el que asigne un administrador). */
 export function rolDelListado(rut: string | null | undefined, nombre: string, division: Division): { rol: Rol; cargo: string | null } {
   const r = rutLimpio(rut);

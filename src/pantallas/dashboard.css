@@ -344,11 +344,52 @@
   .dash-top { align-items: center; gap: 8px; }
   .dash-cuenta { width: 100%; justify-content: space-between; }
 }
+/* Vista del administrador: el rol se elige en una lista (cómo ve el inicio cada rol). Tiene el mismo aspecto que
+   los botones del selector; las opciones de la lista van en colores normales. */
+.dash-vista-rol { position: relative; display: inline-flex; align-items: center; }
+.dash-vista-rol select {
+  appearance: none; -webkit-appearance: none; margin: 0; border: 0; border-radius: 999px;
+  padding: 4px 24px 4px 12px; font: inherit; line-height: inherit; cursor: pointer;
+  background: transparent; color: #0E4660; transition: background-color 0.15s ease;
+}
+.dash-vista-rol select:hover { background: #e3edf3; }
+.dash-vista-rol > svg { position: absolute; right: 8px; pointer-events: none; color: #0E4660; }
+.dash-vista-rol--activa select, .dash-vista-rol--activa select:hover { background: #0E4660; color: #fff; }
+.dash-vista-rol--activa > svg { color: #fff; }
+.dash-vista-rol option, .dash-vista-rol optgroup { background: #fff; color: #222; }
+html[data-tema-oscuro] .dash-vista-rol select { background: transparent; color: #8cc4de; }
+html[data-tema-oscuro] .dash-vista-rol select:hover { background: #1a303d; }
+html[data-tema-oscuro] .dash-vista-rol > svg { color: #8cc4de; }
+html[data-tema-oscuro] .dash-vista-rol--activa select, html[data-tema-oscuro] .dash-vista-rol--activa select:hover { background: #0E4660; color: #fff; }
+html[data-tema-oscuro] .dash-vista-rol--activa > svg { color: #fff; }
+html[data-tema-oscuro] .dash-vista-rol option, html[data-tema-oscuro] .dash-vista-rol optgroup { background: #1b2327; color: #e6ebee; }
+
+/* Aviso de vista previa por rol (solo administradores) */
+.dash-previa {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; padding: 8px 12px; border-radius: 12px;
+  background: #fff3cd; border: 1px solid #ecd38a; color: #5c4500; font-size: 0.85rem; line-height: 1.35;
+}
+.dash-previa > svg { flex: none; }
+.dash-previa__texto { flex: 1; min-width: 220px; }
+.dash-previa__boton {
+  flex: none; padding: 5px 12px; border-radius: 999px; border: 1px solid #c9a227; background: #fff;
+  color: #5c4500; font-size: 0.78rem; font-weight: 700; white-space: nowrap; cursor: pointer;
+}
+.dash-previa__boton:hover { background: #fde9a8; }
+html[data-tema-oscuro] .dash-previa { background: #3a3218; border-color: #6b5a22; color: #f3dc94; }
+html[data-tema-oscuro] .dash-previa__boton { background: transparent; border-color: #8a7430; color: #f3dc94; }
+html[data-tema-oscuro] .dash-previa__boton:hover { background: #4a4020; }
+
 @media (max-width: 720px) {
-  /* División y vista caben en una sola fila: sin íconos y con menos relleno. */
-  .dash-cuenta { flex-wrap: nowrap; gap: 6px; }
-  .dash-cuenta > [role='radiogroup'] > svg { display: none; }
-  .dash-cuenta > [role='radiogroup'] > button { padding-left: 10px; padding-right: 10px; }
+  /* División y vista caben en una sola fila: sin íconos y con menos relleno. Si el rol que elige el
+     administrador tiene un nombre largo, la vista baja a otra fila en vez de salirse de la pantalla. */
+  .dash-cuenta { flex-wrap: wrap; gap: 6px; }
+  .dash-cuenta > [role='radiogroup'] > svg, .dash-cuenta > .dash-vista > svg { display: none; }
+  .dash-cuenta > [role='radiogroup'] > button, .dash-cuenta > .dash-vista > button { padding-left: 10px; padding-right: 10px; }
+  .dash-vista-rol select { padding-left: 10px; padding-right: 22px; }
+  .dash-vista-rol > svg { right: 7px; }
+  .dash-previa { padding: 8px 10px; font-size: 0.8rem; }
+  .dash-previa__texto { min-width: 0; flex-basis: calc(100% - 30px); }
 }
 
 /* Todas las opciones en estilo de app (cuadrícula de íconos, como Facebook o Instagram) */
